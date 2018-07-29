@@ -32,8 +32,6 @@
     "tape": "^4.9.1"
   },
   "dependencies": {
-    "rollup-plugin-node-builtins": "^2.1.2",
-    "rollup-plugin-node-globals": "^1.2.1",
     "ol": "^5.1.3"
   }
 }
