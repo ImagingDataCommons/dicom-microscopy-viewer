@@ -301,14 +301,12 @@ class MicroscopyViewer {
         code: "NONE",
         units: 'm',
         extent: extent,
-        // FIXME: is point resolution computed correctly?
         getPointResolution: function(pixelRes, point) {
           /*
-           * Pixel spacing has in millimeter unit while the projection has
+           * DICOM pixel spacing has millimeter unit while the projection has
            * has meter unit.
            */
-          // FIXME: is this correct?
-          let spacing = levels[levels.length-1].pixelSpacing[1] * 10**3;
+          let spacing = levels[0].pixelSpacing[1] / 10**3;
           let metricRes = pixelRes * spacing;
           return(metricRes);
         }
