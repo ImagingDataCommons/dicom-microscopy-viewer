@@ -17,6 +17,12 @@ import { formatImageMetadata } from './metadata.js';
 
 class MicroscopyViewer {
 
+  /*
+   * options:
+   * client - an instance of DICOMwebClient
+   * studyInstanceUID - DICOM Study Instance UID
+   * seriesInstanceUID - DICOM Study Instance UID
+   */
   constructor(options) {
     this.client = options.client;
     this.studyInstanceUID = options.studyInstanceUID;
@@ -24,6 +30,10 @@ class MicroscopyViewer {
     this.map = null;
   }
 
+  /*
+   * options:
+   * container - name of an HTML document element
+   */
   render(options) {
     console.log('render images using microscopy viewer')
     const studyInstanceUID = this.studyInstanceUID;

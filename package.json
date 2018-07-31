@@ -18,7 +18,7 @@
     "dicomweb",
     "microscopy"
   ],
-  "author": "Markus Herrmann",
+  "author": "Markus D. Herrmann",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/dcmjs-org/dicom-microscopy-viewer/issues"
