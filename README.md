@@ -4,7 +4,7 @@ Web-based viewer for [DICOM Visible Light Whole Slide Microscopy Images](http://
 
 ## Install
 
-The `dicom-microscopy-viewer` package can be installed via [npm](https://www.npmjs.com/):
+The [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-microscopy-viewer) package can be installed via `npm` package manager:
 
 ```None
 npm install dicom-microscopy-viewer
@@ -19,6 +19,17 @@ git clone https://github.com/dcmjs-org/dicom-microscopy-viewer ~/dicom-microscop
 cd ~/dicom-microscopy-viewer
 npm install
 npm run build
+```
+
+## Test
+
+The library can be tested locally with [mochify](https://github.com/mantoni/mochify.js) (using [mocha](https://mochajs.org/) and [chai](http://www.chaijs.com/)):
+
+```None
+git clone https://github.com/dcmjs-org/dicom-microscopy-viewer ~/dicom-microscopy-viewer
+cd ~/dicom-microscopy-viewer
+npm install
+npm test
 ```
 
 ## Usage
@@ -41,13 +52,13 @@ viewer.render({container: "viewport"});
 **This is work-in-progress and should not be used in clinical practice.**
 
 The viewer allows visualization of *VL Whole Slide Microscopy Image* datasets stored in a [DICOMweb](https://www.dicomstandard.org/dicomweb/) compatible archive.
-It leverages [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client) to retrieve data from the archive.
+It leverages the [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client) JavaScript library to retrieve data from the archive.
 
 ### Limitations
 
 Currently, the viewer only supports
 
-* baseline JPEG with transfer syntax "1.2.840.10008.1.2.4.50"
+* baseline JPEG compressed data (transfer syntax "1.2.840.10008.1.2.4.50")
 * brightfield illumination (no fluorescence)
 * 2D images (no z-stacks)
 

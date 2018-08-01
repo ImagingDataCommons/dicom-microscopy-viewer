@@ -4,7 +4,8 @@
   "description": "Web-based viewer for DICOM Visible Light Whole Slide Microscopy Images",
   "main": "build/dicom-microscopy-viewer.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mochify",
+    "webdriver": "mochify --wd",
     "build": "rollup -c",
     "watch": "rollup -c -w"
   },
@@ -24,13 +25,18 @@
     "url": "https://github.com/dcmjs-org/dicom-microscopy-viewer/issues"
   },
   "homepage": "https://github.com/dcmjs-org/dicom-microscopy-viewer#readme",
+  "config": {
+    "puppeteer_skip_chromium_download": true
+  },
   "devDependencies": {
+    "chai": "^4.1.2",
+    "mocha": "^5.2.0",
+    "mochify": "^5.8.0",
     "rollup": "^0.63.2",
     "rollup-plugin-commonjs": "8.3.0",
     "rollup-plugin-json": "^3.0.0",
     "rollup-plugin-node-builtins": "^2.1.2",
-    "rollup-plugin-node-resolve": "^3.3.0",
-    "tape": "^4.9.1"
+    "rollup-plugin-node-resolve": "^3.3.0"
   },
   "dependencies": {
     "ol": "^5.1.3"
