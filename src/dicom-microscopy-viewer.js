@@ -1,7 +1,7 @@
-import { MicroscopyViewer } from './api.js';
+import { DICOMMicroscopyViewer } from './api.js';
 
 let api = {
-  MicroscopyViewer,
+  DICOMMicroscopyViewer,
 };
 
 export { api };

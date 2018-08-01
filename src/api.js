@@ -15,7 +15,7 @@ import { getCenter } from 'ol/extent.js';
 import { formatImageMetadata } from './metadata.js';
 
 
-class MicroscopyViewer {
+class DICOMMicroscopyViewer {
 
   /*
    * options:
@@ -406,4 +406,4 @@ class MicroscopyViewer {
 
 }
 
-export { MicroscopyViewer };
+export { DICOMMicroscopyViewer };

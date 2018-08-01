@@ -9,7 +9,7 @@ export default {
     {
       file: 'build/dicom-microscopy-viewer.js',
       format: 'umd',
-      name: 'MicroscopyViewer',
+      name: 'DICOMMicroscopyViewer',
       sourceMap: true
     },
   ],

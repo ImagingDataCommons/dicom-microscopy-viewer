@@ -2,7 +2,7 @@ const chai = require('chai');
 chai.should();
 
 const dicomMicroscopyViewer = require('../build/dicom-microscopy-viewer.js');
-const viewer = new dicomMicroscopyViewer.api.MicroscopyViewer({
+const viewer = new dicomMicroscopyViewer.api.DICOMMicroscopyViewer({
   client: 'foo',
   studyInstanceUID: '1.2.3.4',
   seriesInstanceUID: '1.2.3.5'

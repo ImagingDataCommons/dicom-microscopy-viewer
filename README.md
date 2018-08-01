@@ -41,7 +41,7 @@ const url = 'http://localhost:8080/dicomweb';
 const client = new DICOMwebClient.api.DICOMwebClient({url});
 const studyInstanceUID = '1.2.3.4';
 const seriesInstanceUID = '1.2.3.5';
-const viewer = new DICOMMicroscopyViewer.api.MicroscopyViewer({
+const viewer = new DICOMMicroscopyViewer.api.DICOMMicroscopyViewer({
   client,
   studyInstanceUID,
   seriesInstanceUID

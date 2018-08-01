@@ -1,7 +1,7 @@
 (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
   typeof define === 'function' && define.amd ? define(['exports'], factory) :
-  (factory((global.MicroscopyViewer = {})));
+  (factory((global.DICOMMicroscopyViewer = {})));
 }(this, (function (exports) { 'use strict';
 
   /**
@@ -49441,8 +49441,14 @@
     });
   }
 
-  class MicroscopyViewer {
+  class DICOMMicroscopyViewer {
 
+    /*
+     * options:
+     * client - an instance of DICOMwebClient
+     * studyInstanceUID - DICOM Study Instance UID
+     * seriesInstanceUID - DICOM Study Instance UID
+     */
     constructor(options) {
       this.client = options.client;
       this.studyInstanceUID = options.studyInstanceUID;
@@ -49450,6 +49456,10 @@
       this.map = null;
     }
 
+    /*
+     * options:
+     * container - name of an HTML document element
+     */
     render(options) {
       console.log('render images using microscopy viewer');
       const studyInstanceUID = this.studyInstanceUID;
@@ -49813,7 +49823,7 @@
   }
 
   let api = {
-    MicroscopyViewer,
+    DICOMMicroscopyViewer,
   };
 
   exports.api = api;
