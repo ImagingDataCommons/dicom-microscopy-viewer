@@ -49630,6 +49630,20 @@
             '1.2.840.10008.1.2.4.80': 'x-jls',
             '1.2.840.10008.1.2.4.90': 'jp2'
         };
+
+        function base64Encode(data){
+          const uint8Array = new Uint8Array(data);
+          const chunkSize = 0x8000;
+          const strArray = [];
+          for (let i=0; i < uint8Array.length; i+=chunkSize) {
+            let str = String.fromCharCode.apply(
+              null, uint8Array.subarray(i, i + chunkSize)
+            );
+            strArray.push(str);
+          }
+          return btoa(strArray.join(''));
+        }
+
         function tileLoadFunction(tile, src) {
           if (src !== null) {
             let studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
@@ -49648,9 +49662,8 @@
               imageSubtype
             };
             client.retrieveInstanceFrames(retrieveOptions).then((frames) => {
-              let pixels = frames[0];
               // Encode pixel data as base64 string
-              const encodedPixels = btoa(String.fromCharCode(...new Uint8Array(pixels)));
+              const encodedPixels = base64Encode(frames[0]);
               // Add pixel data to image
               tile.getImage().src = "data:image/" + imageSubtype + ";base64," + encodedPixels;
 
@@ -49814,7 +49827,7 @@
           loadTilesWhileInteracting: true,
           logo: false
         });
-        this.map.getView().fit(extent);
+        this.map.getView().fit(extent, this.map.getSize());
         return(this.map);
       });
       return(mapPromise);
