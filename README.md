@@ -1,40 +1,41 @@
 [![Build Status](https://travis-ci.com/dcmjs-org/dicom-microscopy-viewer.svg?branch=master)](https://travis-ci.com/dcmjs-org/dicom-microscopy-viewer)
 
 # DICOM Microscopy Viewer
-Web-based viewer for [DICOM Visible Light Whole Slide Microscopy Images](http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html).
+Vanilla JS library for web-based visualization of [DICOM VL Whole Slide Microscopy Image](http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html) datasets.
+The library only depends on [Openlayers](http://openlayers.org/) for rendering pyramid images and retrieves pyramid tiles (image frames) using [DICOMweb WADO-RS](https://www.dicomstandard.org/dicomweb/retrieve-wado-rs-and-wado-uri/). 
 
 
-## Install
+## Installation
 
-The [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-microscopy-viewer) package can be installed via `npm` package manager:
+Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-microscopy-viewer) package using the `npm` package manager:
 
 ```None
 npm install dicom-microscopy-viewer
 ```
 
-## Build
+## Building and testing
 
-The library can be build locally with [rollup](https://rollupjs.org/guide/en):
+Build and test code locally:
 
 ```None
 git clone https://github.com/dcmjs-org/dicom-microscopy-viewer ~/dicom-microscopy-viewer
 cd ~/dicom-microscopy-viewer
 npm install
 npm run build
-```
-
-## Test
-
-The library can be tested locally with [mochify](https://github.com/mantoni/mochify.js) (using [mocha](https://mochajs.org/) and [chai](http://www.chaijs.com/)):
-
-```None
-git clone https://github.com/dcmjs-org/dicom-microscopy-viewer ~/dicom-microscopy-viewer
-cd ~/dicom-microscopy-viewer
-npm install
 npm test
 ```
 
+We use [rollup](https://rollupjs.org/guide/en) for bundling and [mochify](https://github.com/mantoni/mochify.js) for testing (based on [mocha](https://mochajs.org/) and [chai](http://www.chaijs.com/)).
+
+
 ## Usage
+
+The viewer can be embedded in any website.
+
+First, create an instance of the `DICOMMicroscopy` viewer. The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the [Study Instance UID](http://dicom.nema.org/medical/dicom/2018b/output/chtml/part03/sect_C.7.2.html#para_a73c2743-6150-4a31-9da7-0d50edb8cd67) and [Series Instance UID](http://dicom.nema.org/medical/dicom/2018b/output/chtml/part03/sect_C.7.3.html#para_b0bcb555-c05c-4c1d-8b7e-8904168a3d38).
+
+Second, call the `render()` method, passing it the HTML element or the name of the element, which shall contain the viewport.
+
 
 ```js
 const url = 'http://localhost:8080/dicomweb';
