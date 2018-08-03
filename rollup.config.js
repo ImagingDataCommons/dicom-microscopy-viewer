@@ -14,13 +14,13 @@ export default {
     },
   ],
   plugins: [
+    builtins(),
+    commonjs(),
+    json(),
     resolve({
       jsnext: true,
       main: true,
       browser: true,
     }),
-    commonjs(),
-    builtins(),
-    json()
   ]
 };
