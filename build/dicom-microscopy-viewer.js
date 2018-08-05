@@ -50423,15 +50423,21 @@
       });
 
       // TODO: ol/control/ZoomToExtent for resolution levels (5x, 10x, 20x, ...)
+      // FIXME: change "className"
       this[controls] = {
         overview: new OverviewMap({
           view: overviewView,
-          collapsed: true
+          collapsed: true,
         }),
-        zoom: new Zoom(),
-        zoomSlider: new ZoomSlider(),
-        fullScreen: new FullScreen(),
-        scaleLine: new ScaleLine({units: 'metric'})
+        zoom: new Zoom({
+        }),
+        zoomSlider: new ZoomSlider({
+        }),
+        fullScreen: new FullScreen({
+        }),
+        scaleLine: new ScaleLine({
+          units: 'metric',
+        }),
       };
 
       /*
@@ -50441,6 +50447,7 @@
       this[map] = new WebGLMap({
         layers: [imageLayer, graphicLayer],
         view: view,
+        controls: [],
         loadTilesWhileAnimating: true,
         loadTilesWhileInteracting: true,
         logo: false
@@ -50632,51 +50639,44 @@
     }
 
     getAllAnnotations() {
-      // TODO: Openlayers Feature to DICOM SR
+      // TODO: Openlayers Feature to DICOM SR JSON
       let arr = this[annotations].getArray();
+      // this[annotations].forEach(func);
       let items = arr;
       return(items);
     }
-
-    // forEachAnnotation(func) {
-    //   return this[annotations].forEach(func);
-    // }
 
     countAnnotations() {
       return(this[annotations].getLength());
     }
 
     getAnnotation(index) {
-      // TODO: Openlayers Feature to DICOM SR
       let elem = this[annotations].item(index);
+      // TODO: Openlayers Feature to DICOM SR JSON
       let item = elem;
       return(item);
     }
 
     addAnnotation(item) {
-      // TODO: DICOM SR to Openlayers Feature
+      // TODO: DICOM SR JSON to Openlayers Feature
       let elem = item;
       this[annotations].push(elem);
     }
 
     addMultipleAnnotations(items) {
-      // TODO: DICOM SR to Openlayers Feature
+      // TODO: DICOM SR JSON to Openlayers Feature
       let arr = items;
       this[annotations].extend(arr);
     }
 
     updateAnnotation(index, item) {
-      // TODO: DICOM SR to Openlayers Feature
-      elem = item;
+      // TODO: DICOM SR JSON to Openlayers Feature
+      let elem = item;
       this[annotations].setAt(index, elem);
     }
 
     removeAnnotation(index) {
-      try {
-        this[annotations].removeAt(index);
-      } catch (e) {
-        console.warn(`cannot remove annotation at ${index}`);
-      }
+      this[annotations].removeAt(index);
     }
 
     set onAddAnnotationHandler(func) {
@@ -50717,22 +50717,6 @@
 
     set onDragHandler(func) {
       this[map].on('pointerdrag', func);
-    }
-
-    addSegmentation(metadata) {
-      // TODO: add vector layer for DICOM Segmentation
-    }
-
-    removeSegmentation(seriesInstanceUID) {
-      // TODO: remove vector layer from map
-    }
-
-    showSegmentation(seriesInstanceUID) {
-      // TODO
-    }
-
-    hideSegmentation(seriesInstanceUID) {
-      // TODO
     }
 
   }

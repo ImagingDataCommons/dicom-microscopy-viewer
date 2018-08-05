@@ -424,15 +424,21 @@ class DICOMMicroscopyViewer {
     });
 
     // TODO: ol/control/ZoomToExtent for resolution levels (5x, 10x, 20x, ...)
+    // FIXME: change "className"
     this[controls] = {
       overview: new OverviewMap({
         view: overviewView,
-        collapsed: true
+        collapsed: true,
       }),
-      zoom: new Zoom(),
-      zoomSlider: new ZoomSlider(),
-      fullScreen: new FullScreen(),
-      scaleLine: new ScaleLine({units: 'metric'})
+      zoom: new Zoom({
+      }),
+      zoomSlider: new ZoomSlider({
+      }),
+      fullScreen: new FullScreen({
+      }),
+      scaleLine: new ScaleLine({
+        units: 'metric',
+      }),
     };
 
     /*
@@ -442,6 +448,7 @@ class DICOMMicroscopyViewer {
     this[map] = new WebGLMap({
       layers: [imageLayer, graphicLayer],
       view: view,
+      controls: [],
       loadTilesWhileAnimating: true,
       loadTilesWhileInteracting: true,
       logo: false
