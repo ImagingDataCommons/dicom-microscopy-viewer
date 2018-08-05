@@ -44,12 +44,33 @@ const url = 'http://localhost:8080/dicomweb';
 const client = new DICOMwebClient.api.DICOMwebClient({url});
 const studyInstanceUID = '1.2.3.4';
 const seriesInstanceUID = '1.2.3.5';
-const viewer = new DICOMMicroscopyViewer.api.DICOMMicroscopyViewer({
-  client,
-  studyInstanceUID,
-  seriesInstanceUID
+client.searchForInstances(searchInstanceOptions).then((instances) => {
+  const promises = []
+  for (let i = 0; i < instances.length; i++) {
+    const sopInstanceUID = instances[i]["00080018"]["Value"][0];
+    const retrieveInstanceOptions = {
+      studyInstanceUID,
+      seriesInstanceUID,
+      sopInstanceUID,
+    };
+    const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
+      const imageType = metadata[0]["00080008"]["Value"];
+      if ( imageType[2] !== "VOLUME") {
+        return(null);
+      }
+      return(metadata[0]);
+    });
+    promises.push(promise);
+  }
+  return(Promise.all(promises));
+}).then(metadata => {
+  metadata = metadata.filter(m => m);
+  const viewer = new DICOMMicroscopyViewer.api.DICOMMicroscopyViewer({
+    client,
+    metadata
+  });
+  viewer.render({container: 'activeViewport'});
 });
-viewer.render({container: "viewport"});
 ```
 
 ## Status
