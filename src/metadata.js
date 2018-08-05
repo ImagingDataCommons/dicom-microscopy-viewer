@@ -11,6 +11,8 @@ function formatImageMetadata(metadata) {
     console.error('expected image type value 3 to be "VOLUME", is "' + imageType[2] + '" instead')
   }
 
+  const studyInstanceUID = metadata['0020000D']['Value'][0];
+  const seriesInstanceUID = metadata['0020000E']['Value'][0];
   const sopInstanceUID = metadata['00080018']['Value'][0];
   const rows = metadata['00280010']['Value'][0];
   const columns = metadata['00280011']['Value'][0];
@@ -69,6 +71,8 @@ function formatImageMetadata(metadata) {
   }
 
   return({
+    studyInstanceUID,
+    seriesInstanceUID,
     sopInstanceUID,
     rows,
     columns,
