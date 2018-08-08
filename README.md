@@ -68,6 +68,7 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
   }
   return(Promise.all(promises));
 }).then(metadata => {
+  metadata = metadata.filter(m => m);
   const viewer = new DICOMMicroscopyViewer.api.DICOMMicroscopyViewer({
     client,
     metadata
