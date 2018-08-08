@@ -49478,6 +49478,150 @@
     });
   }
 
+  /*
+   * Spatial coordinates of a geometric region of interest within the
+   * total pixel matrix.
+   */
+  class Scoord {
+
+    constructor() {}
+
+    get graphicData() {
+      throw new Error('Propotype property "graphicData" must be implemented.');
+    }
+
+    get graphicType() {
+      throw new Error('Propotype property "graphicType" must be implemented.');
+    }
+
+    get pixelOriginInterpretation() {
+      // FRAME or VOLUME
+      /* TODO: Consider relative to frame instead of total pixel matrix.
+       * This would complicate scenarios where graphics span multiple frames.
+       */
+      return 'VOLUME';
+    }
+
+    // get fiducialUID() {
+    // }
+
+  }
+
+
+  class Point$1 extends Scoord {
+
+    constructor(coordinates) {
+      super();
+      this.coordinates = coordinates;
+    }
+
+    get graphicData() {
+      return this.coordinates;
+    }
+
+    get graphicType() {
+      return 'POINT';
+    }
+
+  }
+
+
+  class Multipoint extends Scoord {
+
+    constructor(coordinates) {
+      super();
+      this.coordinates = coordinates;
+    }
+
+    get graphicData() {
+      return this.coordinates;
+    }
+
+    get graphicType() {
+      return 'MULTIPOINT';
+    }
+
+  }
+
+
+  class Polyline extends Scoord {
+
+    constructor(coordinates) {
+      super();
+      this.coordinates = coordinates;
+    }
+
+    get graphicData() {
+      /*
+       * A polyline is defined as a series of connected line segments
+       * with ordered vertices denoted by (column,row) pairs.
+       * If the first and last vertices are the same it is a closed polygon.
+       */
+      // TODO: sort coordinates, considering Polygons, where first entry must
+      // equal last entry
+      return this.coordinates;
+    }
+
+    get graphicType() {
+      return 'POLYLINE';
+    }
+
+  }
+
+
+  class Circle$1 extends Scoord {
+
+    constructor(centerCoordinates, radius) {
+      super();
+      this.centerCoordinates = centerCoordinates;
+      this.radius = radius;
+    }
+
+    get graphicData() {
+      /*
+       * A circle defined by two (column,row) pairs.
+       * The first point is the central pixel.
+       * The second point is a pixel on the perimeter of the circle.
+       */
+      return [
+        this.centerCoordinates,
+        [this.centerCoordinates[0], this.centerCoordinates[1] + this.radius]];
+    }
+
+    get graphicType() {
+      return 'CIRCLE';
+    }
+
+  }
+
+
+  class Ellipse extends Scoord {
+
+    constructor(majorAxisEndpointCoordinates, minorAxisEndpointCoordinates) {
+      super();
+      this.majorAxisEndpointCoordinates = majorAxisEndpointCoordinates;
+      this.minorAxisEndpointCoordinates = minorAxisEndpointCoordinates;
+    }
+
+    get graphicData() {
+      /*
+       * An ellipse defined by four pixel (column,row) pairs.
+       * The first two points specify the endpoints of the major axis.
+       * The second two points specify the endpoints of the minor axis.
+       */
+      return [
+        ...this.majorAxisEndpointCoordinates,
+        ...this.minorAxisEndpointCoordinates
+      ];
+    }
+
+
+    get graphicType() {
+      return 'ELLIPSE';
+    }
+
+  }
+
   var dicomwebClient = createCommonjsModule(function (module, exports) {
   (function (global, factory) {
     factory(exports);
@@ -50050,14 +50194,54 @@
 
   var DICOMwebClient = unwrapExports(dicomwebClient);
 
-  const map = Symbol();
-  const annotations = Symbol();
-  const graphics = Symbol();
-  const segmentations = Symbol();
-  const pyramid = Symbol();
-  const client = Symbol();
-  const controls = Symbol();
-  const interactions = Symbol();
+  function _geometry2Scoord(geometry) {
+    const type = geometry.getType();
+    if (type === 'Point') {
+      let coordinates = geometry.getCoordinates();
+      return _geometryCoordinates2scoordCoordinates(coordinates);
+      return new Point$1(coordinates);
+    } else if (type === 'Polygon') {
+      /*
+       * The first linear ring of the array defines the outer-boundary (surface).
+       * Each subsequent linear ring defines a hole in the surface.
+       */
+      let coordinates = geometry.getCoordinates()[0].map(c => {
+        return _geometryCoordinates2scoordCoordinates(c);
+      });
+      return new Polyline(coordinates);
+    } else if (type === 'LineString') {
+      let coordinates = geometry.getCoordinates().map(c => {
+        return _geometryCoordinates2scoordCoordinates(c);
+      });
+      return new Polyline(coordinates);
+    } else if (type === 'Circle') {
+      // TODO: Circle may actually represent a Polyline
+      let center = _geometryCoordinates2scoordCoordinates(geometry.getCenter());
+      let radius = geometry.getRadius();
+      return new Circle$1(center, radius);
+    } else {
+      // TODO: Combine multiple points into MULTIPOINT.
+      console.error(`unknown geometry type "${type}"`);
+    }
+  }
+
+
+  function _geometryCoordinates2scoordCoordinates(coordinates) {
+    // TODO: Transform to coordinates on pyramid base layer???
+    return [coordinates[0] + 1, -coordinates[1]]
+  }
+
+
+  const _map = Symbol('map');
+  const _features = Symbol('features');
+  const _drawingSource = Symbol('drawingSource');
+  const _drawingLayer = Symbol('drawingLayer');
+  const _segmentations = Symbol('segmentations');
+  const _pyramid = Symbol('pyramid');
+  const _client = Symbol('client');
+  const _controls = Symbol('controls');
+  const _interactions = Symbol('interactions');
+
 
   class DICOMMicroscopyViewer {
 
@@ -50069,12 +50253,12 @@
      *   - onSingleClickHandler (on-event handler function)
      *   - onDoubleClickHandler (on-event handler function)
      *   - onDragHandler (on-event handler function)
-     *   - onAddAnnotationHandler (on-event handler function)
-     *   - onRemoveAnnotationHandler (on-event handler function)
-     *   - onAddGraphicHandler (on-event handler function)
-     *   - onRemoveGraphicHandler (on-event handler function)
-     *   - onChangeGraphicHandler (on-event handler function)
-     *   - onClearGraphicsHandler (on-event handler function)
+     *   - onAddScoordHandler (on-event handler function)
+     *   - onRemoveScoordHandler (on-event handler function)
+     *   - onAddFeatureHandler (on-event handler function)
+     *   - onRemoveFeatureHandler (on-event handler function)
+     *   - onChangeFeatureHandler (on-event handler function)
+     *   - onClearFeaturesHandler (on-event handler function)
      *
      * ---
      * Map Event (http://openlayers.org/en/latest/apidoc/module-ol_MapBrowserEvent-MapBrowserEvent.html)
@@ -50083,20 +50267,20 @@
      *   - pixel
      */
     constructor(options) {
-      this[client] = options.client;
+      this[_client] = options.client;
 
       // Collection of Openlayers "VectorLayer" instances indexable by
       // DICOM Series Instance UID
-      this[segmentations] = {};
+      this[_segmentations] = {};
 
       // Collection of Openlayers "Feature" instances
-      this[annotations] = new Collection([], {unique: true});
+      this[_features] = new Collection([], {unique: true});
 
-      if (typeof options.onAddAnnotationHandler === 'function') {
-        this[annotations].on('add', options.onAddAnnotationHandler);
+      if (typeof options.onAddScoordHandler === 'function') {
+        this[_features].on('add', options.onAddScoordHandler);
       }
-      if (typeof options.onRemoveAnnotationHandler === 'function') {
-        this[annotations].on('add', options.onRemoveAnnotationHandler);
+      if (typeof options.onRemoveScoordHandler === 'function') {
+        this[_features].on('add', options.onRemoveScoordHandler);
       }
 
       /*
@@ -50105,7 +50289,7 @@
        * images at the different pyramid levels.
       */
       const metadata = options.metadata.map(m => formatImageMetadata(m));
-      this[pyramid] = [];
+      this[_pyramid] = [];
       for (let i = 0; i < metadata.length; i++) {
         const cols = metadata[i].totalPixelMatrixColumns;
         const rows = metadata[i].totalPixelMatrixRows;
@@ -50116,10 +50300,10 @@
         */
         let alreadyExists = false;
         let index = null;
-        for (let j = 0; j < this[pyramid].length; j++) {
+        for (let j = 0; j < this[_pyramid].length; j++) {
           if (
-              (this[pyramid][j].totalPixelMatrixColumns === cols) &&
-              (this[pyramid][j].totalPixelMatrixRows === rows)
+              (this[_pyramid][j].totalPixelMatrixColumns === cols) &&
+              (this[_pyramid][j].totalPixelMatrixRows === rows)
             ) {
             alreadyExists = true;
             index = j;
@@ -50130,13 +50314,13 @@
            * Update "paths" with information obtained from current
            * concatentation part.
           */
-          Object.assign(this[pyramid][index].paths, paths);
+          Object.assign(this[_pyramid][index].paths, paths);
         } else {
-          this[pyramid].push(metadata[i]);
+          this[_pyramid].push(metadata[i]);
         }
       }
       // Sort levels in ascending order
-      this[pyramid].sort(function(a, b) {
+      this[_pyramid].sort(function(a, b) {
         if(a.totalPixelMatrixColumns < b.totalPixelMatrixColumns) {
           return -1;
         } else if(a.totalPixelMatrixColumns > b.totalPixelMatrixColumns) {
@@ -50154,11 +50338,11 @@
       const totalSizes = [];
       const resolutions = [];
       const origins = [[0, -1]];
-      for (let j = 0; j < this[pyramid].length; j++) {
-        let columns = this[pyramid][j].columns;
-        let rows = this[pyramid][j].rows;
-        let totalPixelMatrixColumns = this[pyramid][j].totalPixelMatrixColumns;
-        let totalPixelMatrixRows = this[pyramid][j].totalPixelMatrixRows;
+      for (let j = 0; j < this[_pyramid].length; j++) {
+        let columns = this[_pyramid][j].columns;
+        let rows = this[_pyramid][j].rows;
+        let totalPixelMatrixColumns = this[_pyramid][j].totalPixelMatrixColumns;
+        let totalPixelMatrixRows = this[_pyramid][j].totalPixelMatrixRows;
         let colFactor = Math.ceil(totalPixelMatrixColumns / columns);
         let rowFactor = Math.ceil(totalPixelMatrixRows / rows);
         tileSizes.push([columns, rows]);
@@ -50168,8 +50352,8 @@
          * Compute the resolution at each pyramid level, since the zoom
          * factor may not be the same between adjacent pyramid levels.
         */
-        let zoomFactorColumns =  this[pyramid][0].totalPixelMatrixColumns / totalPixelMatrixColumns;
-        let zoomFactorRows =  this[pyramid][0].totalPixelMatrixRows / totalPixelMatrixRows;
+        let zoomFactorColumns =  this[_pyramid][0].totalPixelMatrixColumns / totalPixelMatrixColumns;
+        let zoomFactorRows =  this[_pyramid][0].totalPixelMatrixRows / totalPixelMatrixRows;
         let zoomFactor = (zoomFactorColumns + zoomFactorRows) / 2;
         resolutions.push(zoomFactor);
 
@@ -50179,7 +50363,7 @@
          * and the actual number of tiles (frames).
         */
         let orig = [0, -1];
-        if (j < this[pyramid].length-1) {
+        if (j < this[_pyramid].length-1) {
           origins.push(orig);
         }
       }
@@ -50188,7 +50372,7 @@
       origins.reverse();
 
       // We can't call "this" inside functions.
-      const levels = this[pyramid];
+      const pyramid = this[_pyramid];
 
       /*
        * Define custom tile URL function to retrive frames via DICOMweb
@@ -50213,15 +50397,15 @@
          */
         let x = -(tileCoord[2] + 1) + 1;
         let index = x + "-" + y;
-        let frameNumber = levels[z].frameMapping[index];
+        let frameNumber = pyramid[z].frameMapping[index];
         if (frameNumber === undefined) {
           console.warn("tile " + index + " not found at level " + z);
           return(null);
         }
         let url = options.client.baseUrl +
-          "/studies/" + levels[z].studyInstanceUID +
-          "/series/" + levels[z].seriesInstanceUID +
-          '/instances/' + levels[z].sopInstanceUID +
+          "/studies/" + pyramid[z].studyInstanceUID +
+          "/series/" + pyramid[z].seriesInstanceUID +
+          '/instances/' + pyramid[z].sopInstanceUID +
           '/frames/' + frameNumber;
         return(url);
       }
@@ -50286,8 +50470,8 @@
       */
       const extent = [
         0,                                  // min X
-        -levels[0].totalPixelMatrixRows,    // min Y
-        levels[0].totalPixelMatrixColumns,  // max X
+        -pyramid[0].totalPixelMatrixRows,    // min Y
+        pyramid[0].totalPixelMatrixColumns,  // max X
         -1                                  // max Y
       ];
 
@@ -50303,8 +50487,8 @@
       */
       var degrees = 0;
       if (
-        (this[pyramid][this[pyramid].length-1].imageOrientationSlide[1] === -1) &&
-        (this[pyramid][this[pyramid].length-1].imageOrientationSlide[3] === -1)
+        (this[_pyramid][this[_pyramid].length-1].imageOrientationSlide[1] === -1) &&
+        (this[_pyramid][this[_pyramid].length-1].imageOrientationSlide[3] === -1)
       ) {
         /*
          * The row direction (left to right) of the total pixel matrix
@@ -50337,7 +50521,7 @@
            * DICOM pixel spacing has millimeter unit while the projection has
            * has meter unit.
            */
-          let spacing = levels[0].pixelSpacing[1] / 10**3;
+          let spacing = pyramid[0].pixelSpacing[1] / 10**3;
           let metricRes = pixelRes * spacing;
           return(metricRes);
         }
@@ -50383,29 +50567,31 @@
         projection: projection
       });
 
-      this[graphics] = new VectorSource({
+      this[_drawingSource] = new VectorSource({
         tileGrid: tileGrid,
         projection: projection,
         wrapX: false
       });
 
-      if (typeof options.onAddGraphicHandler === 'function') {
-        this[annotations].on('addfeature', options.onAddGraphicHandler);
+      if (typeof options.onAddFeatureHandler === 'function') {
+        this[_drawingSource].on('addfeature', options.onAddFeatureHandler);
       }
-      if (typeof options.onRemoveGraphicHandler === 'function') {
-        this[annotations].on('removefeature', options.onRemoveGraphicHandler);
+      if (typeof options.onRemoveFeatureHandler === 'function') {
+        this[_drawingSource].on('removefeature', options.onRemoveFeatureHandler);
       }
-      if (typeof options.onChangeGraphicHandler === 'function') {
-        this[annotations].on('changefeature', options.onChangeGraphicHandler);
+      if (typeof options.onChangeFeatureHandler === 'function') {
+        this[_drawingSource].on('changefeature', options.onChangeFeatureHandler);
       }
-      if (typeof options.onClearGraphicsHandler === 'function') {
-        this[annotations].on('clearfeature', options.onClearGraphicsHandler);
+      if (typeof options.onClearFeaturesHandler === 'function') {
+        this[_drawingSource].on('clearfeature', options.onClearFeaturesHandler);
       }
 
-      const graphicLayer = new VectorLayer({
+      // TODO: allow user to configure style (required for text labels)
+      // http://openlayers.org/en/latest/apidoc/module-ol_style_Style-Style.html
+      this[_drawingLayer] = new VectorLayer({
         extent: extent,
-        source: this[graphics],
-        projection: projection
+        source: this[_drawingSource],
+        projection: projection,
       });
 
       const view = new View({
@@ -50422,58 +50608,61 @@
         rotation: rotation
       });
 
-      // TODO: ol/control/ZoomToExtent for resolution levels (5x, 10x, 20x, ...)
-      // FIXME: change "className"
-      this[controls] = {
-        overview: new OverviewMap({
-          view: overviewView,
-          collapsed: true,
-        }),
-        zoom: new Zoom({
-        }),
-        zoomSlider: new ZoomSlider({
-        }),
-        fullScreen: new FullScreen({
-        }),
+      this[_controls] = {
         scaleLine: new ScaleLine({
           units: 'metric',
+          className: 'dicom-microscopy-viewer-scale'
         }),
+      // overview: new OverviewMap({
+      //   view: overviewView,
+      //   collapsed: true,
+      //   className: 'dicom-microscopy-viewer-overview'
+      // }),
+      //   zoom: new Zoom({
+      //     className: 'dicom-microscopy-viewer-zoom'
+      //   }),
+      //   zoomSlider: new ZoomSlider({
+      //     className: 'dicom-microscopy-viewer-zoom-slider'
+      //   }),
+      //   fullScreen: new FullScreen({
+      //     className: 'dicom-microscopy-viewer-fullscreen'
+      //   }),
       };
 
       /*
        * Creates the map with the defined layers and view and renders it via
        * WebGL.
        */
-      this[map] = new WebGLMap({
-        layers: [imageLayer, graphicLayer],
+      this[_map] = new WebGLMap({
+        layers: [imageLayer, this[_drawingLayer]],
         view: view,
         controls: [],
         loadTilesWhileAnimating: true,
         loadTilesWhileInteracting: true,
         logo: false
       });
-      for (let control in this[controls]) {
+      for (let control in this[_controls]) {
         // options.controls
         // TODO: enable user to select controls and style them
         // TODO: enable users to define "target" containers for controls
-        this[map].addControl(this[controls][control]);
+        this[_map].addControl(this[_controls][control]);
       }
-      this[map].getView().fit(extent, this[map].getSize());
+      this[_map].getView().fit(extent, this[_map].getSize());
 
       if (typeof options.onClickHandler === 'function') {
-        this[map].on('click', options.onClickHandler);
+        this[_map].on('click', options.onClickHandler);
       }
       if (typeof options.onSingleClickHandler === 'function') {
-        this[map].on('singleclick', options.onSingleClickHandler);
+        this[_map].on('singleclick', options.onSingleClickHandler);
       }
       if (typeof options.onDoubleClickHandler === 'function') {
-        this[map].on('dblclick', options.onDoubleClickHandler);
+        this[_map].on('dblclick', options.onDoubleClickHandler);
       }
       if (typeof options.onDragHandler === 'function') {
-        this[map].on('pointerdrag', options.onDragHandler);
+        this[_map].on('pointerdrag', options.onDragHandler);
       }
 
-      this[interactions] = {
+      this[_interactions] = {
         draw: undefined,
         select: undefined,
         modify: undefined
@@ -50489,7 +50678,42 @@
       if (!('container' in options)) {
         console.error('container must be provided for rendering images');
       }
-      this[map].setTarget(options.container);
+      this[_map].setTarget(options.container);
+
+      // Style scale element (overriding default Openlayers CSS "ol-scale-line")
+      let scaleElements = document.getElementsByClassName(
+        'dicom-microscopy-viewer-scale'
+      );
+      for (let i = 0; i < scaleElements.length; ++i) {
+        let item = scaleElements[i];
+        item.style.position = 'absolute';
+        item.style.right = '.5em';
+        item.style.bottom = '.5em';
+        item.style.left = 'auto';
+        item.style.padding = '2px';
+        item.style.backgroundColor = 'rgba(255,255,255,.5)';
+        item.style.borderRadius = '4px';
+        item.style.margin = '1px';
+      }
+      let scaleInnerElements = document.getElementsByClassName(
+        'dicom-microscopy-viewer-scale-inner'
+      );
+      for (let i = 0; i < scaleInnerElements.length; ++i) {
+        let item = scaleInnerElements[i];
+        item.style.color = 'black';
+        item.style.fontWeight = '600';
+        item.style.fontSize = '10px';
+        item.style.textAlign = 'center';
+        item.style.borderWidth = '1.5px';
+        item.style.borderStyle = 'solid';
+        item.style.borderTop = 'none';
+        item.style.borderRightColor = 'black';
+        item.style.borderLeftColor = 'black';
+        item.style.borderBottomColor = 'black';
+        item.style.margin = '1px';
+        item.style.willChange = 'contents,width';
+      }
+
     }
 
     /*
@@ -50501,21 +50725,10 @@
      * ---
      * Draw Event (http://openlayers.org/en/latest/apidoc/module-ol_interaction_Draw-DrawEvent.html)
      * Properties:
-     *   - "feature" (http://openlayers.org/en/latest/apidoc/module-ol_Feature-Feature.html)
+     *   - "feature" (http://openlayers.org/en/latest/apidoc/module-ol_features-Feature.html)
      */
     activateDrawInteraction(options) {
       this.deactivateDrawInteraction();
-      /*
-       * DICOM graphic types:
-       *   POINT: (column, row) pair
-       *   MULTIPOINT: set of (column, row) pairs
-       *   POLYLINE: ordered series of (column, row) pairs
-       *      -> polygon if closed
-       *   CIRCLE: two (column, row) pairs
-       *      -> first at center and second on perimeter
-       *   ELLIPSE: four (column, row) pairs
-       *      -> first two at major axes endpoints, second two at minor axes endpoints
-       */
       // TODO: "type", "condition", etc.
       const customOptionsMapping = {
         point: {
@@ -50543,9 +50756,11 @@
           freehand: true,
         }
       };
+      // TODO: ellipse
+      //     // https://gis.stackexchange.com/questions/49223/drawing-ellipse-with-openlayers#49228
       const defaultOptions = {
-        source: this[graphics],
-        features: this[annotations],
+        source: this[_drawingSource],
+        features: this[_features],
       };
       if (!('geometryType' in options)) {
         console.error('geometry type must be specified for drawing interaction');
@@ -50555,21 +50770,21 @@
       }
       const customOptions = customOptionsMapping[options.geometryType];
       const allOptions = Object.assign(defaultOptions, customOptions);
-      this[interactions].draw = new Draw(allOptions);
+      this[_interactions].draw = new Draw(allOptions);
 
       if (typeof options.onDrawStartHandler === 'function') {
-        this[interactions].draw.on('drawstart', options.onDrawStartHandler);
+        this[_interactions].draw.on('drawstart', options.onDrawStartHandler);
       }
       if (typeof options.onDrawEndHandler === 'function') {
-        this[interactions].draw.on('drawend', options.onDrawEndHandler);
+        this[_interactions].draw.on('drawend', options.onDrawEndHandler);
       }
 
-      this[map].addInteraction(this[interactions].draw);
+      this[_map].addInteraction(this[_interactions].draw);
     }
 
     deactivateDrawInteraction() {
-      if (this[interactions].draw !== undefined) {
-        this[map].removeInteraction(this[interactions].draw);
+      if (this[_interactions].draw !== undefined) {
+        this[_map].removeInteraction(this[_interactions].draw);
       }
     }
 
@@ -50581,29 +50796,29 @@
      * ---
      * Select Event (http://openlayers.org/en/latest/apidoc/module-ol_interaction_Select-SelectEvent.html)
      * Properties:
-     *   - "selected", "deselected" (http://openlayers.org/en/latest/apidoc/module-ol_Feature-Feature.html)
+     *   - "selected", "deselected" (http://openlayers.org/en/latest/apidoc/module-ol_features-Feature.html)
      *   - "mapBrowserEvent" (http://openlayers.org/en/latest/apidoc/module-ol_MapBrowserEvent-MapBrowserEvent.html)
      */
     activateSelectInteraction(options) {
       this.deactivateSelectInteraction();
       // TODO: "condition", etc.
-      this[interactions].select = new Select({
-        layers: [graphicLayer]
+      this[_interactions].select = new Select({
+        layers: [this[_drawingLayer]]
       });
 
       if (typeof options.onSelectedHandler === 'function') {
-        this[interactions].select.on('selected', options.onSelectedHandler);
+        this[_interactions].select.on('selected', options.onSelectedHandler);
       }
       if (typeof options.onDeselectedHandler === 'function') {
-        this[interactions].select.on('deselected', options.onDeselectedHandler);
+        this[_interactions].select.on('deselected', options.onDeselectedHandler);
       }
 
-      this[map].addInteraction(this[interactions].select);
+      this[_map].addInteraction(this[_interactions].select);
     }
 
     deactivateSelectInteraction() {
-      if (this[interactions].select) {
-        this[map].removeInteraction(this[interactions].select);
+      if (this[_interactions].select) {
+        this[_map].removeInteraction(this[_interactions].select);
       }
     }
 
@@ -50615,108 +50830,107 @@
      * ---
      * Modify Event (http://openlayers.org/en/latest/apidoc/module-ol_interaction_Modify-ModifyEvent.html)
      * Properties:
-     *   - "features" (http://openlayers.org/en/latest/apidoc/module-ol_Feature-Feature.html)
+     *   - "features" (http://openlayers.org/en/latest/apidoc/module-ol_features-Feature.html)
      *   - "mapBrowserEvent" (http://openlayers.org/en/latest/apidoc/module-ol_MapBrowserEvent-MapBrowserEvent.html)
      */
     activateModifyInteraction(options) {
       this.deactivateModiifyInteraction();
-      this[interactions].modify = new Modify({
-        features: this[annotations],  // TODO: or source, i.e. "graphics"???
+      this[_interactions].modify = new Modify({
+        features: this[_features],  // TODO: or source, i.e. "drawings"???
       });
       if (typeof options.onModifyStartHandler === 'function') {
-        this[interactions].modify.on('modifystart', options.onModifyStartHandler);
+        this[_interactions].modify.on('modifystart', options.onModifyStartHandler);
       }
       if (typeof options.onModifyEndHandler === 'function') {
-        this[interactions].modify.on('modifyend', options.onModifyEndHandler);
+        this[_interactions].modify.on('modifyend', options.onModifyEndHandler);
       }
-      this[map].addInteraction(this[interactions].modify);
+      this[_map].addInteraction(this[_interactions].modify);
     }
 
     deactivateModifyInteraction() {
-      if (this[interactions].modify) {
-        this[map].removeInteraction(this[interactions].modify);
+      if (this[_interactions].modify) {
+        this[_map].removeInteraction(this[_interactions].modify);
       }
     }
 
-    getAllAnnotations() {
-      // TODO: Openlayers Feature to DICOM SR JSON
-      let arr = this[annotations].getArray();
-      // this[annotations].forEach(func);
-      let items = arr;
-      return(items);
+    getAllScoords() {
+      const features = this[_features].getArray();
+      const graphics = [];
+      for (let i = 0; i < features.length; i++) {
+        const geometry = features[i].getGeometry();
+        const graphic = _geometry2Scoord(geometry);
+        graphics.push(graphic);
+      }
+      return graphics;
     }
 
-    countAnnotations() {
-      return(this[annotations].getLength());
+    countScoords() {
+      return this[_features].getLength();
     }
 
-    getAnnotation(index) {
-      let elem = this[annotations].item(index);
-      // TODO: Openlayers Feature to DICOM SR JSON
-      let item = elem;
-      return(item);
+    getScoord(index) {
+      const feature = this[_features].item(index);
+      const geometry = feature.getGeometry();
+      return _geometry2Scoord(geometry);
     }
 
-    addAnnotation(item) {
-      // TODO: DICOM SR JSON to Openlayers Feature
-      let elem = item;
-      this[annotations].push(elem);
+    addScoord(item) {
+      let geometry = _graphic2Geometry(item);
+      let feature = new Feature({geometry});
+      this[_features].push(feature);
+      this[_drawingSource].addFeature(feature);
     }
 
-    addMultipleAnnotations(items) {
-      // TODO: DICOM SR JSON to Openlayers Feature
-      let arr = items;
-      this[annotations].extend(arr);
+    updateScoord(index, item) {
+      let geometry = _graphic2Geometry(item);
+      let feature = new Feature({geometry});
+      this[_features].setAt(index, feature);
     }
 
-    updateAnnotation(index, item) {
-      // TODO: DICOM SR JSON to Openlayers Feature
-      let elem = item;
-      this[annotations].setAt(index, elem);
+    removeScoord(index) {
+      let feature = this[_features].getAt(index);
+      this[_features].removeAt(index);
+      this[_drawingSource].removeFeature(feature);
     }
 
-    removeAnnotation(index) {
-      this[annotations].removeAt(index);
+    set onAddScoordHandler(func) {
+      this[_features].on('add', func);
     }
 
-    set onAddAnnotationHandler(func) {
-      this[annotations].on('add', func);
+    set onRemoveScoordHandler(func) {
+      this[_features].on('remove', func);
     }
 
-    set onRemoveAnnotationHandler(func) {
-      this[annotations].on('remove', func);
+    set onAddFeatureHandler(func) {
+      this[_drawingSource].on('addfeature', func);
     }
 
-    set onAddGraphicHandler(func) {
-      this[graphics].on('addfeature', func);
+    set onRemoveFeatureHandler(func) {
+      this[_drawingSource].on('removefeature', func);
     }
 
-    set onRemoveGraphicHandler(func) {
-      this[graphics].on('removefeature', func);
+    set onChangeFeatureHandler(func) {
+      this[_drawingSource].on('changefeature', func);
     }
 
-    set onChangeGraphicHandler(func) {
-      this[graphics].on('changefeature', func);
-    }
-
-    set onClearGraphicsHandler(func) {
-      this[graphics].on('clearfeature', func);
+    set onClearFeaturesHandler(func) {
+      this[_drawingSource].on('clearfeature', func);
     }
 
     set onClickHandler(func) {
-      this[map].on('click', func);
+      this[_map].on('click', func);
     }
 
     set onSingleClickHandler(func) {
-      this[map].on('singleclick', func);
+      this[_map].on('singleclick', func);
     }
 
     set onDoubleClickHandler(func) {
-      this[map].on('dblclick', func);
+      this[_map].on('dblclick', func);
     }
 
     set onDragHandler(func) {
-      this[map].on('pointerdrag', func);
+      this[_map].on('pointerdrag', func);
     }
 
   }
@@ -50724,8 +50938,16 @@
   let api = {
     DICOMMicroscopyViewer,
   };
+  let scoord = {
+    Point: Point$1,
+    Multipoint,
+    Polyline,
+    Circle: Circle$1,
+    Ellipse
+  };
 
   exports.api = api;
+  exports.scoord = scoord;
 
   Object.defineProperty(exports, '__esModule', { value: true });
 
