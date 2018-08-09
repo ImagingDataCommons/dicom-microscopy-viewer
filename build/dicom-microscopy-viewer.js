@@ -50226,9 +50226,47 @@
   }
 
 
+  function _scoord2Geometry(scoord) {
+    const type = scoord.graphicType;
+    const data = scoord.graphicData;
+    if (type === 'POINT') {
+      let coordinates = _scoordCoordinates2geometryCoordinates(data);
+      return new Point(coordinates);
+    } else if (type === 'MULTIPOINT') {
+      const points = [];
+      for (d in data) {
+        let coordinates = _scoordCoordinates2geometryCoordinates(d);
+        let p = new Point(coordinates);
+        points.push(p);
+      }
+      return points;
+    } else if (type === 'POLYLINE') {
+      if (data[0] === data[data.length-1]) {
+        let coordinates = [_scoordCoordinates2geometryCoordinates(data)];
+        return new Polygon(coordinates);
+      } else {
+        let coordinates = _scoordCoordinates2geometryCoordinates(data);
+        return new LineStringGeometry(coordinates);
+      }
+    } else if (type === 'CIRCLE') {
+      let coordinates = _scoordCoordinates2geometryCoordinates(data);
+      let center = coordinates[0];
+      let radius = Math.abs(coordinates[1][0] - coordinates[0][0]);
+      return new Circle(center, radius);
+    } else if (type === 'ELLIPSE') ; else {
+      console.error(`unknown graphic type "${type}"`);
+    }
+  }
+
+
   function _geometryCoordinates2scoordCoordinates(coordinates) {
     // TODO: Transform to coordinates on pyramid base layer???
     return [coordinates[0] + 1, -coordinates[1]]
+  }
+
+
+  function _scoordCoordinates2geometryCoordinates(coordinates) {
+    return [coordinates[0] - 1, -coordinates[1]]
   }
 
 
@@ -50338,11 +50376,13 @@
       const totalSizes = [];
       const resolutions = [];
       const origins = [[0, -1]];
-      for (let j = 0; j < this[_pyramid].length; j++) {
+      const nLevels = this[_pyramid].length;
+      for (let j = 0; j < nLevels; j++) {
         let columns = this[_pyramid][j].columns;
         let rows = this[_pyramid][j].rows;
         let totalPixelMatrixColumns = this[_pyramid][j].totalPixelMatrixColumns;
         let totalPixelMatrixRows = this[_pyramid][j].totalPixelMatrixRows;
+        let pixelSpacing = this[_pyramid][j].pixelSpacing;
         let colFactor = Math.ceil(totalPixelMatrixColumns / columns);
         let rowFactor = Math.ceil(totalPixelMatrixRows / rows);
         tileSizes.push([columns, rows]);
@@ -50352,9 +50392,7 @@
          * Compute the resolution at each pyramid level, since the zoom
          * factor may not be the same between adjacent pyramid levels.
         */
-        let zoomFactorColumns =  this[_pyramid][0].totalPixelMatrixColumns / totalPixelMatrixColumns;
-        let zoomFactorRows =  this[_pyramid][0].totalPixelMatrixRows / totalPixelMatrixRows;
-        let zoomFactor = (zoomFactorColumns + zoomFactorRows) / 2;
+        let zoomFactor =  this[_pyramid][nLevels-1].totalPixelMatrixRows / totalPixelMatrixRows;
         resolutions.push(zoomFactor);
 
         /*
@@ -50470,8 +50508,8 @@
       */
       const extent = [
         0,                                  // min X
-        -pyramid[0].totalPixelMatrixRows,    // min Y
-        pyramid[0].totalPixelMatrixColumns,  // max X
+        -pyramid[nLevels-1].totalPixelMatrixRows,    // min Y
+        pyramid[nLevels-1].totalPixelMatrixColumns,  // max X
         -1                                  // max Y
       ];
 
@@ -50521,9 +50559,9 @@
            * DICOM pixel spacing has millimeter unit while the projection has
            * has meter unit.
            */
-          let spacing = pyramid[0].pixelSpacing[1] / 10**3;
-          let metricRes = pixelRes * spacing;
-          return(metricRes);
+          let spacing = pyramid[nLevels-1].pixelSpacing[0] / 10**3;
+          let res = pixelRes * spacing;
+          return(res);
         }
       });
       /*
@@ -50875,14 +50913,13 @@
     }
 
     addScoord(item) {
-      let geometry = _graphic2Geometry(item);
+      let geometry = _scoord2Geometry(item);
       let feature = new Feature({geometry});
-      this[_features].push(feature);
       this[_drawingSource].addFeature(feature);
     }
 
     updateScoord(index, item) {
-      let geometry = _graphic2Geometry(item);
+      let geometry = _scoord2Geometry(item);
       let feature = new Feature({geometry});
       this[_features].setAt(index, feature);
     }

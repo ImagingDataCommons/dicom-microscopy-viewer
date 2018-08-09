@@ -215,11 +215,13 @@ class DICOMMicroscopyViewer {
     const totalSizes = [];
     const resolutions = [];
     const origins = [[0, -1]];
-    for (let j = 0; j < this[_pyramid].length; j++) {
+    const nLevels = this[_pyramid].length;
+    for (let j = 0; j < nLevels; j++) {
       let columns = this[_pyramid][j].columns;
       let rows = this[_pyramid][j].rows;
       let totalPixelMatrixColumns = this[_pyramid][j].totalPixelMatrixColumns;
       let totalPixelMatrixRows = this[_pyramid][j].totalPixelMatrixRows;
+      let pixelSpacing = this[_pyramid][j].pixelSpacing;
       let colFactor = Math.ceil(totalPixelMatrixColumns / columns);
       let rowFactor = Math.ceil(totalPixelMatrixRows / rows);
       tileSizes.push([columns, rows]);
@@ -229,9 +231,7 @@ class DICOMMicroscopyViewer {
        * Compute the resolution at each pyramid level, since the zoom
        * factor may not be the same between adjacent pyramid levels.
       */
-      let zoomFactorColumns =  this[_pyramid][0].totalPixelMatrixColumns / totalPixelMatrixColumns;
-      let zoomFactorRows =  this[_pyramid][0].totalPixelMatrixRows / totalPixelMatrixRows;
-      let zoomFactor = (zoomFactorColumns + zoomFactorRows) / 2;
+      let zoomFactor =  this[_pyramid][nLevels-1].totalPixelMatrixRows / totalPixelMatrixRows;
       resolutions.push(zoomFactor);
 
       /*
@@ -367,8 +367,8 @@ class DICOMMicroscopyViewer {
     */
     const extent = [
       0,                                  // min X
-      -pyramid[0].totalPixelMatrixRows,    // min Y
-      pyramid[0].totalPixelMatrixColumns,  // max X
+      -pyramid[nLevels-1].totalPixelMatrixRows,    // min Y
+      pyramid[nLevels-1].totalPixelMatrixColumns,  // max X
       -1                                  // max Y
     ];
 
@@ -418,9 +418,9 @@ class DICOMMicroscopyViewer {
          * DICOM pixel spacing has millimeter unit while the projection has
          * has meter unit.
          */
-        let spacing = pyramid[0].pixelSpacing[1] / 10**3;
-        let metricRes = pixelRes * spacing;
-        return(metricRes);
+        let spacing = pyramid[nLevels-1].pixelSpacing[0] / 10**3;
+        let res = pixelRes * spacing;
+        return(res);
       }
     });
     /*
@@ -772,14 +772,13 @@ class DICOMMicroscopyViewer {
   }
 
   addScoord(item) {
-    let geometry = _graphic2Geometry(item);
+    let geometry = _scoord2Geometry(item);
     let feature = new Feature({geometry});
-    this[_features].push(feature);
     this[_drawingSource].addFeature(feature);
   }
 
   updateScoord(index, item) {
-    let geometry = _graphic2Geometry(item);
+    let geometry = _scoord2Geometry(item);
     let feature = new Feature({geometry});
     this[_features].setAt(index, feature);
   }
