@@ -13,7 +13,6 @@ function formatImageMetadata(metadata) {
 
   const studyInstanceUID = metadata['0020000D']['Value'][0];
   const seriesInstanceUID = metadata['0020000E']['Value'][0];
-  const sopInstanceUID = metadata['00080018']['Value'][0];
   const rows = metadata['00280010']['Value'][0];
   const columns = metadata['00280011']['Value'][0];
   const totalPixelMatrixColumns = metadata['00480006']['Value'][0];
@@ -41,20 +40,24 @@ function formatImageMetadata(metadata) {
   let tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns);
   let tilesPerColumn = Math.ceil(totalPixelMatrixRows / rows);
   const frameMapping = {};
+  // We may update the SOPInstanceUID when reassembling concatentations
+  let sopInstanceUID = metadata['00080018']['Value'][0];
+  let sopInstanceUIDOfConcatenationSource = null;
+  let frameOffsetNumber = 0;
+  if ('00209161' in metadata) {
+      sopInstanceUIDOfConcatenationSource = metadata['00209161']['Value'][0];
+      frameOffsetNumber = Number(metadata['00209228']['Value'][0]);
+  }
   if (dimensionOrganizationType === 'TILED_FULL') {
-    let frameOffsetNumber = 0;
-    if ('00209161' in metadata) {
-        frameOffsetNumber = Number(metadata['00209228']['Value'][0]);
-    }
     let offset = frameOffsetNumber + 1;
     let limit = frameOffsetNumber + numberOfFrames;
     for (let j = offset; j <= limit; j++) {
-      let rowIndex = Math.ceil(j / tilesPerRow);
-      let rowFraction = 1 - (rowIndex - (j / tilesPerRow));
-      let colIndex = Math.ceil(totalPixelMatrixColumns * rowFraction / columns);
+      let rowFraction = j / tilesPerRow;
+      let rowIndex = Math.ceil(rowFraction);
+      let colIndex = j - (rowIndex * tilesPerRow) + tilesPerRow;
       let index = rowIndex + '-' + colIndex;
       let frameNumber = j - offset + 1;
-      frameMapping[index] = frameNumber;
+      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
     }
   } else {
     const perFrameFunctionalGroupsSequence = metadata['52009230']['Value'];
@@ -66,8 +69,12 @@ function formatImageMetadata(metadata) {
       let colIndex = Math.ceil(columnPositionInTotalPixelMatrix / rows);
       let index = rowIndex + '-' + colIndex;
       let frameNumber = j + 1;
-      frameMapping[index] = frameNumber;
+      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
     }
+  }
+
+  if (sopInstanceUIDOfConcatenationSource) {
+    sopInstanceUID = sopInstanceUIDOfConcatenationSource;
   }
 
   return({

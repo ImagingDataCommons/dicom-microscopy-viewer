@@ -35,7 +35,7 @@ function _geometry2Scoord(geometry) {
   const type = geometry.getType()
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
-    return _geometryCoordinates2scoordCoordinates(coordinates);
+    coordinates = _geometryCoordinates2scoordCoordinates(coordinates);
     return new Point(coordinates);
   } else if (type === 'Polygon') {
     /*
@@ -170,7 +170,7 @@ class DICOMMicroscopyViewer {
     for (let i = 0; i < metadata.length; i++) {
       const cols = metadata[i].totalPixelMatrixColumns;
       const rows = metadata[i].totalPixelMatrixRows;
-      const paths = metadata[i].paths;
+      const mapping = metadata[i].frameMapping;
       /*
        * Instances may be broken down into multiple concatentation parts.
        * Therefore, we have to re-assemble instance metadata.
@@ -187,11 +187,8 @@ class DICOMMicroscopyViewer {
         }
       }
       if (alreadyExists) {
-        /*
-         * Update "paths" with information obtained from current
-         * concatentation part.
-        */
-        Object.assign(this[_pyramid][index].paths, paths);
+        // Update with information obtained from current concatentation part.
+        Object.assign(this[_pyramid][index].frameMapping, mapping);
       } else {
         this[_pyramid].push(metadata[i]);
       }
@@ -206,6 +203,7 @@ class DICOMMicroscopyViewer {
         return 0;
       }
     });
+    console.log(this[_pyramid])
 
     /*
      * Collect relevant information from DICOM metadata for each pyramid
@@ -284,16 +282,15 @@ class DICOMMicroscopyViewer {
        */
       let x = -(tileCoord[2] + 1) + 1;
       let index = x + "-" + y;
-      let frameNumber = pyramid[z].frameMapping[index];
-      if (frameNumber === undefined) {
+      let path = pyramid[z].frameMapping[index];
+      if (path === undefined) {
         console.warn("tile " + index + " not found at level " + z);
         return(null);
       }
       let url = options.client.baseUrl +
         "/studies/" + pyramid[z].studyInstanceUID +
         "/series/" + pyramid[z].seriesInstanceUID +
-        '/instances/' + pyramid[z].sopInstanceUID +
-        '/frames/' + frameNumber;
+        '/instances/' + path;
       return(url);
     }
 

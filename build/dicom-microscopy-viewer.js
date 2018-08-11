@@ -49406,7 +49406,6 @@
 
     const studyInstanceUID = metadata['0020000D']['Value'][0];
     const seriesInstanceUID = metadata['0020000E']['Value'][0];
-    const sopInstanceUID = metadata['00080018']['Value'][0];
     const rows = metadata['00280010']['Value'][0];
     const columns = metadata['00280011']['Value'][0];
     const totalPixelMatrixColumns = metadata['00480006']['Value'][0];
@@ -49433,20 +49432,26 @@
 
     let tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns);
     const frameMapping = {};
+    // We may update the SOPInstanceUID when reassembling concatentations
+    let sopInstanceUID = metadata['00080018']['Value'][0];
+    let sopInstanceUIDOfConcatenationSource = null;
+    let frameOffsetNumber = 0;
+    if ('00209161' in metadata) {
+        sopInstanceUIDOfConcatenationSource = metadata['00209161']['Value'][0];
+        frameOffsetNumber = Number(metadata['00209228']['Value'][0]);
+    }
     if (dimensionOrganizationType === 'TILED_FULL') {
-      let frameOffsetNumber = 0;
-      if ('00209161' in metadata) {
-          frameOffsetNumber = Number(metadata['00209228']['Value'][0]);
-      }
       let offset = frameOffsetNumber + 1;
       let limit = frameOffsetNumber + numberOfFrames;
       for (let j = offset; j <= limit; j++) {
-        let rowIndex = Math.ceil(j / tilesPerRow);
-        let rowFraction = 1 - (rowIndex - (j / tilesPerRow));
-        let colIndex = Math.ceil(totalPixelMatrixColumns * rowFraction / columns);
+        let rowFraction = j / tilesPerRow;
+        let rowIndex = Math.ceil(rowFraction);
+        let colIndex = j - (rowIndex * tilesPerRow) + tilesPerRow;
+        // let colFraction = 1 - (rowIndex - rowFraction);
+        // let colIndex = Math.ceil((totalPixelMatrixColumns * colFraction) / columns);
         let index = rowIndex + '-' + colIndex;
         let frameNumber = j - offset + 1;
-        frameMapping[index] = frameNumber;
+        frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
       }
     } else {
       const perFrameFunctionalGroupsSequence = metadata['52009230']['Value'];
@@ -49458,8 +49463,12 @@
         let colIndex = Math.ceil(columnPositionInTotalPixelMatrix / rows);
         let index = rowIndex + '-' + colIndex;
         let frameNumber = j + 1;
-        frameMapping[index] = frameNumber;
+        frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
       }
+    }
+
+    if (sopInstanceUIDOfConcatenationSource) {
+      sopInstanceUID = sopInstanceUIDOfConcatenationSource;
     }
 
     return({
@@ -50198,7 +50207,7 @@
     const type = geometry.getType();
     if (type === 'Point') {
       let coordinates = geometry.getCoordinates();
-      return _geometryCoordinates2scoordCoordinates(coordinates);
+      coordinates = _geometryCoordinates2scoordCoordinates(coordinates);
       return new Point$1(coordinates);
     } else if (type === 'Polygon') {
       /*
@@ -50331,7 +50340,7 @@
       for (let i = 0; i < metadata.length; i++) {
         const cols = metadata[i].totalPixelMatrixColumns;
         const rows = metadata[i].totalPixelMatrixRows;
-        const paths = metadata[i].paths;
+        const mapping = metadata[i].frameMapping;
         /*
          * Instances may be broken down into multiple concatentation parts.
          * Therefore, we have to re-assemble instance metadata.
@@ -50348,11 +50357,8 @@
           }
         }
         if (alreadyExists) {
-          /*
-           * Update "paths" with information obtained from current
-           * concatentation part.
-          */
-          Object.assign(this[_pyramid][index].paths, paths);
+          // Update with information obtained from current concatentation part.
+          Object.assign(this[_pyramid][index].frameMapping, mapping);
         } else {
           this[_pyramid].push(metadata[i]);
         }
@@ -50367,6 +50373,7 @@
           return 0;
         }
       });
+      console.log(this[_pyramid]);
 
       /*
        * Collect relevant information from DICOM metadata for each pyramid
@@ -50435,16 +50442,15 @@
          */
         let x = -(tileCoord[2] + 1) + 1;
         let index = x + "-" + y;
-        let frameNumber = pyramid[z].frameMapping[index];
-        if (frameNumber === undefined) {
+        let path = pyramid[z].frameMapping[index];
+        if (path === undefined) {
           console.warn("tile " + index + " not found at level " + z);
           return(null);
         }
         let url = options.client.baseUrl +
           "/studies/" + pyramid[z].studyInstanceUID +
           "/series/" + pyramid[z].seriesInstanceUID +
-          '/instances/' + pyramid[z].sopInstanceUID +
-          '/frames/' + frameNumber;
+          '/instances/' + path;
         return(url);
       }
 
