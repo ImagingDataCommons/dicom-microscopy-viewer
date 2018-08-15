@@ -120,7 +120,7 @@ const _controls = Symbol('controls');
 const _interactions = Symbol('interactions');
 
 
-class DICOMMicroscopyViewer {
+class VLWholeSlideMicroscopyImageViewer {
 
   /*
    * options:
@@ -828,4 +828,4 @@ class DICOMMicroscopyViewer {
 
 }
 
-export { DICOMMicroscopyViewer };
+export { VLWholeSlideMicroscopyImageViewer };

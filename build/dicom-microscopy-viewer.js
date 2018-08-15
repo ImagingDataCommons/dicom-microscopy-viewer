@@ -49447,8 +49447,6 @@
         let rowFraction = j / tilesPerRow;
         let rowIndex = Math.ceil(rowFraction);
         let colIndex = j - (rowIndex * tilesPerRow) + tilesPerRow;
-        // let colFraction = 1 - (rowIndex - rowFraction);
-        // let colIndex = Math.ceil((totalPixelMatrixColumns * colFraction) / columns);
         let index = rowIndex + '-' + colIndex;
         let frameNumber = j - offset + 1;
         frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
@@ -50290,7 +50288,7 @@
   const _interactions = Symbol('interactions');
 
 
-  class DICOMMicroscopyViewer {
+  class VLWholeSlideMicroscopyImageViewer {
 
     /*
      * options:
@@ -50979,7 +50977,7 @@
   }
 
   let api = {
-    DICOMMicroscopyViewer,
+    VLWholeSlideMicroscopyImageViewer,
   };
   let scoord = {
     Point: Point$1,

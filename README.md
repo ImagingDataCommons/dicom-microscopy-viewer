@@ -30,11 +30,9 @@ We use [rollup](https://rollupjs.org/guide/en) for bundling and [mochify](https:
 
 ## Usage
 
-The viewer can be embedded in any website.
+The viewer can be embedded in any website, one only needs to
 
-To this end
-
-* Create an instance of the `DICOMMicroscopy` viewer. The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image instance formatted according to the [
+* Create an instance of the `VLWholeSlideMicroscopyImageViewer`. The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image instance formatted according to the [
 DICOM JSON Model](http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_F.2.html).
 
 * Call the `render()` method, passing it the HTML element or the name of the element, which shall contain the viewport.
@@ -69,11 +67,11 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
   return(Promise.all(promises));
 }).then(metadata => {
   metadata = metadata.filter(m => m);
-  const viewer = new DICOMMicroscopyViewer.api.DICOMMicroscopyViewer({
+  const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
     client,
     metadata
   });
-  viewer.render({container: 'activeViewport'});
+  viewer.render({container: 'viewport'});
 });
 ```
 
