@@ -203,7 +203,6 @@ class VLWholeSlideMicroscopyImageViewer {
         return 0;
       }
     });
-    console.log(this[_pyramid])
 
     /*
      * Collect relevant information from DICOM metadata for each pyramid
