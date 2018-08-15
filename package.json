@@ -1,7 +1,7 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.0.3",
-  "description": "Web-based viewer for DICOM Visible Light Whole Slide Microscopy Images",
+  "version": "0.0.4",
+  "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "build/dicom-microscopy-viewer.js",
   "scripts": {
     "test": "mochify",
