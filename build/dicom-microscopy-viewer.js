@@ -50172,6 +50172,7 @@
 
   var DICOMwebClient = unwrapExports(dicomwebClient);
 
+  const _usewebgl = Symbol('usewebgl');
   const _map = Symbol('map');
   const _features = Symbol('features');
   const _drawingSource = Symbol('drawingSource');
@@ -50189,6 +50190,7 @@
      * options:
      *   - client (instance of DICOMwebClient)
      *   - metadata (array of DICOM JSON metadata for each image instance)
+     *   - useWebGL (whether WebGL renderer should be used; default: true)
      *   - onClickHandler (on-event handler function)
      *   - onSingleClickHandler (on-event handler function)
      *   - onDoubleClickHandler (on-event handler function)
@@ -50207,6 +50209,11 @@
      *   - pixel
      */
     constructor(options) {
+      if ('useWebGL' in options) {
+        this[_usewebgl] = options.useWebGL;
+      } else {
+        this[_usewebgl] = true;
+      }
       this[_client] = options.client;
 
       // Collection of Openlayers "VectorLayer" instances indexable by
@@ -50266,7 +50273,6 @@
           return 0;
         }
       });
-      console.log(this[_pyramid]);
 
       /*
        * Collect relevant information from DICOM metadata for each pyramid
@@ -50563,14 +50569,25 @@
        * Creates the map with the defined layers and view and renders it via
        * WebGL.
        */
-      this[_map] = new WebGLMap({
-        layers: [imageLayer, this[_drawingLayer]],
-        view: view,
-        controls: [],
-        loadTilesWhileAnimating: true,
-        loadTilesWhileInteracting: true,
-        logo: false
-      });
+      if (this[_usewebgl]) {
+        this[_map] = new WebGLMap({
+          layers: [imageLayer, this[_drawingLayer]],
+          view: view,
+          controls: [],
+          loadTilesWhileAnimating: true,
+          loadTilesWhileInteracting: true,
+          logo: false
+        });
+      } else {
+        this[_map] = new Map({
+          layers: [imageLayer, this[_drawingLayer]],
+          view: view,
+          controls: [],
+          loadTilesWhileAnimating: true,
+          loadTilesWhileInteracting: true,
+          logo: false
+        });
+      }
       for (let control in this[_controls]) {
         // options.controls
         // TODO: enable user to select controls and style them

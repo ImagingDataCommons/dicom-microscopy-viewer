@@ -1,30 +1,16 @@
 const chai = require('chai');
 chai.should();
 
+const metadata = require('./data/metadata.json');
+
 const dicomMicroscopyViewer = require('../build/dicom-microscopy-viewer.js');
 
-describe('dicomMicroscopyViewer.api.DICOMMicroscopyViewer', function() {
+describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', function() {
 
-  const viewer = new dicomMicroscopyViewer.api.DICOMMicroscopyViewer({
+  const viewer = new dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
     client: 'foo',
-    studyInstanceUID: '1.2.3.4',
-    seriesInstanceUID: '1.2.3.5'
-  });
-
-  it('should have property "map"', function() {
-    viewer.should.have.property('map').equal(null);
-  });
-
-  it('should have property "client"', function() {
-    viewer.should.have.property('client').equal('foo');
-  });
-
-  it('should have property "studyInstanceUID"', function() {
-    viewer.should.have.property('studyInstanceUID').equal('1.2.3.4');
-  });
-
-  it('should have property "seriesInstanceUID"', function() {
-    viewer.should.have.property('seriesInstanceUID').equal('1.2.3.5');
+    metadata: metadata,
+    useWebGL: false
   });
 
 });
