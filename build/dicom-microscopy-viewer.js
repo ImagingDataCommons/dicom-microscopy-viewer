@@ -25312,35 +25312,6 @@
 
 
   /**
-   * Create a `geometryFunction` for `type: 'Circle'` that will create a regular
-   * polygon with a user specified number of sides and start angle instead of an
-   * `module:ol/geom/Circle~Circle` geometry.
-   * @param {number=} opt_sides Number of sides of the regular polygon. Default is
-   *     32.
-   * @param {number=} opt_angle Angle of the first point in radians. 0 means East.
-   *     Default is the angle defined by the heading from the center of the
-   *     regular polygon to the current pointer position.
-   * @return {module:ol/interaction/Draw~GeometryFunction} Function that draws a
-   *     polygon.
-   * @api
-   */
-  function createRegularPolygon(opt_sides, opt_angle) {
-    return function(coordinates, opt_geometry) {
-      var center = coordinates[0];
-      var end = coordinates[1];
-      var radius = Math.sqrt(
-        squaredDistance$1(center, end));
-      var geometry = opt_geometry ? /** @type {module:ol/geom/Polygon} */ (opt_geometry) :
-        fromCircle(new Circle(center), opt_sides);
-      var angle = opt_angle ? opt_angle :
-        Math.atan((end[1] - center[1]) / (end[0] - center[0]));
-      makeRegular(geometry, center, radius, angle);
-      return geometry;
-    };
-  }
-
-
-  /**
    * Get the drawing mode.  The mode for mult-part geometries is the same as for
    * their single-part cousins.
    * @param {module:ol/geom/GeometryType} type Geometry type.
@@ -50201,82 +50172,6 @@
 
   var DICOMwebClient = unwrapExports(dicomwebClient);
 
-  function _geometry2Scoord(geometry) {
-    const type = geometry.getType();
-    if (type === 'Point') {
-      let coordinates = geometry.getCoordinates();
-      coordinates = _geometryCoordinates2scoordCoordinates(coordinates);
-      return new Point$1(coordinates);
-    } else if (type === 'Polygon') {
-      /*
-       * The first linear ring of the array defines the outer-boundary (surface).
-       * Each subsequent linear ring defines a hole in the surface.
-       */
-      let coordinates = geometry.getCoordinates()[0].map(c => {
-        return _geometryCoordinates2scoordCoordinates(c);
-      });
-      return new Polyline(coordinates);
-    } else if (type === 'LineString') {
-      let coordinates = geometry.getCoordinates().map(c => {
-        return _geometryCoordinates2scoordCoordinates(c);
-      });
-      return new Polyline(coordinates);
-    } else if (type === 'Circle') {
-      // TODO: Circle may actually represent a Polyline
-      let center = _geometryCoordinates2scoordCoordinates(geometry.getCenter());
-      let radius = geometry.getRadius();
-      return new Circle$1(center, radius);
-    } else {
-      // TODO: Combine multiple points into MULTIPOINT.
-      console.error(`unknown geometry type "${type}"`);
-    }
-  }
-
-
-  function _scoord2Geometry(scoord) {
-    const type = scoord.graphicType;
-    const data = scoord.graphicData;
-    if (type === 'POINT') {
-      let coordinates = _scoordCoordinates2geometryCoordinates(data);
-      return new Point(coordinates);
-    } else if (type === 'MULTIPOINT') {
-      const points = [];
-      for (d in data) {
-        let coordinates = _scoordCoordinates2geometryCoordinates(d);
-        let p = new Point(coordinates);
-        points.push(p);
-      }
-      return points;
-    } else if (type === 'POLYLINE') {
-      if (data[0] === data[data.length-1]) {
-        let coordinates = [_scoordCoordinates2geometryCoordinates(data)];
-        return new Polygon(coordinates);
-      } else {
-        let coordinates = _scoordCoordinates2geometryCoordinates(data);
-        return new LineStringGeometry(coordinates);
-      }
-    } else if (type === 'CIRCLE') {
-      let coordinates = _scoordCoordinates2geometryCoordinates(data);
-      let center = coordinates[0];
-      let radius = Math.abs(coordinates[1][0] - coordinates[0][0]);
-      return new Circle(center, radius);
-    } else if (type === 'ELLIPSE') ; else {
-      console.error(`unknown graphic type "${type}"`);
-    }
-  }
-
-
-  function _geometryCoordinates2scoordCoordinates(coordinates) {
-    // TODO: Transform to coordinates on pyramid base layer???
-    return [coordinates[0] + 1, -coordinates[1]]
-  }
-
-
-  function _scoordCoordinates2geometryCoordinates(coordinates) {
-    return [coordinates[0] - 1, -coordinates[1]]
-  }
-
-
   const _map = Symbol('map');
   const _features = Symbol('features');
   const _drawingSource = Symbol('drawingSource');
@@ -50452,6 +50347,10 @@
         return(url);
       }
 
+      /*
+       * Define custonm tile loader function, which is required because the
+       * WADO-RS response message has content type "multipart/related".
+      */
       function base64Encode(data){
         const uint8Array = new Uint8Array(data);
         const chunkSize = 0x8000;
@@ -50471,7 +50370,7 @@
           const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
           const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
           const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-          const imageSubtype = 'jpeg';
+          const imageSubtype = 'jpeg';  // FIXME
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
@@ -50484,17 +50383,6 @@
             const encodedPixels = base64Encode(frames[0]);
             // Add pixel data to image
             tile.getImage().src = "data:image/" + imageSubtype + ";base64," + encodedPixels;
-
-            // console.log('DRAW IMAGE ON CANVAS')
-            // const canvas = document.createElement('canvas');
-            // canvas.width = 512;
-            // canvas.height = 512;
-            // const ctx = canvas.getContext('2d');
-            // ctx.strokeStyle = 'black';
-            // ctx.strokeRect(0.5, 0.5, 512 + 0.5, 512 + 0.5);
-            // tile.image_ = ctx.canvas;
-            // console.log(tile.getImage());
-
           });
         } else {
           console.warn('could not load tile');
@@ -50511,10 +50399,10 @@
        * number of rows in the total pixel matrix.
       */
       const extent = [
-        0,                                  // min X
+        0,                                           // min X
         -pyramid[nLevels-1].totalPixelMatrixRows,    // min Y
         pyramid[nLevels-1].totalPixelMatrixColumns,  // max X
-        -1                                  // max Y
+        -1                                           // max Y
       ];
 
       /*
@@ -50569,10 +50457,10 @@
         }
       });
       /*
-       * TODO: register custom projection:
+       * TODO: Register custom projection:
        *  - http://openlayers.org/en/latest/apidoc/ol.proj.html
        *  - http://openlayers.org/en/latest/apidoc/module-ol_proj.html#~ProjectionLike
-       * TODO: Direction cosines could be handled via projection rather
+       * Direction cosines could be handled via projection rather
        * than specifying a rotation
        */
 
@@ -50756,222 +50644,6 @@
         item.style.willChange = 'contents,width';
       }
 
-    }
-
-    /*
-     * options:
-     *    - geometryType (string)
-     *    - onDrawStartHandler (on-event handler function)
-     *    - onDrawEndHandler (on-event handler function)
-     *
-     * ---
-     * Draw Event (http://openlayers.org/en/latest/apidoc/module-ol_interaction_Draw-DrawEvent.html)
-     * Properties:
-     *   - "feature" (http://openlayers.org/en/latest/apidoc/module-ol_features-Feature.html)
-     */
-    activateDrawInteraction(options) {
-      this.deactivateDrawInteraction();
-      // TODO: "type", "condition", etc.
-      const customOptionsMapping = {
-        point: {
-          type: 'Point',
-        },
-        line: {
-          type: 'LineString',
-        },
-        freehandLine: {
-          type: 'LineString',
-          freehand: true,
-        },
-        circle: {
-          type: 'Circle',
-        },
-        box: {
-          type: 'Circle',
-          geometryFunction: createRegularPolygon(4),
-        },
-        polygon: {
-          type: 'Polygon',
-        },
-        freehandPolygon: {
-          type: 'Polygon',
-          freehand: true,
-        }
-      };
-      // TODO: ellipse
-      //     // https://gis.stackexchange.com/questions/49223/drawing-ellipse-with-openlayers#49228
-      const defaultOptions = {
-        source: this[_drawingSource],
-        features: this[_features],
-      };
-      if (!('geometryType' in options)) {
-        console.error('geometry type must be specified for drawing interaction');
-      }
-      if (!(options.geometryType in customOptionsMapping)) {
-        console.error(`unsupported geometry type "${options.geometryType}"`);
-      }
-      const customOptions = customOptionsMapping[options.geometryType];
-      const allOptions = Object.assign(defaultOptions, customOptions);
-      this[_interactions].draw = new Draw(allOptions);
-
-      if (typeof options.onDrawStartHandler === 'function') {
-        this[_interactions].draw.on('drawstart', options.onDrawStartHandler);
-      }
-      if (typeof options.onDrawEndHandler === 'function') {
-        this[_interactions].draw.on('drawend', options.onDrawEndHandler);
-      }
-
-      this[_map].addInteraction(this[_interactions].draw);
-    }
-
-    deactivateDrawInteraction() {
-      if (this[_interactions].draw !== undefined) {
-        this[_map].removeInteraction(this[_interactions].draw);
-      }
-    }
-
-    /*
-     * options:
-     *   - onSelectedHandler (on-event handler function)
-     *   - onDeselectedHandler (on-event handler function)
-     *
-     * ---
-     * Select Event (http://openlayers.org/en/latest/apidoc/module-ol_interaction_Select-SelectEvent.html)
-     * Properties:
-     *   - "selected", "deselected" (http://openlayers.org/en/latest/apidoc/module-ol_features-Feature.html)
-     *   - "mapBrowserEvent" (http://openlayers.org/en/latest/apidoc/module-ol_MapBrowserEvent-MapBrowserEvent.html)
-     */
-    activateSelectInteraction(options) {
-      this.deactivateSelectInteraction();
-      // TODO: "condition", etc.
-      this[_interactions].select = new Select({
-        layers: [this[_drawingLayer]]
-      });
-
-      if (typeof options.onSelectedHandler === 'function') {
-        this[_interactions].select.on('selected', options.onSelectedHandler);
-      }
-      if (typeof options.onDeselectedHandler === 'function') {
-        this[_interactions].select.on('deselected', options.onDeselectedHandler);
-      }
-
-      this[_map].addInteraction(this[_interactions].select);
-    }
-
-    deactivateSelectInteraction() {
-      if (this[_interactions].select) {
-        this[_map].removeInteraction(this[_interactions].select);
-      }
-    }
-
-    /*
-     * options:
-     *   - onModifyStartHandler (on-event handler function)
-     *   - onModifyEndHandler (on-event handler function)
-     *
-     * ---
-     * Modify Event (http://openlayers.org/en/latest/apidoc/module-ol_interaction_Modify-ModifyEvent.html)
-     * Properties:
-     *   - "features" (http://openlayers.org/en/latest/apidoc/module-ol_features-Feature.html)
-     *   - "mapBrowserEvent" (http://openlayers.org/en/latest/apidoc/module-ol_MapBrowserEvent-MapBrowserEvent.html)
-     */
-    activateModifyInteraction(options) {
-      this.deactivateModiifyInteraction();
-      this[_interactions].modify = new Modify({
-        features: this[_features],  // TODO: or source, i.e. "drawings"???
-      });
-      if (typeof options.onModifyStartHandler === 'function') {
-        this[_interactions].modify.on('modifystart', options.onModifyStartHandler);
-      }
-      if (typeof options.onModifyEndHandler === 'function') {
-        this[_interactions].modify.on('modifyend', options.onModifyEndHandler);
-      }
-      this[_map].addInteraction(this[_interactions].modify);
-    }
-
-    deactivateModifyInteraction() {
-      if (this[_interactions].modify) {
-        this[_map].removeInteraction(this[_interactions].modify);
-      }
-    }
-
-    getAllScoords() {
-      const features = this[_features].getArray();
-      const graphics = [];
-      for (let i = 0; i < features.length; i++) {
-        const geometry = features[i].getGeometry();
-        const graphic = _geometry2Scoord(geometry);
-        graphics.push(graphic);
-      }
-      return graphics;
-    }
-
-    countScoords() {
-      return this[_features].getLength();
-    }
-
-    getScoord(index) {
-      const feature = this[_features].item(index);
-      const geometry = feature.getGeometry();
-      return _geometry2Scoord(geometry);
-    }
-
-    addScoord(item) {
-      let geometry = _scoord2Geometry(item);
-      let feature = new Feature({geometry});
-      this[_drawingSource].addFeature(feature);
-    }
-
-    updateScoord(index, item) {
-      let geometry = _scoord2Geometry(item);
-      let feature = new Feature({geometry});
-      this[_features].setAt(index, feature);
-    }
-
-    removeScoord(index) {
-      let feature = this[_features].getAt(index);
-      this[_features].removeAt(index);
-      this[_drawingSource].removeFeature(feature);
-    }
-
-    set onAddScoordHandler(func) {
-      this[_features].on('add', func);
-    }
-
-    set onRemoveScoordHandler(func) {
-      this[_features].on('remove', func);
-    }
-
-    set onAddFeatureHandler(func) {
-      this[_drawingSource].on('addfeature', func);
-    }
-
-    set onRemoveFeatureHandler(func) {
-      this[_drawingSource].on('removefeature', func);
-    }
-
-    set onChangeFeatureHandler(func) {
-      this[_drawingSource].on('changefeature', func);
-    }
-
-    set onClearFeaturesHandler(func) {
-      this[_drawingSource].on('clearfeature', func);
-    }
-
-    set onClickHandler(func) {
-      this[_map].on('click', func);
-    }
-
-    set onSingleClickHandler(func) {
-      this[_map].on('singleclick', func);
-    }
-
-    set onDoubleClickHandler(func) {
-      this[_map].on('dblclick', func);
-    }
-
-    set onDragHandler(func) {
-      this[_map].on('pointerdrag', func);
     }
 
   }
