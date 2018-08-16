@@ -1,6 +1,6 @@
 /*
- * Spatial coordinates of a geometric region of interest within the
- * total pixel matrix.
+ * Spatial coordinates of a geometric region of interest (ROI) in the DICOM
+ * image coordinate system.
  */
 class Scoord {
 

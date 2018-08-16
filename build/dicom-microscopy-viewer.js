@@ -25686,6 +25686,39 @@
 
 
   /**
+   * Create a `geometryFunction` for `type: 'Circle'` that will create a regular
+   * polygon with a user specified number of sides and start angle instead of an
+   * `import("../geom/Circle.js").Circle` geometry.
+   * @param {number=} opt_sides Number of sides of the regular polygon. Default is
+   *     32.
+   * @param {number=} opt_angle Angle of the first point in radians. 0 means East.
+   *     Default is the angle defined by the heading from the center of the
+   *     regular polygon to the current pointer position.
+   * @return {GeometryFunction} Function that draws a
+   *     polygon.
+   * @api
+   */
+  function createRegularPolygon(opt_sides, opt_angle) {
+    return function(coordinates, opt_geometry) {
+      var center = /** @type {LineCoordType} */ (coordinates)[0];
+      var end = /** @type {LineCoordType} */ (coordinates)[1];
+      var radius = Math.sqrt(
+        squaredDistance$1(center, end));
+      var geometry = opt_geometry ? /** @type {Polygon} */ (opt_geometry) :
+        fromCircle(new Circle(center), opt_sides);
+      var angle = opt_angle;
+      if (!opt_angle) {
+        var x = end[0] - center[0];
+        var y = end[1] - center[1];
+        angle = Math.atan(y / x) - (x < 0 ? Math.PI : 0);
+      }
+      makeRegular(geometry, center, radius, angle);
+      return geometry;
+    };
+  }
+
+
+  /**
    * Get the drawing mode.  The mode for mult-part geometries is the same as for
    * their single-part cousins.
    * @param {GeometryType} type Geometry type.
@@ -49595,7 +49628,11 @@
     const sharedFunctionalGroupsSequence = metadata['52009229']['Value'][0];
     const pixelMeasuresSequence = sharedFunctionalGroupsSequence['00289110']['Value'][0];
     const pixelSpacing = pixelMeasuresSequence['00280030']['Value'];
-    const numberOfFrames = Number(metadata['00280008']['Value'][0]);
+    // The top level (lowest resolution) image may be a single frame image.
+    let numberOfFrames = 1;
+    if ('00280008' in metadata) {
+      numberOfFrames = Number(metadata['00280008']['Value'][0]);
+    }
 
     /*
      * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
@@ -49665,9 +49702,27 @@
     });
   }
 
+  /* Region of interest.
+   */
+  class ROI {
+
+    /* @constructor
+     * @param{Scoord} scoord spatial coordinates
+     * @param{Object} properties qualititative evaluations
+     */
+    constructor(options) {
+      if (!('scoord' in options)) {
+        console.error('spatial coordinates are required for ROI');
+      }
+      this.scoord = options.scoord;
+      this.properties = options.properties ? options.properties : {};
+    }
+
+  }
+
   /*
-   * Spatial coordinates of a geometric region of interest within the
-   * total pixel matrix.
+   * Spatial coordinates of a geometric region of interest (ROI) in the DICOM
+   * image coordinate system.
    */
   class Scoord {
 
@@ -50082,7 +50137,9 @@
     var MIMETYPES = {
       DICOM: 'application/dicom',
       DICOM_JSON: 'application/dicom+json',
-      OCTET_STREAM: 'application/octet-stream'
+      OCTET_STREAM: 'application/octet-stream',
+      JPEG: 'image/jpeg',
+      PNG: 'image/png'
     };
     /**
     * Class for interacting with DICOMweb RESTful services.
@@ -50101,7 +50158,7 @@
         this.baseURL = options.url;
 
         if (!this.baseURL) {
-          console.error('DICOMweb base url provided - calls will fail');
+          console.error('no DICOMweb base url provided - calls will fail');
         }
 
         if ('username' in options) {
@@ -50112,6 +50169,27 @@
           }
 
           this.password = options.password;
+        }
+
+        if ('qidoURLPrefix' in options) {
+          console.log("use URL prefix for QIDO-RS: ".concat(options.qidoURLPrefix));
+          this.qidoURL = this.baseURL + '/' + options.qidoURLPrefix;
+        } else {
+          this.qidoURL = this.baseURL;
+        }
+
+        if ('wadoURLPrefix' in options) {
+          console.log("use URL prefix for WADO-RS: ".concat(options.wadoURLPrefix));
+          this.wadoURL = this.baseURL + '/' + options.wadoURLPrefix;
+        } else {
+          this.wadoURL = this.baseURL;
+        }
+
+        if ('stowURLPrefix' in options) {
+          console.log("use URL prefix for STOW-RS: ".concat(options.stowURLPrefix));
+          this.stowURL = this.baseURL + '/' + options.stowURLPrefix;
+        } else {
+          this.stowURL = this.baseURL;
         }
 
         this.headers = options.headers || {};
@@ -50261,7 +50339,7 @@
         }
         /**
          * Searches for DICOM studies.
-         * @param {Object} options options object - "queryParams" optional query parameters (choices: "fuzzymatching", "offset", "limit" or any valid DICOM attribute identifier)
+         * @param {Object} options options object
          * @return {Array} study representations (http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2)
          */
 
@@ -50270,7 +50348,7 @@
         value: function searchForStudies() {
           var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
           console.log('search for studies');
-          var url = this.baseURL + '/studies';
+          var url = this.qidoURL + '/studies';
 
           if ('queryParams' in options) {
             url += DICOMwebClient._parseQueryParameters(options.queryParams);
@@ -50280,7 +50358,7 @@
         }
         /**
          * Retrieves metadata for a DICOM study.
-         * @param {String} studyInstanceUID Study Instance UID
+         * @param {Object} options options object
          * @returns {Array} metadata elements in DICOM JSON format for each instance belonging to the study
          */
 
@@ -50292,13 +50370,12 @@
           }
 
           console.log("retrieve metadata of study ".concat(options.studyInstanceUID));
-          var url = this.baseURL + '/studies/' + options.studyInstanceUID + '/metadata';
+          var url = this.wadoURL + '/studies/' + options.studyInstanceUID + '/metadata';
           return this._httpGetApplicationJson(url);
         }
         /**
          * Searches for DICOM series.
-         * @param {Object} options optional DICOM identifiers (choices: "studyInstanceUID")
-         * @param {Object} queryParams optional query parameters (choices: "fuzzymatching", "offset", "limit" or any valid DICOM attribute identifier)
+         * @param {Object} options options object
          * @returns {Array} series representations (http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2a)
          */
 
@@ -50306,7 +50383,7 @@
         key: "searchForSeries",
         value: function searchForSeries() {
           var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-          var url = this.baseURL;
+          var url = this.qidoURL;
 
           if ('studyInstanceUID' in options) {
             console.log("search series of study ".concat(options.studyInstanceUID));
@@ -50323,8 +50400,7 @@
         }
         /**
          * Retrieves metadata for a DICOM series.
-         * @param {String} studyInstanceUID Study Instance UID
-         * @param {String} seriesInstanceUID Series Instance UID
+         * @param {Object} options options object
          * @returns {Array} metadata elements in DICOM JSON format for each instance belonging to the series
          */
 
@@ -50340,13 +50416,12 @@
           }
 
           console.log("retrieve metadata of series ".concat(options.seriesInstanceUID));
-          var url = this.baseURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID + '/metadata';
+          var url = this.wadoURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID + '/metadata';
           return this._httpGetApplicationJson(url);
         }
         /**
          * Searches for DICOM instances.
-         * @param {Object} options optional DICOM identifiers (choices: "studyInstanceUID", "seriesInstanceUID")
-         * @param {Object} queryParams optional query parameters (choices: "fuzzymatching", "offset", "limit" or any valid DICOM attribute identifier)
+         * @param {Object} options options object
          * @returns {Array} instance representations (http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.7.html#table_6.7.1-2b)
          */
 
@@ -50354,7 +50429,7 @@
         key: "searchForInstances",
         value: function searchForInstances() {
           var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-          var url = this.baseURL;
+          var url = this.qidoURL;
 
           if ('studyInstanceUID' in options) {
             url += '/studies/' + options.studyInstanceUID;
@@ -50378,8 +50453,7 @@
           return this._httpGetApplicationJson(url);
         }
         /** Returns a WADO-URI URL for an instance
-         *
-         * @param {Object} options
+         * @param {Object} options options object
          * @returns {String} WADO-URI URL
          */
 
@@ -50412,9 +50486,8 @@
         }
         /**
          * Retrieves metadata for a DICOM instance.
-         * @param {String} studyInstanceUID Study Instance UID
-         * @param {String} seriesInstanceUID Series Instance UID
-         * @param {String} sopInstanceUID SOP Instance UID
+         *
+         * @param {Object} options object
          * @returns {Object} metadata elements in DICOM JSON format
          */
 
@@ -50434,16 +50507,12 @@
           }
 
           console.log("retrieve metadata of instance ".concat(options.sopInstanceUID));
-          var url = this.baseURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID + '/instances/' + options.sopInstanceUID + '/metadata';
+          var url = this.wadoURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID + '/instances/' + options.sopInstanceUID + '/metadata';
           return this._httpGetApplicationJson(url);
         }
         /**
          * Retrieves frames for a DICOM instance.
-         * @param {String} studyInstanceUID Study Instance UID
-         * @param {String} seriesInstanceUID Series Instance UID
-         * @param {String} sopInstanceUID SOP Instance UID
-         * @param {Array} frameNumbers one-based index of frames
-         * @param {Object} options optional parameters (key "imageSubtype" to specify MIME image subtypes)
+         * @param {Object} options options object
          * @returns {Array} frame items as byte arrays of the pixel data element
          */
 
@@ -50451,15 +50520,15 @@
         key: "retrieveInstanceFrames",
         value: function retrieveInstanceFrames(options) {
           if (!('studyInstanceUID' in options)) {
-            throw new Error('Study Instance UID is required for retrieval of instance metadata');
+            throw new Error('Study Instance UID is required for retrieval of instance frames');
           }
 
           if (!('seriesInstanceUID' in options)) {
-            throw new Error('Series Instance UID is required for retrieval of instance metadata');
+            throw new Error('Series Instance UID is required for retrieval of instance frames');
           }
 
           if (!('sopInstanceUID' in options)) {
-            throw new Error('SOP Instance UID is required for retrieval of instance metadata');
+            throw new Error('SOP Instance UID is required for retrieval of instance frames');
           }
 
           if (!('frameNumbers' in options)) {
@@ -50467,17 +50536,50 @@
           }
 
           console.log("retrieve frames ".concat(options.frameNumbers.toString(), " of instance ").concat(options.sopInstanceUID));
-          var url = this.baseURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID + '/instances/' + options.sopInstanceUID + '/frames/' + options.frameNumbers.toString(); // TODO: Easier if user just provided mimetype directly? What is the benefit of adding 'image/'?
-
-          var mimeType = options.imageSubType ? "image/".concat(options.imageSubType) : MIMETYPES.OCTET_STREAM;
+          var url = this.wadoURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID + '/instances/' + options.sopInstanceUID + '/frames/' + options.frameNumbers.toString();
+          var mimeType = options.mimeType ? "".concat(options.mimeType) : MIMETYPES.OCTET_STREAM;
           return this._httpGetByMimeType(url, mimeType).then(multipartDecode);
         }
         /**
+         * Retrieves rendered frames for a DICOM instance.
+         * @param {Object} options options object
+         * @returns {Array} frame items as byte arrays of the pixel data element
+         */
+
+      }, {
+        key: "retrieveInstanceFramesRendered",
+        value: function retrieveInstanceFramesRendered(options) {
+          if (!('studyInstanceUID' in options)) {
+            throw new Error('Study Instance UID is required for retrieval of rendered instance frames');
+          }
+
+          if (!('seriesInstanceUID' in options)) {
+            throw new Error('Series Instance UID is required for retrieval of rendered instance frames');
+          }
+
+          if (!('sopInstanceUID' in options)) {
+            throw new Error('SOP Instance UID is required for retrieval of rendered instance frames');
+          }
+
+          if (!('frameNumbers' in options)) {
+            throw new Error('frame numbers are required for retrieval of rendered instance frames');
+          }
+
+          console.log("retrieve rendered frames ".concat(options.frameNumbers.toString(), " of instance ").concat(options.sopInstanceUID));
+          var url = this.wadoURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID + '/instances/' + options.sopInstanceUID + '/frames/' + options.frameNumbers.toString() + '/rendered';
+          var headers = {}; // The choice of an acceptable media type depends on a variety of things:
+          // http://dicom.nema.org/medical/dicom/current/output/chtml/part18/chapter_6.html#table_6.1.1-3
+
+          if ('mimeType' in options) {
+            headers['Accept'] = options.mimeType;
+          }
+
+          var responseType = 'arraybuffer';
+          return this._httpGet(url, headers, responseType);
+        }
+        /**
          * Retrieves a DICOM instance.
-         *
-         * @param {String} studyInstanceUID Study Instance UID
-         * @param {String} seriesInstanceUID Series Instance UID
-         * @param {String} sopInstanceUID SOP Instance UID
+         * @param {Object} options options object
          * @returns {Arraybuffer} DICOM Part 10 file as Arraybuffer
          */
 
@@ -50496,14 +50598,12 @@
             throw new Error('SOP Instance UID is required');
           }
 
-          var url = this.baseURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID + '/instances/' + options.sopInstanceUID;
+          var url = this.wadoURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID + '/instances/' + options.sopInstanceUID;
           return this._httpGetByMimeType(url, MIMETYPES.DICOM).then(multipartDecode).then(getFirstResult);
         }
         /**
          * Retrieves a set of DICOM instance for a series.
-         *
-         * @param {String} studyInstanceUID Study Instance UID
-         * @param {String} seriesInstanceUID Series Instance UID
+         * @param {Object} options options object
          * @returns {Arraybuffer[]} Array of DICOM Part 10 files as Arraybuffers
          */
 
@@ -50518,13 +50618,12 @@
             throw new Error('Series Instance UID is required');
           }
 
-          var url = this.baseURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID;
+          var url = this.wadoURL + '/studies/' + options.studyInstanceUID + '/series/' + options.seriesInstanceUID;
           return this._httpGetByMimeType(url, MIMETYPES.DICOM).then(multipartDecode);
         }
         /**
          * Retrieves a set of DICOM instance for a study.
-         *
-         * @param {String} studyInstanceUID Study Instance UID
+         * @param {Object} options options object
          * @returns {Arraybuffer[]} Array of DICOM Part 10 files as Arraybuffers
          */
 
@@ -50535,17 +50634,17 @@
             throw new Error('Study Instance UID is required');
           }
 
-          var url = this.baseURL + '/studies/' + options.studyInstanceUID;
+          var url = this.wadoURL + '/studies/' + options.studyInstanceUID;
           return this._httpGetByMimeType(url, MIMETYPES.DICOM).then(multipartDecode);
         }
         /**
-         * Retrieve and parse BulkData from a BulkDataURI location.
+         * Retrieves and parses BulkData from a BulkDataURI location.
          * Decodes the multipart encoded data and returns the resulting data
          * as an ArrayBuffer.
          *
          * See http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_6.5.5.html
          *
-         * @param {Object} options
+         * @param {Object} options options object
          * @return {Promise}
          */
 
@@ -50560,8 +50659,8 @@
         }
         /**
          * Stores DICOM instances.
-         * @param {Array} datasets DICOM datasets of instances that should be stored in DICOM JSON format
-         * @param {Object} options optional parameters (key "studyInstanceUID" to only store instances of a given study)
+         *
+         * @param {Object} options options object
          */
 
       }, {
@@ -50571,7 +50670,7 @@
             throw new Error('datasets are required for storing');
           }
 
-          var url = "".concat(this.baseURL, "/studies");
+          var url = "".concat(this.stowURL, "/studies");
 
           if ('studyInstanceUID' in options) {
             url += "/".concat(options.studyInstanceUID);
@@ -50629,7 +50728,7 @@
       var uid = findSubstring(uri, "studies/", "/series");
 
       if (!uid) {
-        var uid = findSubstring(uri, "studies/");
+        uid = findSubstring(uri, "studies/");
       }
 
       if (!uid) {
@@ -50643,7 +50742,7 @@
       var uid = findSubstring(uri, "series/", "/instances");
 
       if (!uid) {
-        var uid = findSubstring(uri, "series/");
+        uid = findSubstring(uri, "series/");
       }
 
       if (!uid) {
@@ -50657,11 +50756,11 @@
       var uid = findSubstring(uri, "/instances/", "/frames");
 
       if (!uid) {
-        var uid = findSubstring(uri, "/instances/", "/metadata");
+        uid = findSubstring(uri, "/instances/", "/metadata");
       }
 
       if (!uid) {
-        var uid = findSubstring(uri, "/instances/");
+        uid = findSubstring(uri, "/instances/");
       }
 
       if (!uid) {
@@ -50672,7 +50771,11 @@
     }
 
     function getFrameNumbersFromUri(uri) {
-      var numbers = findSubstring(uri, "/frames/");
+      var numbers = findSubstring(uri, "/frames/", "/rendered");
+
+      if (!numbers) {
+        numbers = findSubstring(uri, "/frames/");
+      }
 
       if (numbers === undefined) {
         console.debug('Frames Numbers could not be dertermined from URI"' + uri + '"');
@@ -50705,13 +50808,85 @@
 
   var DICOMwebClient = unwrapExports(dicomwebClient);
 
+  function _geometry2Scoord(geometry) {
+    const type = geometry.getType();
+    if (type === 'Point') {
+      let coordinates = geometry.getCoordinates();
+      coordinates = _geometryCoordinates2scoordCoordinates(coordinates);
+      return new Point$1(coordinates);
+    } else if (type === 'Polygon') {
+      /*
+       * The first linear ring of the array defines the outer-boundary (surface).
+       * Each subsequent linear ring defines a hole in the surface.
+       */
+      let coordinates = geometry.getCoordinates()[0].map(c => {
+        return _geometryCoordinates2scoordCoordinates(c);
+      });
+      return new Polyline(coordinates);
+    } else if (type === 'LineString') {
+      let coordinates = geometry.getCoordinates().map(c => {
+        return _geometryCoordinates2scoordCoordinates(c);
+      });
+      return new Polyline(coordinates);
+    } else if (type === 'Circle') {
+      // TODO: Circle may actually represent a Polyline
+      let center = _geometryCoordinates2scoordCoordinates(geometry.getCenter());
+      let radius = geometry.getRadius();
+      return new Circle$1(center, radius);
+    } else {
+      // TODO: Combine multiple points into MULTIPOINT.
+      console.error(`unknown geometry type "${type}"`);
+    }
+  }
+
+
+  function _scoord2Geometry(scoord) {
+    const type = scoord.graphicType;
+    const data = scoord.graphicData;
+    if (type === 'POINT') {
+      let coordinates = _scoordCoordinates2geometryCoordinates(data);
+      return new Point(coordinates);
+    } else if (type === 'POLYLINE') {
+      const coordinates = data.map(d => {
+        return _scoordCoordinates2geometryCoordinates(d);
+      });
+      let isClosed = (
+        data[0][0] === data[data.length-1][0] &&
+        data[0][1] === data[data.length-1][1]
+      );
+      if (isClosed) {
+        // Polygon requires inner linear ring and an outer ring.
+        return new Polygon([coordinates]);
+      } else {
+        return new LineString(coordinates);
+      }
+    } else if (type === 'CIRCLE') {
+      let center = _scoordCoordinates2geometryCoordinates(scoord.centerCoordinates);
+      let radius = scoord.radius;
+      return new Circle(center, radius);
+    } else {
+      console.error(`unsupported graphic type "${type}"`);
+    }
+  }
+
+
+  function _geometryCoordinates2scoordCoordinates(coordinates) {
+    // TODO: Transform to coordinates on pyramid base layer???
+    return [coordinates[0] + 1, -coordinates[1]]
+  }
+
+
+  function _scoordCoordinates2geometryCoordinates(coordinates) {
+    return [coordinates[0] - 1, -coordinates[1]]
+  }
+
+
   const _usewebgl = Symbol('usewebgl');
   const _map = Symbol('map');
   const _features = Symbol('features');
   const _drawingSource = Symbol('drawingSource');
   const _drawingLayer = Symbol('drawingLayer');
   const _segmentations = Symbol('segmentations');
-  const _pyramid = Symbol('pyramid');
   const _client = Symbol('client');
   const _controls = Symbol('controls');
   const _interactions = Symbol('interactions');
@@ -50723,23 +50898,8 @@
      * options:
      *   - client (instance of DICOMwebClient)
      *   - metadata (array of DICOM JSON metadata for each image instance)
+     *   - retrieveRendered (whether frames should be retrieved using DICOMweb RetrieveRenderedTransaction)
      *   - useWebGL (whether WebGL renderer should be used; default: true)
-     *   - onClickHandler (on-event handler function)
-     *   - onSingleClickHandler (on-event handler function)
-     *   - onDoubleClickHandler (on-event handler function)
-     *   - onDragHandler (on-event handler function)
-     *   - onAddScoordHandler (on-event handler function)
-     *   - onRemoveScoordHandler (on-event handler function)
-     *   - onAddFeatureHandler (on-event handler function)
-     *   - onRemoveFeatureHandler (on-event handler function)
-     *   - onChangeFeatureHandler (on-event handler function)
-     *   - onClearFeaturesHandler (on-event handler function)
-     *
-     * ---
-     * Map Event (http://openlayers.org/en/latest/apidoc/module-ol_MapBrowserEvent-MapBrowserEvent.html)
-     * Properties:
-     *   - coordinate (http://openlayers.org/en/latest/apidoc/module-ol_coordinate.html#~Coordinate)
-     *   - pixel
      */
     constructor(options) {
       if ('useWebGL' in options) {
@@ -50749,6 +50909,15 @@
       }
       this[_client] = options.client;
 
+      if (!('retrieveRendered' in options)) {
+        options.retrieveRendered = false;
+      }
+
+      if (!('controls' in options)) {
+        options.controls = [];
+      }
+      options.controls = new Set(options.controls);
+
       // Collection of Openlayers "VectorLayer" instances indexable by
       // DICOM Series Instance UID
       this[_segmentations] = {};
@@ -50756,20 +50925,13 @@
       // Collection of Openlayers "Feature" instances
       this[_features] = new Collection([], {unique: true});
 
-      if (typeof options.onAddScoordHandler === 'function') {
-        this[_features].on('add', options.onAddScoordHandler);
-      }
-      if (typeof options.onRemoveScoordHandler === 'function') {
-        this[_features].on('add', options.onRemoveScoordHandler);
-      }
-
       /*
        * To visualize images accross multiple scales, we first need to
        * determine the image pyramid structure, i.e. the size and resolution
        * images at the different pyramid levels.
       */
       const metadata = options.metadata.map(m => formatImageMetadata(m));
-      this[_pyramid] = [];
+      this.pyramid = [];
       for (let i = 0; i < metadata.length; i++) {
         const cols = metadata[i].totalPixelMatrixColumns;
         const rows = metadata[i].totalPixelMatrixRows;
@@ -50780,10 +50942,10 @@
         */
         let alreadyExists = false;
         let index = null;
-        for (let j = 0; j < this[_pyramid].length; j++) {
+        for (let j = 0; j < this.pyramid.length; j++) {
           if (
-              (this[_pyramid][j].totalPixelMatrixColumns === cols) &&
-              (this[_pyramid][j].totalPixelMatrixRows === rows)
+              (this.pyramid[j].totalPixelMatrixColumns === cols) &&
+              (this.pyramid[j].totalPixelMatrixRows === rows)
             ) {
             alreadyExists = true;
             index = j;
@@ -50791,13 +50953,13 @@
         }
         if (alreadyExists) {
           // Update with information obtained from current concatentation part.
-          Object.assign(this[_pyramid][index].frameMapping, mapping);
+          Object.assign(this.pyramid[index].frameMapping, mapping);
         } else {
-          this[_pyramid].push(metadata[i]);
+          this.pyramid.push(metadata[i]);
         }
       }
       // Sort levels in ascending order
-      this[_pyramid].sort(function(a, b) {
+      this.pyramid.sort(function(a, b) {
         if(a.totalPixelMatrixColumns < b.totalPixelMatrixColumns) {
           return -1;
         } else if(a.totalPixelMatrixColumns > b.totalPixelMatrixColumns) {
@@ -50814,42 +50976,50 @@
       const tileSizes = [];
       const totalSizes = [];
       const resolutions = [];
-      const origins = [[0, -1]];
-      const nLevels = this[_pyramid].length;
-      for (let j = 0; j < nLevels; j++) {
-        let columns = this[_pyramid][j].columns;
-        let rows = this[_pyramid][j].rows;
-        let totalPixelMatrixColumns = this[_pyramid][j].totalPixelMatrixColumns;
-        let totalPixelMatrixRows = this[_pyramid][j].totalPixelMatrixRows;
-        let pixelSpacing = this[_pyramid][j].pixelSpacing;
+      const origins = [];
+      const offset = [0, -1];
+      const nLevels = this.pyramid.length;
+      if (nLevels === 0) {
+        console.error('empty pyramid - no levels found');
+      }
+      const basePixelSpacing = this.pyramid[nLevels-1].pixelSpacing;
+      const baseColumns = this.pyramid[nLevels-1].columns;
+      const baseRows = this.pyramid[nLevels-1].rows;
+      const baseTotalPixelMatrixColumns = this.pyramid[nLevels-1].totalPixelMatrixColumns;
+      const baseTotalPixelMatrixRows = this.pyramid[nLevels-1].totalPixelMatrixRows;
+      for (let j = (nLevels - 1); j >= 0; j--) {
+        let columns = this.pyramid[j].columns;
+        let rows = this.pyramid[j].rows;
+        let totalPixelMatrixColumns = this.pyramid[j].totalPixelMatrixColumns;
+        let totalPixelMatrixRows = this.pyramid[j].totalPixelMatrixRows;
+        let pixelSpacing = this.pyramid[j].pixelSpacing;
         let colFactor = Math.ceil(totalPixelMatrixColumns / columns);
         let rowFactor = Math.ceil(totalPixelMatrixRows / rows);
+        let adjustedTotalPixelMatrixColumns = columns * colFactor;
+        let adjustedTotalPixelMatrixRows = rows * rowFactor;
         tileSizes.push([columns, rows]);
-        totalSizes.push([columns * colFactor, rows * rowFactor]);
+        totalSizes.push([adjustedTotalPixelMatrixColumns, adjustedTotalPixelMatrixRows]);
 
         /*
          * Compute the resolution at each pyramid level, since the zoom
          * factor may not be the same between adjacent pyramid levels.
         */
-        let zoomFactor =  this[_pyramid][nLevels-1].totalPixelMatrixRows / totalPixelMatrixRows;
+        let zoomFactor = pixelSpacing[0] / basePixelSpacing[0];
         resolutions.push(zoomFactor);
 
         /*
          * TODO: One may have to adjust the offset slightly due to the
-         * difference between extent of the image at a resolution level
+         * difference between extent of the image at a given resolution level
          * and the actual number of tiles (frames).
         */
-        let orig = [0, -1];
-        if (j < this[_pyramid].length-1) {
-          origins.push(orig);
-        }
+        origins.push(offset);
       }
-      totalSizes.reverse();
+      resolutions.reverse();
       tileSizes.reverse();
       origins.reverse();
 
       // We can't call "this" inside functions.
-      const pyramid = this[_pyramid];
+      const pyramid = this.pyramid;
 
       /*
        * Define custom tile URL function to retrive frames via DICOMweb
@@ -50879,28 +51049,14 @@
           console.warn("tile " + index + " not found at level " + z);
           return(null);
         }
-        let url = options.client.baseURL +
+        let url = options.client.wadoURL +
           "/studies/" + pyramid[z].studyInstanceUID +
           "/series/" + pyramid[z].seriesInstanceUID +
           '/instances/' + path;
-        return(url);
-      }
-
-      /*
-       * Define custonm tile loader function, which is required because the
-       * WADO-RS response message has content type "multipart/related".
-      */
-      function base64Encode(data){
-        const uint8Array = new Uint8Array(data);
-        const chunkSize = 0x8000;
-        const strArray = [];
-        for (let i=0; i < uint8Array.length; i+=chunkSize) {
-          let str = String.fromCharCode.apply(
-            null, uint8Array.subarray(i, i + chunkSize)
-          );
-          strArray.push(str);
+        if (options.retrieveRendered) {
+          url = url + '/rendered';
         }
-        return btoa(strArray.join(''));
+        return(url);
       }
 
       function tileLoadFunction(tile, src) {
@@ -50909,20 +51065,35 @@
           const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
           const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
           const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-          const imageSubType = 'jpeg';  // FIXME
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            imageSubType
-          };
-          options.client.retrieveInstanceFrames(retrieveOptions).then((frames) => {
-            // Encode pixel data as base64 string
-            const encodedPixels = base64Encode(frames[0]);
-            // Add pixel data to image
-            tile.getImage().src = "data:image/" + imageSubType + ";base64," + encodedPixels;
-          });
+          const img = tile.getImage();
+          if (options.retrieveRendered) {
+            const mimeType = 'image/png';
+            const retrieveOptions = {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID,
+              frameNumbers,
+              mimeType
+            };
+            options.client.retrieveInstanceFramesRendered(retrieveOptions).then((renderedFrame) => {
+              const blob = new Blob([renderedFrame], {type: mimeType});
+              img.src = window.URL.createObjectURL(blob);
+            });
+          } else {
+            // TODO: support "image/jp2" and "image/jls"
+            const mimeType = 'image/jpeg';
+            const retrieveOptions = {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID,
+              frameNumbers,
+              mimeType
+            };
+            options.client.retrieveInstanceFrames(retrieveOptions).then((rawFrames) => {
+              const blob = new Blob(rawFrames, {type: mimeType});
+              img.src = window.URL.createObjectURL(blob);
+            });
+          }
         } else {
           console.warn('could not load tile');
         }
@@ -50938,10 +51109,10 @@
        * number of rows in the total pixel matrix.
       */
       const extent = [
-        0,                                           // min X
-        -pyramid[nLevels-1].totalPixelMatrixRows,    // min Y
-        pyramid[nLevels-1].totalPixelMatrixColumns,  // max X
-        -1                                           // max Y
+        0,                            // min X
+        -baseTotalPixelMatrixRows,    // min Y
+        baseTotalPixelMatrixColumns,  // max X
+        -1                            // max Y
       ];
 
       /*
@@ -50956,8 +51127,8 @@
       */
       var degrees = 0;
       if (
-        (this[_pyramid][this[_pyramid].length-1].imageOrientationSlide[1] === -1) &&
-        (this[_pyramid][this[_pyramid].length-1].imageOrientationSlide[3] === -1)
+        (this.pyramid[this.pyramid.length-1].imageOrientationSlide[1] === -1) &&
+        (this.pyramid[this.pyramid.length-1].imageOrientationSlide[3] === -1)
       ) {
         /*
          * The row direction (left to right) of the total pixel matrix
@@ -51032,35 +51203,23 @@
       const imageLayer = new TileLayer({
         extent: extent,
         source: rasterSource,
-        preload: 2,
+        preload: 1,
         projection: projection
       });
 
       this[_drawingSource] = new VectorSource({
         tileGrid: tileGrid,
         projection: projection,
+        features: this[_features],
         wrapX: false
       });
 
-      if (typeof options.onAddFeatureHandler === 'function') {
-        this[_drawingSource].on('addfeature', options.onAddFeatureHandler);
-      }
-      if (typeof options.onRemoveFeatureHandler === 'function') {
-        this[_drawingSource].on('removefeature', options.onRemoveFeatureHandler);
-      }
-      if (typeof options.onChangeFeatureHandler === 'function') {
-        this[_drawingSource].on('changefeature', options.onChangeFeatureHandler);
-      }
-      if (typeof options.onClearFeaturesHandler === 'function') {
-        this[_drawingSource].on('clearfeature', options.onClearFeaturesHandler);
-      }
-
-      // TODO: allow user to configure style (required for text labels)
-      // http://openlayers.org/en/latest/apidoc/module-ol_style_Style-Style.html
       this[_drawingLayer] = new VectorLayer({
         extent: extent,
         source: this[_drawingSource],
         projection: projection,
+        updateWhileAnimating: true,
+        updateWhileInteracting: true,
       });
 
       const view = new View({
@@ -51077,26 +51236,27 @@
         rotation: rotation
       });
 
-      this[_controls] = {
-        scaleLine: new ScaleLine({
-          units: 'metric',
-          className: 'dicom-microscopy-viewer-scale'
-        }),
-      // overview: new OverviewMap({
-      //   view: overviewView,
-      //   collapsed: true,
-      //   className: 'dicom-microscopy-viewer-overview'
-      // }),
-      //   zoom: new Zoom({
-      //     className: 'dicom-microscopy-viewer-zoom'
-      //   }),
-      //   zoomSlider: new ZoomSlider({
-      //     className: 'dicom-microscopy-viewer-zoom-slider'
-      //   }),
-      //   fullScreen: new FullScreen({
-      //     className: 'dicom-microscopy-viewer-fullscreen'
-      //   }),
+      this[_interactions] = {
+        draw: undefined,
+        select: undefined,
+        modify: undefined
       };
+
+      this[_controls] = {
+        scale: new ScaleLine({
+          units: 'metric',
+          className: ''
+        })
+      };
+      if (options.controls.has('fullscreen')) {
+        this[_controls].fullscreen = new FullScreen();
+      }
+      if (options.controls.has('overview')) {
+        this[_controls].overview = new OverviewMap({
+          view: overviewView,
+          collapsed: true,
+        });
+      }
 
       /*
        * Creates the map with the defined layers and view and renders it via
@@ -51122,37 +51282,18 @@
         });
       }
       for (let control in this[_controls]) {
-        // options.controls
-        // TODO: enable user to select controls and style them
-        // TODO: enable users to define "target" containers for controls
         this[_map].addControl(this[_controls][control]);
       }
       this[_map].getView().fit(extent, this[_map].getSize());
 
-      if (typeof options.onClickHandler === 'function') {
-        this[_map].on('click', options.onClickHandler);
-      }
-      if (typeof options.onSingleClickHandler === 'function') {
-        this[_map].on('singleclick', options.onSingleClickHandler);
-      }
-      if (typeof options.onDoubleClickHandler === 'function') {
-        this[_map].on('dblclick', options.onDoubleClickHandler);
-      }
-      if (typeof options.onDragHandler === 'function') {
-        this[_map].on('pointerdrag', options.onDragHandler);
-      }
-
-      this[_interactions] = {
-        draw: undefined,
-        select: undefined,
-        modify: undefined
-      };
-
     }
 
-    /*
+    /* Renders the map.
+     * @param{Object} options options object
+     *
      * options:
-     * container - name of an HTML document element
+     *   - container - name of an HTML element for the map
+     *   - controlContainers - names of HTML elements that should be used for given controls
      */
     render(options) {
       if (!('container' in options)) {
@@ -51161,40 +51302,245 @@
       this[_map].setTarget(options.container);
 
       // Style scale element (overriding default Openlayers CSS "ol-scale-line")
-      let scaleElements = document.getElementsByClassName(
-        'dicom-microscopy-viewer-scale'
-      );
-      for (let i = 0; i < scaleElements.length; ++i) {
-        let item = scaleElements[i];
-        item.style.position = 'absolute';
-        item.style.right = '.5em';
-        item.style.bottom = '.5em';
-        item.style.left = 'auto';
-        item.style.padding = '2px';
-        item.style.backgroundColor = 'rgba(255,255,255,.5)';
-        item.style.borderRadius = '4px';
-        item.style.margin = '1px';
-      }
-      let scaleInnerElements = document.getElementsByClassName(
-        'dicom-microscopy-viewer-scale-inner'
-      );
-      for (let i = 0; i < scaleInnerElements.length; ++i) {
-        let item = scaleInnerElements[i];
-        item.style.color = 'black';
-        item.style.fontWeight = '600';
-        item.style.fontSize = '10px';
-        item.style.textAlign = 'center';
-        item.style.borderWidth = '1.5px';
-        item.style.borderStyle = 'solid';
-        item.style.borderTop = 'none';
-        item.style.borderRightColor = 'black';
-        item.style.borderLeftColor = 'black';
-        item.style.borderBottomColor = 'black';
-        item.style.margin = '1px';
-        item.style.willChange = 'contents,width';
-      }
+      let scaleElement = this[_controls]['scale'].element;
+      scaleElement.style.position = 'absolute';
+      scaleElement.style.right = '.5em';
+      scaleElement.style.bottom = '.5em';
+      scaleElement.style.left = 'auto';
+      scaleElement.style.padding = '2px';
+      scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)';
+      scaleElement.style.borderRadius = '4px';
+      scaleElement.style.margin = '1px';
+
+      let scaleInnerElement = this[_controls]['scale'].innerElement_;
+      scaleInnerElement.style.color = 'black';
+      scaleInnerElement.style.fontWeight = '600';
+      scaleInnerElement.style.fontSize = '10px';
+      scaleInnerElement.style.textAlign = 'center';
+      scaleInnerElement.style.borderWidth = '1.5px';
+      scaleInnerElement.style.borderStyle = 'solid';
+      scaleInnerElement.style.borderTop = 'none';
+      scaleInnerElement.style.borderRightColor = 'black';
+      scaleInnerElement.style.borderLeftColor = 'black';
+      scaleInnerElement.style.borderBottomColor = 'black';
+      scaleInnerElement.style.margin = '1px';
+      scaleInnerElement.style.willChange = 'contents,width';
+
+      document.addEventListener('keydown', ((e) => {
+          const key = e.key;
+          if (key === "Escape") {
+            this.deactivateDrawInteraction();
+            this.deactivateSelectInteraction();
+            this.deactivateModifyInteraction();
+            mapElement.style.cursor = 'default';
+          }
+      }));
 
     }
+
+    /* Activate draw interaction.
+     */
+    activateDrawInteraction(options) {
+      this.deactivateDrawInteraction();
+      const freehand = options.freehand ? options.freehand : false;
+      const customOptionsMapping = {
+        point: {
+          type: 'Point',
+        },
+        circle: {
+          type: 'Circle',
+        },
+        box: {
+          type: 'Circle',
+          geometryFunction: createRegularPolygon(4),
+        },
+        polygon: {
+          type: 'Polygon',
+          freehand: false,
+        },
+        freehandpolygon: {
+          type: 'Polygon',
+          freehand: true,
+        },
+        line: {
+          type: 'LineString',
+          freehand: false,
+        },
+        freehandline: {
+          type: 'LineString',
+          freehand: true,
+        },
+      };
+      if (!('geometryType' in options)) {
+        console.error('geometry type must be specified for drawing interaction');
+      }
+      if (!(options.geometryType in customOptionsMapping)) {
+        console.error(`unsupported geometry type "${options.geometryType}"`);
+      }
+
+      const defaultDrawOptions = {source: this[_drawingSource]};
+      const customDrawOptions = customOptionsMapping[options.geometryType];
+      if ('style' in options) {
+        customDrawOptions.style = options.style;
+      }
+      const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
+      this[_interactions].draw = new Draw(allDrawOptions);
+
+      this[_map].addInteraction(this[_interactions].draw);
+
+    }
+
+    /* Deactivate draw interaction.
+     */
+    deactivateDrawInteraction() {
+      if (this[_interactions].draw !== undefined) {
+        this[_map].removeInteraction(this[_interactions].draw);
+        this[_interactions].draw = undefined;
+      }
+    }
+
+    get isDrawInteractionActive() {
+      return this[_interaction].draw !== undefined;
+    }
+
+    /* Activate select interaction.
+     */
+    activateSelectInteraction(options={}) {
+      this.deactivateSelectInteraction();
+      // TODO: "condition", etc.
+      this[_interactions].select = new Select({
+        layers: [this[_drawingLayer]]
+      });
+
+      this[_map].addInteraction(this[_interactions].select);
+    }
+
+    /* Deactivate select interaction.
+     */
+    deactivateSelectInteraction() {
+      if (this[_interactions].select) {
+        this[_map].removeInteraction(this[_interactions].select);
+        this[_interactions].select = undefined;
+      }
+    }
+
+    get isSelectInteractionActive() {
+      return this[_interaction].select !== undefined;
+    }
+
+    /* Activate modify interaction.
+     * @param{Object} options options object
+     */
+    activateModifyInteraction(options={}) {
+      this.deactivateModifyInteraction();
+      this[_interactions].modify = new Modify({
+        features: this[_features],  // TODO: or source, i.e. "drawings"???
+      });
+      this[_map].addInteraction(this[_interactions].modify);
+    }
+
+    /* Deactivate modify interaction.
+     */
+    deactivateModifyInteraction() {
+      if (this[_interactions].modify) {
+        this[_map].removeInteraction(this[_interactions].modify);
+        this[_interactions].modify = undefined;
+      }
+    }
+
+    get isModifyInteractionActive() {
+      return this[_interaction].modify !== undefined;
+    }
+
+    getAllROIs() {
+      const n = this.numberOfMeasuments;
+      const regions = [];
+      for (let i = 0; i < n; i++) {
+        const r = this.getROI(i);
+        regions.push(r);
+      }
+      return regions;
+    }
+
+    get numberOfROIs() {
+      return this[_features].getLength();
+    }
+
+    getROI(index) {
+      const feature = this[_features].item(index);
+      const geometry = feature.getGeometry();
+      const scoord = _geometry2Scoord(geometry);
+      const properties = feature.getProperties();
+      delete properties['geometry'];
+      return new ROI({scoord, properties});
+    }
+
+    popROI() {
+      const feature = this[_features].pop();
+      const geometry = feature.getGeometry();
+      const scoord = _geometry2Scoord(geometry);
+      const properties = feature.getProperties();
+      delete properties['geometry'];
+      return new ROI({scoord, properties});
+    }
+
+    addROI(item) {
+      const geometry = _scoord2Geometry(item.scoord);
+      const feature = new Feature(geometry);
+      feature.setProperties(item.properties, true);
+      this[_features].push(feature);
+    }
+
+    updateROI(index, item) {
+      const geometry = _scoord2Geometry(item.scoord);
+      const feature = new Feature(geometry);
+      feature.setProperties(item.properties, true);
+      this[_features].setAt(index, feature);
+    }
+
+    removeROI(index) {
+      this[_features].removeAt(index);
+    }
+
+    hideROIs() {
+      this[_drawingLayer].setVisible(false);
+    }
+
+    showROIs() {
+      this[_drawingLayer].setVisible(true);
+    }
+
+    get areROIsVisible() {
+      this[_drawingLayer].getVisible();
+    }
+
+    // set onAddROIHandler(callback) {
+    //   if (typeof callback !== 'function') {
+    //     console.error('callback must be a function')
+    //   }
+    //   this[_drawingSource].on('addfeature', callback);
+    // }
+
+    // set onRemoveROIHandler(callback) {
+    //   if (typeof callback !== 'function') {
+    //     console.error('callback must be a function')
+    //   }
+    //   this[_drawingSource].on('removefeature', callback);
+    // }
+
+    // set onUpdateROIHandler(callback) {
+    //   if (typeof callback !== 'function') {
+    //     console.error('callback must be a function')
+    //   }
+    //   this[_drawingSource].on('changefeature', callback);
+    // }
+
+    // set onUpdateROIPropertiesHandler(callback) {
+    //   if (typeof callback !== 'function') {
+    //     console.error('callback must be a function')
+    //   }
+    //   this[_drawingSource].on('propertychange', callback);
+    // }
 
   }
 
@@ -51208,9 +51554,13 @@
     Circle: Circle$1,
     Ellipse
   };
+  let roi = {
+    ROI,
+  };
 
   exports.api = api;
   exports.scoord = scoord;
+  exports.roi = roi;
 
   Object.defineProperty(exports, '__esModule', { value: true });
 
