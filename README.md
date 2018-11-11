@@ -30,12 +30,16 @@ We use [rollup](https://rollupjs.org/guide/en) for bundling and [mochify](https:
 
 ## Usage
 
+```html
+<script type="text/javascript" src="https://unpkg.com/dicom-microscopy-viewer"></script>
+```
+
 The viewer can be embedded in any website, one only needs to
 
 * Create an instance of the `VLWholeSlideMicroscopyImageViewer`. The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image instance formatted according to the [
 DICOM JSON Model](http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_F.2.html).
 
-* Call the `render()` method, passing it the HTML element or the name of the element, which shall contain the viewport.
+* Call the `render()` method, passing it the HTML element (or the name of the element), which shall contain the viewport.
 
 
 ```js
