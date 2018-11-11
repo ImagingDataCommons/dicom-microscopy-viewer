@@ -22,6 +22,7 @@ function formatImageMetadata(metadata) {
   const sharedFunctionalGroupsSequence = metadata['52009229']['Value'][0];
   const pixelMeasuresSequence = sharedFunctionalGroupsSequence['00289110']['Value'][0];
   const pixelSpacing = pixelMeasuresSequence['00280030']['Value'];
+  // The top level (lowest resolution) image may be a single frame image.
   let numberOfFrames = 1;
   if ('00280008' in metadata) {
     numberOfFrames = Number(metadata['00280008']['Value'][0]);

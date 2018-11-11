@@ -173,7 +173,7 @@ class VLWholeSlideMicroscopyImageViewer {
      * images at the different pyramid levels.
     */
     const metadata = options.metadata.map(m => formatImageMetadata(m));
-    this[_pyramid] = [];
+    this.pyramid = [];
     for (let i = 0; i < metadata.length; i++) {
       const cols = metadata[i].totalPixelMatrixColumns;
       const rows = metadata[i].totalPixelMatrixRows;
@@ -184,10 +184,10 @@ class VLWholeSlideMicroscopyImageViewer {
       */
       let alreadyExists = false;
       let index = null;
-      for (let j = 0; j < this[_pyramid].length; j++) {
+      for (let j = 0; j < this.pyramid.length; j++) {
         if (
-            (this[_pyramid][j].totalPixelMatrixColumns === cols) &&
-            (this[_pyramid][j].totalPixelMatrixRows === rows)
+            (this.pyramid[j].totalPixelMatrixColumns === cols) &&
+            (this.pyramid[j].totalPixelMatrixRows === rows)
           ) {
           alreadyExists = true;
           index = j;
@@ -195,13 +195,13 @@ class VLWholeSlideMicroscopyImageViewer {
       }
       if (alreadyExists) {
         // Update with information obtained from current concatentation part.
-        Object.assign(this[_pyramid][index].frameMapping, mapping);
+        Object.assign(this.pyramid[index].frameMapping, mapping);
       } else {
-        this[_pyramid].push(metadata[i]);
+        this.pyramid.push(metadata[i]);
       }
     }
     // Sort levels in ascending order
-    this[_pyramid].sort(function(a, b) {
+    this.pyramid.sort(function(a, b) {
       if(a.totalPixelMatrixColumns < b.totalPixelMatrixColumns) {
         return -1;
       } else if(a.totalPixelMatrixColumns > b.totalPixelMatrixColumns) {
@@ -218,42 +218,54 @@ class VLWholeSlideMicroscopyImageViewer {
     const tileSizes = [];
     const totalSizes = [];
     const resolutions = [];
-    const origins = [[0, -1]];
-    const nLevels = this[_pyramid].length;
-    for (let j = 0; j < nLevels; j++) {
-      let columns = this[_pyramid][j].columns;
-      let rows = this[_pyramid][j].rows;
-      let totalPixelMatrixColumns = this[_pyramid][j].totalPixelMatrixColumns;
-      let totalPixelMatrixRows = this[_pyramid][j].totalPixelMatrixRows;
-      let pixelSpacing = this[_pyramid][j].pixelSpacing;
+    const origins = [];
+    const offset = [0, -1];
+    const nLevels = this.pyramid.length;
+    if (nLevels === 0) {
+      console.error('empty pyramid - no levels found')
+    }
+    const basePixelSpacing = this.pyramid[nLevels-1].pixelSpacing;
+    const baseColumns = this.pyramid[nLevels-1].columns;
+    const baseRows = this.pyramid[nLevels-1].rows;
+    const baseTotalPixelMatrixColumns = this.pyramid[nLevels-1].totalPixelMatrixColumns;
+    const baseTotalPixelMatrixRows = this.pyramid[nLevels-1].totalPixelMatrixRows;
+    const baseColFactor = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
+    const baseRowFactor = Math.ceil(baseTotalPixelMatrixRows / baseRows);
+    const baseAdjustedTotalPixelMatrixColumns = baseColumns * baseColFactor;
+    const baseAdjustedTotalPixelMatrixRows = baseRows * baseRowFactor;
+    for (let j = (nLevels - 1); j >= 0; j--) {
+      let columns = this.pyramid[j].columns;
+      let rows = this.pyramid[j].rows;
+      let totalPixelMatrixColumns = this.pyramid[j].totalPixelMatrixColumns;
+      let totalPixelMatrixRows = this.pyramid[j].totalPixelMatrixRows;
+      let pixelSpacing = this.pyramid[j].pixelSpacing;
       let colFactor = Math.ceil(totalPixelMatrixColumns / columns);
       let rowFactor = Math.ceil(totalPixelMatrixRows / rows);
+      let adjustedTotalPixelMatrixColumns = columns * colFactor;
+      let adjustedTotalPixelMatrixRows = rows * rowFactor;
       tileSizes.push([columns, rows]);
-      totalSizes.push([columns * colFactor, rows * rowFactor]);
+      totalSizes.push([adjustedTotalPixelMatrixColumns, adjustedTotalPixelMatrixRows]);
 
       /*
        * Compute the resolution at each pyramid level, since the zoom
        * factor may not be the same between adjacent pyramid levels.
       */
-      let zoomFactor =  this[_pyramid][nLevels-1].totalPixelMatrixRows / totalPixelMatrixRows;
+      let zoomFactor = pixelSpacing[0] / basePixelSpacing[0];
       resolutions.push(zoomFactor);
 
       /*
        * TODO: One may have to adjust the offset slightly due to the
-       * difference between extent of the image at a resolution level
+       * difference between extent of the image at a given resolution level
        * and the actual number of tiles (frames).
       */
-      let orig = [0, -1]
-      if (j < this[_pyramid].length-1) {
-        origins.push(orig)
-      }
+      origins.push(offset);
     }
-    totalSizes.reverse();
+    resolutions.reverse();
     tileSizes.reverse();
     origins.reverse();
 
     // We can't call "this" inside functions.
-    const pyramid = this[_pyramid];
+    const pyramid = this.pyramid;
 
     /*
       * Translate pixel units of total pixel matrix into millimeters of
@@ -352,10 +364,10 @@ class VLWholeSlideMicroscopyImageViewer {
      * number of rows in the total pixel matrix.
     */
     const extent = [
-      0,                                           // min X
-      -pyramid[nLevels-1].totalPixelMatrixRows,    // min Y
-      pyramid[nLevels-1].totalPixelMatrixColumns,  // max X
-      -1                                           // max Y
+      0,                            // min X
+      -baseTotalPixelMatrixRows,    // min Y
+      baseTotalPixelMatrixColumns,  // max X
+      -1                            // max Y
     ];
 
     /*
@@ -370,8 +382,8 @@ class VLWholeSlideMicroscopyImageViewer {
     */
     var degrees = 0;
     if (
-      (this[_pyramid][this[_pyramid].length-1].imageOrientationSlide[1] === -1) &&
-      (this[_pyramid][this[_pyramid].length-1].imageOrientationSlide[3] === -1)
+      (this.pyramid[this.pyramid.length-1].imageOrientationSlide[1] === -1) &&
+      (this.pyramid[this.pyramid.length-1].imageOrientationSlide[3] === -1)
     ) {
       /*
        * The row direction (left to right) of the total pixel matrix
@@ -446,7 +458,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const imageLayer = new TileLayer({
       extent: extent,
       source: rasterSource,
-      preload: 2,
+      preload: 1,
       projection: projection
     });
 
