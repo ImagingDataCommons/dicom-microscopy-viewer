@@ -293,7 +293,7 @@ class VLWholeSlideMicroscopyImageViewer {
         console.warn("tile " + index + " not found at level " + z);
         return(null);
       }
-      let url = options.client.baseUrl +
+      let url = options.client.baseURL +
         "/studies/" + pyramid[z].studyInstanceUID +
         "/series/" + pyramid[z].seriesInstanceUID +
         '/instances/' + path;
@@ -323,19 +323,19 @@ class VLWholeSlideMicroscopyImageViewer {
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-        const imageSubtype = 'jpeg';  // FIXME
+        const imageSubType = 'jpeg';  // FIXME
         const retrieveOptions = {
           studyInstanceUID,
           seriesInstanceUID,
           sopInstanceUID,
           frameNumbers,
-          imageSubtype
+          imageSubType
         };
         options.client.retrieveInstanceFrames(retrieveOptions).then((frames) => {
           // Encode pixel data as base64 string
           const encodedPixels = base64Encode(frames[0]);
           // Add pixel data to image
-          tile.getImage().src = "data:image/" + imageSubtype + ";base64," + encodedPixels;
+          tile.getImage().src = "data:image/" + imageSubType + ";base64," + encodedPixels;
         });
       } else {
         console.warn('could not load tile');
