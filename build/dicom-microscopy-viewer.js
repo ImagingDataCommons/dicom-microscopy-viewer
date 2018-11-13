@@ -25686,6 +25686,39 @@
 
 
   /**
+   * Create a `geometryFunction` for `type: 'Circle'` that will create a regular
+   * polygon with a user specified number of sides and start angle instead of an
+   * `import("../geom/Circle.js").Circle` geometry.
+   * @param {number=} opt_sides Number of sides of the regular polygon. Default is
+   *     32.
+   * @param {number=} opt_angle Angle of the first point in radians. 0 means East.
+   *     Default is the angle defined by the heading from the center of the
+   *     regular polygon to the current pointer position.
+   * @return {GeometryFunction} Function that draws a
+   *     polygon.
+   * @api
+   */
+  function createRegularPolygon(opt_sides, opt_angle) {
+    return function(coordinates, opt_geometry) {
+      var center = /** @type {LineCoordType} */ (coordinates)[0];
+      var end = /** @type {LineCoordType} */ (coordinates)[1];
+      var radius = Math.sqrt(
+        squaredDistance$1(center, end));
+      var geometry = opt_geometry ? /** @type {Polygon} */ (opt_geometry) :
+        fromCircle(new Circle(center), opt_sides);
+      var angle = opt_angle;
+      if (!opt_angle) {
+        var x = end[0] - center[0];
+        var y = end[1] - center[1];
+        angle = Math.atan(y / x) - (x < 0 ? Math.PI : 0);
+      }
+      makeRegular(geometry, center, radius, angle);
+      return geometry;
+    };
+  }
+
+
+  /**
    * Get the drawing mode.  The mode for mult-part geometries is the same as for
    * their single-part cousins.
    * @param {GeometryType} type Geometry type.
@@ -49669,9 +49702,27 @@
     });
   }
 
+  /* Region of interest.
+   */
+  class ROI {
+
+    /* @constructor
+     * @param{Scoord} scoord spatial coordinates
+     * @param{Object} properties qualititative evaluations
+     */
+    constructor(options) {
+      if (!('scoord' in options)) {
+        console.error('spatial coordinates are required for ROI');
+      }
+      this.scoord = options.scoord;
+      this.properties = options.properties ? options.properties : {};
+    }
+
+  }
+
   /*
-   * Spatial coordinates of a geometric region of interest within the
-   * total pixel matrix.
+   * Spatial coordinates of a geometric region of interest (ROI) in the DICOM
+   * image coordinate system.
    */
   class Scoord {
 
@@ -50757,6 +50808,79 @@
 
   var DICOMwebClient = unwrapExports(dicomwebClient);
 
+  function _geometry2Scoord(geometry) {
+    const type = geometry.getType();
+    if (type === 'Point') {
+      let coordinates = geometry.getCoordinates();
+      coordinates = _geometryCoordinates2scoordCoordinates(coordinates);
+      return new Point$1(coordinates);
+    } else if (type === 'Polygon') {
+      /*
+       * The first linear ring of the array defines the outer-boundary (surface).
+       * Each subsequent linear ring defines a hole in the surface.
+       */
+      let coordinates = geometry.getCoordinates()[0].map(c => {
+        return _geometryCoordinates2scoordCoordinates(c);
+      });
+      return new Polyline(coordinates);
+    } else if (type === 'LineString') {
+      let coordinates = geometry.getCoordinates().map(c => {
+        return _geometryCoordinates2scoordCoordinates(c);
+      });
+      return new Polyline(coordinates);
+    } else if (type === 'Circle') {
+      // TODO: Circle may actually represent a Polyline
+      let center = _geometryCoordinates2scoordCoordinates(geometry.getCenter());
+      let radius = geometry.getRadius();
+      return new Circle$1(center, radius);
+    } else {
+      // TODO: Combine multiple points into MULTIPOINT.
+      console.error(`unknown geometry type "${type}"`);
+    }
+  }
+
+
+  function _scoord2Geometry(scoord) {
+    const type = scoord.graphicType;
+    const data = scoord.graphicData;
+    if (type === 'POINT') {
+      let coordinates = _scoordCoordinates2geometryCoordinates(data);
+      return new Point(coordinates);
+    } else if (type === 'POLYLINE') {
+      const coordinates = data.map(d => {
+        return _scoordCoordinates2geometryCoordinates(d);
+      });
+      let isClosed = (
+        data[0][0] === data[data.length-1][0] &&
+        data[0][1] === data[data.length-1][1]
+      );
+      if (isClosed) {
+        // Polygon requires inner linear ring and an outer ring.
+        return new Polygon([coordinates]);
+      } else {
+        return new LineString(coordinates);
+      }
+    } else if (type === 'CIRCLE') {
+      let center = _scoordCoordinates2geometryCoordinates(scoord.centerCoordinates);
+      let radius = scoord.radius;
+      return new Circle(center, radius);
+    } else {
+      console.error(`unsupported graphic type "${type}"`);
+    }
+  }
+
+
+  function _geometryCoordinates2scoordCoordinates(coordinates) {
+    // TODO: Transform to coordinates on pyramid base layer???
+    return [coordinates[0] + 1, -coordinates[1]]
+  }
+
+
+  function _scoordCoordinates2geometryCoordinates(coordinates) {
+    return [coordinates[0] - 1, -coordinates[1]]
+  }
+
+
   const _usewebgl = Symbol('usewebgl');
   const _map = Symbol('map');
   const _features = Symbol('features');
@@ -50774,23 +50898,8 @@
      * options:
      *   - client (instance of DICOMwebClient)
      *   - metadata (array of DICOM JSON metadata for each image instance)
+     *   - retrieveRendered (whether frames should be retrieved using DICOMweb RetrieveRenderedTransaction)
      *   - useWebGL (whether WebGL renderer should be used; default: true)
-     *   - onClickHandler (on-event handler function)
-     *   - onSingleClickHandler (on-event handler function)
-     *   - onDoubleClickHandler (on-event handler function)
-     *   - onDragHandler (on-event handler function)
-     *   - onAddScoordHandler (on-event handler function)
-     *   - onRemoveScoordHandler (on-event handler function)
-     *   - onAddFeatureHandler (on-event handler function)
-     *   - onRemoveFeatureHandler (on-event handler function)
-     *   - onChangeFeatureHandler (on-event handler function)
-     *   - onClearFeaturesHandler (on-event handler function)
-     *
-     * ---
-     * Map Event (http://openlayers.org/en/latest/apidoc/module-ol_MapBrowserEvent-MapBrowserEvent.html)
-     * Properties:
-     *   - coordinate (http://openlayers.org/en/latest/apidoc/module-ol_coordinate.html#~Coordinate)
-     *   - pixel
      */
     constructor(options) {
       if ('useWebGL' in options) {
@@ -50800,19 +50909,21 @@
       }
       this[_client] = options.client;
 
+      if (!('retrieveRendered' in options)) {
+        options.retrieveRendered = false;
+      }
+
+      if (!('controls' in options)) {
+        options.controls = [];
+      }
+      options.controls = new Set(options.controls);
+
       // Collection of Openlayers "VectorLayer" instances indexable by
       // DICOM Series Instance UID
       this[_segmentations] = {};
 
       // Collection of Openlayers "Feature" instances
       this[_features] = new Collection([], {unique: true});
-
-      if (typeof options.onAddScoordHandler === 'function') {
-        this[_features].on('add', options.onAddScoordHandler);
-      }
-      if (typeof options.onRemoveScoordHandler === 'function') {
-        this[_features].on('add', options.onRemoveScoordHandler);
-      }
 
       /*
        * To visualize images accross multiple scales, we first need to
@@ -50942,24 +51053,10 @@
           "/studies/" + pyramid[z].studyInstanceUID +
           "/series/" + pyramid[z].seriesInstanceUID +
           '/instances/' + path;
-        return(url);
-      }
-
-      /*
-       * Define custonm tile loader function, which is required because the
-       * WADO-RS response message has content type "multipart/related".
-      */
-      function base64Encode(data){
-        const uint8Array = new Uint8Array(data);
-        const chunkSize = 0x8000;
-        const strArray = [];
-        for (let i=0; i < uint8Array.length; i+=chunkSize) {
-          let str = String.fromCharCode.apply(
-            null, uint8Array.subarray(i, i + chunkSize)
-          );
-          strArray.push(str);
+        if (options.retrieveRendered) {
+          url = url + '/rendered';
         }
-        return btoa(strArray.join(''));
+        return(url);
       }
 
       function tileLoadFunction(tile, src) {
@@ -50968,20 +51065,35 @@
           const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
           const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
           const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-          const imageSubType = 'jpeg';  // FIXME
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            imageSubType
-          };
-          options.client.retrieveInstanceFrames(retrieveOptions).then((frames) => {
-            // Encode pixel data as base64 string
-            const encodedPixels = base64Encode(frames[0]);
-            // Add pixel data to image
-            tile.getImage().src = "data:image/" + imageSubType + ";base64," + encodedPixels;
-          });
+          const img = tile.getImage();
+          if (options.retrieveRendered) {
+            const mimeType = 'image/png';
+            const retrieveOptions = {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID,
+              frameNumbers,
+              mimeType
+            };
+            options.client.retrieveInstanceFramesRendered(retrieveOptions).then((renderedFrame) => {
+              const blob = new Blob([renderedFrame], {type: mimeType});
+              img.src = window.URL.createObjectURL(blob);
+            });
+          } else {
+            // TODO: support "image/jp2" and "image/jls"
+            const mimeType = 'image/jpeg';
+            const retrieveOptions = {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID,
+              frameNumbers,
+              mimeType
+            };
+            options.client.retrieveInstanceFrames(retrieveOptions).then((rawFrames) => {
+              const blob = new Blob(rawFrames, {type: mimeType});
+              img.src = window.URL.createObjectURL(blob);
+            });
+          }
         } else {
           console.warn('could not load tile');
         }
@@ -51098,28 +51210,16 @@
       this[_drawingSource] = new VectorSource({
         tileGrid: tileGrid,
         projection: projection,
+        features: this[_features],
         wrapX: false
       });
 
-      if (typeof options.onAddFeatureHandler === 'function') {
-        this[_drawingSource].on('addfeature', options.onAddFeatureHandler);
-      }
-      if (typeof options.onRemoveFeatureHandler === 'function') {
-        this[_drawingSource].on('removefeature', options.onRemoveFeatureHandler);
-      }
-      if (typeof options.onChangeFeatureHandler === 'function') {
-        this[_drawingSource].on('changefeature', options.onChangeFeatureHandler);
-      }
-      if (typeof options.onClearFeaturesHandler === 'function') {
-        this[_drawingSource].on('clearfeature', options.onClearFeaturesHandler);
-      }
-
-      // TODO: allow user to configure style (required for text labels)
-      // http://openlayers.org/en/latest/apidoc/module-ol_style_Style-Style.html
       this[_drawingLayer] = new VectorLayer({
         extent: extent,
         source: this[_drawingSource],
         projection: projection,
+        updateWhileAnimating: true,
+        updateWhileInteracting: true,
       });
 
       const view = new View({
@@ -51136,26 +51236,27 @@
         rotation: rotation
       });
 
-      this[_controls] = {
-        scaleLine: new ScaleLine({
-          units: 'metric',
-          className: 'dicom-microscopy-viewer-scale'
-        }),
-      // overview: new OverviewMap({
-      //   view: overviewView,
-      //   collapsed: true,
-      //   className: 'dicom-microscopy-viewer-overview'
-      // }),
-      //   zoom: new Zoom({
-      //     className: 'dicom-microscopy-viewer-zoom'
-      //   }),
-      //   zoomSlider: new ZoomSlider({
-      //     className: 'dicom-microscopy-viewer-zoom-slider'
-      //   }),
-      //   fullScreen: new FullScreen({
-      //     className: 'dicom-microscopy-viewer-fullscreen'
-      //   }),
+      this[_interactions] = {
+        draw: undefined,
+        select: undefined,
+        modify: undefined
       };
+
+      this[_controls] = {
+        scale: new ScaleLine({
+          units: 'metric',
+          className: ''
+        })
+      };
+      if (options.controls.has('fullscreen')) {
+        this[_controls].fullscreen = new FullScreen();
+      }
+      if (options.controls.has('overview')) {
+        this[_controls].overview = new OverviewMap({
+          view: overviewView,
+          collapsed: true,
+        });
+      }
 
       /*
        * Creates the map with the defined layers and view and renders it via
@@ -51181,37 +51282,18 @@
         });
       }
       for (let control in this[_controls]) {
-        // options.controls
-        // TODO: enable user to select controls and style them
-        // TODO: enable users to define "target" containers for controls
         this[_map].addControl(this[_controls][control]);
       }
       this[_map].getView().fit(extent, this[_map].getSize());
 
-      if (typeof options.onClickHandler === 'function') {
-        this[_map].on('click', options.onClickHandler);
-      }
-      if (typeof options.onSingleClickHandler === 'function') {
-        this[_map].on('singleclick', options.onSingleClickHandler);
-      }
-      if (typeof options.onDoubleClickHandler === 'function') {
-        this[_map].on('dblclick', options.onDoubleClickHandler);
-      }
-      if (typeof options.onDragHandler === 'function') {
-        this[_map].on('pointerdrag', options.onDragHandler);
-      }
-
-      this[_interactions] = {
-        draw: undefined,
-        select: undefined,
-        modify: undefined
-      };
-
     }
 
-    /*
+    /* Renders the map.
+     * @param{Object} options options object
+     *
      * options:
-     * container - name of an HTML document element
+     *   - container - name of an HTML element for the map
+     *   - controlContainers - names of HTML elements that should be used for given controls
      */
     render(options) {
       if (!('container' in options)) {
@@ -51220,40 +51302,245 @@
       this[_map].setTarget(options.container);
 
       // Style scale element (overriding default Openlayers CSS "ol-scale-line")
-      let scaleElements = document.getElementsByClassName(
-        'dicom-microscopy-viewer-scale'
-      );
-      for (let i = 0; i < scaleElements.length; ++i) {
-        let item = scaleElements[i];
-        item.style.position = 'absolute';
-        item.style.right = '.5em';
-        item.style.bottom = '.5em';
-        item.style.left = 'auto';
-        item.style.padding = '2px';
-        item.style.backgroundColor = 'rgba(255,255,255,.5)';
-        item.style.borderRadius = '4px';
-        item.style.margin = '1px';
-      }
-      let scaleInnerElements = document.getElementsByClassName(
-        'dicom-microscopy-viewer-scale-inner'
-      );
-      for (let i = 0; i < scaleInnerElements.length; ++i) {
-        let item = scaleInnerElements[i];
-        item.style.color = 'black';
-        item.style.fontWeight = '600';
-        item.style.fontSize = '10px';
-        item.style.textAlign = 'center';
-        item.style.borderWidth = '1.5px';
-        item.style.borderStyle = 'solid';
-        item.style.borderTop = 'none';
-        item.style.borderRightColor = 'black';
-        item.style.borderLeftColor = 'black';
-        item.style.borderBottomColor = 'black';
-        item.style.margin = '1px';
-        item.style.willChange = 'contents,width';
-      }
+      let scaleElement = this[_controls]['scale'].element;
+      scaleElement.style.position = 'absolute';
+      scaleElement.style.right = '.5em';
+      scaleElement.style.bottom = '.5em';
+      scaleElement.style.left = 'auto';
+      scaleElement.style.padding = '2px';
+      scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)';
+      scaleElement.style.borderRadius = '4px';
+      scaleElement.style.margin = '1px';
+
+      let scaleInnerElement = this[_controls]['scale'].innerElement_;
+      scaleInnerElement.style.color = 'black';
+      scaleInnerElement.style.fontWeight = '600';
+      scaleInnerElement.style.fontSize = '10px';
+      scaleInnerElement.style.textAlign = 'center';
+      scaleInnerElement.style.borderWidth = '1.5px';
+      scaleInnerElement.style.borderStyle = 'solid';
+      scaleInnerElement.style.borderTop = 'none';
+      scaleInnerElement.style.borderRightColor = 'black';
+      scaleInnerElement.style.borderLeftColor = 'black';
+      scaleInnerElement.style.borderBottomColor = 'black';
+      scaleInnerElement.style.margin = '1px';
+      scaleInnerElement.style.willChange = 'contents,width';
+
+      document.addEventListener('keydown', ((e) => {
+          const key = e.key;
+          if (key === "Escape") {
+            this.deactivateDrawInteraction();
+            this.deactivateSelectInteraction();
+            this.deactivateModifyInteraction();
+            mapElement.style.cursor = 'default';
+          }
+      }));
 
     }
+
+    /* Activate draw interaction.
+     */
+    activateDrawInteraction(options) {
+      this.deactivateDrawInteraction();
+      const freehand = options.freehand ? options.freehand : false;
+      const customOptionsMapping = {
+        point: {
+          type: 'Point',
+        },
+        circle: {
+          type: 'Circle',
+        },
+        box: {
+          type: 'Circle',
+          geometryFunction: createRegularPolygon(4),
+        },
+        polygon: {
+          type: 'Polygon',
+          freehand: false,
+        },
+        freehandpolygon: {
+          type: 'Polygon',
+          freehand: true,
+        },
+        line: {
+          type: 'LineString',
+          freehand: false,
+        },
+        freehandline: {
+          type: 'LineString',
+          freehand: true,
+        },
+      };
+      if (!('geometryType' in options)) {
+        console.error('geometry type must be specified for drawing interaction');
+      }
+      if (!(options.geometryType in customOptionsMapping)) {
+        console.error(`unsupported geometry type "${options.geometryType}"`);
+      }
+
+      const defaultDrawOptions = {source: this[_drawingSource]};
+      const customDrawOptions = customOptionsMapping[options.geometryType];
+      if ('style' in options) {
+        customDrawOptions.style = options.style;
+      }
+      const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
+      this[_interactions].draw = new Draw(allDrawOptions);
+
+      this[_map].addInteraction(this[_interactions].draw);
+
+    }
+
+    /* Deactivate draw interaction.
+     */
+    deactivateDrawInteraction() {
+      if (this[_interactions].draw !== undefined) {
+        this[_map].removeInteraction(this[_interactions].draw);
+        this[_interactions].draw = undefined;
+      }
+    }
+
+    get isDrawInteractionActive() {
+      return this[_interaction].draw !== undefined;
+    }
+
+    /* Activate select interaction.
+     */
+    activateSelectInteraction(options={}) {
+      this.deactivateSelectInteraction();
+      // TODO: "condition", etc.
+      this[_interactions].select = new Select({
+        layers: [this[_drawingLayer]]
+      });
+
+      this[_map].addInteraction(this[_interactions].select);
+    }
+
+    /* Deactivate select interaction.
+     */
+    deactivateSelectInteraction() {
+      if (this[_interactions].select) {
+        this[_map].removeInteraction(this[_interactions].select);
+        this[_interactions].select = undefined;
+      }
+    }
+
+    get isSelectInteractionActive() {
+      return this[_interaction].select !== undefined;
+    }
+
+    /* Activate modify interaction.
+     * @param{Object} options options object
+     */
+    activateModifyInteraction(options={}) {
+      this.deactivateModifyInteraction();
+      this[_interactions].modify = new Modify({
+        features: this[_features],  // TODO: or source, i.e. "drawings"???
+      });
+      this[_map].addInteraction(this[_interactions].modify);
+    }
+
+    /* Deactivate modify interaction.
+     */
+    deactivateModifyInteraction() {
+      if (this[_interactions].modify) {
+        this[_map].removeInteraction(this[_interactions].modify);
+        this[_interactions].modify = undefined;
+      }
+    }
+
+    get isModifyInteractionActive() {
+      return this[_interaction].modify !== undefined;
+    }
+
+    getAllROIs() {
+      const n = this.numberOfMeasuments;
+      const regions = [];
+      for (let i = 0; i < n; i++) {
+        const r = this.getROI(i);
+        regions.push(r);
+      }
+      return regions;
+    }
+
+    get numberOfROIs() {
+      return this[_features].getLength();
+    }
+
+    getROI(index) {
+      const feature = this[_features].item(index);
+      const geometry = feature.getGeometry();
+      const scoord = _geometry2Scoord(geometry);
+      const properties = feature.getProperties();
+      delete properties['geometry'];
+      return new ROI({scoord, properties});
+    }
+
+    popROI() {
+      const feature = this[_features].pop();
+      const geometry = feature.getGeometry();
+      const scoord = _geometry2Scoord(geometry);
+      const properties = feature.getProperties();
+      delete properties['geometry'];
+      return new ROI({scoord, properties});
+    }
+
+    addROI(item) {
+      const geometry = _scoord2Geometry(item.scoord);
+      const feature = new Feature(geometry);
+      feature.setProperties(item.properties, true);
+      this[_features].push(feature);
+    }
+
+    updateROI(index, item) {
+      const geometry = _scoord2Geometry(item.scoord);
+      const feature = new Feature(geometry);
+      feature.setProperties(item.properties, true);
+      this[_features].setAt(index, feature);
+    }
+
+    removeROI(index) {
+      this[_features].removeAt(index);
+    }
+
+    hideROIs() {
+      this[_drawingLayer].setVisible(false);
+    }
+
+    showROIs() {
+      this[_drawingLayer].setVisible(true);
+    }
+
+    get areROIsVisible() {
+      this[_drawingLayer].getVisible();
+    }
+
+    // set onAddROIHandler(callback) {
+    //   if (typeof callback !== 'function') {
+    //     console.error('callback must be a function')
+    //   }
+    //   this[_drawingSource].on('addfeature', callback);
+    // }
+
+    // set onRemoveROIHandler(callback) {
+    //   if (typeof callback !== 'function') {
+    //     console.error('callback must be a function')
+    //   }
+    //   this[_drawingSource].on('removefeature', callback);
+    // }
+
+    // set onUpdateROIHandler(callback) {
+    //   if (typeof callback !== 'function') {
+    //     console.error('callback must be a function')
+    //   }
+    //   this[_drawingSource].on('changefeature', callback);
+    // }
+
+    // set onUpdateROIPropertiesHandler(callback) {
+    //   if (typeof callback !== 'function') {
+    //     console.error('callback must be a function')
+    //   }
+    //   this[_drawingSource].on('propertychange', callback);
+    // }
 
   }
 
@@ -51267,9 +51554,13 @@
     Circle: Circle$1,
     Ellipse
   };
+  let roi = {
+    ROI,
+  };
 
   exports.api = api;
   exports.scoord = scoord;
+  exports.roi = roi;
 
   Object.defineProperty(exports, '__esModule', { value: true });
 

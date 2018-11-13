@@ -1,5 +1,12 @@
 import { VLWholeSlideMicroscopyImageViewer } from './api.js';
-import { Point, Multipoint, Polyline, Circle, Ellipse } from './scoord.js';
+import { ROI } from './roi.js';
+import {
+  Point,
+  Multipoint,
+  Polyline,
+  Circle,
+  Ellipse,
+} from './scoord.js';
 
 let api = {
   VLWholeSlideMicroscopyImageViewer,
@@ -11,5 +18,8 @@ let scoord = {
   Circle,
   Ellipse
 };
+let roi = {
+  ROI,
+}
 
-export { api, scoord };
+export { api, scoord, roi };
