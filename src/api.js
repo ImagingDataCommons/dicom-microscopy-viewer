@@ -305,7 +305,7 @@ class VLWholeSlideMicroscopyImageViewer {
         console.warn("tile " + index + " not found at level " + z);
         return(null);
       }
-      let url = options.client.baseURL +
+      let url = options.client.wadoURL +
         "/studies/" + pyramid[z].studyInstanceUID +
         "/series/" + pyramid[z].seriesInstanceUID +
         '/instances/' + path;
