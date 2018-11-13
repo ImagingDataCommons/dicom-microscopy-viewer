@@ -108,8 +108,9 @@ Please cite the following article when using the viewer for scientific studies: 
         Golden, J. A. and Louis, D. N. and Lennerz, J. K.
     },
     Title={Implementing the {DICOM} standard for digital pathology},
-    Journal={J Path Inform},
+    Journal={Journal of Pathology Informatics},
     Year={2018},
+    Number={1},
     Volume={9},
     Number={37}
 }
