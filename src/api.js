@@ -251,7 +251,6 @@ class VLWholeSlideMicroscopyImageViewer {
     tileSizes.reverse();
     origins.reverse();
 
-    // We can't call "this" inside functions.
     const pyramid = this.pyramid;
 
     /*
@@ -548,12 +547,7 @@ class VLWholeSlideMicroscopyImageViewer {
 
   }
 
-  /* Renders the map.
-   * @param{Object} options options object
-   *
-   * options:
-   *   - container - name of an HTML element for the map
-   *   - controlContainers - names of HTML elements that should be used for given controls
+  /* Renders the images.
    */
   render(options) {
     if (!('container' in options)) {
@@ -667,7 +661,6 @@ class VLWholeSlideMicroscopyImageViewer {
    */
   activateSelectInteraction(options={}) {
     this.deactivateSelectInteraction();
-    // TODO: "condition", etc.
     this[_interactions].select = new Select({
       layers: [this[_drawingLayer]]
     });
@@ -689,7 +682,6 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   /* Activate modify interaction.
-   * @param{Object} options options object
    */
   activateModifyInteraction(options={}) {
     this.deactivateModifyInteraction();
@@ -773,34 +765,6 @@ class VLWholeSlideMicroscopyImageViewer {
   get areROIsVisible() {
     this[_drawingLayer].getVisible();
   }
-
-  // set onAddROIHandler(callback) {
-  //   if (typeof callback !== 'function') {
-  //     console.error('callback must be a function')
-  //   }
-  //   this[_drawingSource].on('addfeature', callback);
-  // }
-
-  // set onRemoveROIHandler(callback) {
-  //   if (typeof callback !== 'function') {
-  //     console.error('callback must be a function')
-  //   }
-  //   this[_drawingSource].on('removefeature', callback);
-  // }
-
-  // set onUpdateROIHandler(callback) {
-  //   if (typeof callback !== 'function') {
-  //     console.error('callback must be a function')
-  //   }
-  //   this[_drawingSource].on('changefeature', callback);
-  // }
-
-  // set onUpdateROIPropertiesHandler(callback) {
-  //   if (typeof callback !== 'function') {
-  //     console.error('callback must be a function')
-  //   }
-  //   this[_drawingSource].on('propertychange', callback);
-  // }
 
 }
 
