@@ -2,8 +2,11 @@
 
 # DICOM Microscopy Viewer
 Vanilla JS library for web-based visualization of [DICOM VL Whole Slide Microscopy Image](http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html) datasets.
-The library relies on [Openlayers](http://openlayers.org/) for rendering pyramid images and retrieves pyramid tiles (image frames) using [DICOMweb WADO-RS](https://www.dicomstandard.org/dicomweb/retrieve-wado-rs-and-wado-uri/). 
 
+## Motivation and implementation
+The library is intended to provide a lightweight and standard-compliant viewer for microscopy images in DICOM format.
+The viewer relies on [Openlayers](http://openlayers.org/) for rendering pyramid images and dynamically retrieves pyramid tiles (image frames) via [DICOMweb WADO-RS](https://www.dicomstandard.org/dicomweb/retrieve-wado-rs-and-wado-uri/) using [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client).
+However, the viewer API fully abstracts the underlying rendering library and doesn't expose the lower level Openlayers API directly, such that another rendering library could in principle be used in the future if this would be of advantage.
 
 ## Installation
 
