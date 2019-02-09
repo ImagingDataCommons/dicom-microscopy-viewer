@@ -103,11 +103,17 @@ function _geometryCoordinates2scoordCoordinates(coordinates) {
   return [coordinates[0] + 1, -coordinates[1]]
 }
 
-
 function _scoordCoordinates2geometryCoordinates(coordinates) {
   return [coordinates[0] - 1, -coordinates[1]]
 }
 
+function _getROIByFeature(feature) {
+  const geometry = feature.getGeometry();
+  const scoord = _geometry2Scoord(geometry);
+  const properties = feature.getProperties();
+  delete properties["geometry"];
+  return new ROI({ scoord, properties });
+}
 
 const _usewebgl = Symbol('usewebgl');
 const _map = Symbol('map');
@@ -705,13 +711,14 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   getAllROIs() {
-    const n = this.numberOfMeasuments;
-    const regions = [];
-    for (let i = 0; i < n; i++) {
-      const r = this.getROI(i);
-      regions.push(r);
+    const features = this[_features];
+    let rois = [];
+    if (features !== undefined) {
+      features.forEach(feature => {
+        rois.push(_getROIByFeature(feature));
+      });
     }
-    return regions;
+    return rois;
   }
 
   get numberOfROIs() {
@@ -720,11 +727,7 @@ class VLWholeSlideMicroscopyImageViewer {
 
   getROI(index) {
     const feature = this[_features].item(index);
-    const geometry = feature.getGeometry();
-    const scoord = _geometry2Scoord(geometry);
-    const properties = feature.getProperties();
-    delete properties['geometry'];
-    return new ROI({scoord, properties});
+    return _getROIByFeature(feature);
   }
 
   popROI() {
