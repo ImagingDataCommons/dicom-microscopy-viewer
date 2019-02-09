@@ -727,7 +727,11 @@ class VLWholeSlideMicroscopyImageViewer {
 
   getROI(index) {
     const feature = this[_features].item(index);
-    return _getROIByFeature(feature);
+    let roi = {}
+    if (feature !== undefined) {
+      roi = _getROIByFeature(feature);
+    }
+    return roi;
   }
 
   popROI() {
