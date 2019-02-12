@@ -107,9 +107,24 @@ function _scoordCoordinates2geometryCoordinates(coordinates) {
   return [coordinates[0] - 1, -coordinates[1]]
 }
 
-function _getROIByFeature(feature) {
+/*
+    * Translate pixel units of total pixel matrix into millimeters of
+    * slide coordinate system
+  */
+function coordinateFormatFunction(coordinates, pyramid) {
+  coordinates.map(coord =>{
+    let x = (coord[0] * pyramid[pyramid.length-1].pixelSpacing[0]).toFixed(4);
+    let y = (-(coord[1] - 1) * pyramid[pyramid.length-1].pixelSpacing[1]).toFixed(4);
+    coordinates = [x,y]
+  })
+  
+  return(coordinates);
+}
+
+function _getROIByFeature(feature, pyramid) {
   const geometry = feature.getGeometry();
-  const scoord = _geometry2Scoord(geometry);
+  let scoord = _geometry2Scoord(geometry);
+  scoord = coordinateFormatFunction(scoord.coordinates, pyramid);
   const properties = feature.getProperties();
   delete properties["geometry"];
   return new ROI({ scoord, properties });
@@ -214,6 +229,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const origins = [];
     const offset = [0, -1];
     const nLevels = this.pyramid.length;
+    console.log(this.pyramid)
     if (nLevels === 0) {
       console.error('empty pyramid - no levels found')
     }
@@ -258,16 +274,6 @@ class VLWholeSlideMicroscopyImageViewer {
     origins.reverse();
 
     const pyramid = this.pyramid;
-
-    /*
-      * Translate pixel units of total pixel matrix into millimeters of
-      * slide coordinate system
-    */
-    function coordinateFormatFunction(coordinate) {
-      x = (coordinate[0] * pyramid[pyramid.length-1].pixelSpacing[0]).toFixed(4);
-      y = (-(coordinate[1] - 1) * pyramid[pyramid.length-1].pixelSpacing[1]).toFixed(4);
-      return([x, y]);
-    }
 
     /*
      * Define custom tile URL function to retrive frames via DICOMweb
@@ -711,11 +717,12 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   getAllROIs() {
+    console.log(this.pyramid)
     const features = this[_features];
     let rois = [];
     if (features !== undefined) {
       features.forEach(feature => {
-        rois.push(_getROIByFeature(feature));
+        rois.push(_getROIByFeature(feature, this.pyramid));
       });
     }
     return rois;
