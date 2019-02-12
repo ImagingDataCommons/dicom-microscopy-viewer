@@ -124,7 +124,9 @@ function coordinateFormatFunction(coordinates, pyramid) {
 function _getROIByFeature(feature, pyramid) {
   const geometry = feature.getGeometry();
   let scoord = _geometry2Scoord(geometry);
-  scoord = coordinateFormatFunction(scoord.coordinates, pyramid);
+  if(pyramid !== undefined){
+    scoord = coordinateFormatFunction(scoord.coordinates, pyramid);
+  }
   const properties = feature.getProperties();
   delete properties["geometry"];
   return new ROI({ scoord, properties });
@@ -716,13 +718,13 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_interaction].modify !== undefined;
   }
 
-  getAllROIs() {
-    console.log(this.pyramid)
+  getAllROIs(coordinateSystem='totalPixelMatrix') {
     const features = this[_features];
     let rois = [];
+    let pyramid = coordinateSystem === 'mm' ? this.pyramid : undefined;
     if (features !== undefined) {
       features.forEach(feature => {
-        rois.push(_getROIByFeature(feature, this.pyramid));
+        rois.push(_getROIByFeature(feature, pyramid));
       });
     }
     return rois;
@@ -732,11 +734,12 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_features].getLength();
   }
 
-  getROI(index) {
+  getROI(index, coordinateSystem='totalPixelMatrix') {
     const feature = this[_features].item(index);
-    let roi = {}
+    let roi = {};
+    let pyramid = coordinateSystem === 'mm' ? this.pyramid : undefined;
     if (feature !== undefined) {
-      roi = _getROIByFeature(feature);
+      roi = _getROIByFeature(feature, pyramid);
     }
     return roi;
   }
