@@ -12,6 +12,7 @@ class ROI {
     }
     this.scoord = options.scoord;
     this.properties = options.properties ? options.properties : {};
+    this.coordinateSystem = options.coordinateSystem;
   }
 
 }
