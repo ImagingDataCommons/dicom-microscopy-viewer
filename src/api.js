@@ -42,7 +42,7 @@ function _geometry2Scoord(geometry) {
     let coordinates = geometry.getCoordinates();
     coordinates = _geometryCoordinates2scoordCoordinates(coordinates);
     return new Point(coordinates);
-  } else if (type === 'Polygon') {
+  } else if (type === 'Polyline') {
     /*
      * The first linear ring of the array defines the outer-boundary (surface).
      * Each subsequent linear ring defines a hole in the surface.
@@ -231,7 +231,6 @@ class VLWholeSlideMicroscopyImageViewer {
     const origins = [];
     const offset = [0, -1];
     const nLevels = this.pyramid.length;
-    console.log(this.pyramid)
     if (nLevels === 0) {
       console.error('empty pyramid - no levels found')
     }
@@ -622,8 +621,9 @@ class VLWholeSlideMicroscopyImageViewer {
         type: 'Circle',
         geometryFunction: createRegularPolygon(4),
       },
-      polygon: {
+      polyline: {
         type: 'Polygon',
+        geometryName: 'Polyline',
         freehand: false,
       },
       freehandpolygon: {
