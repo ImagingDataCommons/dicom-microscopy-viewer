@@ -37,12 +37,13 @@ import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
 
 function _geometry2Scoord(geometry) {
-  const type = geometry.getType()
+  // const name = geometry.constructor.name;
+  const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
     coordinates = _geometryCoordinates2scoordCoordinates(coordinates);
     return new Point(coordinates);
-  } else if (type === 'Polyline') {
+  } else if (type === 'Polygon') {
     /*
      * The first linear ring of the array defines the outer-boundary (surface).
      * Each subsequent linear ring defines a hole in the surface.
@@ -100,7 +101,7 @@ function _scoord2Geometry(scoord) {
 
 function _geometryCoordinates2scoordCoordinates(coordinates) {
   // TODO: Transform to coordinates on pyramid base layer???
-  return [coordinates[0] + 1, -coordinates[1]]
+  return [coordinates[0] + 1, -coordinates[1], 0]
 }
 
 function _scoordCoordinates2geometryCoordinates(coordinates) {
@@ -609,16 +610,19 @@ class VLWholeSlideMicroscopyImageViewer {
    */
   activateDrawInteraction(options) {
     this.deactivateDrawInteraction();
-    const freehand = options.freehand ? options.freehand : false;
+    
     const customOptionsMapping = {
       point: {
         type: 'Point',
+        geometryName: 'Point'
       },
       circle: {
         type: 'Circle',
+        geometryName: 'Circle'
       },
       box: {
         type: 'Circle',
+        geometryName: 'Box',
         geometryFunction: createRegularPolygon(4),
       },
       polyline: {
@@ -628,14 +632,17 @@ class VLWholeSlideMicroscopyImageViewer {
       },
       freehandpolygon: {
         type: 'Polygon',
+        geometryName: 'FreeHandPolygon',
         freehand: true,
       },
       line: {
         type: 'LineString',
+        geometryName: 'Line',
         freehand: false,
       },
       freehandline: {
         type: 'LineString',
+        geometryName: 'FreeHandLine',
         freehand: true,
       },
     };
