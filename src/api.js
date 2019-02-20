@@ -37,7 +37,6 @@ import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
 
 function _geometry2Scoord(geometry) {
-  // const name = geometry.constructor.name;
   const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
@@ -625,7 +624,7 @@ class VLWholeSlideMicroscopyImageViewer {
         geometryName: 'Box',
         geometryFunction: createRegularPolygon(4),
       },
-      polyline: {
+      polygon: {
         type: 'Polygon',
         geometryName: 'Polyline',
         freehand: false,
