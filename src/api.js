@@ -99,8 +99,7 @@ function _scoord2Geometry(scoord) {
 
 
 function _geometryCoordinates2scoordCoordinates(coordinates) {
-  // TODO: Transform to coordinates on pyramid base layer???
-  return [coordinates[0] + 1, -coordinates[1], 0]
+  return [coordinates[0] + 1, -coordinates[1]]
 }
 
 function _scoordCoordinates2geometryCoordinates(coordinates) {
