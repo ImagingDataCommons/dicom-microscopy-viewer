@@ -37,7 +37,7 @@ import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
 
 function _geometry2Scoord(geometry) {
-  const type = geometry.getType()
+  const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
     coordinates = _geometryCoordinates2scoordCoordinates(coordinates);
@@ -99,15 +99,37 @@ function _scoord2Geometry(scoord) {
 
 
 function _geometryCoordinates2scoordCoordinates(coordinates) {
-  // TODO: Transform to coordinates on pyramid base layer???
   return [coordinates[0] + 1, -coordinates[1]]
 }
-
 
 function _scoordCoordinates2geometryCoordinates(coordinates) {
   return [coordinates[0] - 1, -coordinates[1]]
 }
 
+/*
+    * Translate pixel units of total pixel matrix into millimeters of
+    * slide coordinate system
+  */
+function coordinateFormatFunction(coordinates, pyramid) {
+  coordinates.map(coord =>{
+    let x = (coord[0] * pyramid[pyramid.length-1].pixelSpacing[0]).toFixed(4);
+    let y = (-(coord[1] - 1) * pyramid[pyramid.length-1].pixelSpacing[1]).toFixed(4);
+    coordinates = [x,y]
+  })
+  
+  return(coordinates);
+}
+
+function _getROIByFeature(feature, pyramid, coordinateSystem) {
+  const geometry = feature.getGeometry();
+  let scoord = _geometry2Scoord(geometry);
+  if(pyramid !== undefined && coordinateSystem === 'mm'){
+    scoord = coordinateFormatFunction(scoord.coordinates, pyramid);
+  }
+  const properties = feature.getProperties();
+  delete properties["geometry"];
+  return new ROI({ scoord, properties, coordinateSystem });
+}
 
 const _usewebgl = Symbol('usewebgl');
 const _map = Symbol('map');
@@ -252,16 +274,6 @@ class VLWholeSlideMicroscopyImageViewer {
     origins.reverse();
 
     const pyramid = this.pyramid;
-
-    /*
-      * Translate pixel units of total pixel matrix into millimeters of
-      * slide coordinate system
-    */
-    function coordinateFormatFunction(coordinate) {
-      x = (coordinate[0] * pyramid[pyramid.length-1].pixelSpacing[0]).toFixed(4);
-      y = (-(coordinate[1] - 1) * pyramid[pyramid.length-1].pixelSpacing[1]).toFixed(4);
-      return([x, y]);
-    }
 
     /*
      * Define custom tile URL function to retrive frames via DICOMweb
@@ -596,32 +608,39 @@ class VLWholeSlideMicroscopyImageViewer {
    */
   activateDrawInteraction(options) {
     this.deactivateDrawInteraction();
-    const freehand = options.freehand ? options.freehand : false;
+    
     const customOptionsMapping = {
       point: {
         type: 'Point',
+        geometryName: 'Point'
       },
       circle: {
         type: 'Circle',
+        geometryName: 'Circle'
       },
       box: {
         type: 'Circle',
+        geometryName: 'Box',
         geometryFunction: createRegularPolygon(4),
       },
       polygon: {
         type: 'Polygon',
+        geometryName: 'Polyline',
         freehand: false,
       },
       freehandpolygon: {
         type: 'Polygon',
+        geometryName: 'FreeHandPolygon',
         freehand: true,
       },
       line: {
         type: 'LineString',
+        geometryName: 'Line',
         freehand: false,
       },
       freehandline: {
         type: 'LineString',
+        geometryName: 'FreeHandLine',
         freehand: true,
       },
     };
@@ -704,27 +723,28 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_interaction].modify !== undefined;
   }
 
-  getAllROIs() {
-    const n = this.numberOfMeasuments;
-    const regions = [];
-    for (let i = 0; i < n; i++) {
-      const r = this.getROI(i);
-      regions.push(r);
+  getAllROIs(coordinateSystem='totalPixelMatrix') {
+    const features = this[_features];
+    let rois = [];
+    if (features !== undefined) {
+      features.forEach(feature => {
+        rois.push(_getROIByFeature(feature, this.pyramid , coordinateSystem));
+      });
     }
-    return regions;
+    return rois;
   }
 
   get numberOfROIs() {
     return this[_features].getLength();
   }
 
-  getROI(index) {
+  getROI(index, coordinateSystem='totalPixelMatrix') {
     const feature = this[_features].item(index);
-    const geometry = feature.getGeometry();
-    const scoord = _geometry2Scoord(geometry);
-    const properties = feature.getProperties();
-    delete properties['geometry'];
-    return new ROI({scoord, properties});
+    let roi = {};
+    if (feature !== undefined) {
+      roi = _getROIByFeature(feature, this.pyramid, coordinateSystem);
+    }
+    return roi;
   }
 
   popROI() {
