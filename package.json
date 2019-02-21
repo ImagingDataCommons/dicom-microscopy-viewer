@@ -1,12 +1,14 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "build/dicom-microscopy-viewer.js",
   "scripts": {
     "test": "mochify",
     "webdriver": "mochify --wd",
+    "start": "rollup -c -w",
     "build": "rollup -c",
+    "prepublishOnly": "npm run build",
     "watch": "rollup -c -w"
   },
   "repository": {
