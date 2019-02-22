@@ -97,6 +97,7 @@ class Polygon extends Scoord3D {
      * denoted by (x,y,z) triplets, where the first and last vertices shall be the same 
      * forming a polygon; the points shall be coplanar
      */
+    // TODO: sort coordinates, make sure that the first and last vertices are the same
     return this.coordinates;
   }
 
