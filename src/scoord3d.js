@@ -14,8 +14,8 @@ class Scoord3D {
     throw new Error('Propotype property "graphicType" must be implemented.');
   }
 
-  get referendedFrameOfReferenceUID() {
-    throw new Error('Propotype property "referendedFrameOfReferenceUID" must be implemented.');
+  get referencedFrameOfReferenceUID() {
+    throw new Error('Propotype property "referencedFrameOfReferenceUID" must be implemented.');
   }
   
   get fiducialUID() {
