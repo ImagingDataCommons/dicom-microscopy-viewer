@@ -2,7 +2,7 @@
  * Spatial coordinates of a geometric region of interest (ROI) in the DICOM
  * image coordinate system.
  */
-class Scoord {
+class Scoord3D {
 
   constructor() {}
 
@@ -28,7 +28,7 @@ class Scoord {
 }
 
 
-class Point extends Scoord {
+class Point extends Scoord3D {
 
   constructor(coordinates) {
     super()
@@ -46,7 +46,7 @@ class Point extends Scoord {
 }
 
 
-class Multipoint extends Scoord {
+class Multipoint extends Scoord3D {
 
   constructor(coordinates) {
     super()
@@ -64,7 +64,7 @@ class Multipoint extends Scoord {
 }
 
 
-class Polyline extends Scoord {
+class Polyline extends Scoord3D {
 
   constructor(coordinates) {
     super()
@@ -89,7 +89,7 @@ class Polyline extends Scoord {
 }
 
 
-class Circle extends Scoord {
+class Circle extends Scoord3D {
 
   constructor(centerCoordinates, radius) {
     super()
@@ -115,7 +115,7 @@ class Circle extends Scoord {
 }
 
 
-class Ellipse extends Scoord {
+class Ellipse extends Scoord3D {
 
   constructor(majorAxisEndpointCoordinates, minorAxisEndpointCoordinates) {
     super()
