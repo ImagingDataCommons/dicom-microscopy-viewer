@@ -14,19 +14,15 @@ class Scoord3D {
     throw new Error('Propotype property "graphicType" must be implemented.');
   }
 
-  get pixelOriginInterpretation() {
-    // FRAME or VOLUME
-    /* TODO: Consider relative to frame instead of total pixel matrix.
-     * This would complicate scenarios where graphics span multiple frames.
-     */
-    return 'VOLUME';
+  get referendedFrameOfReferenceUID() {
+    throw new Error('Propotype property "referendedFrameOfReferenceUID" must be implemented.');
+  }
+  
+  get fiducialUID() {
+    throw new Error('Propotype property "fiducialUID" must be implemented.');    
   }
 
-  // get fiducialUID() {
-  // }
-
 }
-
 
 class Point extends Scoord3D {
 
