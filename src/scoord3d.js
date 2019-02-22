@@ -84,6 +84,28 @@ class Polyline extends Scoord3D {
 
 }
 
+class Polygon extends Scoord3D {
+
+  constructor(coordinates) {
+    super()
+    this.coordinates = coordinates
+  }
+
+  get graphicData() {
+    /*
+     * A polygon is defined a series of connected line segments with ordered vertices 
+     * denoted by (x,y,z) triplets, where the first and last vertices shall be the same 
+     * forming a polygon; the points shall be coplanar
+     */
+    return this.coordinates;
+  }
+
+  get graphicType() {
+    return 'POLYGON';
+  }
+
+}
+
 
 class Circle extends Scoord3D {
 
@@ -139,5 +161,5 @@ class Ellipse extends Scoord3D {
 }
 
 
-export { Point, Multipoint, Polyline, Circle, Ellipse };
+export { Point, Multipoint, Polyline, Polygon, Circle, Ellipse };
 
