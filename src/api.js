@@ -71,6 +71,7 @@ function _geometry2Scoord3d(geometry) {
 function _scoord3d2Geometry(scoord3d) {
   const type = scoord3d.graphicType;
   const data = scoord3d.graphicData;
+  console.log(data)
   if (type === 'POINT') {
     let coordinates = _scoord3dCoordinates2geometryCoordinates(data);
     return new PointGeometry(coordinates);
@@ -78,16 +79,12 @@ function _scoord3d2Geometry(scoord3d) {
     const coordinates = data.map(d => {
       return _scoord3dCoordinates2geometryCoordinates(d);
     });
-    let isClosed = (
-      data[0][0] === data[data.length-1][0] &&
-      data[0][1] === data[data.length-1][1]
-    );
-    if (isClosed) {
-      // Polygon requires inner linear ring and an outer ring.
-      return new PolygonGeometry([coordinates]);
-    } else {
-      return new LineStringGeometry(coordinates);
-    }
+    return new LineStringGeometry(coordinates);
+  } else if(type === 'POLYGON'){
+    const coordinates = data.map(d => {
+      return _scoord3dCoordinates2geometryCoordinates(d);
+    });
+    return new PolygonGeometry([coordinates]);
   } else if (type === 'CIRCLE') {
     let center = _scoord3dCoordinates2geometryCoordinates(scoord3d.centerCoordinates);
     let radius = scoord3d.radius;
@@ -732,7 +729,12 @@ class VLWholeSlideMicroscopyImageViewer {
     if (feature !== undefined) {      
       const geometry = feature.getGeometry();
       let scoord3d = _geometry2Scoord3d(geometry);
-      scoord3d.coordinates.map(coord => {return coordinateFormatFunction(coord, this.pyramid)});     
+      // This is to uniform the ROI format in an array of arrays. When it is a point the representation
+      // is a single array with x and y coords
+      if(scoord3d.coordinates.length === 2){
+        scoord3d.coordinates = [scoord3d.coordinates]
+      }
+      scoord3d.coordinates.map(coord => {return coordinateFormatFunction(coord, this.pyramid)});           
       const properties = feature.getProperties();
       delete properties['geometry'];
       return new ROI({scoord3d, properties});
