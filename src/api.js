@@ -31,16 +31,16 @@ import {
   Polyline,
   Circle,
   Ellipse
-} from './scoord.js';
+} from './scoord3d.js';
 
 import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
 
-function _geometry2Scoord(geometry) {
+function _geometry2Scoord3d(geometry) {
   const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
-    coordinates = _geometryCoordinates2scoordCoordinates(coordinates);
+    coordinates = _geometryCoordinates2scoord3dCoordinates(coordinates);
     return new Point(coordinates);
   } else if (type === 'Polygon') {
     /*
@@ -48,17 +48,17 @@ function _geometry2Scoord(geometry) {
      * Each subsequent linear ring defines a hole in the surface.
      */
     let coordinates = geometry.getCoordinates()[0].map(c => {
-      return _geometryCoordinates2scoordCoordinates(c);
+      return _geometryCoordinates2scoord3dCoordinates(c);
     });
     return new Polyline(coordinates);
   } else if (type === 'LineString') {
     let coordinates = geometry.getCoordinates().map(c => {
-      return _geometryCoordinates2scoordCoordinates(c);
+      return _geometryCoordinates2scoord3dCoordinates(c);
     });
     return new Polyline(coordinates);
   } else if (type === 'Circle') {
     // TODO: Circle may actually represent a Polyline
-    let center = _geometryCoordinates2scoordCoordinates(geometry.getCenter());
+    let center = _geometryCoordinates2scoord3dCoordinates(geometry.getCenter());
     let radius = geometry.getRadius();
     return new Circle(center, radius);
   } else {
@@ -68,29 +68,26 @@ function _geometry2Scoord(geometry) {
 }
 
 
-function _scoord2Geometry(scoord) {
-  const type = scoord.graphicType;
-  const data = scoord.graphicData;
+function _scoord3d2Geometry(scoord3d) {
+  const type = scoord3d.graphicType;
+  const data = scoord3d.graphicData;
+  console.log(data)
   if (type === 'POINT') {
-    let coordinates = _scoordCoordinates2geometryCoordinates(data);
+    let coordinates = _scoord3dCoordinates2geometryCoordinates(data);
     return new PointGeometry(coordinates);
   } else if (type === 'POLYLINE') {
     const coordinates = data.map(d => {
-      return _scoordCoordinates2geometryCoordinates(d);
+      return _scoord3dCoordinates2geometryCoordinates(d);
     });
-    let isClosed = (
-      data[0][0] === data[data.length-1][0] &&
-      data[0][1] === data[data.length-1][1]
-    );
-    if (isClosed) {
-      // Polygon requires inner linear ring and an outer ring.
-      return new PolygonGeometry([coordinates]);
-    } else {
-      return new LineStringGeometry(coordinates);
-    }
+    return new LineStringGeometry(coordinates);
+  } else if(type === 'POLYGON'){
+    const coordinates = data.map(d => {
+      return _scoord3dCoordinates2geometryCoordinates(d);
+    });
+    return new PolygonGeometry([coordinates]);
   } else if (type === 'CIRCLE') {
-    let center = _scoordCoordinates2geometryCoordinates(scoord.centerCoordinates);
-    let radius = scoord.radius;
+    let center = _scoord3dCoordinates2geometryCoordinates(scoord3d.centerCoordinates);
+    let radius = scoord3d.radius;
     return new CircleGeometry(center, radius);
   } else {
     console.error(`unsupported graphic type "${type}"`)
@@ -98,11 +95,11 @@ function _scoord2Geometry(scoord) {
 }
 
 
-function _geometryCoordinates2scoordCoordinates(coordinates) {
+function _geometryCoordinates2scoord3dCoordinates(coordinates) {
   return [coordinates[0] + 1, -coordinates[1]]
 }
 
-function _scoordCoordinates2geometryCoordinates(coordinates) {
+function _scoord3dCoordinates2geometryCoordinates(coordinates) {
   return [coordinates[0] - 1, -coordinates[1]]
 }
 
@@ -118,17 +115,6 @@ function coordinateFormatFunction(coordinates, pyramid) {
   })
   
   return(coordinates);
-}
-
-function _getROIByFeature(feature, pyramid, coordinateSystem) {
-  const geometry = feature.getGeometry();
-  let scoord = _geometry2Scoord(geometry);
-  if(pyramid !== undefined && coordinateSystem === 'mm'){
-    scoord = coordinateFormatFunction(scoord.coordinates, pyramid);
-  }
-  const properties = feature.getProperties();
-  delete properties["geometry"];
-  return new ROI({ scoord, properties, coordinateSystem });
 }
 
 const _usewebgl = Symbol('usewebgl');
@@ -723,13 +709,12 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_interaction].modify !== undefined;
   }
 
-  getAllROIs(coordinateSystem='totalPixelMatrix') {
-    const features = this[_features];
+  getAllROIs() {
     let rois = [];
-    if (features !== undefined) {
-      features.forEach(feature => {
-        rois.push(_getROIByFeature(feature, this.pyramid , coordinateSystem));
-      });
+    if (this.numberOfROIs > 0) {
+      for(let index = 0; index < this.numberOfROIs; index++){
+        rois.push(this.getROI(index));
+      }
     }
     return rois;
   }
@@ -738,11 +723,21 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_features].getLength();
   }
 
-  getROI(index, coordinateSystem='totalPixelMatrix') {
+  getROI(index) {
     const feature = this[_features].item(index);
     let roi = {};
-    if (feature !== undefined) {
-      roi = _getROIByFeature(feature, this.pyramid, coordinateSystem);
+    if (feature !== undefined) {      
+      const geometry = feature.getGeometry();
+      let scoord3d = _geometry2Scoord3d(geometry);
+      // This is to uniform the ROI format in an array of arrays. When it is a point the representation
+      // is a single array with x and y coords
+      if(scoord3d.coordinates.length === 2){
+        scoord3d.coordinates = [scoord3d.coordinates]
+      }
+      scoord3d.coordinates.map(coord => {return coordinateFormatFunction(coord, this.pyramid)});           
+      const properties = feature.getProperties();
+      delete properties['geometry'];
+      return new ROI({scoord3d, properties});
     }
     return roi;
   }
@@ -750,21 +745,21 @@ class VLWholeSlideMicroscopyImageViewer {
   popROI() {
     const feature = this[_features].pop();
     const geometry = feature.getGeometry()
-    const scoord = _geometry2Scoord(geometry);
+    const scoord3d = _geometry2Scoord3d(geometry);
     const properties = feature.getProperties();
     delete properties['geometry'];
-    return new ROI({scoord, properties});
+    return new ROI({scoord3d, properties});
   }
 
   addROI(item) {
-    const geometry = _scoord2Geometry(item.scoord);
+    const geometry = _scoord3d2Geometry(item.scoord3d);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
     this[_features].push(feature);
   }
 
   updateROI(index, item) {
-    const geometry = _scoord2Geometry(item.scoord);
+    const geometry = _scoord3d2Geometry(item.scoord3d);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
     this[_features].setAt(index, feature);

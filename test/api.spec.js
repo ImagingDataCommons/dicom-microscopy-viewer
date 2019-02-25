@@ -1,6 +1,5 @@
 const chai = require('chai');
 const assert = require('assert');
-const roi = require
 
 chai.should();
 
@@ -35,15 +34,15 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
             [20967.16433027939, 16899.356324511322],
             [18802.104222888596, 17666.917976278484]
         ];
-        const scoord = {
+        const scoord3d = {
             coordinates: coordinates,
             graphicData : coordinates,
             graphicType: "POLYLINE"
         };        
         let properties = {};
-        const roi = new dicomMicroscopyViewer.roi.ROI({scoord, properties});
+        const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(0).coordinateSystem, 'totalPixelMatrix');
-        assert.deepEqual(viewer.getROI(0).scoord.coordinates, coordinates);
+        console.log(viewer.getROI(0))
+        assert.deepEqual(viewer.getROI(0).scoord3d.coordinates, coordinates);
     })
 });

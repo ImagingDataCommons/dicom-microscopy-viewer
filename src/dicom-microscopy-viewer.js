@@ -6,12 +6,12 @@ import {
   Polyline,
   Circle,
   Ellipse,
-} from './scoord.js';
+} from './scoord3d.js';
 
 let api = {
   VLWholeSlideMicroscopyImageViewer,
 };
-let scoord = {
+let scoord3d = {
   Point,
   Multipoint,
   Polyline,
@@ -22,4 +22,4 @@ let roi = {
   ROI,
 }
 
-export { api, scoord, roi };
+export { api, scoord3d, roi };

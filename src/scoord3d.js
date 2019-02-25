@@ -2,7 +2,7 @@
  * Spatial coordinates of a geometric region of interest (ROI) in the DICOM
  * image coordinate system.
  */
-class Scoord {
+class Scoord3D {
 
   constructor() {}
 
@@ -14,21 +14,17 @@ class Scoord {
     throw new Error('Propotype property "graphicType" must be implemented.');
   }
 
-  get pixelOriginInterpretation() {
-    // FRAME or VOLUME
-    /* TODO: Consider relative to frame instead of total pixel matrix.
-     * This would complicate scenarios where graphics span multiple frames.
-     */
-    return 'VOLUME';
+  get referencedFrameOfReferenceUID() {
+    throw new Error('Propotype property "referencedFrameOfReferenceUID" must be implemented.');
   }
-
-  // get fiducialUID() {
-  // }
+  
+  get fiducialUID() {
+    throw new Error('Propotype property "fiducialUID" must be implemented.');    
+  }
 
 }
 
-
-class Point extends Scoord {
+class Point extends Scoord3D {
 
   constructor(coordinates) {
     super()
@@ -46,7 +42,7 @@ class Point extends Scoord {
 }
 
 
-class Multipoint extends Scoord {
+class Multipoint extends Scoord3D {
 
   constructor(coordinates) {
     super()
@@ -64,7 +60,7 @@ class Multipoint extends Scoord {
 }
 
 
-class Polyline extends Scoord {
+class Polyline extends Scoord3D {
 
   constructor(coordinates) {
     super()
@@ -88,8 +84,31 @@ class Polyline extends Scoord {
 
 }
 
+class Polygon extends Scoord3D {
 
-class Circle extends Scoord {
+  constructor(coordinates) {
+    super()
+    this.coordinates = coordinates
+  }
+
+  get graphicData() {
+    /*
+     * A polygon is defined a series of connected line segments with ordered vertices 
+     * denoted by (x,y,z) triplets, where the first and last vertices shall be the same 
+     * forming a polygon; the points shall be coplanar
+     */
+    // TODO: sort coordinates, make sure that the first and last vertices are the same
+    return this.coordinates;
+  }
+
+  get graphicType() {
+    return 'POLYGON';
+  }
+
+}
+
+
+class Circle extends Scoord3D {
 
   constructor(centerCoordinates, radius) {
     super()
@@ -115,7 +134,7 @@ class Circle extends Scoord {
 }
 
 
-class Ellipse extends Scoord {
+class Ellipse extends Scoord3D {
 
   constructor(majorAxisEndpointCoordinates, minorAxisEndpointCoordinates) {
     super()
@@ -143,5 +162,5 @@ class Ellipse extends Scoord {
 }
 
 
-export { Point, Multipoint, Polyline, Circle, Ellipse };
+export { Point, Multipoint, Polyline, Polygon, Circle, Ellipse };
 
