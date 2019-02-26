@@ -19,6 +19,8 @@ import { default as PolygonGeometry } from 'ol/geom/Polygon';
 import { default as PointGeometry } from 'ol/geom/Point';
 import { default as LineStringGeometry } from 'ol/geom/LineString';
 import { default as CircleGeometry } from 'ol/geom/Circle';
+import publish from "./eventPublisher";
+import Event from "./events";
 
 import { getCenter } from 'ol/extent';
 import { toStringXY } from 'ol/coordinate';
@@ -756,6 +758,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
     this[_features].push(feature);
+    publish(document.getElementById("dicomImage"), Event.ROI_ADDED, geometry);
   }
 
   updateROI(index, item) {
