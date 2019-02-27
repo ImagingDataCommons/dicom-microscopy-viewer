@@ -62,7 +62,6 @@
       }
 
       function logEvent(event) {
-        console.log(event)
         const eventType = event.type.split('dicommicroscopyviewer_')[1];
         const content = event.detail;
         const activeElements = document.getElementById("log").querySelector("a.active");
