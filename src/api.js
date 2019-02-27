@@ -661,35 +661,28 @@ class VLWholeSlideMicroscopyImageViewer {
 
     const container = this[_map].getTarget();
 
-    //attaching openlayers events handling
-    
+    //attaching openlayers events handling    
     this[_interactions].draw.on('drawend', (e) => {       
-      console.log('drawend')   
       publish(container, EVENT.ROI_DRAWN, e);
     });
     
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-        console.log('ADDFEATURE')   
         publish(container, EVENT.ROI_ADDED, e);
     });
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      console.log('CHANGEFEATURE')   
       publish(container, EVENT.ROI_MODIFIED, e);
     });
 
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      console.log('REMOVEFEATURE')   
       publish(container, EVENT.ROI_REMOVED, e);
     });
 
     this[_map].on(MapEventType.MOVESTART, (e) => {
-      console.log('movestart')   
       publish(container, EVENT.DICOM_MOVE_STARTED, e);
     });
 
     this[_map].on(MapEventType.MOVEEND, (e) => {
-      console.log('moveend')   
       publish(container, EVENT.DICOM_MOVE_ENDED, e);
     });
 
