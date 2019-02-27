@@ -657,6 +657,7 @@ class VLWholeSlideMicroscopyImageViewer {
     });
     
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+        console.log(e)
         publish(container, EVENT.ROI_ADDED, e);
     });
 

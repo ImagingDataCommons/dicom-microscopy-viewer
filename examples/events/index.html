@@ -30,31 +30,29 @@
       You need to enable JavaScript to run this app.
     </noscript>
     
-    <script src="../js/jquery.min.js"></script>
     <script src="https://unpkg.com/dicomweb-client"></script>
     <script src="/build/dicom-microscopy-viewer.js"></script>
     <script>
 
-      $(document).ready(() => {
-        
-        // Tool selection
-        $("#tools-list li a").on('click',(event)=> {
-          const geometryType = event.target.id;
-          $("#tools-list li.active").removeClass("active");
+      document.addEventListener("DOMContentLoaded", () => { 
+
+        document.getElementById('tools-list').addEventListener("click", (event) => {
+          const geometryType = event.target.id;          
+          document.getElementById("tools-list").querySelector("li.active").classList.remove("active");
           window.viewer.activateDrawInteraction({ geometryType });
-          $(`#${geometryType}`).parent().attr("class", "active");
+          document.getElementById(`${geometryType}`).parentNode.setAttribute("class", "active");
         });
 
         // Event list   
-        $("#event-list a").on("click",(event)=> {
+        document.getElementById('event-list').addEventListener("click", (event) => {
           const eventType = event.target.id;
 
-          if($(`#${eventType}`).hasClass("active")){
+          if(document.getElementById(eventType).classList.contains("active")){
             document.removeEventListener(`dicommicroscopyviewer_${eventType}`, logEvent);
           }else{            
             addEventListener(eventType);
           }
-          $(`#${eventType}`).toggleClass("active");
+          document.getElementById(eventType).classList.toggle("active");
         });
 
       });
@@ -65,12 +63,20 @@
 
       function logEvent(event) {
         const content = event.detail;
-        $("#log a.active").removeClass("active");
+        const activeElements = document.getElementById("log").querySelector("a.active");
+        if(activeElements){
+          activeElements.classList.remove("active");
+        }
         const new_event = `<a class="list-group-item active">
                             <h4 class="list-group-item-heading">eventType: ${content.payload.type}</h4>
                             <p class="list-group-item-text">${content.time}</p>
                           </a>`
-        $("#log").prepend(new_event);
+
+        const log = document.getElementById("log");
+
+        let newNode = document.createElement('div');
+        newNode.innerHTML = new_event.trim();
+        log.prepend(newNode);
       }
       
       const url = "https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs";
