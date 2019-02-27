@@ -704,7 +704,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const container = this[_map].getTarget();
 
     this[_interactions].select.on('select', (e) => {
-      publish(container, EVENT.ROI_SELECTED, e);
+      publish(container, EVENT.ROI_SELECTED, this.getROI(null, e.feature));
     });
 
     this[_map].addInteraction(this[_interactions].select);
