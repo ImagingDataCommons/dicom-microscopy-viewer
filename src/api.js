@@ -319,16 +319,6 @@ class VLWholeSlideMicroscopyImageViewer {
       return btoa(strArray.join(''));
     }
 
-    function onMoveEnd(evt) {
-      var map = evt.map;
-      console.log(evt)
-    }
-
-    function onMoveEndRemove(evt) {
-      var map = evt.map;
-      console.log(evt)
-    }
-
     function tileLoadFunction(tile, src) {
       if (src !== null) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
