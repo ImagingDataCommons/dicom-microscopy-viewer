@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta name="theme-color" content="#000000" />
+
+    <title>dicom-microscopy-viewer example</title>
+
+    <!-- Latest compiled and minified CSS -->
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+      integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+      integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0="
+      crossorigin="anonymous"
+    />
+  </head>
+
+  <body>
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+    
+    <script src="../js/jquery.min.js"></script>
+    <script src="https://unpkg.com/dicomweb-client"></script>
+    <script src="/build/dicom-microscopy-viewer.js"></script>
+    <script>
+
+      $(document).ready(() => {
+        
+        // Tool selection
+        $("#tools-list li a").on('click',(event)=> {
+          const geometryType = event.target.id;
+          $("#tools-list li.active").removeClass("active");
+          window.viewer.activateDrawInteraction({ geometryType });
+          $(`#${geometryType}`).parent().attr("class", "active");
+        });
+
+        // Event list   
+        $("#event-list a").on("click",(event)=> {
+          const eventType = event.target.id;
+
+          if($(`#${eventType}`).hasClass("active")){
+            document.removeEventListener(`dicommicroscopyviewer_${eventType}`, logEvent);
+          }else{            
+            addEventListener(eventType);
+          }
+          $(`#${eventType}`).toggleClass("active");
+        });
+
+      });
+
+      function addEventListener(eventType){
+        document.addEventListener(`dicommicroscopyviewer_${eventType}`, logEvent);
+      }
+
+      function logEvent(event) {
+        const content = event.detail;
+        $("#log a.active").removeClass("active");
+        const new_event = `<a class="list-group-item active">
+                            <h4 class="list-group-item-heading">eventType: ${content.payload.type}</h4>
+                            <p class="list-group-item-text">${content.time}</p>
+                          </a>`
+        $("#log").prepend(new_event);
+      }
+      
+      const url = "https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs";
+      const client = new DICOMwebClient.api.DICOMwebClient({ url });
+      const studyInstanceUID = "1.2.392.200140.2.1.1.1.2.799008771.2448.1519719572.518";
+      const seriesInstanceUID = "1.2.392.200140.2.1.1.1.3.799008771.2448.1519719572.519";
+      
+      const searchInstanceOptions = {
+        studyInstanceUID,
+        seriesInstanceUID
+      };
+
+      client.searchForInstances(searchInstanceOptions)
+        .then(instances => {
+          const promises = [];
+          
+          for (let i = 0; i < instances.length; i++) {
+            
+            const sopInstanceUID = instances[i]["00080018"]["Value"][0];
+            
+            const retrieveInstanceOptions = {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID
+            };
+
+            const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions)
+              .then(metadata => {
+                const imageType = metadata[0]["00080008"]["Value"];
+                if (imageType[2] === "VOLUME") {
+                  return metadata[0];
+                }
+              });
+            promises.push(promise);
+          }
+          return Promise.all(promises);
+        })
+        .then(metadata => {
+          metadata = metadata.filter(m => m);
+          const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({client,metadata});
+
+          const container = document.getElementById("dicomImage");
+          viewer.render({ container });
+
+          viewer.activateDrawInteraction({ geometryType: "point" });
+          window.viewer = viewer;
+         
+        });
+
+      addEventListener('dicom_move_started');
+      addEventListener('dicom_move_ended');
+
+    </script>
+  </body>
+  <body>
+    <div class="container">
+      <div class="page-header">
+        <h1>
+          Microscopy viewer Events Handler
+        </h1>
+        <p>
+          This example demonstrates how to interact with Microscopy Events.
+        </p>
+        <a href="../">Go back to the Examples page</a>
+      </div>
+
+      <div class="bs-example" data-example-id="simple-thumbnails">
+        <div class="row">
+          <div class="col-xs-6 col-md-2">
+            <div class="list-group" id="event-list">              
+              <a id="roi_added" class="list-group-item">ROI Added</a>
+              <a id="roi_removed" class="list-group-item">ROI Removed</a>
+              <a id="roi_drawn" class="list-group-item">ROI Drawn</a>
+              <a id="roi_selected" class="list-group-item">ROI Selected</a>
+              <a id="roi_modified" class="list-group-item">ROI Modified</a>
+              <a id="dicom_move_started" class="list-group-item active">Move Started</a>
+              <a id="dicom_move_ended" class="list-group-item active">Move Ended</a>
+            </div>
+          </div>
+          <div class="col-xs-6 col-md-7" >
+            <ul class="nav nav-pills" id="tools-list">
+              <li role="presentation" class="active"><a id="point">Point</a></li>
+              <li role="presentation"><a id="circle">Circle</a></li>
+              <li role="presentation"><a id="box">Box</a></li>
+              <li role="presentation"><a id="polygon">Polygon</a></li>
+              <li role="presentation"><a id="freehandpolygon">Freehand Polygon</a></li>
+              <li role="presentation"><a id="line">Line</a></li>
+              <li role="presentation"><a id="freehandline">Freehand Line</a></li>
+            </ul>
+            <div
+              style="width:100%;height:512px;position:relative;display:inline-block;"
+              oncontextmenu="return false"
+              class="cornerstone-enabled-image"
+              unselectable="on"
+              onselectstart="return false;"
+              onmousedown="return false;"
+            >
+              <div
+                id="dicomImage"
+                style="width:100%;height:512px;top:0px;left:0px; position:absolute; border: 1px solid black;"
+              ></div>
+            </div>
+          </div>
+          <div class="col-xs-6 col-md-3">
+            <div class="list-group scrollable" id="log">
+              
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <style>
+    .scrollable {
+      height: 530px;
+      overflow-y: scroll;
+    }
+    </style>
+  </body>
+</html>
