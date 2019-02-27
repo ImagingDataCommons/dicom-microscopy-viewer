@@ -168,27 +168,42 @@ const EVENTS = {
     /**
      *  @type {String}
      */
-    ROI_ADDED: `${PROJECT_NAME}roi_added`,
+    ROI_ADDED: `${PROJECT_NAME}roiadded`,
   
     /**
      *  @type {String}
      */
-    ROI_REMOVED: `${PROJECT_NAME}roi_removed`,
+    ROI_REMOVED: `${PROJECT_NAME}roiremoved`,
 
     /**
      *  @type {String}
      */
-    ROI_DRAWN: `${PROJECT_NAME}roi_drawn`,
+    ROI_DRAW_STARTED: `${PROJECT_NAME}roidrawnstarted`,
+    
+    /**
+     *  @type {String}
+     */
+    ROI_DRAWN: `${PROJECT_NAME}roidrawn`,
 
     /**
      *  @type {String}
      */
-    ROI_SELECTED: `${PROJECT_NAME}roi_selected`,
+    ROI_SELECTED: `${PROJECT_NAME}roiselected`,
 
     /**
      *  @type {String}
      */
-    ROI_MODIFIED: `${PROJECT_NAME}roi_modified`,  
+    ROI_MODIFIED: `${PROJECT_NAME}roimodified`,  
+
+    /**
+     *  @type {String}
+     */
+    DICOM_MOVE_STARTED: `${PROJECT_NAME}dicommovestarted`,  
+    
+    /**
+     *  @type {String}
+     */
+    DICOM_MOVE_ENDED: `${PROJECT_NAME}dicommoveend`,  
     
   };
   

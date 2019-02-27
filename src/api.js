@@ -20,7 +20,9 @@ import { default as PointGeometry } from 'ol/geom/Point';
 import { default as LineStringGeometry } from 'ol/geom/LineString';
 import { default as CircleGeometry } from 'ol/geom/Circle';
 import publish from "./eventPublisher";
-import Event from "./events";
+import EVENT from "./events";
+import { default as VectorEventType } from "ol/source/VectorEventType";
+import { default as MapEventType } from "ol/MapEventType";
 
 import { getCenter } from 'ol/extent';
 import { toStringXY } from 'ol/coordinate';
@@ -73,7 +75,6 @@ function _geometry2Scoord3d(geometry) {
 function _scoord3d2Geometry(scoord3d) {
   const type = scoord3d.graphicType;
   const data = scoord3d.graphicData;
-  console.log(data)
   if (type === 'POINT') {
     let coordinates = _scoord3dCoordinates2geometryCoordinates(data);
     return new PointGeometry(coordinates);
@@ -318,6 +319,16 @@ class VLWholeSlideMicroscopyImageViewer {
       return btoa(strArray.join(''));
     }
 
+    function onMoveEnd(evt) {
+      var map = evt.map;
+      console.log(evt)
+    }
+
+    function onMoveEndRemove(evt) {
+      var map = evt.map;
+      console.log(evt)
+    }
+
     function tileLoadFunction(tile, src) {
       if (src !== null) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
@@ -540,6 +551,7 @@ class VLWholeSlideMicroscopyImageViewer {
         logo: false
       });
     }
+    
     for (let control in this[_controls]) {
       this[_map].addControl(this[_controls][control]);
     }
@@ -647,6 +659,40 @@ class VLWholeSlideMicroscopyImageViewer {
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
 
+    const container = this[_map].getTarget();
+
+    //attaching openlayers events handling
+    
+    this[_interactions].draw.on('drawend', (e) => {       
+      console.log('drawend')   
+      publish(container, EVENT.ROI_DRAWN, e);
+    });
+    
+    this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+        console.log('ADDFEATURE')   
+        publish(container, EVENT.ROI_ADDED, e);
+    });
+
+    this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+      console.log('CHANGEFEATURE')   
+      publish(container, EVENT.ROI_MODIFIED, e);
+    });
+
+    this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
+      console.log('REMOVEFEATURE')   
+      publish(container, EVENT.ROI_REMOVED, e);
+    });
+
+    this[_map].on(MapEventType.MOVESTART, (e) => {
+      console.log('movestart')   
+      publish(container, EVENT.DICOM_MOVE_STARTED, e);
+    });
+
+    this[_map].on(MapEventType.MOVEEND, (e) => {
+      console.log('moveend')   
+      publish(container, EVENT.DICOM_MOVE_ENDED, e);
+    });
+
     this[_map].addInteraction(this[_interactions].draw);
 
   }
@@ -670,6 +716,12 @@ class VLWholeSlideMicroscopyImageViewer {
     this.deactivateSelectInteraction();
     this[_interactions].select = new Select({
       layers: [this[_drawingLayer]]
+    });
+
+    const container = this[_map].getTarget();
+
+    this[_interactions].select.on('select', (e) => {
+      publish(container, EVENT.ROI_SELECTED, e);
     });
 
     this[_map].addInteraction(this[_interactions].select);
@@ -757,8 +809,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const geometry = _scoord3d2Geometry(item.scoord3d);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
-    this[_features].push(feature);
-    publish(document.getElementById("dicomImage"), Event.ROI_ADDED, geometry);
+    this[_features].push(feature);    
   }
 
   updateROI(index, item) {
