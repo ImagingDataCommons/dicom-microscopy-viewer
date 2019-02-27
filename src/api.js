@@ -652,29 +652,28 @@ class VLWholeSlideMicroscopyImageViewer {
     const container = this[_map].getTarget();
 
     //attaching openlayers events handling    
-    this[_interactions].draw.on('drawend', (e) => {       
-      publish(container, EVENT.ROI_DRAWN, e);
+    this[_interactions].draw.on('drawend', (e) => {
+      publish(container, EVENT.ROI_DRAWN, this.getROI(null, e.feature));
     });
     
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-        console.log(e)
-        publish(container, EVENT.ROI_ADDED, e);
+        publish(container, EVENT.ROI_ADDED, this.getROI(null, e.feature));
     });
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      publish(container, EVENT.ROI_MODIFIED, e);
+      publish(container, EVENT.ROI_MODIFIED, this.getROI(null, e.feature));
     });
 
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(container, EVENT.ROI_REMOVED, e);
+      publish(container, EVENT.ROI_REMOVED, this.getROI(null, e.feature));
     });
 
     this[_map].on(MapEventType.MOVESTART, (e) => {
-      publish(container, EVENT.DICOM_MOVE_STARTED, e);
+      publish(container, EVENT.DICOM_MOVE_STARTED, this.getAllROIs());
     });
 
     this[_map].on(MapEventType.MOVEEND, (e) => {
-      publish(container, EVENT.DICOM_MOVE_ENDED, e);
+      publish(container, EVENT.DICOM_MOVE_ENDED, this.getAllROIs());
     });
 
     this[_map].addInteraction(this[_interactions].draw);
@@ -761,12 +760,17 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_features].getLength();
   }
 
-  getROI(index) {
-    const feature = this[_features].item(index);
+  getROI(index, feature = undefined) {
+    feature = (feature === undefined) ? this[_features].item(index) : feature;
     let roi = {};
     if (feature !== undefined) {      
       const geometry = feature.getGeometry();
       let scoord3d = _geometry2Scoord3d(geometry);
+
+      // if it is a circle 
+      if(scoord3d.coordinates === undefined){
+        scoord3d.coordinates = scoord3d.centerCoordinates
+      }
       // This is to uniform the ROI format in an array of arrays. When it is a point the representation
       // is a single array with x and y coords
       if(scoord3d.coordinates.length === 2){
