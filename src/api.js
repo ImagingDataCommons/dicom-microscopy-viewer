@@ -591,6 +591,32 @@ class VLWholeSlideMicroscopyImageViewer {
           mapElement.style.cursor = 'default';
         }
     }));
+    const container = this[_map].getTarget();
+
+    this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+      console.log('--->added');
+      publish(container, EVENT.ROI_ADDED, this.getROI(null, e.feature));
+    });
+
+    this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+      publish(container, EVENT.ROI_MODIFIED, this.getROI(null, e.feature));
+    });
+
+    this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
+      publish(container, EVENT.ROI_REMOVED, this.getROI(null, e.feature));
+    });
+
+    this[_map].on(MapEventType.MOVESTART, (e) => {
+      publish(container, EVENT.DICOM_MOVE_STARTED, this.getAllROIs());
+    });
+
+    this[_map].on(MapEventType.MOVEEND, (e) => {
+      publish(container, EVENT.DICOM_MOVE_ENDED, this.getAllROIs());
+    });
+
+    // this[_map].interactions.on('drawend', (e) => {
+    //   publish(container, EVENT.ROI_DRAWN, this.getROI(null, e.feature));
+    // });
 
   }
 
@@ -655,26 +681,6 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_interactions].draw.on('drawend', (e) => {
       publish(container, EVENT.ROI_DRAWN, this.getROI(null, e.feature));
     });
-    
-    this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-        publish(container, EVENT.ROI_ADDED, this.getROI(null, e.feature));
-    });
-
-    this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      publish(container, EVENT.ROI_MODIFIED, this.getROI(null, e.feature));
-    });
-
-    this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(container, EVENT.ROI_REMOVED, this.getROI(null, e.feature));
-    });
-
-    this[_map].on(MapEventType.MOVESTART, (e) => {
-      publish(container, EVENT.DICOM_MOVE_STARTED, this.getAllROIs());
-    });
-
-    this[_map].on(MapEventType.MOVEEND, (e) => {
-      publish(container, EVENT.DICOM_MOVE_ENDED, this.getAllROIs());
-    });
 
     this[_map].addInteraction(this[_interactions].draw);
 
@@ -690,7 +696,7 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   get isDrawInteractionActive() {
-    return this[_interaction].draw !== undefined;
+    return this[_interactions].draw !== undefined;
   }
 
   /* Activate select interaction.
@@ -720,7 +726,7 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   get isSelectInteractionActive() {
-    return this[_interaction].select !== undefined;
+    return this[_interactions].select !== undefined;
   }
 
   /* Activate modify interaction.
@@ -743,7 +749,7 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   get isModifyInteractionActive() {
-    return this[_interaction].modify !== undefined;
+    return this[_interactions].modify !== undefined;
   }
 
   getAllROIs() {
