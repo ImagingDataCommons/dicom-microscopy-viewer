@@ -71,7 +71,6 @@ function _geometry2Scoord3d(geometry) {
 function _scoord3d2Geometry(scoord3d) {
   const type = scoord3d.graphicType;
   const data = scoord3d.graphicData;
-  console.log(data)
   if (type === 'POINT') {
     let coordinates = _scoord3dCoordinates2geometryCoordinates(data);
     return new PointGeometry(coordinates);
@@ -594,7 +593,7 @@ class VLWholeSlideMicroscopyImageViewer {
    */
   activateDrawInteraction(options) {
     this.deactivateDrawInteraction();
-    
+
     const customOptionsMapping = {
       point: {
         type: 'Point',
