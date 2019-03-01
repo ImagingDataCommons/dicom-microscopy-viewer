@@ -45,7 +45,7 @@
 
         document.getElementById("tools-list").addEventListener("click", (event) => {
           const geometryType = event.target.id;          
-          document.getElementById("tools-list").querySelector("li.active").classList.remove("active");
+          disableToolList()
           window.viewer.activateDrawInteraction({ geometryType });
           document.getElementById(`${geometryType}`).parentNode.setAttribute("class", "active");
         });
@@ -73,16 +73,50 @@
         if(elements !== null){
           elements.classList.remove("active");
         }
-        document.getElementById(targetId).classList.toggle("active");
+        
         switch (targetId){
           case CORE_ACTIONS.ACTIVATE_SELECTION:
-            window.viewer.deactivateDrawInteraction();
-            window.viewer.activateSelectInteraction();
+            if(window.viewer.isSelectInteractionActive){
+              window.viewer.deactivateSelectInteraction();
+            }else{
+              disableToolList()
+              window.viewer.deactivateDrawInteraction();
+              window.viewer.activateSelectInteraction();
+              document.getElementById(targetId).classList.add("active");
+            }
+          break;
+          case CORE_ACTIONS.ACTIVATE_CHANGES:
+            if(window.viewer.isModifyInteractionActive){
+              window.viewer.deactivateModifyInteraction();
+            }else{
+              disableToolList()
+              window.viewer.deactivateDrawInteraction();
+              window.viewer.activateModifyInteraction();
+              document.getElementById(targetId).classList.add("active");
+            }
+          break;
+          case CORE_ACTIONS.DEACTIVATE_DRAW:
+            if(window.viewer.isDrawInteractionActive){
+              disableToolList()
+              window.viewer.deactivateDrawInteraction();
+              document.getElementById(targetId).classList.add("active");
+            }else{
+              viewer.activateDrawInteraction({ geometryType: "polygon" });
+              document.getElementById("polygon").parentNode.setAttribute("class", "active");
+            }
+          break;
         }
       }
 
       function addEventListener(eventType){
         document.addEventListener(`dicommicroscopyviewer_${eventType}`, logEvent);
+      }
+
+      function disableToolList(){
+        const toolList = document.getElementById("tools-list").querySelector("li.active")
+        if(toolList !== null){
+          toolList.classList.remove("active");
+        }
       }
 
       function logEvent(event) {
