@@ -38,7 +38,7 @@
         ACTIVATE_DRAW : "activate_draw",
         DEACTIVATE_DRAW : "deactivate_draw", 
         ACTIVATE_SELECTION : "activate_selection", 
-        ACTIVATE_CHANGES : "activate_changes"
+        ACTIVATE_MODIFICATIONS : "activate_modifications"
       };
 
       document.addEventListener("DOMContentLoaded", () => { 
@@ -119,7 +119,7 @@
               window.viewer.activateSelectInteraction();
             }
           break;
-          case CORE_ACTIONS.ACTIVATE_CHANGES:
+          case CORE_ACTIONS.ACTIVATE_MODIFICATIONS:
             if(!window.viewer.isModifyInteractionActive){
               disableToolList();
               window.viewer.deactivateDrawInteraction();
@@ -262,8 +262,8 @@
             <div class="list-group" id="core-actions">              
               <a id="activate_draw" class="list-group-item active">Activate Draw</a>
               <a id="deactivate_draw" class="list-group-item">Deactivate Draw</a>
-              <a id="activate_selection" class="list-group-item">Activate Selection</a>
-              <a id="activate_changes" class="list-group-item">Activate Changes</a>
+              <a id="activate_selection" class="list-group-item">Activate Selected ROIs</a>
+              <a id="activate_modifications" class="list-group-item">Activate Modifications</a>
             </div>
           </div>
           <div class="col-xs-6 col-md-7" >
