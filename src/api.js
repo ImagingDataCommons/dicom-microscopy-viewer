@@ -594,7 +594,6 @@ class VLWholeSlideMicroscopyImageViewer {
     const container = this[_map].getTarget();
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      console.log('--->added');
       publish(container, EVENT.ROI_ADDED, this.getROI(null, e.feature));
     });
 
@@ -613,10 +612,6 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_map].on(MapEventType.MOVEEND, (e) => {
       publish(container, EVENT.DICOM_MOVE_ENDED, this.getAllROIs());
     });
-
-    // this[_map].interactions.on('drawend', (e) => {
-    //   publish(container, EVENT.ROI_DRAWN, this.getROI(null, e.feature));
-    // });
 
   }
 
@@ -710,7 +705,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const container = this[_map].getTarget();
 
     this[_interactions].select.on('select', (e) => {
-      publish(container, EVENT.ROI_SELECTED, this.getROI(null, e.feature));
+      publish(container, EVENT.ROI_SELECTED, this.getROI(null, e.selected[0]));
     });
 
     this[_map].addInteraction(this[_interactions].select);

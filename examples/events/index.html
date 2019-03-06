@@ -35,19 +35,21 @@
     <script>
 
       const CORE_ACTIONS = {
+        ACTIVATE_DRAW : "activate_draw",
         DEACTIVATE_DRAW : "deactivate_draw", 
         ACTIVATE_SELECTION : "activate_selection", 
-        ACTIVATE_CHANGES : "activate_changes", 
-        DELETE_SELECTION : "delete_selection"
+        ACTIVATE_CHANGES : "activate_changes"
       };
 
       document.addEventListener("DOMContentLoaded", () => { 
 
         document.getElementById("tools-list").addEventListener("click", (event) => {
           const geometryType = event.target.id;          
-          disableToolList()
+          disableToolList();
           window.viewer.activateDrawInteraction({ geometryType });
           document.getElementById(`${geometryType}`).parentNode.setAttribute("class", "active");
+          disableCoreActions();
+          toggleElement("activate_draw", true);
         });
 
         // Event list   
@@ -62,50 +64,77 @@
           document.getElementById(eventType).classList.toggle("active");
         });
   
-        Object.keys(CORE_ACTIONS).forEach(action => document.getElementById(CORE_ACTIONS[action]).addEventListener("click", toggleCoreAction, false));  
+        Object.keys(CORE_ACTIONS).forEach(action => 
+          document.getElementById(CORE_ACTIONS[action]).addEventListener("click", toggleCoreAction, false)
+        );  
+
+        const rois = document.getElementById('rois');
+
+        rois.addEventListener("click", (e) => {
+          const li = e.target.closest('li');
+          let nodes = Array.from(rois.children);
+          nodes = Array.from(li.closest('ul').children);
+          const index = nodes.indexOf(li);
+          viewer.removeROI(index);
+          // if there is a selection when deleting the structure, the selection keeps there
+          if(viewer.isSelectInteractionActive){
+            viewer.deactivateSelectInteraction();
+            viewer.deactivateDrawInteraction();
+            disableCoreActions();
+            toggleElement("deactivate_draw", true);
+          }
+          rois.removeChild(rois.children[index]);
+        }, false)
 
       });
 
-      function toggleCoreAction(event){
-        console.log(event.target.id)
-        const targetId = event.target.id;
+      function disableCoreActions(){
         const elements = document.getElementById("core-actions").querySelector("a.active");
         if(elements !== null){
           elements.classList.remove("active");
         }
+      }
+
+      function toggleElement(element, state){
+        if(state){
+          document.getElementById(element).classList.add("active");
+        }else{
+          document.getElementById(element).classList.remove("active");
+        }
+      }
+
+      function toggleCoreAction(event){
+        const targetId = event.target.id;
+        disableCoreActions();
+
+        window.viewer.deactivateDrawInteraction();
+        window.viewer.deactivateSelectInteraction();
+        window.viewer.deactivateModifyInteraction();
         
         switch (targetId){
           case CORE_ACTIONS.ACTIVATE_SELECTION:
-            if(window.viewer.isSelectInteractionActive){
-              window.viewer.deactivateSelectInteraction();
-            }else{
-              disableToolList()
+            if(!window.viewer.isSelectInteractionActive){
+              disableToolList();
               window.viewer.deactivateDrawInteraction();
               window.viewer.activateSelectInteraction();
-              document.getElementById(targetId).classList.add("active");
             }
           break;
           case CORE_ACTIONS.ACTIVATE_CHANGES:
-            if(window.viewer.isModifyInteractionActive){
-              window.viewer.deactivateModifyInteraction();
-            }else{
-              disableToolList()
+            if(!window.viewer.isModifyInteractionActive){
+              disableToolList();
               window.viewer.deactivateDrawInteraction();
               window.viewer.activateModifyInteraction();
-              document.getElementById(targetId).classList.add("active");
             }
           break;
-          case CORE_ACTIONS.DEACTIVATE_DRAW:
-            if(window.viewer.isDrawInteractionActive){
-              disableToolList()
-              window.viewer.deactivateDrawInteraction();
-              document.getElementById(targetId).classList.add("active");
-            }else{
-              viewer.activateDrawInteraction({ geometryType: "polygon" });
-              document.getElementById("polygon").parentNode.setAttribute("class", "active");
-            }
+          case CORE_ACTIONS.DEACTIVATE_DRAW:            
+            disableToolList();        
+          break;
+          case CORE_ACTIONS.ACTIVATE_DRAW:
+            viewer.activateDrawInteraction({ geometryType: "polygon" });
+            document.getElementById("polygon").parentNode.setAttribute("class", "active");
           break;
         }
+        toggleElement(targetId, true);
       }
 
       function addEventListener(eventType){
@@ -121,7 +150,7 @@
 
       function logEvent(event) {
         console.log(event)
-        const eventType = event.type.split('dicommicroscopyviewer_')[1];
+        const eventType = event.type.split("dicommicroscopyviewer_")[1];
         const content = event.detail;
         const activeElements = document.getElementById("log").querySelector("a.active");
         if(activeElements){
@@ -130,13 +159,25 @@
         const new_event = `<a class="list-group-item active">
                             <h4 class="list-group-item-heading">${eventType}</h4>
                             <p class="list-group-item-text">${new Date(content.time).toLocaleTimeString()}</p>
-                          </a>`
+                          </a>`;
 
         const log = document.getElementById("log");
-
-        let newNode = document.createElement('div');
+        
+        let newNode = document.createElement("div");
         newNode.innerHTML = new_event.trim();
         log.prepend(newNode);
+        
+        if(eventType === 'roi_added'){
+          const rois = document.getElementById("rois");
+          const json = JSON.stringify(content.payload.scoord3d, undefined, 2).replace(/"/g, "");
+          const newROI = `<div class="list-group-item" title="${json}">
+            <h4 class="list-group-item-heading">${Object.keys(content.payload.properties)[0]}</h4>
+            <p class="list-group-item-text">${new Date(content.time).toLocaleTimeString()}</p>
+            </div>`;
+            let newROIDivElement = document.createElement("li");
+            newROIDivElement.innerHTML = newROI.trim();
+            rois.append(newROIDivElement);
+        }
       }
       
       const url = "https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs";
@@ -186,8 +227,9 @@
          
         });
 
-      addEventListener('dicom_move_started');
-      addEventListener('dicom_move_ended');
+      addEventListener("dicom_move_started");
+      addEventListener("dicom_move_ended");
+      addEventListener("roi_added");
 
     </script>
   </body>
@@ -208,7 +250,7 @@
           <div class="col-xs-6 col-md-2">
             <div class="alert alert-warning text-center" role="alert">Attach/Detach event listeners</div>
             <div class="list-group" id="event-list">              
-              <a id="roi_added" class="list-group-item">ROI Added</a>
+              <a id="roi_added" class="list-group-item active">ROI Added</a>
               <a id="roi_removed" class="list-group-item">ROI Removed</a>
               <a id="roi_drawn" class="list-group-item">ROI Drawn</a>
               <a id="roi_selected" class="list-group-item">ROI Selected</a>
@@ -218,10 +260,10 @@
             </div>
             <div class="alert alert-warning text-center" role="alert">Core actions</div>
             <div class="list-group" id="core-actions">              
+              <a id="activate_draw" class="list-group-item active">Activate Draw</a>
               <a id="deactivate_draw" class="list-group-item">Deactivate Draw</a>
               <a id="activate_selection" class="list-group-item">Activate Selection</a>
               <a id="activate_changes" class="list-group-item">Activate Changes</a>
-              <a id="delete_selection" class="list-group-item">Delete Selection</a>
             </div>
           </div>
           <div class="col-xs-6 col-md-7" >
@@ -237,7 +279,7 @@
             </ul>
             <br/>
             <div
-              style="width:100%;height:512px;position:relative;display:inline-block;"
+              style="width:100%;height:550px;position:relative;display:inline-block;"
               oncontextmenu="return false"
               class="cornerstone-enabled-image"
               unselectable="on"
@@ -246,9 +288,13 @@
             >
               <div
                 id="dicomImage"
-                style="width:100%;height:512px;top:0px;left:0px; position:absolute; border: 1px solid black;"
+                style="width:100%;height:550px;top:0px;left:0px; position:absolute; border: 1px solid black;"
               ></div>
+              
             </div>
+            <div class="alert alert-warning text-center" role="alert">ROIs added (mouseover to see the coordinates or click to remove)</div>
+            <ul class="list-group" id="rois">
+            </ul>
           </div>
           <div class="col-xs-6 col-md-3">
             <div class="alert alert-warning text-center" role="alert">Event Log</div>
@@ -259,8 +305,11 @@
     </div>
     <style>
     .scrollable {
-      height: 530px;
+      height: 600px;
       overflow-y: scroll;
+    }
+    #rois li {
+      list-style-type: none;
     }
     </style>
   </body>
