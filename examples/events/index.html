@@ -29,22 +29,23 @@
     <noscript>
       You need to enable JavaScript to run this app.
     </noscript>
-    
+
     <script src="https://unpkg.com/dicomweb-client"></script>
-    <script src="/build/dicom-microscopy-viewer.js"></script>
+    <script src="https://unpkg.com/dicom-microscopy-viewer"></script>
+    <!-- <script src="../../build/dicom-microscopy-viewer.js"></script> -->
     <script>
 
       const CORE_ACTIONS = {
         ACTIVATE_DRAW : "activate_draw",
-        DEACTIVATE_DRAW : "deactivate_draw", 
-        ACTIVATE_SELECTION : "activate_selection", 
+        DEACTIVATE_DRAW : "deactivate_draw",
+        ACTIVATE_SELECTION : "activate_selection",
         ACTIVATE_MODIFICATIONS : "activate_modifications"
       };
 
-      document.addEventListener("DOMContentLoaded", () => { 
+      document.addEventListener("DOMContentLoaded", () => {
 
         document.getElementById("tools-list").addEventListener("click", (event) => {
-          const geometryType = event.target.id;          
+          const geometryType = event.target.id;
           disableToolList();
           window.viewer.activateDrawInteraction({ geometryType });
           document.getElementById(`${geometryType}`).parentNode.setAttribute("class", "active");
@@ -52,21 +53,21 @@
           toggleElement("activate_draw", true);
         });
 
-        // Event list   
+        // Event list
         document.getElementById("event-list").addEventListener("click", (event) => {
           const eventType = event.target.id;
 
           if(document.getElementById(eventType).classList.contains("active")){
             document.removeEventListener(`dicommicroscopyviewer_${eventType}`, logEvent);
-          }else{            
+          }else{
             addEventListener(eventType);
           }
           document.getElementById(eventType).classList.toggle("active");
         });
-  
-        Object.keys(CORE_ACTIONS).forEach(action => 
+
+        Object.keys(CORE_ACTIONS).forEach(action =>
           document.getElementById(CORE_ACTIONS[action]).addEventListener("click", toggleCoreAction, false)
-        );  
+        );
 
         const rois = document.getElementById('rois');
 
@@ -162,11 +163,11 @@
                           </a>`;
 
         const log = document.getElementById("log");
-        
+
         let newNode = document.createElement("div");
         newNode.innerHTML = new_event.trim();
         log.prepend(newNode);
-        
+
         if(eventType === 'roi_added'){
           const rois = document.getElementById("rois");
           const json = JSON.stringify(content.payload.scoord3d, undefined, 2).replace(/"/g, "");
@@ -179,12 +180,12 @@
             rois.append(newROIDivElement);
         }
       }
-      
+
       const url = "https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs";
       const client = new DICOMwebClient.api.DICOMwebClient({ url });
       const studyInstanceUID = "1.2.392.200140.2.1.1.1.2.799008771.2448.1519719572.518";
       const seriesInstanceUID = "1.2.392.200140.2.1.1.1.3.799008771.2448.1519719572.519";
-      
+
       const searchInstanceOptions = {
         studyInstanceUID,
         seriesInstanceUID
@@ -193,11 +194,11 @@
       client.searchForInstances(searchInstanceOptions)
         .then(instances => {
           const promises = [];
-          
+
           for (let i = 0; i < instances.length; i++) {
-            
+
             const sopInstanceUID = instances[i]["00080018"]["Value"][0];
-            
+
             const retrieveInstanceOptions = {
               studyInstanceUID,
               seriesInstanceUID,
@@ -224,7 +225,7 @@
 
           viewer.activateDrawInteraction({ geometryType: "polygon" });
           window.viewer = viewer;
-         
+
         });
 
       addEventListener("move_started");
@@ -249,7 +250,7 @@
         <div class="row">
           <div class="col-xs-6 col-md-2">
             <div class="alert alert-warning text-center" role="alert">Attach/Detach event listeners</div>
-            <div class="list-group" id="event-list">              
+            <div class="list-group" id="event-list">
               <a id="roi_added" class="list-group-item active">ROI Added</a>
               <a id="roi_removed" class="list-group-item">ROI Removed</a>
               <a id="roi_drawn" class="list-group-item">ROI Drawn</a>
@@ -259,7 +260,7 @@
               <a id="move_ended" class="list-group-item active">Move Ended</a>
             </div>
             <div class="alert alert-warning text-center" role="alert">Core actions</div>
-            <div class="list-group" id="core-actions">              
+            <div class="list-group" id="core-actions">
               <a id="activate_draw" class="list-group-item active">Activate Draw</a>
               <a id="deactivate_draw" class="list-group-item">Deactivate Draw</a>
               <a id="activate_selection" class="list-group-item">Activation ROI Selection</a>
@@ -290,7 +291,7 @@
                 id="dicomImage"
                 style="width:100%;height:550px;top:0px;left:0px; position:absolute; border: 1px solid black;"
               ></div>
-              
+
             </div>
             <div class="alert alert-warning text-center" role="alert">ROIs added (mouseover to see the coordinates or click to remove)</div>
             <ul class="list-group" id="rois">

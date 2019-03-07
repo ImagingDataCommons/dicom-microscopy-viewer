@@ -17,9 +17,9 @@ class Scoord3D {
   get referencedFrameOfReferenceUID() {
     throw new Error('Propotype property "referencedFrameOfReferenceUID" must be implemented.');
   }
-  
+
   get fiducialUID() {
-    throw new Error('Propotype property "fiducialUID" must be implemented.');    
+    throw new Error('Propotype property "fiducialUID" must be implemented.');
   }
 
 }
@@ -28,7 +28,7 @@ class Point extends Scoord3D {
 
   constructor(coordinates) {
     super()
-    this.coordinates = coordinates
+    this.coordinates = coordinates;
   }
 
   get graphicData() {
@@ -73,8 +73,6 @@ class Polyline extends Scoord3D {
      * with ordered vertices denoted by (column,row) pairs.
      * If the first and last vertices are the same it is a closed polygon.
      */
-    // TODO: sort coordinates, considering Polygons, where first entry must
-    // equal last entry
     return this.coordinates;
   }
 
@@ -97,7 +95,6 @@ class Polygon extends Scoord3D {
      * denoted by (x,y,z) triplets, where the first and last vertices shall be the same 
      * forming a polygon; the points shall be coplanar
      */
-    // TODO: sort coordinates, make sure that the first and last vertices are the same
     return this.coordinates;
   }
 
