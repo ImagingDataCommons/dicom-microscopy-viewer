@@ -110,14 +110,7 @@ function _getROIFromFeature(feature, pyramid){
   let roi = {}
   if (feature !== undefined) {      
     const geometry = feature.getGeometry();
-    let scoord3d = _geometry2Scoord3d(geometry, pyramid);
-
-    // This is to uniform the ROI format in an array of arrays. When it is a point the representation
-    // is a single array with x and y coords
-    // if(scoord3d.coordinates.length === 2){
-    //   scoord3d.coordinates = [scoord3d.coordinates]
-    // }
-    // scoord3d.coordinates.map(coord => {return coordinateFormatFunction(coord, pyramid)});           
+    let scoord3d = _geometry2Scoord3d(geometry, pyramid);          
     const properties = feature.getProperties();
     delete properties['geometry'];
     roi = new ROI({scoord3d, properties});

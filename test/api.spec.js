@@ -31,4 +31,13 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         viewer.addROI(roi);
         assert.deepEqual(viewer.getROI(0).scoord3d.coordinates, circle.coordinates);
     })
+
+    it('should create a Point ROI and return it back successfuly', () => {
+        
+        let properties = {};
+        const point = new dicomMicroscopyViewer.scoord3d.Point([9.0467, -8.7631, 1]);
+        const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : point, properties});
+        viewer.addROI(roi);
+        assert.deepEqual(viewer.getROI(1).scoord3d.coordinates, point.coordinates);
+    })
 });
