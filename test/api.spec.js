@@ -19,30 +19,16 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         });
     })
 
-    it('should return 512 rows and 512 cols based on the mock data', () => {
-        assert.equal(viewer.pyramid[0].rows, 512);
-        assert.equal(viewer.pyramid[0].columns, 512);
-    })
-
     it('should return {} if there is no drawing', () => {
         assert.deepEqual(viewer.getROI(0), {});
     })
 
-    it('should add a ROI and return it back as totalPixelMatrix', () => {
-        const coordinates = [
-            [20967.16433027939, 16904.918818364204],
-            [20967.16433027939, 16899.356324511322],
-            [18802.104222888596, 17666.917976278484]
-        ];
-        const scoord3d = {
-            coordinates: coordinates,
-            graphicData : coordinates,
-            graphicType: "POLYLINE"
-        };        
+    it('should create a Circle ROI and return it back successfuly', () => {
+        
         let properties = {};
-        const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d, properties});
+        const circle = new dicomMicroscopyViewer.scoord3d.Circle([1000, 1000, 1], 100);
+        const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : circle, properties});
         viewer.addROI(roi);
-        console.log(viewer.getROI(0))
-        assert.deepEqual(viewer.getROI(0).scoord3d.coordinates, coordinates);
+        assert.deepEqual(viewer.getROI(0).scoord3d.coordinates, circle.coordinates);
     })
 });
