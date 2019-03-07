@@ -106,6 +106,29 @@ function _scoord3dCoordinates2geometryCoordinates(coordinates) {
   return [coordinates[0] - 1, -coordinates[1]]
 }
 
+function _getROIFromFeature(feature, pyramid){
+  let roi = {}
+  if (feature !== undefined) {      
+    const geometry = feature.getGeometry();
+    let scoord3d = _geometry2Scoord3d(geometry);
+
+    // if it is a circle 
+    if(scoord3d.coordinates === undefined){
+      scoord3d.coordinates = scoord3d.centerCoordinates
+    }
+    // This is to uniform the ROI format in an array of arrays. When it is a point the representation
+    // is a single array with x and y coords
+    if(scoord3d.coordinates.length === 2){
+      scoord3d.coordinates = [scoord3d.coordinates]
+    }
+    scoord3d.coordinates.map(coord => {return coordinateFormatFunction(coord, pyramid)});           
+    const properties = feature.getProperties();
+    delete properties['geometry'];
+    roi = new ROI({scoord3d, properties});
+  }
+  return roi;
+}
+
 /*
     * Translate pixel units of total pixel matrix into millimeters of
     * slide coordinate system
@@ -592,17 +615,18 @@ class VLWholeSlideMicroscopyImageViewer {
         }
     }));
     const container = this[_map].getTarget();
+    const pyramid = this.pyramid;
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      publish(container, EVENT.ROI_ADDED, this.getROI(null, e.feature));
+      publish(container, EVENT.ROI_ADDED, _getROIFromFeature(e.feature, pyramid));
     });
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      publish(container, EVENT.ROI_MODIFIED, this.getROI(null, e.feature));
+      publish(container, EVENT.ROI_MODIFIED, _getROIFromFeature(e.feature, pyramid));
     });
 
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(container, EVENT.ROI_REMOVED, this.getROI(null, e.feature));
+      publish(container, EVENT.ROI_REMOVED, _getROIFromFeature(e.feature, pyramid));
     });
 
     this[_map].on(MapEventType.MOVESTART, (e) => {
@@ -674,7 +698,7 @@ class VLWholeSlideMicroscopyImageViewer {
 
     //attaching openlayers events handling    
     this[_interactions].draw.on('drawend', (e) => {
-      publish(container, EVENT.ROI_DRAWN, this.getROI(null, e.feature));
+      publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this.pyramid));
     });
 
     this[_map].addInteraction(this[_interactions].draw);
@@ -705,7 +729,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const container = this[_map].getTarget();
 
     this[_interactions].select.on('select', (e) => {
-      publish(container, EVENT.ROI_SELECTED, this.getROI(null, e.selected[0]));
+      publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this.pyramid));
     });
 
     this[_map].addInteraction(this[_interactions].select);
@@ -761,27 +785,9 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_features].getLength();
   }
 
-  getROI(index, feature = undefined) {
-    feature = (feature === undefined) ? this[_features].item(index) : feature;
-    let roi = {};
-    if (feature !== undefined) {      
-      const geometry = feature.getGeometry();
-      let scoord3d = _geometry2Scoord3d(geometry);
-
-      // if it is a circle 
-      if(scoord3d.coordinates === undefined){
-        scoord3d.coordinates = scoord3d.centerCoordinates
-      }
-      // This is to uniform the ROI format in an array of arrays. When it is a point the representation
-      // is a single array with x and y coords
-      if(scoord3d.coordinates.length === 2){
-        scoord3d.coordinates = [scoord3d.coordinates]
-      }
-      scoord3d.coordinates.map(coord => {return coordinateFormatFunction(coord, this.pyramid)});           
-      const properties = feature.getProperties();
-      delete properties['geometry'];
-      return new ROI({scoord3d, properties});
-    }
+  getROI(index) {
+    const feature = this[_features].item(index);
+    let roi = _getROIFromFeature(feature, this.pyramid);
     return roi;
   }
 
