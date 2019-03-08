@@ -33,6 +33,7 @@ import {
   Point,
   Multipoint,
   Polyline,
+  Polygon,
   Circle,
   Ellipse
 } from './scoord3d.js';
@@ -54,7 +55,7 @@ function _geometry2Scoord3d(geometry) {
     let coordinates = geometry.getCoordinates()[0].map(c => {
       return _geometryCoordinates2scoord3dCoordinates(c);
     });
-    return new Polyline(coordinates);
+    return new Polygon(coordinates);
   } else if (type === 'LineString') {
     let coordinates = geometry.getCoordinates().map(c => {
       return _geometryCoordinates2scoord3dCoordinates(c);
@@ -636,7 +637,7 @@ class VLWholeSlideMicroscopyImageViewer {
       },
       polygon: {
         type: 'Polygon',
-        geometryName: 'Polyline',
+        geometryName: 'Polygon',
         freehand: false,
       },
       freehandpolygon: {
@@ -672,7 +673,7 @@ class VLWholeSlideMicroscopyImageViewer {
 
     const container = this[_map].getTarget();
 
-    //attaching openlayers events handling    
+    //attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
       publish(container, EVENT.ROI_DRAWN, this.getROI(null, e.feature));
     });
@@ -764,20 +765,25 @@ class VLWholeSlideMicroscopyImageViewer {
   getROI(index, feature = undefined) {
     feature = (feature === undefined) ? this[_features].item(index) : feature;
     let roi = {};
-    if (feature !== undefined) {      
+    if (feature !== undefined) {
       const geometry = feature.getGeometry();
       let scoord3d = _geometry2Scoord3d(geometry);
+      console.log(scoord3d)
 
-      // if it is a circle 
-      if(scoord3d.coordinates === undefined){
-        scoord3d.coordinates = scoord3d.centerCoordinates
-      }
-      // This is to uniform the ROI format in an array of arrays. When it is a point the representation
-      // is a single array with x and y coords
-      if(scoord3d.coordinates.length === 2){
-        scoord3d.coordinates = [scoord3d.coordinates]
-      }
-      scoord3d.coordinates.map(coord => {return coordinateFormatFunction(coord, this.pyramid)});           
+      // // if it is a circle
+      // if(scoord3d.coordinates === undefined){
+      //   scoord3d.coordinates = scoord3d.centerCoordinates
+      // }
+      // // FIXME
+      // // This is to uniform the ROI format in an array of arrays.
+      // // When it is a point the representation is a single array with
+      // // x, y, z coordinates
+      // if(scoord3d.coordinates.length === 3){
+      //   scoord3d.coordinates = [scoord3d.coordinates]
+      // }
+      // scoord3d.coordinates.map(coord => {
+      //   return coordinateFormatFunction(coord, this.pyramid)
+      // });
       const properties = feature.getProperties();
       delete properties['geometry'];
       return new ROI({scoord3d, properties});
@@ -798,7 +804,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const geometry = _scoord3d2Geometry(item.scoord3d);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
-    this[_features].push(feature);    
+    this[_features].push(feature);
   }
 
   updateROI(index, item) {
