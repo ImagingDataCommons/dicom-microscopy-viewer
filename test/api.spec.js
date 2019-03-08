@@ -121,4 +121,24 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         assert.equal(rois.length, 7)
     })
     
+    it('should be able to remove the circle ROI', () => {
+        let rois = viewer.getAllROIs();
+        assert.equal(rois.length, 7);
+        assert.deepEqual(viewer.getROI(0).scoord3d.coordinates, circle.coordinates);
+        viewer.removeROI(0);
+        rois = viewer.getAllROIs();
+        assert.equal(rois.length, 6);
+        assert.deepEqual(viewer.getROI(0).scoord3d.coordinates, point.coordinates);
+    })
+
+    it('should be able to modify the point ROI', () => {
+        let rois = viewer.getAllROIs();
+        assert.deepEqual(rois[0].scoord3d.coordinates, point.coordinates);
+        const newPoint = new dicomMicroscopyViewer.scoord3d.Point([0, 10, 1]);
+        const newPointRoi = new dicomMicroscopyViewer.roi.ROI({scoord3d : newPoint, properties});
+        viewer.updateROI(0, newPointRoi);
+        rois = viewer.getAllROIs();
+        assert.deepEqual(rois[0].scoord3d.coordinates, newPoint.coordinates);
+    })
+
 });
