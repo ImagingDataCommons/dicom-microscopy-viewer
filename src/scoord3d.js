@@ -29,10 +29,10 @@ class Point extends Scoord3D {
   constructor(coordinates) {
     super()
     if (!Array.isArray(coordinates)) {
-      console.error('coordinates of Point must be an array')
+      throw new Error('coordinates of Point must be an array')
     }
     if (coordinates.length !== 3) {
-        console.error('coordinates of Point must be an array of length 3')
+      throw new Error('coordinates of Point must be an array of length 3')
     }
     this.coordinates = coordinates;
   }
@@ -47,11 +47,16 @@ class Point extends Scoord3D {
 
 }
 
-
 class Multipoint extends Scoord3D {
 
   constructor(coordinates) {
     super()
+    if (!Array.isArray(coordinates)) {
+      throw new Error('coordinates of Multipoint must be an array')
+    }
+    if(coordinates.find(c => c.length !== 3)!== undefined){
+      throw new Error('coordinates of Multipoint must be an array of length 3')
+    }
     this.coordinates = coordinates
   }
 
@@ -65,11 +70,16 @@ class Multipoint extends Scoord3D {
 
 }
 
-
 class Polyline extends Scoord3D {
 
   constructor(coordinates) {
     super()
+    if (!Array.isArray(coordinates)) {
+      throw new Error('coordinates of Polyline must be an array')
+    }
+    if(coordinates.find(c => c.length !== 3)!== undefined){
+      throw new Error('coordinates of Polyline must be a list of points of length 3')
+    }
     this.coordinates = coordinates
   }
 
@@ -92,6 +102,12 @@ class Polygon extends Scoord3D {
 
   constructor(coordinates) {
     super()
+    if (!Array.isArray(coordinates)) {
+      throw new Error('coordinates of Polygon must be an array')
+    }
+    if(coordinates.find(c => c.length !== 3)!== undefined){
+      throw new Error('coordinates of Polygon must be a list of points of length 3')
+    }
     this.coordinates = coordinates
   }
 
@@ -110,11 +126,19 @@ class Polygon extends Scoord3D {
 
 }
 
-
 class Circle extends Scoord3D {
 
   constructor(centerCoordinates, radius) {
     super()
+    if (!Array.isArray(centerCoordinates)) {
+      throw new Error('coordinates of Circle must be an array')
+    }
+    if (centerCoordinates.length !== 3) {
+      throw new Error('center coordinates of Circle must be an array of length 3')
+    }
+    if (radius === undefined) {
+      throw new Error('radius has to be defined')
+    }
     this.centerCoordinates = centerCoordinates
     this.radius = radius
   }
@@ -136,11 +160,22 @@ class Circle extends Scoord3D {
 
 }
 
-
 class Ellipse extends Scoord3D {
 
   constructor(majorAxisEndpointCoordinates, minorAxisEndpointCoordinates) {
     super()
+    if (!Array.isArray(majorAxisEndpointCoordinates)) {
+      throw new Error('majorAxisEndpointCoordinates of Ellipse must be an array')
+    }
+    if (!Array.isArray(minorAxisEndpointCoordinates)) {
+      throw new Error('minorAxisEndpointCoordinates of Ellipse must be an array')
+    }
+    if (majorAxisEndpointCoordinates.length !== 2) {
+      throw new Error('majorAxisEndpointCoordinates coordinates of Ellipse must be an array of length 2')
+    }
+    if (minorAxisEndpointCoordinates.length !== 2) {
+      throw new Error('minorAxisEndpointCoordinates coordinates of Ellipse must be an array of length 2')
+    }
     this.majorAxisEndpointCoordinates = majorAxisEndpointCoordinates
     this.minorAxisEndpointCoordinates = minorAxisEndpointCoordinates
   }
@@ -157,13 +192,11 @@ class Ellipse extends Scoord3D {
     ];
   }
 
-
   get graphicType() {
     return 'ELLIPSE';
   }
 
 }
-
 
 export { Point, Multipoint, Polyline, Polygon, Circle, Ellipse };
 
