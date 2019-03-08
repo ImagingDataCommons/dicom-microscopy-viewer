@@ -15,8 +15,8 @@ const EVENTS = {
     ROI_DRAWN: `${PROJECT_NAME}_roi_drawn`,
     ROI_SELECTED: `${PROJECT_NAME}_roi_selected`,
     ROI_MODIFIED: `${PROJECT_NAME}_roi_modified`,
-    DICOM_MOVE_STARTED: `${PROJECT_NAME}_dicom_move_started`,
-    DICOM_MOVE_ENDED: `${PROJECT_NAME}_dicom_move_ended`,
+    DICOM_MOVE_STARTED: `${PROJECT_NAME}_move_started`,
+    DICOM_MOVE_ENDED: `${PROJECT_NAME}_move_ended`,
   };
 
 export default EVENTS;

@@ -28,6 +28,12 @@ class Point extends Scoord3D {
 
   constructor(coordinates) {
     super()
+    if (!Array.isArray(coordinates)) {
+      console.error('coordinates of Point must be an array')
+    }
+    if (coordinates.length !== 3) {
+        console.error('coordinates of Point must be an array of length 3')
+    }
     this.coordinates = coordinates;
   }
 

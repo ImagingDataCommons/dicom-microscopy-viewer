@@ -40,12 +40,11 @@ import {
 
 import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
-
-function _geometry2Scoord3d(geometry) {
+function _geometry2Scoord3d(geometry, pyramid) {
   const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
-    coordinates = _geometryCoordinates2scoord3dCoordinates(coordinates);
+    coordinates = _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid);
     return new Point(coordinates);
   } else if (type === 'Polygon') {
     /*
@@ -53,17 +52,16 @@ function _geometry2Scoord3d(geometry) {
      * Each subsequent linear ring defines a hole in the surface.
      */
     let coordinates = geometry.getCoordinates()[0].map(c => {
-      return _geometryCoordinates2scoord3dCoordinates(c);
+      return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
     });
     return new Polygon(coordinates);
   } else if (type === 'LineString') {
     let coordinates = geometry.getCoordinates().map(c => {
-      return _geometryCoordinates2scoord3dCoordinates(c);
+      return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
     });
     return new Polyline(coordinates);
   } else if (type === 'Circle') {
-    // TODO: Circle may actually represent a Polyline
-    let center = _geometryCoordinates2scoord3dCoordinates(geometry.getCenter());
+    let center = _geometryCoordinates2scoord3dCoordinates(geometry.getCenter(), pyramid);
     let radius = geometry.getRadius();
     return new Circle(center, radius);
   } else {
@@ -72,25 +70,24 @@ function _geometry2Scoord3d(geometry) {
   }
 }
 
-
-function _scoord3d2Geometry(scoord3d) {
+function _scoord3d2Geometry(scoord3d, pyramid) {
   const type = scoord3d.graphicType;
   const data = scoord3d.graphicData;
   if (type === 'POINT') {
-    let coordinates = _scoord3dCoordinates2geometryCoordinates(data);
+    let coordinates = _scoord3dCoordinates2geometryCoordinates(data, pyramid);
     return new PointGeometry(coordinates);
   } else if (type === 'POLYLINE') {
     const coordinates = data.map(d => {
-      return _scoord3dCoordinates2geometryCoordinates(d);
+      return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     return new LineStringGeometry(coordinates);
   } else if(type === 'POLYGON'){
     const coordinates = data.map(d => {
-      return _scoord3dCoordinates2geometryCoordinates(d);
+      return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     return new PolygonGeometry([coordinates]);
   } else if (type === 'CIRCLE') {
-    let center = _scoord3dCoordinates2geometryCoordinates(scoord3d.centerCoordinates);
+    let center = _scoord3dCoordinates2geometryCoordinates(scoord3d.centerCoordinates, pyramid);
     let radius = scoord3d.radius;
     return new CircleGeometry(center, radius);
   } else {
@@ -98,27 +95,59 @@ function _scoord3d2Geometry(scoord3d) {
   }
 }
 
-
-function _geometryCoordinates2scoord3dCoordinates(coordinates) {
-  return [coordinates[0] + 1, -coordinates[1]]
+function _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
+  return _coordinateFormatGeometry2Scoord3d([coordinates[0] + 1, -coordinates[1], 1], pyramid);
 }
 
-function _scoord3dCoordinates2geometryCoordinates(coordinates) {
-  return [coordinates[0] - 1, -coordinates[1]]
+function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
+  return _coordinateFormatScoord3d2Geometry([coordinates[0], coordinates[1]], pyramid)
 }
 
 /*
-    * Translate pixel units of total pixel matrix into millimeters of
-    * slide coordinate system
-  */
-function coordinateFormatFunction(coordinates, pyramid) {
+  * Translate pixel units of total pixel matrix into millimeters of
+  * slide coordinate system
+*/
+function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
+  if( coordinates.length === 3){
+    coordinates = [coordinates]
+  }
   coordinates.map(coord =>{
     let x = (coord[0] * pyramid[pyramid.length-1].pixelSpacing[0]).toFixed(4);
     let y = (-(coord[1] - 1) * pyramid[pyramid.length-1].pixelSpacing[1]).toFixed(4);
-    coordinates = [x,y]
+    coordinates = [x,y, 1]
   })
   
   return(coordinates);
+}
+
+/*
+  * Translate millimeters into pixel units of total pixel matrix of
+  * slide coordinate system
+*/
+function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
+  if( coordinates.length === 2){
+    coordinates = [coordinates]
+  }
+
+   coordinates.map(coord =>{
+    let x = (coord[0] / pyramid[pyramid.length-1].pixelSpacing[0] - 1)
+    let y = (coord[1] / pyramid[pyramid.length-1].pixelSpacing[1] - 1)
+    coordinates = [x, y]
+  });
+
+   return coordinates;
+}
+
+function _getROIFromFeature(feature, pyramid){
+  let roi = {}
+  if (feature !== undefined) {      
+    const geometry = feature.getGeometry();
+    let scoord3d = _geometry2Scoord3d(geometry, pyramid);          
+    const properties = feature.getProperties();
+    delete properties['geometry'];
+    roi = new ROI({scoord3d, properties});
+  }
+  return roi;
 }
 
 const _usewebgl = Symbol('usewebgl');
@@ -131,7 +160,6 @@ const _pyramid = Symbol('pyramid');
 const _client = Symbol('client');
 const _controls = Symbol('controls');
 const _interactions = Symbol('interactions');
-
 
 class VLWholeSlideMicroscopyImageViewer {
 
@@ -172,7 +200,7 @@ class VLWholeSlideMicroscopyImageViewer {
      * images at the different pyramid levels.
     */
     const metadata = options.metadata.map(m => formatImageMetadata(m));
-    this.pyramid = [];
+    this._pyramid = [];
     for (let i = 0; i < metadata.length; i++) {
       const cols = metadata[i].totalPixelMatrixColumns;
       const rows = metadata[i].totalPixelMatrixRows;
@@ -183,10 +211,10 @@ class VLWholeSlideMicroscopyImageViewer {
       */
       let alreadyExists = false;
       let index = null;
-      for (let j = 0; j < this.pyramid.length; j++) {
+      for (let j = 0; j < this._pyramid.length; j++) {
         if (
-            (this.pyramid[j].totalPixelMatrixColumns === cols) &&
-            (this.pyramid[j].totalPixelMatrixRows === rows)
+            (this._pyramid[j].totalPixelMatrixColumns === cols) &&
+            (this._pyramid[j].totalPixelMatrixRows === rows)
           ) {
           alreadyExists = true;
           index = j;
@@ -194,13 +222,13 @@ class VLWholeSlideMicroscopyImageViewer {
       }
       if (alreadyExists) {
         // Update with information obtained from current concatentation part.
-        Object.assign(this.pyramid[index].frameMapping, mapping);
+        Object.assign(this._pyramid[index].frameMapping, mapping);
       } else {
-        this.pyramid.push(metadata[i]);
+        this._pyramid.push(metadata[i]);
       }
     }
     // Sort levels in ascending order
-    this.pyramid.sort(function(a, b) {
+    this._pyramid.sort(function(a, b) {
       if(a.totalPixelMatrixColumns < b.totalPixelMatrixColumns) {
         return -1;
       } else if(a.totalPixelMatrixColumns > b.totalPixelMatrixColumns) {
@@ -219,25 +247,25 @@ class VLWholeSlideMicroscopyImageViewer {
     const resolutions = [];
     const origins = [];
     const offset = [0, -1];
-    const nLevels = this.pyramid.length;
+    const nLevels = this._pyramid.length;
     if (nLevels === 0) {
       console.error('empty pyramid - no levels found')
     }
-    const basePixelSpacing = this.pyramid[nLevels-1].pixelSpacing;
-    const baseColumns = this.pyramid[nLevels-1].columns;
-    const baseRows = this.pyramid[nLevels-1].rows;
-    const baseTotalPixelMatrixColumns = this.pyramid[nLevels-1].totalPixelMatrixColumns;
-    const baseTotalPixelMatrixRows = this.pyramid[nLevels-1].totalPixelMatrixRows;
+    const basePixelSpacing = this._pyramid[nLevels-1].pixelSpacing;
+    const baseColumns = this._pyramid[nLevels-1].columns;
+    const baseRows = this._pyramid[nLevels-1].rows;
+    const baseTotalPixelMatrixColumns = this._pyramid[nLevels-1].totalPixelMatrixColumns;
+    const baseTotalPixelMatrixRows = this._pyramid[nLevels-1].totalPixelMatrixRows;
     const baseColFactor = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
     const baseRowFactor = Math.ceil(baseTotalPixelMatrixRows / baseRows);
     const baseAdjustedTotalPixelMatrixColumns = baseColumns * baseColFactor;
     const baseAdjustedTotalPixelMatrixRows = baseRows * baseRowFactor;
     for (let j = (nLevels - 1); j >= 0; j--) {
-      let columns = this.pyramid[j].columns;
-      let rows = this.pyramid[j].rows;
-      let totalPixelMatrixColumns = this.pyramid[j].totalPixelMatrixColumns;
-      let totalPixelMatrixRows = this.pyramid[j].totalPixelMatrixRows;
-      let pixelSpacing = this.pyramid[j].pixelSpacing;
+      let columns = this._pyramid[j].columns;
+      let rows = this._pyramid[j].rows;
+      let totalPixelMatrixColumns = this._pyramid[j].totalPixelMatrixColumns;
+      let totalPixelMatrixRows = this._pyramid[j].totalPixelMatrixRows;
+      let pixelSpacing = this._pyramid[j].pixelSpacing;
       let colFactor = Math.ceil(totalPixelMatrixColumns / columns);
       let rowFactor = Math.ceil(totalPixelMatrixRows / rows);
       let adjustedTotalPixelMatrixColumns = columns * colFactor;
@@ -263,7 +291,7 @@ class VLWholeSlideMicroscopyImageViewer {
     tileSizes.reverse();
     origins.reverse();
 
-    const pyramid = this.pyramid;
+    const pyramid = this._pyramid;
 
     /*
      * Define custom tile URL function to retrive frames via DICOMweb
@@ -388,8 +416,8 @@ class VLWholeSlideMicroscopyImageViewer {
     */
     var degrees = 0;
     if (
-      (this.pyramid[this.pyramid.length-1].imageOrientationSlide[1] === -1) &&
-      (this.pyramid[this.pyramid.length-1].imageOrientationSlide[3] === -1)
+      (this._pyramid[this._pyramid.length-1].imageOrientationSlide[1] === -1) &&
+      (this._pyramid[this._pyramid.length-1].imageOrientationSlide[3] === -1)
     ) {
       /*
        * The row direction (left to right) of the total pixel matrix
@@ -593,17 +621,18 @@ class VLWholeSlideMicroscopyImageViewer {
         }
     }));
     const container = this[_map].getTarget();
+    const pyramid = this._pyramid;
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      publish(container, EVENT.ROI_ADDED, this.getROI(null, e.feature));
+      publish(container, EVENT.ROI_ADDED, _getROIFromFeature(e.feature, pyramid));
     });
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      publish(container, EVENT.ROI_MODIFIED, this.getROI(null, e.feature));
+      publish(container, EVENT.ROI_MODIFIED, _getROIFromFeature(e.feature, pyramid));
     });
 
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(container, EVENT.ROI_REMOVED, this.getROI(null, e.feature));
+      publish(container, EVENT.ROI_REMOVED, _getROIFromFeature(e.feature, pyramid));
     });
 
     this[_map].on(MapEventType.MOVESTART, (e) => {
@@ -675,7 +704,7 @@ class VLWholeSlideMicroscopyImageViewer {
 
     //attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
-      publish(container, EVENT.ROI_DRAWN, this.getROI(null, e.feature));
+      publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this._pyramid));
     });
 
     this[_map].addInteraction(this[_interactions].draw);
@@ -706,7 +735,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const container = this[_map].getTarget();
 
     this[_interactions].select.on('select', (e) => {
-      publish(container, EVENT.ROI_SELECTED, this.getROI(null, e.selected[0]));
+      publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this._pyramid));
     });
 
     this[_map].addInteraction(this[_interactions].select);
@@ -762,53 +791,30 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_features].getLength();
   }
 
-  getROI(index, feature = undefined) {
-    feature = (feature === undefined) ? this[_features].item(index) : feature;
-    let roi = {};
-    if (feature !== undefined) {
-      const geometry = feature.getGeometry();
-      let scoord3d = _geometry2Scoord3d(geometry);
-      console.log(scoord3d)
-
-      // // if it is a circle
-      // if(scoord3d.coordinates === undefined){
-      //   scoord3d.coordinates = scoord3d.centerCoordinates
-      // }
-      // // FIXME
-      // // This is to uniform the ROI format in an array of arrays.
-      // // When it is a point the representation is a single array with
-      // // x, y, z coordinates
-      // if(scoord3d.coordinates.length === 3){
-      //   scoord3d.coordinates = [scoord3d.coordinates]
-      // }
-      // scoord3d.coordinates.map(coord => {
-      //   return coordinateFormatFunction(coord, this.pyramid)
-      // });
-      const properties = feature.getProperties();
-      delete properties['geometry'];
-      return new ROI({scoord3d, properties});
-    }
+  getROI(index) {
+    const feature = this[_features].item(index);
+    let roi = _getROIFromFeature(feature, this._pyramid);
     return roi;
   }
 
   popROI() {
     const feature = this[_features].pop();
     const geometry = feature.getGeometry()
-    const scoord3d = _geometry2Scoord3d(geometry);
+    const scoord3d = _geometry2Scoord3d(geometry, this._pyramid);
     const properties = feature.getProperties();
     delete properties['geometry'];
     return new ROI({scoord3d, properties});
   }
 
   addROI(item) {
-    const geometry = _scoord3d2Geometry(item.scoord3d);
+    const geometry = _scoord3d2Geometry(item.scoord3d, this._pyramid);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
     this[_features].push(feature);
   }
 
   updateROI(index, item) {
-    const geometry = _scoord3d2Geometry(item.scoord3d);
+    const geometry = _scoord3d2Geometry(item.scoord3d, this._pyramid);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
     this[_features].setAt(index, feature);
