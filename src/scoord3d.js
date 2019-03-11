@@ -13,19 +13,19 @@ class Scoord3D {
   constructor() {}
 
   get graphicData() {
-    throw new Error('Propotype property "graphicData" must be implemented.')
+    throw new Error('Prototype property "graphicData" must be implemented.')
   }
 
   get graphicType() {
-    throw new Error('Propotype property "graphicType" must be implemented.')
+    throw new Error('Prototype property "graphicType" must be implemented.')
   }
 
   get referencedFrameOfReferenceUID() {
-    throw new Error('Propotype property "referencedFrameOfReferenceUID" must be implemented.')
+    throw new Error('Prototype property "referencedFrameOfReferenceUID" must be implemented.')
   }
 
   get fiducialUID() {
-    throw new Error('Propotype property "fiducialUID" must be implemented.')
+    throw new Error('Prototype property "fiducialUID" must be implemented.')
   }
 
 }
