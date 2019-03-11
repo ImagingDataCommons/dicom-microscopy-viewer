@@ -151,7 +151,7 @@ class Circle extends Scoord3D {
      */
     return [
       this.centerCoordinates,
-      [this.centerCoordinates[0], this.centerCoordinates[1] + this.radius]];
+      [this.centerCoordinates[0], this.centerCoordinates[1] + this.radius, 1]];
   }
 
   get graphicType() {
