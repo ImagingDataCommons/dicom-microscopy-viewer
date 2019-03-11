@@ -158,7 +158,7 @@ class Circle extends Scoord3D {
      */
     return [
       this[_centerCoordinates],
-      [this[_centerCoordinates[0]], this[_centerCoordinates[1]] + this[_radius], 1]]
+      [this[_centerCoordinates][0], this[_centerCoordinates][1] + this[_radius], 1]]
   }
 
   get graphicType() {

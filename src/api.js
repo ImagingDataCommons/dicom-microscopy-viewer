@@ -88,8 +88,8 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
     });
     return new PolygonGeometry([coordinates]);
   } else if (type === 'CIRCLE') {
-    let center = _scoord3dCoordinates2geometryCoordinates(scoord3d.centerCoordinates, pyramid);
-    let radius = scoord3d.radius;
+    let center = _scoord3dCoordinates2geometryCoordinates(data[0], pyramid);
+    let radius = data[1];
     return new CircleGeometry(center, radius);
   } else {
     console.error(`unsupported graphic type "${type}"`)

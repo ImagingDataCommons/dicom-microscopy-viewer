@@ -77,43 +77,46 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
     it('should create a Circle ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : circle, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(0).scoord3d.coordinates, circle.coordinates);
+        console.log('####')
+        console.log(viewer.getROI(0).scoord3d.graphicData[0])
+        console.log('####')
+        assert.deepEqual(viewer.getROI(0).scoord3d.graphicData[0], circle.graphicData[0]);
     })
 
     it('should create a Point ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : point, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(1).scoord3d.coordinates, point.coordinates);
+        assert.deepEqual(viewer.getROI(1).scoord3d.graphicData, point.graphicData);
     })
     
     it('should create a Box ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : box, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(2).scoord3d.coordinates, box.coordinates);
+        assert.deepEqual(viewer.getROI(2).scoord3d.graphicData, box.graphicData);
     })
 
     it('should create a Polygon ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : polygon, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(3).scoord3d.coordinates, polygon.coordinates);
+        assert.deepEqual(viewer.getROI(3).scoord3d.graphicData, polygon.graphicData);
     })
 
     it('should create a Freehand Polygon ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : freehandPolygon, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(4).scoord3d.coordinates, freehandPolygon.coordinates);
+        assert.deepEqual(viewer.getROI(4).scoord3d.graphicData, freehandPolygon.graphicData);
     })
 
     it('should create a Line ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : line, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(5).scoord3d.coordinates, line.coordinates);
+        assert.deepEqual(viewer.getROI(5).scoord3d.graphicData, line.graphicData);
     })
 
     it('should create a FreehandLine ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : freeHandLine, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(6).scoord3d.coordinates, freeHandLine.coordinates);
+        assert.deepEqual(viewer.getROI(6).scoord3d.graphicData, freeHandLine.graphicData);
     })
 
     it('should return all ROIs created up to now', () => {
@@ -124,11 +127,11 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
     it('should be able to remove the circle ROI', () => {
         let rois = viewer.getAllROIs();
         assert.equal(rois.length, 7);
-        assert.deepEqual(viewer.getROI(0).scoord3d.coordinates, circle.coordinates);
+        assert.deepEqual(viewer.getROI(0).scoord3d.graphicData[0], circle.graphicData[0]);
         viewer.removeROI(0);
         rois = viewer.getAllROIs();
         assert.equal(rois.length, 6);
-        assert.deepEqual(viewer.getROI(0).scoord3d.coordinates, point.coordinates);
+        assert.deepEqual(viewer.getROI(0).scoord3d.graphicData, point.graphicData);
     })
 
     it('should be able to modify the point ROI', () => {
