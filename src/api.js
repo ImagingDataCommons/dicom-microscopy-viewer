@@ -620,7 +620,7 @@ class VLWholeSlideMicroscopyImageViewer {
           mapElement.style.cursor = 'default';
         }
     }));
-    const container = this[_map].getTarget();
+    const container = this[_map].getTargetElement();
     const pyramid = this._pyramid;
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
