@@ -62,6 +62,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
     return new Polyline(coordinates);
   } else if (type === 'Circle') {
     let center = _geometryCoordinates2scoord3dCoordinates(geometry.getCenter(), pyramid);
+    // FIXME: radius also needs to be rescaled
     let radius = geometry.getRadius();
     return new Circle(center, radius);
   } else {
@@ -96,11 +97,11 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
 }
 
 function _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
-  return _coordinateFormatGeometry2Scoord3d([coordinates[0] + 1, -coordinates[1], 1], pyramid);
+  return _coordinateFormatGeometry2Scoord3d([coordinates[0] + 1, -coordinates[1], coordinates[2]], pyramid);
 }
 
 function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
-  return _coordinateFormatScoord3d2Geometry([coordinates[0], coordinates[1]], pyramid)
+  return _coordinateFormatScoord3d2Geometry([coordinates[0], coordinates[1], coordinates[2]], pyramid)
 }
 
 /*
@@ -108,15 +109,15 @@ function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
   * slide coordinate system
 */
 function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
-  if( coordinates.length === 3){
-    coordinates = [coordinates]
+  if(coordinates.length === 3){
+    coordinates = [coordinates];
   }
   coordinates.map(coord =>{
     let x = (coord[0] * pyramid[pyramid.length-1].pixelSpacing[0]).toFixed(4);
     let y = (-(coord[1] - 1) * pyramid[pyramid.length-1].pixelSpacing[1]).toFixed(4);
-    coordinates = [x,y, 1]
+    let z = (1).toFixed(4);
+    coordinates = [Number(x), Number(y), Number(z)];
   })
-  
   return(coordinates);
 }
 
@@ -125,24 +126,23 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
   * slide coordinate system
 */
 function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
-  if( coordinates.length === 2){
-    coordinates = [coordinates]
+  if(coordinates.length === 3){
+    coordinates = [coordinates];
   }
-
-   coordinates.map(coord =>{
-    let x = (coord[0] / pyramid[pyramid.length-1].pixelSpacing[0] - 1)
-    let y = (coord[1] / pyramid[pyramid.length-1].pixelSpacing[1] - 1)
-    coordinates = [x, y]
+  coordinates.map(coord =>{
+    let x = (coord[0] / pyramid[pyramid.length-1].pixelSpacing[0] - 1);
+    let y = (coord[1] / pyramid[pyramid.length-1].pixelSpacing[1] - 1);
+    let z = coord[2];
+    coordinates = [x, y, z];
   });
-
-   return coordinates;
+   return(coordinates);
 }
 
 function _getROIFromFeature(feature, pyramid){
   let roi = {}
-  if (feature !== undefined) {      
+  if (feature !== undefined) {
     const geometry = feature.getGeometry();
-    let scoord3d = _geometry2Scoord3d(geometry, pyramid);          
+    const scoord3d = _geometry2Scoord3d(geometry, pyramid);
     const properties = feature.getProperties();
     delete properties['geometry'];
     roi = new ROI({scoord3d, properties});
