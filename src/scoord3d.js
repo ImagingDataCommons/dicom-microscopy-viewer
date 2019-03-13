@@ -135,19 +135,15 @@ class Polygon extends Scoord3D {
 
 class Circle extends Scoord3D {
 
-  constructor(centerCoordinates, radius) {
+  constructor(coordinates) {
     super()
-    if (!Array.isArray(centerCoordinates)) {
+    if (!Array.isArray(coordinates)) {
       throw new Error('coordinates of Circle must be an array')
     }
-    if (centerCoordinates.length !== 3) {
-      throw new Error('center coordinates of Circle must be an array of length 3')
+    if(coordinates.find(c => c.length !== 3)!== undefined){
+      throw new Error('coordinates of Circle must be a list or size two with points of length 3')
     }
-    if (radius === undefined) {
-      throw new Error('radius has to be defined')
-    }
-    this[_centerCoordinates] = centerCoordinates
-    this[_radius] = radius
+    this[_coordinates] = coordinates
   }
 
   get graphicData() {
@@ -156,9 +152,7 @@ class Circle extends Scoord3D {
      * The first point is the central pixel.
      * The second point is a pixel on the perimeter of the circle.
      */
-    return [
-      this[_centerCoordinates],
-      [this[_centerCoordinates][0], this[_centerCoordinates][1] + this[_radius], 1]]
+    return this[_coordinates]
   }
 
   get graphicType() {

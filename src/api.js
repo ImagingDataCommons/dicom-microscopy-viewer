@@ -61,10 +61,17 @@ function _geometry2Scoord3d(geometry, pyramid) {
     });
     return new Polyline(coordinates);
   } else if (type === 'Circle') {
-    let center = _geometryCoordinates2scoord3dCoordinates(geometry.getCenter(), pyramid);
-    // FIXME: radius also needs to be rescaled
-    let radius = geometry.getRadius();
-    return new Circle(center, radius);
+    // chunking the Flat Coordinates into two arrays within 3 elements each
+    let coordinates = geometry.getFlatCoordinates().reduce((all,one,i) => {
+      const ch = Math.floor(i/2)
+      all[ch] = [].concat((all[ch]||[]),one)
+      return all
+    }, [])
+    coordinates = coordinates.map(c => {
+      c.push(0)
+      return _geometryCoordinates2scoord3dCoordinates(c, pyramid)
+    })
+    return new Circle(coordinates);    
   } else {
     // TODO: Combine multiple points into MULTIPOINT.
     console.error(`unknown geometry type "${type}"`)
@@ -88,9 +95,15 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
     });
     return new PolygonGeometry([coordinates]);
   } else if (type === 'CIRCLE') {
-    let center = _scoord3dCoordinates2geometryCoordinates(data[0], pyramid);
-    let radius = data[1];
-    return new CircleGeometry(center, radius);
+    let coordinates = data.map(d => {
+      return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
+    })
+    // to flat coordinates
+    coordinates = [...coordinates[0].slice(0,2), ...coordinates[1].slice(0,2)]
+
+    // flat coordinates in combination with opt_layout and no opt_radius are also accepted
+    // and internaly it calculates the Radius
+    return new CircleGeometry(coordinates, null, "XY");
   } else {
     console.error(`unsupported graphic type "${type}"`)
   }

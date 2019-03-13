@@ -11,7 +11,7 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
 
     let viewer;
     const properties = {};
-    const circle = new dicomMicroscopyViewer.scoord3d.Circle([1000, 1000, 1], 100);
+    const circle = new dicomMicroscopyViewer.scoord3d.Circle([[8.1036, -9.3211, 1], [8.4463, -9.3211, 1]]);
     const point = new dicomMicroscopyViewer.scoord3d.Point([9.0467, -8.7631, 1]);
     const box = new dicomMicroscopyViewer.scoord3d.Polyline([
         [8.8824, -8.8684, 1],
@@ -77,10 +77,8 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
     it('should create a Circle ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : circle, properties});
         viewer.addROI(roi);
-        console.log('####')
-        console.log(viewer.getROI(0).scoord3d.graphicData[0])
-        console.log('####')
         assert.deepEqual(viewer.getROI(0).scoord3d.graphicData[0], circle.graphicData[0]);
+        assert.deepEqual(viewer.getROI(0).scoord3d.graphicData[1], circle.graphicData[1]);
     })
 
     it('should create a Point ROI and return it back successfuly', () => {
