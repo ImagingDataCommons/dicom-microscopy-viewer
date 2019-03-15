@@ -151,9 +151,9 @@ class Circle extends Scoord3D {
 
   get graphicData() {
     /*
-     * A circle defined by two (column,row) pairs.
-     * The first point is the central pixel.
-     * The second point is a pixel on the perimeter of the circle.
+     * A circle is defined by an array of flat coordinates
+     * distributed into two arrays or xyz coordinates where the 
+     * last coordinate is always 1
      */
     return this[_coordinates]
   }
@@ -186,9 +186,9 @@ class Ellipse extends Scoord3D {
 
   get graphicData() {
     /*
-     * An ellipse defined by four pixel (column,row) pairs.
-     * The first two points specify the endpoints of the major axis.
-     * The second two points specify the endpoints of the minor axis.
+     * An ellipse defined by four pixel (column,row) pairs distributed into two arrays.
+     * The first array contains two points that represents the major axis.
+     * The second array contains two points that represents the minor axis.
      */
     return [
       ...this[_majorAxisEndpointCoordinates],
