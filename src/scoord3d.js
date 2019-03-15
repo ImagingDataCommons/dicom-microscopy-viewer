@@ -140,6 +140,9 @@ class Circle extends Scoord3D {
     if (!Array.isArray(coordinates)) {
       throw new Error('coordinates of Circle must be an array')
     }
+    if (coordinates.length < 2) {
+      throw new Error('coordinates of Circle must be an array of length 2')
+    }
     if(coordinates.find(c => c.length !== 3)!== undefined){
       throw new Error('coordinates of Circle must be a list or size two with points of length 3')
     }
