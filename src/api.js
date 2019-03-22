@@ -577,16 +577,6 @@ class VLWholeSlideMicroscopyImageViewer {
     scaleInnerElement.style.margin = '1px';
     scaleInnerElement.style.willChange = 'contents,width';
 
-    document.addEventListener('keydown', ((e) => {
-        const key = e.key;
-        if (key === "Escape") {
-          this.deactivateDrawInteraction();
-          this.deactivateSelectInteraction();
-          this.deactivateModifyInteraction();
-          mapElement.style.cursor = 'default';
-        }
-    }));
-
   }
 
   /* Activate draw interaction.
