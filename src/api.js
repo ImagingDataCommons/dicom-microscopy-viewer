@@ -624,15 +624,6 @@ class VLWholeSlideMicroscopyImageViewer {
     scaleInnerElement.style.margin = '1px';
     scaleInnerElement.style.willChange = 'contents,width';
 
-    document.addEventListener('keydown', ((e) => {
-        const key = e.key;
-        if (key === "Escape") {
-          this.deactivateDrawInteraction();
-          this.deactivateSelectInteraction();
-          this.deactivateModifyInteraction();
-          mapElement.style.cursor = 'default';
-        }
-    }));
     const container = this[_map].getTargetElement();
     const pyramid = this._pyramid;
 
@@ -662,7 +653,7 @@ class VLWholeSlideMicroscopyImageViewer {
    */
   activateDrawInteraction(options) {
     this.deactivateDrawInteraction();
-    
+
     const customOptionsMapping = {
       point: {
         type: 'Point',
