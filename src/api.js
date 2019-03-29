@@ -560,9 +560,6 @@ class VLWholeSlideMicroscopyImageViewer {
       });
     }
 
-    const interactions = ol.interaction.defaults({altShiftDragRotate:false, pinchRotate:false}); 
-    const controls = ol.control.defaults({rotate: false});
-
     /*
      * Creates the map with the defined layers and view and renders it via
      * WebGL.
@@ -572,8 +569,6 @@ class VLWholeSlideMicroscopyImageViewer {
         layers: [imageLayer, this[_drawingLayer]],
         view: view,
         controls: [],
-        interactions: interactions,
-        controls: controls,
         loadTilesWhileAnimating: true,
         loadTilesWhileInteracting: true,
         logo: false
@@ -584,8 +579,6 @@ class VLWholeSlideMicroscopyImageViewer {
         layers: [imageLayer, this[_drawingLayer]],
         view: view,
         controls: [],
-        interactions: interactions,
-        controls: controls,
         loadTilesWhileAnimating: true,
         loadTilesWhileInteracting: true,
         logo: false
