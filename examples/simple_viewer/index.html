@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+
+    <title>DICOM WSI Viewer</title>
+    <meta charset="utf-8" />
+    <link type="text/css" rel="stylesheet" href="styles/main.css">
+    <script type="text/javascript" src="https://unpkg.com/dicomweb-client"></script>
+    <script type="text/javascript" src="https://unpkg.com/dicom-microscopy-viewer"></script>
+    <script type="text/javascript" src="scripts/dicomdict.js"></script>
+    <script type="text/javascript" src="scripts/metadata.js"></script>
+
+  </head>
+
+  <body>
+
+    <script type="text/javascript">
+
+      function getDomElement(id, removeChildren=false) {
+        let element = document.getElementById(id);
+        if (removeChildren) {
+          try {
+            while (element.firstChild) {
+              element.removeChild(element.firstChild);
+            }
+          } catch {}
+        }
+        return(element);
+      }
+
+      function createDomElement(type, id, cssClass) {
+        let element = document.createElement(type);
+        if (id !== undefined) {
+          element.setAttribute("id", id);
+        }
+        if (cssClass !== undefined) {
+          element.setAttribute("class", cssClass);
+        }
+        return(element);
+      }
+
+      function findClickedTarget(target, nodeName, className) {
+        if (target.nodeName === nodeName && target.classList.contains(className)) {
+          return(target);
+        } else {
+          if (target.parentNode) {
+            return(findClickedTarget(target.parentNode, nodeName, className));
+          } else {
+            console.error('no clickable parent found');
+          }
+        }
+      }
+
+      function findTargetSiblings(target) {
+        if (target.parentNode) {
+          const siblings = [];
+          for (let child of target.parentNode.childNodes) {
+            if (child.id !== target.id) {
+              siblings.push(child);
+            }
+          }
+          return siblings;
+        } else {
+          return [];
+        }
+      }
+
+      ////////////////////
+      // Study Metadata //
+      ////////////////////
+
+      // Lists studies
+      function listStudies(client) {
+        // Only search for studies that contain slide microscopy (SM) images
+        const studySearchOptions = {
+          queryParams: {
+            ModalitiesInStudy: 'SM'
+          }
+        }
+        client.searchForStudies(studySearchOptions).then((studies) => {
+          const studyList = getDomElement("study-list", removeChildren=true);
+          const attributes = [
+            "00200010", "00080020", "00080030", "00081030",
+            "00100020", "00100010", "00100040", "00100030"
+          ];
+
+          studyList.addEventListener("click", function(e) {
+            if (e.target) {
+              let target = findClickedTarget(e.target, "LI", "selectable");
+              let studyInstanceUID = target.id;
+              location.hash = "studies/" + studyInstanceUID;
+              target.classList.add('active');
+              let siblings = findTargetSiblings(target);
+              for (let s of siblings) {
+                s.classList.remove('active');
+              }
+              listSeries(client, studyInstanceUID);
+            }
+          });
+
+          for (let i = 0; i < studies.length; i++) {
+            if (studies[i]["00080061"]["Value"][0].indexOf("SM") < 0) {
+              continue;
+            }
+            let studyInstanceUID = studies[i]["0020000D"]["Value"][0];
+            console.log('add study ' + studyInstanceUID)
+            let studyItem = createDomElement("li", studyInstanceUID, "menu-item selectable");
+            let studyItemHeader = createDomElement("div", "study-list-item-header-" + i, "menu-item-header");
+            // Number of Study Related Series (00201206)
+            // AccessionNumber is a type 2 attribute and may thus not have a value.
+            let accessionNumber = "";
+            if ("Value" in studies[i]["00080050"]) {
+              accessionNumber = studies[i]["00080050"]["Value"][0];
+            }
+            studyItemHeader.innerHTML = accessionNumber;
+            studyItem.appendChild(studyItemHeader);
+            const studyItemBody = createDomElement("table", "study-list-item-body-" + i, "menu-item-body");
+            for (let tag of attributes) {
+              const attr = studies[i][tag];
+              if (attr !== undefined) {
+                let vr = attr["vr"];
+                if ("Value" in attr) {
+                  if (vr === "PN") {
+                    var value = attr["Value"][0]["Alphabetic"].replace("^", " ");
+                  } else {
+                    var value = attr["Value"][0];
+                  }
+                } else {
+                  console.warn('data element "' + tag + '" has no value');
+                  var value = "";
+                }
+                let name = dicomDict[tag]["name"];
+                let attrItem = createDomElement("tr");
+                let attrItemName = createDomElement("td");
+                attrItemName.innerHTML = name;
+                attrItem.appendChild(attrItemName);
+                let attrItemValue = createDomElement("td");
+                attrItemValue.innerHTML = value;
+                attrItem.appendChild(attrItemValue);
+                studyItemBody.appendChild(attrItem);
+              }
+            }
+            studyItem.append(studyItemBody);
+            studyList.appendChild(studyItem);
+
+            // Automatically select first study
+            if (!location.hash) {
+              location.hash = "studies/" + studyInstanceUID;
+              studyItem.classList.add('active');
+              listSeries(client, studyInstanceUID);
+            }
+
+          }
+        });
+      }
+
+      /////////////////////
+      // Series Metadata //
+      /////////////////////
+
+      // Lists series for the selected study
+      function listSeries(client, studyInstanceUID) {
+
+        // Recreate viewer and corresponding sidebar, such that there will only
+        // be a view for a single instance.
+        let viewport = getDomElement("activeViewport", removeChildren=true);
+        let specimenList = getDomElement("specimens-list", removeChildren=true);
+
+        let searchOptions = {studyInstanceUID, queryParams: {'Modality': 'SM'}};
+        client.searchForSeries(searchOptions).then((series) => {
+
+          var seriesList = getDomElement("series-list", removeChildren=true);
+
+          seriesList.addEventListener("click", function(e) {
+            if (e.target) {
+              let target = findClickedTarget(e.target, "LI", "selectable");
+              let seriesInstanceUID = target.id;
+              let uri = location.hash;
+              let studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(uri);
+              location.hash = "studies/" + studyInstanceUID +
+                              "/series/" + seriesInstanceUID;
+              target.classList.add('active');
+              let siblings = findTargetSiblings(target);
+              for (let s of siblings) {
+                s.classList.remove('active');
+              }
+              view(client, studyInstanceUID, seriesInstanceUID);
+            }
+          });
+
+          for (let i = 0; i < series.length; i++) {
+            let seriesInstanceUID = series[i]["0020000E"]["Value"][0];
+            console.log('add series ' + seriesInstanceUID)
+            let seriesItem = createDomElement("li", seriesInstanceUID, "menu-item selectable");
+            let seriesItemHeader = createDomElement("div", "series-list-item-header-" + i, "menu-item-header");
+            let seriesNumber = "";
+            if ("Value" in series[i]["00200011"]) {
+              seriesNumber = series[i]["00200011"]["Value"][0];
+            }
+            seriesItemHeader.innerHTML = seriesNumber;
+            seriesItem.appendChild(seriesItemHeader);
+
+            const attributes = ["0008103E"];
+            var seriesItemBody = createDomElement("table", "series-list-item-body-" + i, "menu-item-body");
+            for (let tag of attributes) {
+              const attr = series[i][tag];
+              const name = dicomDict[tag]["name"];
+              var value = " ";
+              if (attr !== undefined) {
+                if ("Value" in attr) {
+                  var value = attr["Value"][0];
+                } else {
+                  console.warn('data element "' + tag + '" has no value');
+                }
+              }
+              let attrItem = createDomElement("tr");
+              let attrItemName = createDomElement("td");
+              attrItemName.innerHTML = name;
+              attrItem.appendChild(attrItemName);
+              let attrItemValue = createDomElement("td");
+              attrItemValue.innerHTML = value;
+              attrItem.appendChild(attrItemValue);
+              seriesItemBody.appendChild(attrItem);
+            }
+            seriesItem.append(seriesItemBody);
+            seriesList.appendChild(seriesItem);
+
+            if (location.hash) {
+              let uri = location.hash;
+              let containsStudy = DICOMwebClient.utils.getStudyInstanceUIDFromUri(uri);
+              let containsSeries = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(uri);
+              if (containsStudy && !containsSeries) {
+                location.hash = "studies/" + studyInstanceUID +
+                                "/series/" + seriesInstanceUID;
+                seriesItem.classList.add('active');
+                view(client, studyInstanceUID, seriesInstanceUID);
+              }
+            }
+
+          }
+
+          let studyItem = getDomElement(studyInstanceUID);
+          if (studyItem) {
+            studyItem.classList.add('active');
+          }
+
+        });
+      }
+
+      function view(client, studyInstanceUID, seriesInstanceUID) {
+
+        //////////////////
+        // IMAGE VIEWER //
+        //////////////////
+
+        // Highlight selected study and series
+        let studyItem = getDomElement(studyInstanceUID);
+        if (studyItem) {
+          studyItem.classList.add('active');
+        }
+        let seriesItem = getDomElement(seriesInstanceUID);
+        if (seriesItem) {
+          seriesItem.classList.add('active');
+        }
+        // Clear the viewport
+        var viewport = getDomElement("activeViewport", removeChildren=true);
+
+        // Search for instances of the selected series
+        const searchInstanceOptions = {
+          studyInstanceUID,
+          seriesInstanceUID,
+          queryParams: {
+            Modality: 'SM',
+          }
+        };
+        client.searchForInstances(searchInstanceOptions).then((instances) => {
+          const promises = [];
+          for (let i = 0; i < instances.length; i++) {
+            const sopInstanceUID = instances[i]["00080018"]["Value"][0];
+            const retrieveInstanceOptions = {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID,
+            };
+            const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
+              if (!metadata) {
+                console.error(`no metadata received for image ${sopInstanceUID}`)
+                return null;
+              }
+              const imageType = metadata[0]["00080008"]["Value"];
+              if ( imageType[2] === "VOLUME") {
+                return(metadata[0]);
+              }
+            });
+            promises.push(promise);
+          }
+          return(Promise.all(promises));
+        }).then(metadata => {
+          metadata = metadata.filter(m => m);
+          const controls = [];
+          try {
+            const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
+              client,
+              metadata,
+              controls,
+              useWebGL: true
+            });
+            viewer.render({container: 'activeViewport'});
+          } catch(err) {
+            console.error(err)
+          }
+        });
+
+        ///////////////////////
+        // SPECIMEN METADATA //
+        ///////////////////////
+
+        const instanceSearchOptions = {studyInstanceUID, seriesInstanceUID};
+        client.searchForInstances(instanceSearchOptions).then((instances) => {
+          const sopInstanceUID = instances[0]["00080018"]["Value"][0];
+          const retrieveOptions = {
+            studyInstanceUID,
+            seriesInstanceUID,
+            sopInstanceUID
+          };
+          let promise = client.retrieveInstanceMetadata(retrieveOptions).then((metadata) => {
+            if (!metadata) {
+              return null;
+            }
+            const specimenMetadata = formatSpecimenMetadata(metadata[0]);
+            const specimenList = getDomElement("specimens-list", removeChildren=true);
+            for (let i = 0; i < specimenMetadata.specimens.length; i++) {
+              const specimenInfo = specimenMetadata.specimens[i];
+              let specimenItem = createDomElement("li", "specimens-list-item-" + i, "menu-item");
+              let specimenItemHeader = createDomElement("div", "specimens-list-item-header-" + i, "menu-item-header");
+              specimenItemHeader.innerHTML = specimenInfo.id;
+              specimenItem.appendChild(specimenItemHeader);
+              const specimenItemBody = createDomElement("dl", "specimens-list-item-body-" + i, "menu-item-body");
+              const nameMapping = {
+                description: "Description",
+                localization: "Position on Slide",
+                anatomicStructures: "Anatomic Structures",
+                preparationSteps: "Preparation Steps"
+              };
+              Object.keys(nameMapping).forEach(function (key, index) {
+                let name = nameMapping[key];
+                var value = specimenInfo[key];
+                let attrItemName = createDomElement("dt");
+                attrItemName.innerHTML = name;
+                specimenItemBody.appendChild(attrItemName)
+                let attrItemValue = createDomElement("dd");
+                if (key == "localization") {
+                  if (value.length === 0) {
+                    value = "";
+                  }
+                } else if (key == "anatomicStructures") {
+                  value = value.toString(",");
+                }
+                if (key == "preparationSteps") {
+                  const stepList = createDomElement("ul", "specimen-preparation-step-list", "menu");
+                  Object.keys(value).forEach(function (subKey, subIndex) {
+                    let stepListItem = createDomElement("li", "specimen-preparation-step-list-item-" + subIndex, "menu-subitem");
+                    let stepListItemHeader = createDomElement("div", "specimen-preparation-step-list-item-header-" + subIndex, "menu-subitem-header");
+                    stepListItem.appendChild(stepListItemHeader);
+                    let stepListItemBody = createDomElement("dl", "specimen-preparation-step-list-item-body-" + subIndex, "menu-subitem-body");
+                    for (let subItem of value[subKey]) {
+                      let stepListItemBodyName = createDomElement("dt");
+                      stepListItemBodyName.innerHTML = subItem.name;
+                      stepListItemBody.appendChild(stepListItemBodyName);
+                      let stepListItemBodyValue = createDomElement("dd");
+                      stepListItemBodyValue.innerHTML = subItem.value;
+                      stepListItemBody.appendChild(stepListItemBodyValue);
+                    }
+                    stepListItem.appendChild(stepListItemBody);
+                    stepList.appendChild(stepListItem);
+                  });
+                  attrItemValue.appendChild(stepList);
+
+                } else {
+                  attrItemValue.innerHTML = value;
+                }
+                specimenItemBody.appendChild(attrItemValue)
+
+              });
+              specimenItem.appendChild(specimenItemBody);
+              specimenList.appendChild(specimenItem);
+            }
+
+          });
+        });
+      }
+
+      function addAttributesRecursively(attributes) {
+        var sequence = createDomElement("ul", cssClass="dcm-sequence-attribute");
+        // DICOM tags must be sorted.
+        Object.keys(attributes).sort().forEach( function (tag) {
+          let group = tag.substring(0, 4);
+          let elem = tag.substring(4, 8);
+          let vr = attributes[tag]['vr'];
+          var value = attributes[tag]['Value'];
+          try {
+            var name = dicomDict[tag]["name"];
+          } catch (error) {
+            console.error('unknown DICOM attribute ', tag);
+            var name = "UNKNOWN";
+          }
+          let item = createDomElement("li", cssClass="dcm-attribute");
+          let description = "(" + group + "," + elem + ")" + " " + name;
+          if (vr !== 'SQ') {
+            if (value !== undefined) {
+              if (vr === 'PN') {
+                var valueString = []
+                for (let v of value) {
+                  valueString.push(v['Alphabetic']);
+                }
+              } else {
+                var valueString = value.toString();
+              }
+              description += ": " + valueString;
+            }
+          }
+          let itemText = document.createTextNode(description);
+          item.appendChild(itemText);
+          sequence.appendChild(item);
+          if (vr === 'SQ') {
+            if (value !== undefined) {
+              for (let v of value) {
+                let seq = addAttributesRecursively(v);
+                sequence.appendChild(seq);
+              }
+            }
+          }
+        });
+        return(sequence);
+      }
+
+      const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
+      <!-- const client = new DICOMwebClient.api.DICOMwebClient({url: "/dicomweb"}); -->
+      const client = new DICOMwebClient.api.DICOMwebClient({url});
+      listStudies(client);
+
+      if (location.hash) {
+        let studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(location.hash);
+        let seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(location.hash);
+        if (studyInstanceUID) {
+          listSeries(client, studyInstanceUID);
+          if (seriesInstanceUID) {
+            view(client, studyInstanceUID, seriesInstanceUID);
+          } else {
+            location.hash = "studies/" + studyInstanceUID;
+          }
+        } else {
+          location.hash = "";
+        }
+      }
+
+    </script>
+
+    <noscript>JavaScript needs to be enabled for the viewer to work!</noscript>
+
+    <header>
+      <span>DICOM Whole Slide Image Viewer</span>
+    </header>
+
+    <div id="main" class="main">
+
+      <nav id="nav-sidebar" class="sidebar">
+        <div id="studies-container" class="container sticky">
+          <div id="studies-container-header" class="container-header">
+            <span>Studies</span>
+          </div>
+          <div id="studies-container-body" class="container-body scrollable">
+            <ul id="study-list" class="menu">
+            </ul>
+          </div>
+        </div>
+        <div id="series-container" class="container sticky">
+          <div id="series-container-header" class="container-header">
+            <span>Series</span>
+          </div>
+          <div id="series-container-body" class="container-body scrollable">
+            <ul id="series-list" class="menu">
+            </ul>
+          </div>
+        </div>
+      </nav>
+
+      <div id="content" class="content">
+        <div id="images-container" class="container">
+          <div id="images-container-header" class="container-header">
+            <span>Images</span>
+          </div>
+          <div id="images-container-body" class="container-body">
+            <div id="activeViewport" class="viewport"></div>
+          </div>
+        </div>
+      </div>
+
+      <aside id="content-sidebar" class="sidebar">
+        <div id="specimens-container" class="container sticky">
+          <div id="specimens-container-header" class="container-header">
+            <span>Specimens</span>
+          </div>
+          <div id="specimens-container-body" class="container-body scrollable">
+            <ul id="specimens-list" class="menu"></ul>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+
+    <footer>
+    </footer>
+
+  </body>
+</html>
