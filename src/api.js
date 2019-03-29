@@ -574,6 +574,7 @@ class VLWholeSlideMicroscopyImageViewer {
         logo: false
       });
     } else {
+      
       this[_map] = new Map({
         layers: [imageLayer, this[_drawingLayer]],
         view: view,
