@@ -435,25 +435,6 @@
         return(sequence);
       }
 
-      const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
-      const client = new DICOMwebClient.api.DICOMwebClient({url});
-      listStudies(client);
-
-      if (location.hash) {
-        let studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(location.hash);
-        let seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(location.hash);
-        if (studyInstanceUID) {
-          listSeries(client, studyInstanceUID);
-          if (seriesInstanceUID) {
-            view(client, studyInstanceUID, seriesInstanceUID);
-          } else {
-            location.hash = "studies/" + studyInstanceUID;
-          }
-        } else {
-          location.hash = "";
-        }
-      }
-
     </script>
 
     <noscript>JavaScript needs to be enabled for the viewer to work!</noscript>
@@ -511,6 +492,27 @@
 
     <footer>
     </footer>
+
+    <script>
+      const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
+      const client = new DICOMwebClient.api.DICOMwebClient({url});
+      listStudies(client);
+
+      if (location.hash) {
+        let studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(location.hash);
+        let seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(location.hash);
+        if (studyInstanceUID) {
+          listSeries(client, studyInstanceUID);
+          if (seriesInstanceUID) {
+            view(client, studyInstanceUID, seriesInstanceUID);
+          } else {
+            location.hash = "studies/" + studyInstanceUID;
+          }
+        } else {
+          location.hash = "";
+        }
+      }
+    </script>
 
   </body>
 </html>
