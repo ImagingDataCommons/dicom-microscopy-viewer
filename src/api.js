@@ -705,7 +705,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
 
-    const container = this[_map].getTarget();
+    const container = this[_map].getTargetElement();
 
     //attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
@@ -737,7 +737,7 @@ class VLWholeSlideMicroscopyImageViewer {
       layers: [this[_drawingLayer]]
     });
 
-    const container = this[_map].getTarget();
+    const container = this[_map].getTargetElement();
 
     this[_interactions].select.on('select', (e) => {
       publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this._pyramid));
