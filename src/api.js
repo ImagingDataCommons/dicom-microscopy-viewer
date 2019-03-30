@@ -180,9 +180,8 @@ class VLWholeSlideMicroscopyImageViewer {
    * options:
    *   - client (instance of DICOMwebClient)
    *   - metadata (array of DICOM JSON metadata for each image instance)
-   *   - retrieveRendered (whether frames should be retrieved using DICOMweb RetrieveRenderedTransaction)
+   *   - retrieveRendered (whether frames should be retrieved using DICOMweb RetrieveRenderedTransaction; default: true)
    *   - useWebGL (whether WebGL renderer should be used; default: true)
-   *   - mediaType Object: { mimetype, transferSyntaxUID } (Used for setting mediaType in dicomWebClient's retrieveInstanceFrame call)
    */
   constructor(options) {
     if ('useWebGL' in options) {
@@ -193,7 +192,7 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_client] = options.client;
 
     if (!('retrieveRendered' in options)) {
-      options.retrieveRendered = false;
+      options.retrieveRendered = true;
     }
 
     if (!('controls' in options)) {
