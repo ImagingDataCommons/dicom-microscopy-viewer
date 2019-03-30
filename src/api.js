@@ -249,6 +249,7 @@ class VLWholeSlideMicroscopyImageViewer {
    *   - metadata (array of DICOM JSON metadata for each image instance)
    *   - retrieveRendered (whether frames should be retrieved using DICOMweb RetrieveRenderedTransaction)
    *   - useWebGL (whether WebGL renderer should be used; default: true)
+   *   - mediaType Object: { mimetype, transferSyntaxUID } (Used for setting mediaType in dicomWebClient's retrieveInstanceFrame call)
    */
   constructor(options) {
     if ('useWebGL' in options) {
@@ -488,12 +489,13 @@ class VLWholeSlideMicroscopyImageViewer {
         } else {
           // TODO: support "image/jp2" and "image/jls"
           const mimeType = 'image/jpeg';
+
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
-            mimeType
+            mimeType: `${mimeType}; transfer-syntax=1.2.840.10008.1.2.4.50`
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then((rawFrames) => {
             const blob = new Blob(rawFrames, {type: mimeType});
