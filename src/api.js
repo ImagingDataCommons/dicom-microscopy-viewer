@@ -830,11 +830,11 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   hideROIs() {
-    return this[_drawingLayer].setVisible(false);
+    this[_drawingLayer].setVisible(false);
   }
 
   showROIs() {
-    return this[_drawingLayer].setVisible(true);
+    this[_drawingLayer].setVisible(true);
   }
 
   get areROIsVisible() {
