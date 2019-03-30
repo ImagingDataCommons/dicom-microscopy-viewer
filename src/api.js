@@ -71,7 +71,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
       c.push(0)
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid)
     })
-    return new Circle(coordinates);    
+    return new Circle(coordinates);
   } else {
     // TODO: Combine multiple points into MULTIPOINT.
     console.error(`unknown geometry type "${type}"`)
@@ -182,6 +182,7 @@ class VLWholeSlideMicroscopyImageViewer {
    *   - metadata (array of DICOM JSON metadata for each image instance)
    *   - retrieveRendered (whether frames should be retrieved using DICOMweb RetrieveRenderedTransaction)
    *   - useWebGL (whether WebGL renderer should be used; default: true)
+   *   - mediaType Object: { mimetype, transferSyntaxUID } (Used for setting mediaType in dicomWebClient's retrieveInstanceFrame call)
    */
   constructor(options) {
     if ('useWebGL' in options) {
@@ -382,14 +383,24 @@ class VLWholeSlideMicroscopyImageViewer {
             img.src = window.URL.createObjectURL(blob);
           });
         } else {
+          let transferSyntaxUID;
+          if (options.mediaType && options.mediaType.transferSyntaxUID) {
+            transferSyntaxUID = options.mediaType.transferSyntaxUID;
+          }
+
+          let mimeType = 'image/jpeg';
           // TODO: support "image/jp2" and "image/jls"
-          const mimeType = 'image/jpeg';
+          if (options.mediaType && options.mediaType.mimeType) {
+            mimeType = options.mediaType.mimeType;
+          }
+
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
-            mimeType
+            mimeType,
+            transferSyntaxUID
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then((rawFrames) => {
             const blob = new Blob(rawFrames, {type: mimeType});
@@ -583,7 +594,7 @@ class VLWholeSlideMicroscopyImageViewer {
         logo: false
       });
     }
-    
+
     for (let control in this[_controls]) {
       this[_map].addControl(this[_controls][control]);
     }
