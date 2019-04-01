@@ -29,6 +29,7 @@ import { toStringXY } from 'ol/coordinate';
 
 import { formatImageMetadata } from './metadata.js';
 import { ROI } from './roi.js';
+import { generateUuid } from './utils.js';
 import {
   Point,
   Multipoint,
@@ -39,6 +40,7 @@ import {
 } from './scoord3d.js';
 
 import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
+
 
 function _geometry2Scoord3d(geometry, pyramid) {
   const type = geometry.getType();
@@ -160,7 +162,8 @@ function _getROIFromFeature(feature, pyramid){
     // Remove geometry from properties mapping
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
-    roi = new ROI({scoord3d, properties});
+    const uid = feature.getId();
+    roi = new ROI({scoord3d, properties, uid});
   }
   return roi;
 }
@@ -208,6 +211,14 @@ class VLWholeSlideMicroscopyImageViewer {
 
     // Collection of Openlayers "Feature" instances
     this[_features] = new Collection([], {unique: true});
+    // Add unique identifier to each created "Feature" instance
+    this[_features].on('add', (e) => {
+      // The ID may have already been set when drawn. However, features could
+      // have also been added without a draw event.
+      if (e.element.getId() === undefined) {
+        e.element.setId(generateUuid());
+      }
+    });
 
     /*
      * To visualize images accross multiple scales, we first need to
@@ -711,6 +722,7 @@ class VLWholeSlideMicroscopyImageViewer {
 
     //attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
+      e.feature.setId(generateUuid());
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this._pyramid));
     });
 
