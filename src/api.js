@@ -157,7 +157,9 @@ function _getROIFromFeature(feature, pyramid){
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
     const properties = feature.getProperties();
-    delete properties['geometry'];
+    // Remove geometry from properties mapping
+    const geometryName = feature.getGeometryName();
+    delete properties[geometryName];
     roi = new ROI({scoord3d, properties});
   }
   return roi;
@@ -801,6 +803,10 @@ class VLWholeSlideMicroscopyImageViewer {
     let roi = _getROIFromFeature(feature, this._pyramid);
     return roi;
   }
+
+  // getROIIndex(item) {
+  //   this[_features].
+  // }
 
   popROI() {
     const feature = this[_features].pop();
