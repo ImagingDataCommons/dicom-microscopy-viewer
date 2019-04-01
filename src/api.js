@@ -800,22 +800,12 @@ class VLWholeSlideMicroscopyImageViewer {
 
   getROI(index) {
     const feature = this[_features].item(index);
-    let roi = _getROIFromFeature(feature, this._pyramid);
-    return roi;
+    return _getROIFromFeature(feature, this._pyramid);
   }
-
-  // getROIIndex(item) {
-  //   this[_features].
-  // }
 
   popROI() {
     const feature = this[_features].pop();
-    const geometry = feature.getGeometry()
-    const scoord3d = _geometry2Scoord3d(geometry, this._pyramid);
-    const properties = feature.getProperties();
-    const geometryName = feature.getGeometryName();
-    delete properties[geometryName];
-    return new ROI({scoord3d, properties});
+    return _getROIFromFeature(feature, this._pyramid);
   }
 
   addROI(item) {
