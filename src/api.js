@@ -576,7 +576,7 @@ class VLWholeSlideMicroscopyImageViewer {
         logo: false
       });
     } else {
-      
+
       this[_map] = new Map({
         layers: [imageLayer, this[_drawingLayer]],
         view: view,
@@ -586,7 +586,7 @@ class VLWholeSlideMicroscopyImageViewer {
         logo: false
       });
     }
-    
+
     for (let control in this[_controls]) {
       this[_map].addControl(this[_controls][control]);
     }
@@ -813,7 +813,8 @@ class VLWholeSlideMicroscopyImageViewer {
     const geometry = feature.getGeometry()
     const scoord3d = _geometry2Scoord3d(geometry, this._pyramid);
     const properties = feature.getProperties();
-    delete properties['geometry'];
+    const geometryName = feature.getGeometryName();
+    delete properties[geometryName];
     return new ROI({scoord3d, properties});
   }
 
