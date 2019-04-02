@@ -11,22 +11,37 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
 
     let viewer;
     const properties = {};
-    const circle = new dicomMicroscopyViewer.scoord3d.Circle([[8.1036, -9.3211, 1], [8.4463, -9.3211, 1]]);
-    const point = new dicomMicroscopyViewer.scoord3d.Point([9.0467, -8.7631, 1]);
-    const box = new dicomMicroscopyViewer.scoord3d.Polyline([
+    const circle = new dicomMicroscopyViewer.scoord3d.Circle({
+      coordinates: [
+        [8.1036, -9.3211, 1], [8.4463, -9.3211, 1]
+      ],
+      referencedFrameOfReferenceUID: '1.2.3'
+    });
+    const point = new dicomMicroscopyViewer.scoord3d.Point({
+      coordinates: [9.0467, -8.7631, 1],
+      referencedFrameOfReferenceUID: '1.2.3'
+    });
+    const box = new dicomMicroscopyViewer.scoord3d.Polyline({
+      coordinates: [
         [8.8824, -8.8684, 1],
         [9.2255, -9.9634, 1],
         [10.3205, -9.6203, 1],
         [9.9774, -8.5253, 1],
         [8.8824, -8.8684, 1]
-    ])
-    const polygon = new dicomMicroscopyViewer.scoord3d.Polyline([
+      ],
+      referencedFrameOfReferenceUID: '1.2.3'
+    })
+    const polygon = new dicomMicroscopyViewer.scoord3d.Polyline({
+      coordinates: [
         [7.8326, -8.4428, 1],
         [7.1919, -7.9169, 1],
         [8.7772, -7.2831, 1],
         [7.8326, -8.4428, 1]
-    ])
-    const freehandPolygon = new dicomMicroscopyViewer.scoord3d.Polyline([
+      ],
+      referencedFrameOfReferenceUID: '1.2.3'
+    })
+    const freehandPolygon = new dicomMicroscopyViewer.scoord3d.Polyline({
+      coordinates: [
         [6.9340, -7.0669, 1],
         [6.9340, -7.0669, 1],
         [6.9189, -7.0216, 1],
@@ -41,12 +56,18 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         [6.9674, -6.9243, 1],
         [6.9674, -6.9243, 1],
         [6.9340, -7.0669, 1]
-    ])
-    const line = new dicomMicroscopyViewer.scoord3d.Polyline([
+      ],
+      referencedFrameOfReferenceUID: '1.2.3'
+    })
+    const line = new dicomMicroscopyViewer.scoord3d.Polyline({
+      coordinates: [
         [7.0442, -7.5295, 1],
         [7.6725, -7.0580, 1]
-    ])
-    const freeHandLine = new dicomMicroscopyViewer.scoord3d.Polyline([
+      ],
+      referencedFrameOfReferenceUID: '1.2.3'
+    })
+    const freeHandLine = new dicomMicroscopyViewer.scoord3d.Polyline({
+      coordinates: [
         [6.6769, -9.1169, 1],
         [6.6769, -9.1169, 1],
         [6.6668, -9.1119, 1],
@@ -60,7 +81,9 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         [6.6284, -8.9995, 1],
         [6.6334, -8.9945, 1],
         [6.6360, -8.9945, 1]
-    ])
+      ],
+      referencedFrameOfReferenceUID: '1.2.3'
+    })
 
     before(() => {
         viewer = new dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
@@ -86,7 +109,7 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         viewer.addROI(roi);
         assert.deepEqual(viewer.getROI(1).scoord3d.graphicData, point.graphicData);
     })
-    
+
     it('should create a Box ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : box, properties});
         viewer.addROI(roi);
@@ -121,7 +144,7 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         const rois = viewer.getAllROIs();
         assert.equal(rois.length, 7)
     })
-    
+
     it('should be able to remove the circle ROI', () => {
         let rois = viewer.getAllROIs();
         assert.equal(rois.length, 7);
@@ -135,7 +158,10 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
     it('should be able to modify the point ROI', () => {
         let rois = viewer.getAllROIs();
         assert.deepEqual(rois[0].scoord3d.coordinates, point.coordinates);
-        const newPoint = new dicomMicroscopyViewer.scoord3d.Point([0, 10, 1]);
+        const newPoint = new dicomMicroscopyViewer.scoord3d.Point({
+          coordinates: [0, 10, 1],
+          referencedFrameOfReferenceUID: '1.2.3'
+        });
         const newPointRoi = new dicomMicroscopyViewer.roi.ROI({scoord3d : newPoint, properties});
         viewer.updateROI(0, newPointRoi);
         rois = viewer.getAllROIs();
