@@ -42,142 +42,25 @@ import {
 import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
 
-function _geometry2Scoord3d(geometry, pyramid) {
-  const type = geometry.getType();
-  if (type === 'Point') {
-    let coordinates = geometry.getCoordinates();
-    coordinates = _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid);
-    return new Point(coordinates);
-  } else if (type === 'Polygon') {
-    /*
-     * The first linear ring of the array defines the outer-boundary (surface).
-     * Each subsequent linear ring defines a hole in the surface.
-     */
-    let coordinates = geometry.getCoordinates()[0].map(c => {
-      return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
-    });
-    return new Polygon(coordinates);
-  } else if (type === 'LineString') {
-    let coordinates = geometry.getCoordinates().map(c => {
-      return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
-    });
-    return new Polyline(coordinates);
-  } else if (type === 'Circle') {
-    // chunking the Flat Coordinates into two arrays within 3 elements each
-    let coordinates = geometry.getFlatCoordinates().reduce((all,one,i) => {
-      const ch = Math.floor(i/2)
-      all[ch] = [].concat((all[ch]||[]),one)
-      return all
-    }, [])
-    coordinates = coordinates.map(c => {
-      c.push(0)
-      return _geometryCoordinates2scoord3dCoordinates(c, pyramid)
-    })
-    return new Circle(coordinates);    
-  } else {
-    // TODO: Combine multiple points into MULTIPOINT.
-    console.error(`unknown geometry type "${type}"`)
-  }
-}
-
-function _scoord3d2Geometry(scoord3d, pyramid) {
-  const type = scoord3d.graphicType;
-  const data = scoord3d.graphicData;
-  if (type === 'POINT') {
-    let coordinates = _scoord3dCoordinates2geometryCoordinates(data, pyramid);
-    return new PointGeometry(coordinates);
-  } else if (type === 'POLYLINE') {
-    const coordinates = data.map(d => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
-    });
-    return new LineStringGeometry(coordinates);
-  } else if(type === 'POLYGON'){
-    const coordinates = data.map(d => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
-    });
-    return new PolygonGeometry([coordinates]);
-  } else if (type === 'CIRCLE') {
-    let coordinates = data.map(d => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
-    })
-    // to flat coordinates
-    coordinates = [...coordinates[0].slice(0,2), ...coordinates[1].slice(0,2)]
-
-    // flat coordinates in combination with opt_layout and no opt_radius are also accepted
-    // and internaly it calculates the Radius
-    return new CircleGeometry(coordinates, null, "XY");
-  } else {
-    console.error(`unsupported graphic type "${type}"`)
-  }
-}
-
-function _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
-  return _coordinateFormatGeometry2Scoord3d([coordinates[0] + 1, -coordinates[1], coordinates[2]], pyramid);
-}
-
-function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
-  return _coordinateFormatScoord3d2Geometry([coordinates[0], coordinates[1], coordinates[2]], pyramid)
-}
-
-/*
-  * Translate pixel units of total pixel matrix into millimeters of
-  * slide coordinate system
-*/
-function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
-  if(coordinates.length === 3){
-    coordinates = [coordinates];
-  }
-  coordinates.map(coord =>{
-    let x = (coord[0] * pyramid[pyramid.length-1].pixelSpacing[0]).toFixed(4);
-    let y = (-(coord[1] - 1) * pyramid[pyramid.length-1].pixelSpacing[1]).toFixed(4);
-    let z = (1).toFixed(4);
-    coordinates = [Number(x), Number(y), Number(z)];
-  })
-  return(coordinates);
-}
-
-/*
-  * Translate millimeters into pixel units of total pixel matrix of
-  * slide coordinate system
-*/
-function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
-  if(coordinates.length === 3){
-    coordinates = [coordinates];
-  }
-  coordinates.map(coord =>{
-    let x = (coord[0] / pyramid[pyramid.length-1].pixelSpacing[0] - 1);
-    let y = (coord[1] / pyramid[pyramid.length-1].pixelSpacing[1] - 1);
-    let z = coord[2];
-    coordinates = [x, y, z];
-  });
-   return(coordinates);
-}
-
-function _getROIFromFeature(feature, pyramid){
-  let roi = {}
-  if (feature !== undefined) {
-    const geometry = feature.getGeometry();
-    const scoord3d = _geometry2Scoord3d(geometry, pyramid);
-    const properties = feature.getProperties();
-    // Remove geometry from properties mapping
-    const geometryName = feature.getGeometryName();
-    delete properties[geometryName];
-    const uid = feature.getId();
-    roi = new ROI({scoord3d, properties, uid});
-  }
-  return roi;
-}
-
-const _usewebgl = Symbol('usewebgl');
-const _map = Symbol('map');
-const _features = Symbol('features');
-const _drawingSource = Symbol('drawingSource');
-const _drawingLayer = Symbol('drawingLayer');
-const _segmentations = Symbol('segmentations');
-const _pyramid = Symbol('pyramid');
 const _client = Symbol('client');
 const _controls = Symbol('controls');
+const _coordinateFormatScoord3d2Geometry = Symbol('coordinateFormatScoord3d2Geometry');
+const _coordinateFormatGeometry2Scoord3d = Symbol('coordinateFormatGeometry2Scoord3d');
+const _drawingSource = Symbol('drawingSource');
+const _drawingLayer = Symbol('drawingLayer');
+const _features = Symbol('features');
+const _geometryCoordinates2scoord3dCoordinates = Symbol('geometryCoordinates2scoord3dCoordinates');
+const _geometry2Scoord3d = Symbol('geometry2Scoord3d');
+const _getROIFromFeature = Symbol('getROIFromFeature');
 const _interactions = Symbol('interactions');
+const _map = Symbol('map');
+const _metadata = Symbol('metadata');
+const _pyramid = Symbol('pyramid');
+const _pyramidBase = Symbol('pyramidBaseLayer');
+const _scoord3d2Geometry = Symbol('scoord3d2Geometry');
+const _scoord3dCoordinates2geometryCoordinates = Symbol('scoord3dCoordinates2geometryCoordinates');
+const _segmentations = Symbol('segmentations');
+const _usewebgl = Symbol('usewebgl');
 
 class VLWholeSlideMicroscopyImageViewer {
 
@@ -225,12 +108,12 @@ class VLWholeSlideMicroscopyImageViewer {
      * determine the image pyramid structure, i.e. the size and resolution
      * images at the different pyramid levels.
     */
-    const metadata = options.metadata.map(m => formatImageMetadata(m));
+    this[_metadata] = options.metadata.map(m => formatImageMetadata(m));
     this._pyramid = [];
-    for (let i = 0; i < metadata.length; i++) {
-      const cols = metadata[i].totalPixelMatrixColumns;
-      const rows = metadata[i].totalPixelMatrixRows;
-      const mapping = metadata[i].frameMapping;
+    for (let i = 0; i < this[_metadata].length; i++) {
+      const cols = this[_metadata][i].totalPixelMatrixColumns;
+      const rows = this[_metadata][i].totalPixelMatrixRows;
+      const mapping = this[_metadata][i].frameMapping;
       /*
        * Instances may be broken down into multiple concatentation parts.
        * Therefore, we have to re-assemble instance metadata.
@@ -250,7 +133,7 @@ class VLWholeSlideMicroscopyImageViewer {
         // Update with information obtained from current concatentation part.
         Object.assign(this._pyramid[index].frameMapping, mapping);
       } else {
-        this._pyramid.push(metadata[i]);
+        this._pyramid.push(this[_metadata][i]);
       }
     }
     // Sort levels in ascending order
@@ -263,7 +146,7 @@ class VLWholeSlideMicroscopyImageViewer {
         return 0;
       }
     });
-
+    this[_pyramidBase] = this._pyramid[this._pyramid.length-1];
     /*
      * Collect relevant information from DICOM metadata for each pyramid
      * level to construct the Openlayers map.
@@ -442,8 +325,8 @@ class VLWholeSlideMicroscopyImageViewer {
     */
     var degrees = 0;
     if (
-      (this._pyramid[this._pyramid.length-1].imageOrientationSlide[1] === -1) &&
-      (this._pyramid[this._pyramid.length-1].imageOrientationSlide[3] === -1)
+      (this[_pyramidBase].imageOrientationSlide[1] === -1) &&
+      (this[_pyramidBase].imageOrientationSlide[3] === -1)
     ) {
       /*
        * The row direction (left to right) of the total pixel matrix
@@ -639,18 +522,18 @@ class VLWholeSlideMicroscopyImageViewer {
     scaleInnerElement.style.willChange = 'contents,width';
 
     const container = this[_map].getTargetElement();
-    const pyramid = this._pyramid;
+    const getROIFromFeature = this[_getROIFromFeature].bind(this);
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      publish(container, EVENT.ROI_ADDED, _getROIFromFeature(e.feature, pyramid));
+      publish(container, EVENT.ROI_ADDED, getROIFromFeature(e.feature));
     });
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      publish(container, EVENT.ROI_MODIFIED, _getROIFromFeature(e.feature, pyramid));
+      publish(container, EVENT.ROI_MODIFIED, getROIFromFeature(e.feature));
     });
 
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(container, EVENT.ROI_REMOVED, _getROIFromFeature(e.feature, pyramid));
+      publish(container, EVENT.ROI_REMOVED, getROIFromFeature(e.feature));
     });
 
     this[_map].on(MapEventType.MOVESTART, (e) => {
@@ -719,11 +602,12 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_interactions].draw = new Draw(allDrawOptions);
 
     const container = this[_map].getTargetElement();
+    const getROIFromFeature = this[_getROIFromFeature].bind(this);
 
     //attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
       e.feature.setId(generateUuid());
-      publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this._pyramid));
+      publish(container, EVENT.ROI_DRAWN, getROIFromFeature(e.feature));
     });
 
     this[_map].addInteraction(this[_interactions].draw);
@@ -754,7 +638,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const container = this[_map].getTargetElement();
 
     this[_interactions].select.on('select', (e) => {
-      publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this._pyramid));
+      publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0]));
     });
 
     this[_map].addInteraction(this[_interactions].select);
@@ -812,25 +696,35 @@ class VLWholeSlideMicroscopyImageViewer {
 
   getROI(index) {
     const feature = this[_features].item(index);
-    return _getROIFromFeature(feature, this._pyramid);
+    return this[_getROIFromFeature](feature);
+  }
+
+  indexOfROI(item) {
+    for(let index = 0; index < this.numberOfROIs; index++){
+      if (item.uid === this[_features].item(index).getId()) {
+        return index;
+      }
+    }
+    return -1;
   }
 
   popROI() {
     const feature = this[_features].pop();
-    return _getROIFromFeature(feature, this._pyramid);
+    return this[_getROIFromFeature](feature);
   }
 
   addROI(item) {
-    const geometry = _scoord3d2Geometry(item.scoord3d, this._pyramid);
+    const geometry = this[_scoord3d2Geometry](item.scoord3d, this._pyramid);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
     this[_features].push(feature);
   }
 
   updateROI(index, item) {
-    const geometry = _scoord3d2Geometry(item.scoord3d, this._pyramid);
+    const geometry = this[_scoord3d2Geometry](item.scoord3d, this._pyramid);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
+    feature.setId(item.uid);
     this[_features].setAt(index, feature);
   }
 
@@ -850,6 +744,143 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_drawingLayer].getVisible();
   }
 
+  [_geometry2Scoord3d](geometry) {
+    const type = geometry.getType();
+    if (type === 'Point') {
+      let coordinates = geometry.getCoordinates();
+      coordinates = this[_geometryCoordinates2scoord3dCoordinates](coordinates);
+      return new Point({
+        coordinates,
+        referencedFrameOfReferenceUID: this[_pyramidBase].frameOfReferenceUID
+      });
+    } else if (type === 'Polygon') {
+      /*
+       * The first linear ring of the array defines the outer-boundary (surface).
+       * Each subsequent linear ring defines a hole in the surface.
+       */
+      let coordinates = geometry.getCoordinates()[0].map(c => {
+        return this[_geometryCoordinates2scoord3dCoordinates](c);
+      });
+      return new Polygon({
+        coordinates,
+        referencedFrameOfReferenceUID: this[_pyramidBase].frameOfReferenceUID
+      });
+    } else if (type === 'LineString') {
+      let coordinates = geometry.getCoordinates().map(c => {
+        return this[_geometryCoordinates2scoord3dCoordinates](c);
+      });
+      return new Polyline({
+        coordinates,
+        referencedFrameOfReferenceUID: this[_pyramidBase].frameOfReferenceUID
+      });
+    } else if (type === 'Circle') {
+      // chunking the Flat Coordinates into two arrays within 3 elements each
+      let coordinates = geometry.getFlatCoordinates().reduce((all,one,i) => {
+        const ch = Math.floor(i/2)
+        all[ch] = [].concat((all[ch]||[]),one)
+        return all
+      }, [])
+      coordinates = coordinates.map(c => {
+        c.push(0)
+        return this[_geometryCoordinates2scoord3dCoordinates](c)
+      })
+      return new Circle({
+        coordinates,
+        referencedFrameOfReferenceUID: this[_pyramidBase].frameOfReferenceUID
+      });
+    } else {
+      // TODO: Combine multiple points into MULTIPOINT.
+      console.error(`unknown geometry type "${type}"`)
+    }
+  }
+
+  [_scoord3d2Geometry](scoord3d) {
+    const type = scoord3d.graphicType;
+    const data = scoord3d.graphicData;
+    if (type === 'POINT') {
+      let coordinates = this[_scoord3dCoordinates2geometryCoordinates](data);
+      return new PointGeometry({coordinates});
+    } else if (type === 'POLYLINE') {
+      const coordinates = data.map(d => {
+        return this[_scoord3dCoordinates2geometryCoordinates](d);
+      });
+      return new LineStringGeometry({coordinates});
+    } else if(type === 'POLYGON'){
+      const coordinates = data.map(d => {
+        return this[_scoord3dCoordinates2geometryCoordinates](d);
+      });
+      return new PolygonGeometry([coordinates]);
+    } else if (type === 'CIRCLE') {
+      let coordinates = data.map(d => {
+        return this[_scoord3dCoordinates2geometryCoordinates](d);
+      })
+      // to flat coordinates
+      coordinates = [...coordinates[0].slice(0,2), ...coordinates[1].slice(0,2)]
+
+      // flat coordinates in combination with opt_layout and no opt_radius are also accepted
+      // and internaly it calculates the Radius
+      return new CircleGeometry(coordinates, null, "XY");
+    } else {
+      console.error(`unsupported graphic type "${type}"`)
+    }
+  }
+
+  [_geometryCoordinates2scoord3dCoordinates](coordinates) {
+    return this[_coordinateFormatGeometry2Scoord3d]([coordinates[0] + 1, -coordinates[1], coordinates[2]]);
+  }
+
+  [_scoord3dCoordinates2geometryCoordinates](coordinates) {
+    return this[_coordinateFormatScoord3d2Geometry]([coordinates[0], coordinates[1], coordinates[2]])
+  }
+
+  /*
+    * Translate pixel units of total pixel matrix into millimeters of
+    * slide coordinate system
+  */
+  [_coordinateFormatGeometry2Scoord3d](coordinates) {
+    if(coordinates.length === 3){
+      coordinates = [coordinates];
+    }
+    coordinates.map(coord =>{
+      let x = (coord[0] * this[_pyramidBase].pixelSpacing[0]).toFixed(4);
+      let y = (-(coord[1] - 1) * this[_pyramidBase].pixelSpacing[1]).toFixed(4);
+      let z = (1).toFixed(4);
+      coordinates = [Number(x), Number(y), Number(z)];
+    })
+    return(coordinates);
+  }
+
+  /*
+    * Translate millimeters into pixel units of total pixel matrix of
+    * slide coordinate system
+  */
+  [_coordinateFormatScoord3d2Geometry](coordinates) {
+    if(coordinates.length === 3){
+      coordinates = [coordinates];
+    }
+    coordinates.map(coord =>{
+      let x = (coord[0] / this._pyramid[pyramid.length-1].pixelSpacing[0] - 1);
+      let y = (coord[1] / this._pyramid[pyramid.length-1].pixelSpacing[1] - 1);
+      let z = coord[2];
+      coordinates = [x, y, z];
+    });
+     return(coordinates);
+  }
+
+  [_getROIFromFeature](feature){
+    let roi = {}
+    if (feature !== undefined) {
+      const geometry = feature.getGeometry();
+      const scoord3d = this[_geometry2Scoord3d](geometry);
+      const properties = feature.getProperties();
+      // Remove geometry from properties mapping
+      const geometryName = feature.getGeometryName();
+      delete properties[geometryName];
+      const uid = feature.getId();
+      roi = new ROI({scoord3d, properties, uid});
+    }
+    return roi;
+  }
 }
 
 export { VLWholeSlideMicroscopyImageViewer };
