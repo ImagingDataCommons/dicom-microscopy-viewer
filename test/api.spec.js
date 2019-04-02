@@ -168,4 +168,15 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         assert.deepEqual(rois[0].scoord3d.coordinates, newPoint.coordinates);
     })
 
+    it('should throw an error if uid of ROI is undefined', () => {
+        assert.throws( function() {
+          const roid = new dicomMicroscopyViewer.roi.ROI({scoord3d : point, uid: undefined, properties})
+        }, Error )
+    })
+
+    it('should throw an error if uid of ROI is null', () => {
+        assert.throws( function() {
+          const roid = new dicomMicroscopyViewer.roi.ROI({scoord3d : point, uid: null, properties})
+        }, Error )
+    })
 });

@@ -16,6 +16,9 @@ class ROI {
     if (!('uid' in options)) {
       this.uid = generateUuid();
     } else {
+      if (!(typeof options.uid === 'string' || options.uid instanceof String)) {
+        throw new Error('uid of ROI must be a string')
+      }
       this.uid = options.uid;
     }
     this.scoord3d = options.scoord3d;
