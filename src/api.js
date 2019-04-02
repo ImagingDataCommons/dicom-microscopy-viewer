@@ -43,13 +43,14 @@ import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
 
 function _geometry2Scoord3d(geometry, pyramid) {
+  const referencedFrameOfReferenceUID = pyramid[pyramid.length-1].frameOfReferenceUID;
   const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
     coordinates = _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid);
     return new Point({
       coordinates,
-      referencedFrameOfReferenceUID: pyramid[pyramid.length-1].frameOfReferenceUID
+      referencedFrameOfReferenceUID: referencedFrameOfReferenceUID
     });
   } else if (type === 'Polygon') {
     /*
@@ -61,7 +62,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
     });
     return new Polygon({
       coordinates,
-      referencedFrameOfReferenceUID: pyramid[pyramid.length-1].frameOfReferenceUID
+      referencedFrameOfReferenceUID: referencedFrameOfReferenceUID
     });
   } else if (type === 'LineString') {
     let coordinates = geometry.getCoordinates().map(c => {
@@ -69,7 +70,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
     });
     return new Polyline({
       coordinates,
-      referencedFrameOfReferenceUID: pyramid[pyramid.length-1].frameOfReferenceUID
+      referencedFrameOfReferenceUID: referencedFrameOfReferenceUID
     });
   } else if (type === 'Circle') {
     // chunking the Flat Coordinates into two arrays within 3 elements each
@@ -84,7 +85,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
     })
     return new Circle({
       coordinates,
-      referencedFrameOfReferenceUID: pyramid[pyramid.length-1].frameOfReferenceUID
+      referencedFrameOfReferenceUID: referencedFrameOfReferenceUID
     });
   } else {
     // TODO: Combine multiple points into MULTIPOINT.
