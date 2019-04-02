@@ -7,10 +7,17 @@ const _majorAxisEndpointCoordinates = Symbol('majorAxisEndpointCoordinates')
 const _minorAxisEndpointCoordinates = Symbol('minorAxisEndpointCoordinates')
 const _centerCoordinates = Symbol('centerCoordinates')
 const _radius = Symbol('radius')
+const _referencedFrameOfReferenceUID = Symbol('referencedFrameOfReferenceUID')
 
 class Scoord3D {
 
-  constructor() {}
+  constructor(options) {
+    if (!(typeof options.referencedFrameOfReferenceUID === 'string' ||
+          options.referencedFrameOfReferenceUID instanceof String)) {
+      throw new Error('referencedFrameOfReferenceUID of Scoord3D must be a string')
+    }
+    this[_referencedFrameOfReferenceUID] = options.referencedFrameOfReferenceUID
+  }
 
   get graphicData() {
     throw new Error('Prototype property "graphicData" must be implemented.')
@@ -21,27 +28,22 @@ class Scoord3D {
   }
 
   get referencedFrameOfReferenceUID() {
-    throw new Error('Prototype property "referencedFrameOfReferenceUID" must be implemented.')
-  }
-
-  get fiducialUID() {
-    throw new Error('Prototype property "fiducialUID" must be implemented.')
+    return this[_referencedFrameOfReferenceUID]
   }
 
 }
 
 class Point extends Scoord3D {
-  
-  
-  constructor(coordinates) {
-    super()
-    if (!Array.isArray(coordinates)) {
+
+  constructor(options) {
+    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
+    if (!Array.isArray(options.coordinates)) {
       throw new Error('coordinates of Point must be an array')
     }
-    if (coordinates.length !== 3) {
+    if (options.coordinates.length !== 3) {
       throw new Error('coordinates of Point must be an array of length 3')
     }
-    this[_coordinates] = coordinates
+    this[_coordinates] = options.coordinates
   }
 
   get graphicData() {
@@ -56,15 +58,15 @@ class Point extends Scoord3D {
 
 class Multipoint extends Scoord3D {
 
-  constructor(coordinates) {
-    super()
-    if (!Array.isArray(coordinates)) {
+  constructor(options) {
+    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
+    if (!Array.isArray(options.coordinates)) {
       throw new Error('coordinates of Multipoint must be an array')
     }
-    if(coordinates.find(c => c.length !== 3)!== undefined){
+    if(options.coordinates.find(c => c.length !== 3)!== undefined){
       throw new Error('coordinates of Multipoint must be an array of length 3')
     }
-    this[_coordinates] = coordinates
+    this[_coordinates] = options.coordinates
   }
 
   get graphicData() {
@@ -79,15 +81,15 @@ class Multipoint extends Scoord3D {
 
 class Polyline extends Scoord3D {
 
-  constructor(coordinates) {
-    super()
-    if (!Array.isArray(coordinates)) {
+  constructor(options) {
+    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
+    if (!Array.isArray(options.coordinates)) {
       throw new Error('coordinates of Polyline must be an array')
     }
-    if(coordinates.find(c => c.length !== 3)!== undefined){
+    if(options.coordinates.find(c => c.length !== 3)!== undefined){
       throw new Error('coordinates of Polyline must be a list of points of length 3')
     }
-    this[_coordinates] = coordinates
+    this[_coordinates] = options.coordinates
   }
 
   get graphicData() {
@@ -107,15 +109,15 @@ class Polyline extends Scoord3D {
 
 class Polygon extends Scoord3D {
 
-  constructor(coordinates) {
-    super()
-    if (!Array.isArray(coordinates)) {
+  constructor(options) {
+    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
+    if (!Array.isArray(options.coordinates)) {
       throw new Error('coordinates of Polygon must be an array')
     }
-    if(coordinates.find(c => c.length !== 3)!== undefined){
+    if(options.coordinates.find(c => c.length !== 3)!== undefined){
       throw new Error('coordinates of Polygon must be a list of points of length 3')
     }
-    this[_coordinates] = coordinates
+    this[_coordinates] = options.coordinates
   }
 
   get graphicData() {
@@ -135,18 +137,18 @@ class Polygon extends Scoord3D {
 
 class Circle extends Scoord3D {
 
-  constructor(coordinates) {
-    super()
-    if (!Array.isArray(coordinates)) {
+  constructor(options) {
+    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
+    if (!Array.isArray(options.coordinates)) {
       throw new Error('coordinates of Circle must be an array')
     }
-    if (coordinates.length < 2) {
+    if (options.coordinates.length < 2) {
       throw new Error('coordinates of Circle must be an array of length 2')
     }
-    if(coordinates.find(c => c.length !== 3)!== undefined){
+    if(options.coordinates.find(c => c.length !== 3)!== undefined){
       throw new Error('coordinates of Circle must be a list or size two with points of length 3')
     }
-    this[_coordinates] = coordinates
+    this[_coordinates] = options.coordinates
   }
 
   get graphicData() {
@@ -166,22 +168,22 @@ class Circle extends Scoord3D {
 
 class Ellipse extends Scoord3D {
 
-  constructor(majorAxisEndpointCoordinates, minorAxisEndpointCoordinates) {
-    super()
-    if (!Array.isArray(majorAxisEndpointCoordinates)) {
+  constructor(options) {
+    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
+    if (!Array.isArray(options.majorAxisEndpointCoordinates)) {
       throw new Error('majorAxisEndpointCoordinates of Ellipse must be an array')
     }
-    if (!Array.isArray(minorAxisEndpointCoordinates)) {
+    if (!Array.isArray(options.minorAxisEndpointCoordinates)) {
       throw new Error('minorAxisEndpointCoordinates of Ellipse must be an array')
     }
-    if (majorAxisEndpointCoordinates.length !== 2) {
+    if (options.majorAxisEndpointCoordinates.length !== 2) {
       throw new Error('majorAxisEndpointCoordinates coordinates of Ellipse must be an array of length 2')
     }
-    if (minorAxisEndpointCoordinates.length !== 2) {
+    if (options.minorAxisEndpointCoordinates.length !== 2) {
       throw new Error('minorAxisEndpointCoordinates coordinates of Ellipse must be an array of length 2')
     }
-    this[_majorAxisEndpointCoordinates] = majorAxisEndpointCoordinates
-    this[_minorAxisEndpointCoordinates] = minorAxisEndpointCoordinates
+    this[_majorAxisEndpointCoordinates] = options.majorAxisEndpointCoordinates
+    this[_minorAxisEndpointCoordinates] = options.minorAxisEndpointCoordinates
   }
 
   get graphicData() {

@@ -1,5 +1,6 @@
 import { generateUuid } from './utils.js';
 
+
 /* Region of interest.
  */
 class ROI {

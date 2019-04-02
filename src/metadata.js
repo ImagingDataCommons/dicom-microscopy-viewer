@@ -40,6 +40,7 @@ function formatImageMetadata(metadata) {
   }
 
   const imageOrientationSlide = metadata['00480102']['Value'];
+  const frameOfReferenceUID = metadata['00200052']['Value'][0];
 
   let tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns);
   let tilesPerColumn = Math.ceil(totalPixelMatrixRows / rows);
@@ -93,6 +94,7 @@ function formatImageMetadata(metadata) {
     imageVolumeHeight,
     pixelSpacing,
     imageOrientationSlide,
+    frameOfReferenceUID,
     frameMapping
   });
 }
