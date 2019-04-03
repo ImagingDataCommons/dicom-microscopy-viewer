@@ -1,7 +1,21 @@
-function generateUuid() {
-  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-  )
+function generateUID() {
+  /*
+   * http://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_B.2.html
+   * https://www.itu.int/rec/T-REC-X.667-201210-I/en
+   *  A UUID can be represented as a single integer value.
+   * To obtain the single integer value of the UUID, the 16 octets of the
+   * binary representation shall be treated as an unsigned integer encoding
+   * with the most significant bit of the integer encoding as the most
+   * significant bit (bit 7) of the first of the sixteen octets (octet 15) and
+   * the least significant bit as the least significant bit (bit 0) of the last
+   * of the sixteen octets (octet 0).
+  */
+  // FIXME: This is not a valid UUID!
+  let uid = '2.25.' + Math.floor(1 + Math.random() * 9);
+  while (uid.length < 44) {
+    uid += Math.floor(1 + Math.random() * 10);
+  }
+  return uid;
 }
 
-export { generateUuid };
+export { generateUID };

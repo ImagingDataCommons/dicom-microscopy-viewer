@@ -29,13 +29,13 @@ import { toStringXY } from 'ol/coordinate';
 
 import { formatImageMetadata } from './metadata.js';
 import { ROI } from './roi.js';
-import { generateUuid } from './utils.js';
+import { generateUID } from './utils.js';
 import {
   Point,
   Multipoint,
   Polyline,
   Polygon,
-  Circle,
+  Ellipsoid,
   Ellipse
 } from './scoord3d.js';
 
@@ -43,14 +43,14 @@ import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
 
 function _geometry2Scoord3d(geometry, pyramid) {
-  const referencedFrameOfReferenceUID = pyramid[pyramid.length-1].frameOfReferenceUID;
+  const frameOfReferenceUID = pyramid[pyramid.length-1].frameOfReferenceUID;
   const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
     coordinates = _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid);
     return new Point({
       coordinates,
-      referencedFrameOfReferenceUID: referencedFrameOfReferenceUID
+      frameOfReferenceUID: frameOfReferenceUID
     });
   } else if (type === 'Polygon') {
     /*
@@ -62,7 +62,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
     });
     return new Polygon({
       coordinates,
-      referencedFrameOfReferenceUID: referencedFrameOfReferenceUID
+      frameOfReferenceUID: frameOfReferenceUID
     });
   } else if (type === 'LineString') {
     let coordinates = geometry.getCoordinates().map(c => {
@@ -70,22 +70,26 @@ function _geometry2Scoord3d(geometry, pyramid) {
     });
     return new Polyline({
       coordinates,
-      referencedFrameOfReferenceUID: referencedFrameOfReferenceUID
+      frameOfReferenceUID: frameOfReferenceUID
     });
   } else if (type === 'Circle') {
-    // chunking the Flat Coordinates into two arrays within 3 elements each
-    let coordinates = geometry.getFlatCoordinates().reduce((all,one,i) => {
-      const ch = Math.floor(i/2)
-      all[ch] = [].concat((all[ch]||[]),one)
-      return all
-    }, [])
+    let centerCoordinate = geometry.getCenter();
+    let radius = geometry.getRadius();
+    // Endpoints of major and  minor axis of the ellipse.
+    // In case of a circle they both have the same length.
+    let coordinates = [
+      [centerCoordinate[0] - radius, centerCoordinate[1]],
+      [centerCoordinate[0] + radius, centerCoordinate[1]],
+      [centerCoordinate[0], centerCoordinate[1] - radius],
+      [centerCoordinate[0], centerCoordinate[1] + radius],
+    ];
     coordinates = coordinates.map(c => {
       c.push(0)
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid)
     })
-    return new Circle({
+    return new Ellipse({
       coordinates,
-      referencedFrameOfReferenceUID: referencedFrameOfReferenceUID
+      frameOfReferenceUID: frameOfReferenceUID
     });
   } else {
     // TODO: Combine multiple points into MULTIPOINT.
@@ -109,12 +113,28 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     return new PolygonGeometry([coordinates]);
-  } else if (type === 'CIRCLE') {
-    let coordinates = data.map(d => {
+  } else if (type === 'ELLIPSE') {
+    // TODO: ensure that the ellipse represents a circle, i.e. that
+    // major and minor axis form a right angle and have the same length
+    let majorAxisCoordinates = data.slice(0, 2);
+    let minorAxisCoordinates = data.slice(2, 4);
+    // Circle is defined by two points: the center point and a point on the
+    // circumference.
+    let point1 = majorAxisCoordinates[0];
+    let point2 = majorAxisCoordinates[1];
+    let coordinates = [
+      [
+        (point1[0] + point2[0]) / parseFloat(2),
+        (point1[1] + point2[1]) / parseFloat(2),
+        1
+      ],
+      point2
+    ];
+    coordinates = coordinates.map(d => {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
-    })
+    });
     // to flat coordinates
-    coordinates = [...coordinates[0].slice(0,2), ...coordinates[1].slice(0,2)]
+    coordinates = [...coordinates[0].slice(0,2), ...coordinates[1].slice(0,2)];
 
     // flat coordinates in combination with opt_layout and no opt_radius are also accepted
     // and internaly it calculates the Radius
@@ -125,7 +145,7 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
 }
 
 function _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
-  return _coordinateFormatGeometry2Scoord3d([coordinates[0] + 1, -coordinates[1], coordinates[2]], pyramid);
+  return _coordinateFormatGeometry2Scoord3d([coordinates[0] + 1, coordinates[1], coordinates[2]], pyramid);
 }
 
 function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
@@ -159,7 +179,7 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   }
   coordinates.map(coord =>{
     let x = (coord[0] / pyramid[pyramid.length-1].pixelSpacing[0] - 1);
-    let y = (coord[1] / pyramid[pyramid.length-1].pixelSpacing[1] - 1);
+    let y = -(coord[1] / pyramid[pyramid.length-1].pixelSpacing[1] - 1);
     let z = coord[2];
     coordinates = [x, y, z];
   });
@@ -232,7 +252,7 @@ class VLWholeSlideMicroscopyImageViewer {
       // The ID may have already been set when drawn. However, features could
       // have also been added without a draw event.
       if (e.element.getId() === undefined) {
-        e.element.setId(generateUuid());
+        e.element.setId(generateUID());
       }
     });
 
@@ -737,7 +757,7 @@ class VLWholeSlideMicroscopyImageViewer {
 
     //attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
-      e.feature.setId(generateUuid());
+      e.feature.setId(generateUID());
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this._pyramid));
     });
 
