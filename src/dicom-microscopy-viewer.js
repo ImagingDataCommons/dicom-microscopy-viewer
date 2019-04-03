@@ -5,7 +5,7 @@ import {
   Multipoint,
   Polyline,
   Polygon,
-  Circle,
+  Ellipsoid,
   Ellipse,
 } from './scoord3d.js';
 
@@ -17,7 +17,7 @@ let scoord3d = {
   Multipoint,
   Polyline,
   Polygon,
-  Circle,
+  Ellipsoid,
   Ellipse
 };
 let roi = {

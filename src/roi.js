@@ -1,4 +1,4 @@
-import { generateUuid } from './utils.js';
+import { generateUID } from './utils.js';
 
 
 /* Region of interest.
@@ -14,7 +14,7 @@ class ROI {
       console.error('spatial coordinates are required for ROI')
     }
     if (!('uid' in options)) {
-      this.uid = generateUuid();
+      this.uid = generateUID();
     } else {
       if (!(typeof options.uid === 'string' || options.uid instanceof String)) {
         throw new Error('uid of ROI must be a string')

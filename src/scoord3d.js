@@ -1,53 +1,76 @@
-/*
- * Spatial coordinates of a geometric region of interest (ROI) in the DICOM
- * image coordinate system.
- */
+import { generateUID } from './utils.js';
+
 const _coordinates = Symbol('coordinates')
 const _majorAxisEndpointCoordinates = Symbol('majorAxisEndpointCoordinates')
 const _minorAxisEndpointCoordinates = Symbol('minorAxisEndpointCoordinates')
 const _centerCoordinates = Symbol('centerCoordinates')
 const _radius = Symbol('radius')
-const _referencedFrameOfReferenceUID = Symbol('referencedFrameOfReferenceUID')
+const _frameOfReferenceUID = Symbol('frameOfReferenceUID')
+const _fiducialUID = Symbol('fiducialUID')
 
+
+/*
+ * Spatial coordinates of geometric region(s) of interest (ROI) in the DICOM
+ * slide coordinate system in millimeter unit.
+ */
 class Scoord3D {
 
   constructor(options) {
-    if (!(typeof options.referencedFrameOfReferenceUID === 'string' ||
-          options.referencedFrameOfReferenceUID instanceof String)) {
-      throw new Error('referencedFrameOfReferenceUID of Scoord3D must be a string')
+    if (!(typeof options.frameOfReferenceUID === 'string' ||
+          options.frameOfReferenceUID instanceof String)) {
+      throw new Error('frameOfReferenceUID of Scoord3D must be a string')
     }
-    this[_referencedFrameOfReferenceUID] = options.referencedFrameOfReferenceUID
+    this[_frameOfReferenceUID] = options.frameOfReferenceUID;
+    options.fiducialUID = options.fiducialUID || generateUID();
+    if (!(typeof options.fiducialUID === 'string' ||
+          options.fiducialUID instanceof String)) {
+      throw new Error('fiducialUID of Scoord3D must be a string')
+    }
+    this[_fiducialUID] = options.fiducialUID;
+    if (!Array.isArray(options.coordinates)) {
+      throw new Error('coordinates of Scoord3D must be an array')
+    }
+    this[_coordinates] = options.coordinates;
   }
 
   get graphicData() {
-    throw new Error('Prototype property "graphicData" must be implemented.')
+    return this[_coordinates]
   }
 
   get graphicType() {
-    throw new Error('Prototype property "graphicType" must be implemented.')
+    throw new Error('Prototype property "graphicType" must be implemented')
   }
 
-  get referencedFrameOfReferenceUID() {
-    return this[_referencedFrameOfReferenceUID]
+  get frameOfReferenceUID() {
+    return this[_frameOfReferenceUID]
+  }
+
+  get fiducialUID() {
+    return this[_fiducialUID]
   }
 
 }
 
 class Point extends Scoord3D {
 
+  /*
+   * Single location denoted by a single (x,y,z) triplet.
+   */
   constructor(options) {
-    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
     if (!Array.isArray(options.coordinates)) {
       throw new Error('coordinates of Point must be an array')
     }
     if (options.coordinates.length !== 3) {
       throw new Error('coordinates of Point must be an array of length 3')
     }
-    this[_coordinates] = options.coordinates
-  }
-
-  get graphicData() {
-    return this[_coordinates]
+    if (options.coordinates.some((c => c < 0))) {
+      throw new Error('coordinates of Point must be positive numbers')
+    }
+    super({
+      coordinates: options.coordinates,
+      frameOfReferenceUID: options.frameOfReferenceUID,
+      fiducialUID: options.fiducialUID
+    })
   }
 
   get graphicType() {
@@ -58,19 +81,25 @@ class Point extends Scoord3D {
 
 class Multipoint extends Scoord3D {
 
+  /*
+   * Multiple points each denoted by an (x,y,z) triplet.
+   * Points need not be coplanar.
+   */
   constructor(options) {
-    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
     if (!Array.isArray(options.coordinates)) {
       throw new Error('coordinates of Multipoint must be an array')
     }
-    if(options.coordinates.find(c => c.length !== 3)!== undefined){
-      throw new Error('coordinates of Multipoint must be an array of length 3')
+    if(options.coordinates.find(c => c.length !== 3)!== undefined) {
+      throw new Error('coordinates of Multipoint must be an array of (x,y,z) triplets')
     }
-    this[_coordinates] = options.coordinates
-  }
-
-  get graphicData() {
-    return this[_coordinates]
+    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+      throw new Error('coordinates of Multipoint must be positive numbers')
+    }
+    super({
+      coordinates: options.coordinates,
+      frameOfReferenceUID: options.frameOfReferenceUID,
+      fiducialUID: options.fiducialUID
+    })
   }
 
   get graphicType() {
@@ -81,52 +110,63 @@ class Multipoint extends Scoord3D {
 
 class Polyline extends Scoord3D {
 
+  /*
+   * Multiple points denoted by (x,y,z) triplets that represent
+   * connected line segments with ordered vertices
+   * Points need not be coplanar.
+   */
   constructor(options) {
-    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
     if (!Array.isArray(options.coordinates)) {
       throw new Error('coordinates of Polyline must be an array')
     }
-    if(options.coordinates.find(c => c.length !== 3)!== undefined){
-      throw new Error('coordinates of Polyline must be a list of points of length 3')
+    if(options.coordinates.find(c => c.length !== 3)!== undefined) {
+      throw new Error('coordinates of Polyline must be an array of (x,y,z) triplets')
     }
-    this[_coordinates] = options.coordinates
-  }
-
-  get graphicData() {
-    /*
-     * A polyline is defined as a series of connected line segments
-     * with ordered vertices denoted by (column,row) pairs.
-     * If the first and last vertices are the same it is a closed polygon.
-     */
-    return this[_coordinates]
+    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+      throw new Error('coordinates of Polyline must be positive numbers')
+    }
+    super({
+      coordinates: options.coordinates,
+      frameOfReferenceUID: options.frameOfReferenceUID,
+      fiducialUID: options.fiducialUID
+    })
   }
 
   get graphicType() {
     return 'POLYLINE'
   }
-
 }
+
 
 class Polygon extends Scoord3D {
 
+  /*
+   * Multiple points denoted by (x,y,z) triplets that represent
+   * connected line segments with ordered vertices.
+   * First and last point shall be the same.
+   * Points shall be coplanar.
+   */
   constructor(options) {
-    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
     if (!Array.isArray(options.coordinates)) {
       throw new Error('coordinates of Polygon must be an array')
     }
-    if(options.coordinates.find(c => c.length !== 3)!== undefined){
-      throw new Error('coordinates of Polygon must be a list of points of length 3')
+    if(options.coordinates.find(c => c.length !== 3)!== undefined) {
+      throw new Error('coordinates of Polygon must be an array of (x,y,z) triplets')
     }
-    this[_coordinates] = options.coordinates
-  }
-
-  get graphicData() {
-    /*
-     * A polygon is defined a series of connected line segments with ordered vertices 
-     * denoted by (x,y,z) triplets, where the first and last vertices shall be the same 
-     * forming a polygon the points shall be coplanar
-     */
-    return this[_coordinates]
+    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+      throw new Error('coordinates of Polygon must be positive numbers')
+    }
+    const n = options.coordinates.length;
+    if((options.coordinates[0][0] !== options.coordinates[n-1][0]) ||
+       (options.coordinates[0][1] !== options.coordinates[n-1][1]) ||
+       (options.coordinates[0][2] !== options.coordinates[n-1][2])) {
+      throw new Error('first and last coordinate of Polygon must be the same')
+    }
+    super({
+      coordinates: options.coordinates,
+      frameOfReferenceUID: options.frameOfReferenceUID,
+      fiducialUID: options.fiducialUID
+    })
   }
 
   get graphicType() {
@@ -135,67 +175,66 @@ class Polygon extends Scoord3D {
 
 }
 
-class Circle extends Scoord3D {
+class Ellipsoid extends Scoord3D {
 
+  /*
+   * Six points denoted by (x,y,z) triplets, where the first two points represent
+   * the endpoints of the first axis and the second two points represent the
+   * endpoints of the second axis and the third two points represent the
+   * endpoints of the third axis. respectively.
+   */
   constructor(options) {
-    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
     if (!Array.isArray(options.coordinates)) {
-      throw new Error('coordinates of Circle must be an array')
+      throw new Error('coordinates of Ellipsoid must be an array')
     }
-    if (options.coordinates.length < 2) {
-      throw new Error('coordinates of Circle must be an array of length 2')
+    if (options.coordinates.length !== 6) {
+      throw new Error('coordinates of Ellipsoid must be an array of length 6')
     }
-    if(options.coordinates.find(c => c.length !== 3)!== undefined){
-      throw new Error('coordinates of Circle must be a list or size two with points of length 3')
+    if(options.coordinates.find(c => c.length !== 3)!== undefined) {
+      throw new Error('coordinates of Ellipsoid must be an array of (x,y,z) triplets')
     }
-    this[_coordinates] = options.coordinates
-  }
-
-  get graphicData() {
-    /*
-     * A circle is defined by an array of flat coordinates
-     * distributed into two arrays or xyz coordinates where the 
-     * last coordinate is always 1
-     */
-    return this[_coordinates]
+    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+      throw new Error('coordinates of Ellipsoid must be positive numbers')
+    }
+    super({
+      coordinates: options.coordinates,
+      frameOfReferenceUID: options.frameOfReferenceUID,
+      fiducialUID: options.fiducialUID
+    })
   }
 
   get graphicType() {
-    return 'CIRCLE'
+    return 'ELLIPSOID'
   }
 
 }
 
 class Ellipse extends Scoord3D {
 
+  /*
+   * Four points denoted by (x,y,z) triplets, where the first two points represent
+   * the endpoints of the major axis and the second two points represent the
+   * endpoints of the minor axis.
+   */
   constructor(options) {
-    super({referencedFrameOfReferenceUID: options.referencedFrameOfReferenceUID})
-    if (!Array.isArray(options.majorAxisEndpointCoordinates)) {
-      throw new Error('majorAxisEndpointCoordinates of Ellipse must be an array')
+    if (!Array.isArray(options.coordinates)) {
+      throw new Error('coordinates of Ellipse must be an array')
     }
-    if (!Array.isArray(options.minorAxisEndpointCoordinates)) {
-      throw new Error('minorAxisEndpointCoordinates of Ellipse must be an array')
+    if (options.coordinates.length !== 4) {
+      throw new Error('coordinates of Ellipse must be an array of length 4')
     }
-    if (options.majorAxisEndpointCoordinates.length !== 2) {
-      throw new Error('majorAxisEndpointCoordinates coordinates of Ellipse must be an array of length 2')
+    if(options.coordinates.find(c => c.length !== 3)!== undefined) {
+      throw new Error('coordinates of Ellipse must be an array of (x,y,z) triplets')
     }
-    if (options.minorAxisEndpointCoordinates.length !== 2) {
-      throw new Error('minorAxisEndpointCoordinates coordinates of Ellipse must be an array of length 2')
+    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+      throw new Error('coordinates of Ellipse must be positive numbers')
     }
-    this[_majorAxisEndpointCoordinates] = options.majorAxisEndpointCoordinates
-    this[_minorAxisEndpointCoordinates] = options.minorAxisEndpointCoordinates
-  }
-
-  get graphicData() {
-    /*
-     * An ellipse defined by four pixel (column,row) pairs distributed into two arrays.
-     * The first array contains two points that represents the major axis.
-     * The second array contains two points that represents the minor axis.
-     */
-    return [
-      ...this[_majorAxisEndpointCoordinates],
-      ...this[_minorAxisEndpointCoordinates]
-    ]
+    // TODO: assert major and minor axes are in right angle
+    super({
+      coordinates: options.coordinates,
+      frameOfReferenceUID: options.frameOfReferenceUID,
+      fiducialUID: options.fiducialUID
+    })
   }
 
   get graphicType() {
@@ -204,5 +243,5 @@ class Ellipse extends Scoord3D {
 
 }
 
-export { Point, Multipoint, Polyline, Polygon, Circle, Ellipse }
+export { Point, Multipoint, Polyline, Polygon, Ellipse, Ellipsoid }
 
