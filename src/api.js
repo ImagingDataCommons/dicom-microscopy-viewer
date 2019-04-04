@@ -710,7 +710,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const defaultDrawOptions = {source: this[_drawingSource]};
     const customDrawOptions = customOptionsMapping[options.geometryType];
     if ('style' in options) {
-      customDrawOptions.style = options.style;
+      customDrawOptions.style = options.style.getStyle();
     }
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
