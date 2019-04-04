@@ -11,6 +11,7 @@ import ScaleLine from 'ol/control/ScaleLine';
 import Draw, {createRegularPolygon, createBox} from 'ol/interaction/Draw';
 import Select from 'ol/interaction/Select';
 import Modify from 'ol/interaction/Modify';
+import MultiPoint from 'ol/geom/MultiPoint.js';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import Collection from 'ol/Collection';
@@ -511,6 +512,12 @@ class VLWholeSlideMicroscopyImageViewer {
       projection: projection
     });
 
+    let styles;
+
+    if(options.style !== undefined){
+      styles = [options.style.getStyle()]
+    }
+
     this[_drawingSource] = new VectorSource({
       tileGrid: tileGrid,
       projection: projection,
@@ -521,6 +528,7 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_drawingLayer] = new VectorLayer({
       extent: extent,
       source: this[_drawingSource],
+      style: styles,
       projection: projection,
       updateWhileAnimating: true,
       updateWhileInteracting: true,
