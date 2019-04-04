@@ -219,21 +219,21 @@
         .then(metadata => {
           metadata = metadata.filter(m => m);
 
-          const strokeOptions = {
-            color: 'blue', 
-            width: 3
+          const styleOptions = {
+            stroke : {
+              color: 'blue', 
+              width: 3
+            },
+            fill : {
+              color: 'rgba(0, 0, 255, 0.1)'
+            },
+            circle : {
+              radius: 5,
+              color: 'green'
+            }
           }
 
-          const fillOptions = {
-            color: 'rgba(0, 0, 255, 0.1)'
-          }
-
-          const circleOptions = {
-            radius: 5,
-            color: 'green'
-          }
-
-          const style = new DICOMMicroscopyViewer.style.ToolStyle(strokeOptions,  fillOptions, circleOptions)
+          const style = new DICOMMicroscopyViewer.style.ToolStyle(styleOptions)
           const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({client, metadata, style});
 
           const container = document.getElementById("dicomImage");
