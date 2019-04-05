@@ -21,15 +21,15 @@ class ToolStyle {
           })
         }),
         text : styleOptions.text !== undefined ? new Text({
-          font: '10px sans-serif',
-          textAlign : 'center',  
-          text : 'teste',
-          offsetX : 0,
-          offsetY : 0,
-          scale : 1,
-          textBaseline : 'center',
+          font: styleOptions.text.font !== undefined ? styleOptions.text.font : '10px sans-serif',
+          textAlign : styleOptions.text.textAlign !== undefined ? styleOptions.text.textAlign : 'center',  
+          text : styleOptions.text.text !== undefined ? styleOptions.text.text : 'teste',
+          offsetX : styleOptions.text.offsetX !== undefined ? styleOptions.text.offsetX : 0,
+          offsetY : styleOptions.text.offsetY !== undefined ? styleOptions.text.offsetY : 0,
+          scale : styleOptions.text.scale !== undefined ? styleOptions.text.scale : 1,
+          textBaseline : styleOptions.text.textBaseline !== undefined ? styleOptions.text.textBaseline : 'center',
           fill : new Fill({
-            color: '#333'
+            color: styleOptions.text.fillColor !== undefined ? styleOptions.text.fillColor : '#333'
           })
         }) : new Text()
       })

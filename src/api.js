@@ -514,7 +514,7 @@ class VLWholeSlideMicroscopyImageViewer {
 
     let styles;
 
-    if(options.style !== undefined){
+    if('style' in options){
       styles = [options.style.getStyle()]
     }
 
@@ -709,11 +709,14 @@ class VLWholeSlideMicroscopyImageViewer {
 
     const defaultDrawOptions = {source: this[_drawingSource]};
     const customDrawOptions = customOptionsMapping[options.geometryType];
-    if ('style' in options) {
-      customDrawOptions.style = options.style.getStyle();
-    }
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
+    
+    if ('style' in options) {
+      this[_interactions].draw.on('drawstart',function(event){
+        event.feature.setStyle(options.style.getStyle());    
+      });
+    }
 
     const container = this[_map].getTargetElement();
 
