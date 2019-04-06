@@ -23,7 +23,7 @@ class ToolStyle {
         text : styleOptions.text !== undefined ? new Text({
           font: styleOptions.text.font !== undefined ? styleOptions.text.font : '10px sans-serif',
           textAlign : styleOptions.text.textAlign !== undefined ? styleOptions.text.textAlign : 'center',  
-          text : styleOptions.text.text !== undefined ? styleOptions.text.text : 'teste',
+          text : styleOptions.text.text !== undefined ? styleOptions.text.text : '',
           offsetX : styleOptions.text.offsetX !== undefined ? styleOptions.text.offsetX : 0,
           offsetY : styleOptions.text.offsetY !== undefined ? styleOptions.text.offsetY : 0,
           scale : styleOptions.text.scale !== undefined ? styleOptions.text.scale : 1,
