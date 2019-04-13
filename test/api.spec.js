@@ -96,51 +96,51 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         });
     })
 
-    it('should return {} if there is no drawing', () => {
-        assert.deepEqual(viewer.getROI(0), {});
+    it('should return [] if there is no drawing', () => {
+        assert.deepEqual(viewer.getAllROIs(), []);
     })
 
     it('should create a Point ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : point, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(0).scoord3d.graphicData, point.graphicData);
+        assert.deepEqual(viewer.getROI(roi.uid).scoord3d.graphicData, point.graphicData);
     })
 
     it('should create a Box ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : box, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(1).scoord3d.graphicData, box.graphicData);
+        assert.deepEqual(viewer.getROI(roi.uid).scoord3d.graphicData, box.graphicData);
     })
 
     it('should create a Polygon ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : polygon, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(2).scoord3d.graphicData, polygon.graphicData);
+        assert.deepEqual(viewer.getROI(roi.uid).scoord3d.graphicData, polygon.graphicData);
     })
 
     it('should create a Freehand Polygon ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : freehandPolygon, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(3).scoord3d.graphicData, freehandPolygon.graphicData);
+        assert.deepEqual(viewer.getROI(roi.uid).scoord3d.graphicData, freehandPolygon.graphicData);
     })
 
     it('should create a Line ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : line, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(4).scoord3d.graphicData, line.graphicData);
+        assert.deepEqual(viewer.getROI(roi.uid).scoord3d.graphicData, line.graphicData);
     })
 
     it('should create a FreehandLine ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : freeHandLine, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(5).scoord3d.graphicData, freeHandLine.graphicData);
+        assert.deepEqual(viewer.getROI(roi.uid).scoord3d.graphicData, freeHandLine.graphicData);
     })
 
     it('should create an Ellipse ROI and return it back successfuly', () => {
         const roi = new dicomMicroscopyViewer.roi.ROI({scoord3d : ellipse, properties});
         viewer.addROI(roi);
-        assert.deepEqual(viewer.getROI(6).scoord3d.graphicData[0], ellipse.graphicData[0]);
-        assert.deepEqual(viewer.getROI(6).scoord3d.graphicData[1], ellipse.graphicData[1]);
+        assert.deepEqual(viewer.getROI(roi.uid).scoord3d.graphicData[0], ellipse.graphicData[0]);
+        assert.deepEqual(viewer.getROI(roi.uid).scoord3d.graphicData[1], ellipse.graphicData[1]);
     })
 
     it('should return all ROIs created up to now', () => {
@@ -148,30 +148,14 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
         assert.equal(rois.length, 7)
     })
 
-    it('should be able to modify the point ROI', () => {
-        let rois = viewer.getAllROIs();
-        assert.deepEqual(rois[0].scoord3d.coordinates, point.coordinates);
-        const newPoint = new dicomMicroscopyViewer.scoord3d.Point({
-          coordinates: [0, 10, 1],
-          frameOfReferenceUID: '1.2.3'
-        });
-        const newPointRoi = new dicomMicroscopyViewer.roi.ROI({scoord3d : newPoint, properties});
-        viewer.updateROI(0, newPointRoi);
-        rois = viewer.getAllROIs();
-        assert.deepEqual(rois[0].scoord3d.coordinates, newPoint.coordinates);
-        // Change back to not affect downstream tests
-        const oldPointRoi = new dicomMicroscopyViewer.roi.ROI({scoord3d : point, properties});
-        viewer.updateROI(0, oldPointRoi);
-    })
-
     it('should be able to remove the point ROI', () => {
         let rois = viewer.getAllROIs();
         assert.equal(rois.length, 7);
-        assert.deepEqual(viewer.getROI(0).scoord3d.graphicData, point.graphicData);
-        viewer.removeROI(0);
+        assert.deepEqual(viewer.getROI(rois[0].uid).scoord3d.graphicData, point.graphicData);
+        viewer.removeROI(rois[0].uid);
         rois = viewer.getAllROIs();
         assert.equal(rois.length, 6);
-        assert.deepEqual(viewer.getROI(0).scoord3d.graphicData, box.graphicData);
+        assert.deepEqual(viewer.getROI(rois[0].uid).scoord3d.graphicData, box.graphicData);
     })
 
 

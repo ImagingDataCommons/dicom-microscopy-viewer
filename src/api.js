@@ -833,11 +833,9 @@ class VLWholeSlideMicroscopyImageViewer {
 
   getAllROIs() {
     let rois = [];
-    if (this.numberOfROIs > 0) {
-      for(let index = 0; index < this.numberOfROIs; index++){
-        rois.push(this.getROI(index));
-      }
-    }
+    this[_features].forEach((item) => {
+        rois.push(this.getROI(item.getId()));
+    });
     return rois;
   }
 
@@ -845,18 +843,9 @@ class VLWholeSlideMicroscopyImageViewer {
     return this[_features].getLength();
   }
 
-  getROI(index) {
-    const feature = this[_features].item(index);
+  getROI(uid) {
+    const feature = this[_drawingSource].getFeatureById(uid);
     return _getROIFromFeature(feature, this._pyramid);
-  }
-
-  indexOfROI(item) {
-    for(let index = 0; index < this.numberOfROIs; index++){
-      if (item.uid === this[_features].item(index).getId()) {
-        return index;
-      }
-    }
-    return -1;
   }
 
   popROI() {
@@ -868,19 +857,17 @@ class VLWholeSlideMicroscopyImageViewer {
     const geometry = _scoord3d2Geometry(item.scoord3d, this._pyramid);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
+    feature.setId(item.uid);
     this[_features].push(feature);
   }
 
-  updateROI(index, item) {
-    const geometry = _scoord3d2Geometry(item.scoord3d, this._pyramid);
-    const feature = new Feature(geometry);
-    feature.setProperties(item.properties, true);
-    feature.setId(item.uid);
-    this[_features].setAt(index, feature);
+  removeROI(uid) {
+    const feature = this[_drawingSource].getFeatureById(uid);
+    this[_features].remove(feature);
   }
 
-  removeROI(index) {
-    this[_features].removeAt(index);
+  removeAllROI() {
+    this[_features].clear();
   }
 
   hideROIs() {
