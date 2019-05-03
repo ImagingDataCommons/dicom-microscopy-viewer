@@ -27,7 +27,7 @@ import { default as MapEventType } from "ol/MapEventType";
 import { getCenter } from 'ol/extent';
 import { toStringXY } from 'ol/coordinate';
 
-import { formatImageMetadata } from './metadata.js';
+import { formatImageMetadata, getFrameMapping } from './metadata.js';
 import { ROI } from './roi.js';
 import { generateUID } from './utils.js';
 import {
@@ -42,8 +42,14 @@ import {
 import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
 
+function _getPixelSpacing(metadata) {
+  const functionalGroup = metadata.SharedFunctionalGroupsSequence[0];
+  const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
+  return pixelMeasures.PixelSpacing;
+}
+
 function _geometry2Scoord3d(geometry, pyramid) {
-  const frameOfReferenceUID = pyramid[pyramid.length-1].frameOfReferenceUID;
+  const frameOfReferenceUID = pyramid[pyramid.length-1].FrameOfReferenceUID;
   const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
@@ -161,9 +167,10 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
     coordinates = [coordinates];
   }
   coordinates.map(coord =>{
-    let x = (coord[0] * pyramid[pyramid.length-1].pixelSpacing[0]).toFixed(4);
-    let y = (-(coord[1] - 1) * pyramid[pyramid.length-1].pixelSpacing[1]).toFixed(4);
-    let z = (1).toFixed(4);
+    const pixelSpacing = _getPixelSpacing(pyramid[pyramid.length-1]);
+    const x = (coord[0] * pixelSpacing[0]).toFixed(4);
+    const y = (-(coord[1] - 1) * pixelSpacing[1]).toFixed(4);
+    const z = (1).toFixed(4);
     coordinates = [Number(x), Number(y), Number(z)];
   })
   return(coordinates);
@@ -178,9 +185,10 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
     coordinates = [coordinates];
   }
   coordinates.map(coord =>{
-    let x = (coord[0] / pyramid[pyramid.length-1].pixelSpacing[0] - 1);
-    let y = -(coord[1] / pyramid[pyramid.length-1].pixelSpacing[1] - 1);
-    let z = coord[2];
+    const pixelSpacing = _getPixelSpacing(pyramid[pyramid.length-1]);
+    const x = (coord[0] / pixelSpacing[0] - 1);
+    const y = -(coord[1] /pixelSpacing[1] - 1);
+    const z = coord[2];
     coordinates = [x, y, z];
   });
    return(coordinates);
@@ -207,11 +215,12 @@ const _features = Symbol('features');
 const _drawingSource = Symbol('drawingSource');
 const _drawingLayer = Symbol('drawingLayer');
 const _segmentations = Symbol('segmentations');
-const _pyramid = Symbol('pyramid');
 const _client = Symbol('client');
 const _controls = Symbol('controls');
 const _interactions = Symbol('interactions');
-const _pyramidBase = Symbol('pyramidBaseLayer');
+const _pyramidMetadata = Symbol('pyramidMetadata');
+const _pyramidFrameMappings = Symbol('pyramidFrameMappings');
+const _pyramidBaseMetadata = Symbol('pyramidMetadataBase');
 const _metadata = Symbol('metadata');
 
 
@@ -262,21 +271,35 @@ class VLWholeSlideMicroscopyImageViewer {
      * images at the different pyramid levels.
     */
     this[_metadata] = options.metadata.map(m => formatImageMetadata(m));
-    this._pyramid = [];
+    // Sort instances and optionally concatenation parts if present.
+    this[_metadata].sort((a, b) => {
+      const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns;
+      if (sizeDiff !== 0) {
+        return sizeDiff;
+      }
+      if (a.ConcatenationFrameOffsetNumber !== undefined) {
+        return a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber;
+      }
+      return sizeDiff;
+    });
+    this[_pyramidMetadata] = [];
+    this[_pyramidFrameMappings] = [];
+    let frameMappings = options.metadata.map(m => getFrameMapping(m));
     for (let i = 0; i < this[_metadata].length; i++) {
-      const cols = this[_metadata][i].totalPixelMatrixColumns;
-      const rows = this[_metadata][i].totalPixelMatrixRows;
-      const mapping = this[_metadata][i].frameMapping;
+      const cols = this[_metadata][i].TotalPixelMatrixColumns;
+      const rows = this[_metadata][i].TotalPixelMatrixRows;
+      const numberOfFrames = this[_metadata][i].NumberOfFrames;
+      const perFrameFunctionalGroups = this[_metadata][i].PerFrameFunctionalGroupsSequence;
       /*
        * Instances may be broken down into multiple concatentation parts.
        * Therefore, we have to re-assemble instance metadata.
       */
       let alreadyExists = false;
       let index = null;
-      for (let j = 0; j < this._pyramid.length; j++) {
+      for (let j = 0; j < this[_pyramidMetadata].length; j++) {
         if (
-            (this._pyramid[j].totalPixelMatrixColumns === cols) &&
-            (this._pyramid[j].totalPixelMatrixRows === rows)
+            (this[_pyramidMetadata][j].TotalPixelMatrixColumns === cols) &&
+            (this[_pyramidMetadata][j].TotalPixelMatrixRows === rows)
           ) {
           alreadyExists = true;
           index = j;
@@ -284,22 +307,33 @@ class VLWholeSlideMicroscopyImageViewer {
       }
       if (alreadyExists) {
         // Update with information obtained from current concatentation part.
-        Object.assign(this._pyramid[index].frameMapping, mapping);
+        Object.assign(this[_pyramidFrameMappings][index], frameMappings[i]);
+        this[_pyramidMetadata][index].NumberOfFrames += numberOfFrames;
+        this[_pyramidMetadata][index].PerFrameFunctionalGroupsSequence.push(
+          ...perFrameFunctionalGroups
+        );
+        if (!"SOPInstanceUIDOfConcatenationSource" in this[_metadata][i]) {
+          throw new Error(
+            'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
+            'for concatenation parts.'
+          );
+        }
+        const sopInstanceUID = this[_metadata][i].SOPInstanceUIDOfConcatenationSource;
+        this[_pyramidMetadata][index].SOPInstanceUID = sopInstanceUID;
+        delete this[_pyramidMetadata][index].SOPInstanceUIDOfConcatenationSource;
+        delete this[_pyramidMetadata][index].ConcatenationUID;
+        delete this[_pyramidMetadata][index].InConcatenationNumber;
+        delete this[_pyramidMetadata][index].ConcatenationFrameOffsetNumber;
       } else {
-        this._pyramid.push(this[_metadata][i]);
+        this[_pyramidMetadata].push(this[_metadata][i]);
+        this[_pyramidFrameMappings].push(frameMappings[i]);
       }
     }
-    // Sort levels in ascending order
-    this._pyramid.sort(function(a, b) {
-      if(a.totalPixelMatrixColumns < b.totalPixelMatrixColumns) {
-        return -1;
-      } else if(a.totalPixelMatrixColumns > b.totalPixelMatrixColumns) {
-        return 1;
-      } else {
-        return 0;
-      }
-    });
-    this[_pyramidBase] = this._pyramid[this._pyramid.length-1];
+    const nLevels = this[_pyramidMetadata].length;
+    if (nLevels === 0) {
+      console.error('empty pyramid - no levels found')
+    }
+    this[_pyramidBaseMetadata] = this[_pyramidMetadata][nLevels - 1];
     /*
      * Collect relevant information from DICOM metadata for each pyramid
      * level to construct the Openlayers map.
@@ -309,31 +343,33 @@ class VLWholeSlideMicroscopyImageViewer {
     const resolutions = [];
     const origins = [];
     const offset = [0, -1];
-    const nLevels = this._pyramid.length;
-    if (nLevels === 0) {
-      console.error('empty pyramid - no levels found')
-    }
-    const basePixelSpacing = this._pyramid[nLevels-1].pixelSpacing;
-    const baseColumns = this._pyramid[nLevels-1].columns;
-    const baseRows = this._pyramid[nLevels-1].rows;
-    const baseTotalPixelMatrixColumns = this._pyramid[nLevels-1].totalPixelMatrixColumns;
-    const baseTotalPixelMatrixRows = this._pyramid[nLevels-1].totalPixelMatrixRows;
+    const basePixelSpacing = _getPixelSpacing(this[_pyramidBaseMetadata]);
+    const baseColumns = this[_pyramidBaseMetadata].Columns;
+    const baseRows = this[_pyramidBaseMetadata].Rows;
+    const baseTotalPixelMatrixColumns = this[_pyramidBaseMetadata].TotalPixelMatrixColumns;
+    const baseTotalPixelMatrixRows = this[_pyramidBaseMetadata].TotalPixelMatrixRows;
     const baseColFactor = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
     const baseRowFactor = Math.ceil(baseTotalPixelMatrixRows / baseRows);
     const baseAdjustedTotalPixelMatrixColumns = baseColumns * baseColFactor;
     const baseAdjustedTotalPixelMatrixRows = baseRows * baseRowFactor;
     for (let j = (nLevels - 1); j >= 0; j--) {
-      let columns = this._pyramid[j].columns;
-      let rows = this._pyramid[j].rows;
-      let totalPixelMatrixColumns = this._pyramid[j].totalPixelMatrixColumns;
-      let totalPixelMatrixRows = this._pyramid[j].totalPixelMatrixRows;
-      let pixelSpacing = this._pyramid[j].pixelSpacing;
-      let colFactor = Math.ceil(totalPixelMatrixColumns / columns);
-      let rowFactor = Math.ceil(totalPixelMatrixRows / rows);
-      let adjustedTotalPixelMatrixColumns = columns * colFactor;
-      let adjustedTotalPixelMatrixRows = rows * rowFactor;
-      tileSizes.push([columns, rows]);
-      totalSizes.push([adjustedTotalPixelMatrixColumns, adjustedTotalPixelMatrixRows]);
+      const columns = this[_pyramidMetadata][j].Columns;
+      const rows = this[_pyramidMetadata][j].Rows;
+      const totalPixelMatrixColumns = this[_pyramidMetadata][j].TotalPixelMatrixColumns;
+      const totalPixelMatrixRows = this[_pyramidMetadata][j].TotalPixelMatrixRows;
+      const pixelSpacing = _getPixelSpacing(this[_pyramidMetadata][j]);
+      const colFactor = Math.ceil(totalPixelMatrixColumns / columns);
+      const rowFactor = Math.ceil(totalPixelMatrixRows / rows);
+      const adjustedTotalPixelMatrixColumns = columns * colFactor;
+      const adjustedTotalPixelMatrixRows = rows * rowFactor;
+      tileSizes.push([
+        columns,
+        rows
+      ]);
+      totalSizes.push([
+        adjustedTotalPixelMatrixColumns,
+        adjustedTotalPixelMatrixRows
+      ]);
 
       /*
        * Compute the resolution at each pyramid level, since the zoom
@@ -353,13 +389,15 @@ class VLWholeSlideMicroscopyImageViewer {
     tileSizes.reverse();
     origins.reverse();
 
-    const pyramid = this._pyramid;
+    // Functions won't be able to access "this"
+    const pyramid = this[_pyramidMetadata];
+    const pyramidFrameMappings = this[_pyramidFrameMappings];
 
     /*
      * Define custom tile URL function to retrive frames via DICOMweb
      * WADO-RS.
      */
-    function tileUrlFunction(tileCoord, pixelRatio, projection) {
+    const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
       /*
        * Variables x and y correspond to the X and Y axes of the slide
        * coordinate system. Since we want to view the slide horizontally
@@ -378,14 +416,14 @@ class VLWholeSlideMicroscopyImageViewer {
        */
       let x = -(tileCoord[2] + 1) + 1;
       let index = x + "-" + y;
-      let path = pyramid[z].frameMapping[index];
+      let path = pyramidFrameMappings[z][index];
       if (path === undefined) {
         console.warn("tile " + index + " not found at level " + z);
         return(null);
       }
       let url = options.client.wadoURL +
-        "/studies/" + pyramid[z].studyInstanceUID +
-        "/series/" + pyramid[z].seriesInstanceUID +
+        "/studies/" + pyramid[z].StudyInstanceUID +
+        "/series/" + pyramid[z].SeriesInstanceUID +
         '/instances/' + path;
       if (options.retrieveRendered) {
         url = url + '/rendered';
@@ -397,12 +435,12 @@ class VLWholeSlideMicroscopyImageViewer {
      * Define custonm tile loader function, which is required because the
      * WADO-RS response message has content type "multipart/related".
     */
-    function base64Encode(data){
+    const base64Encode = (data) => {
       const uint8Array = new Uint8Array(data);
       const chunkSize = 0x8000;
       const strArray = [];
       for (let i=0; i < uint8Array.length; i+=chunkSize) {
-        let str = String.fromCharCode.apply(
+        const str = String.fromCharCode.apply(
           null, uint8Array.subarray(i, i + chunkSize)
         );
         strArray.push(str);
@@ -410,7 +448,7 @@ class VLWholeSlideMicroscopyImageViewer {
       return btoa(strArray.join(''));
     }
 
-    function tileLoadFunction(tile, src) {
+    const tileLoadFunction = (tile, src) => {
       if (src !== null) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
@@ -478,8 +516,8 @@ class VLWholeSlideMicroscopyImageViewer {
     */
     var degrees = 0;
     if (
-      (this[_pyramidBase].imageOrientationSlide[1] === -1) &&
-      (this[_pyramidBase].imageOrientationSlide[3] === -1)
+      (this[_pyramidBaseMetadata].ImageOrientationSlide[1] === -1) &&
+      (this[_pyramidBaseMetadata].ImageOrientationSlide[3] === -1)
     ) {
       /*
        * The row direction (left to right) of the total pixel matrix
@@ -512,7 +550,7 @@ class VLWholeSlideMicroscopyImageViewer {
          * DICOM pixel spacing has millimeter unit while the projection has
          * has meter unit.
          */
-        let spacing = pyramid[nLevels-1].pixelSpacing[0] / 10**3;
+        let spacing = _getPixelSpacing(pyramid[nLevels-1])[0] / 10**3;
         let res = pixelRes * spacing;
         return(res);
       }
@@ -677,23 +715,23 @@ class VLWholeSlideMicroscopyImageViewer {
     const container = this[_map].getTargetElement();
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      publish(container, EVENT.ROI_ADDED, _getROIFromFeature(e.feature, this._pyramid));
+      publish(container, EVENT.ROI_ADDED, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      publish(container, EVENT.ROI_MODIFIED, _getROIFromFeature(e.feature, this._pyramid));
+      publish(container, EVENT.ROI_MODIFIED, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(container, EVENT.ROI_REMOVED, _getROIFromFeature(e.feature, this._pyramid));
+      publish(container, EVENT.ROI_REMOVED, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
     this[_map].on(MapEventType.MOVESTART, (e) => {
-      publish(container, EVENT.DICOM_MOVE_STARTED, this.getAllROIs());
+      publish(container, EVENT.MOVE_STARTED, this.getAllROIs());
     });
 
     this[_map].on(MapEventType.MOVEEND, (e) => {
-      publish(container, EVENT.DICOM_MOVE_ENDED, this.getAllROIs());
+      publish(container, EVENT.MOVE_ENDED, this.getAllROIs());
     });
 
   }
@@ -758,7 +796,7 @@ class VLWholeSlideMicroscopyImageViewer {
     //attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
       e.feature.setId(generateUID());
-      publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this._pyramid));
+      publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
     this[_map].addInteraction(this[_interactions].draw);
@@ -789,7 +827,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const container = this[_map].getTargetElement();
 
     this[_interactions].select.on('select', (e) => {
-      publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this._pyramid));
+      publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this[_pyramidMetadata]));
     });
 
     this[_map].addInteraction(this[_interactions].select);
@@ -845,16 +883,16 @@ class VLWholeSlideMicroscopyImageViewer {
 
   getROI(uid) {
     const feature = this[_drawingSource].getFeatureById(uid);
-    return _getROIFromFeature(feature, this._pyramid);
+    return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
   popROI() {
     const feature = this[_features].pop();
-    return _getROIFromFeature(feature, this._pyramid);
+    return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
   addROI(item) {
-    const geometry = _scoord3d2Geometry(item.scoord3d, this._pyramid);
+    const geometry = _scoord3d2Geometry(item.scoord3d, this[_pyramidMetadata]);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
     feature.setId(item.uid);
@@ -881,6 +919,11 @@ class VLWholeSlideMicroscopyImageViewer {
   get areROIsVisible() {
     return this[_drawingLayer].getVisible();
   }
+
+  get imageMetadata() {
+    return this[_pyramidMetadata].reverse();
+  }
+
 }
 
 export { VLWholeSlideMicroscopyImageViewer };
