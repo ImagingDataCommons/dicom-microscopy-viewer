@@ -1,5 +1,7 @@
 import { generateUID } from './utils.js';
 
+const _uid = Symbol('uid');
+const _scoord3d = Symbol('scoord3d');
 
 /* Region of interest.
  */
@@ -11,18 +13,29 @@ class ROI {
    */
   constructor(options) {
     if (!('scoord3d' in options)) {
-      console.error('spatial coordinates are required for ROI')
+      throw new Error('spatial coordinates are required for ROI')
+    }
+    if (!(typeof(options.scoord3d) === 'object' || options.scoord3d !== null)) {
+      throw new Error('scoord3d of ROI must be a Scoord3D object')
     }
     if (!('uid' in options)) {
-      this.uid = generateUID();
+      this[_uid] = generateUID();
     } else {
-      if (!(typeof options.uid === 'string' || options.uid instanceof String)) {
+      if (!(typeof(options.uid) === 'string' || options.uid instanceof String)) {
         throw new Error('uid of ROI must be a string')
       }
-      this.uid = options.uid;
+      this[_uid] = options.uid;
     }
-    this.scoord3d = options.scoord3d;
-    this.properties = options.properties ? options.properties : {};
+    this[_scoord3d] = options.scoord3d;
+    // TODO: store SOPInstanceUID, SOPClassUID and FrameNumbers as reference
+  }
+
+  get uid() {
+    return this[_uid];
+  }
+
+  get scoord3d() {
+    return this[_scoord3d];
   }
 
 }
