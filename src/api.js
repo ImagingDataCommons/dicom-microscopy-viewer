@@ -274,17 +274,17 @@ class VLWholeSlideMicroscopyImageViewer {
     // Sort instances and optionally concatenation parts if present.
     this[_metadata].sort((a, b) => {
       const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns;
-      if (sizeDiff !== 0) {
+      if (sizeDiff === 0) {
+        if (a.ConcatenationFrameOffsetNumber !== undefined) {
+          return a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber;
+        }
         return sizeDiff;
-      }
-      if (a.ConcatenationFrameOffsetNumber !== undefined) {
-        return a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber;
       }
       return sizeDiff;
     });
     this[_pyramidMetadata] = [];
     this[_pyramidFrameMappings] = [];
-    let frameMappings = options.metadata.map(m => getFrameMapping(m));
+    let frameMappings = this[_metadata].map(m => getFrameMapping(m));
     for (let i = 0; i < this[_metadata].length; i++) {
       const cols = this[_metadata][i].TotalPixelMatrixColumns;
       const rows = this[_metadata][i].TotalPixelMatrixRows;
@@ -921,7 +921,7 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   get imageMetadata() {
-    return this[_pyramidMetadata].reverse();
+    return this[_pyramidMetadata];
   }
 
 }

@@ -1,29 +1,21 @@
 import { keywordToTag, tagToKeyword } from './dictionary';
 
 function getFrameMapping(metadata) {
-  const rows = metadata['00280010']['Value'][0];
-  const columns = metadata['00280011']['Value'][0];
-  const totalPixelMatrixColumns = metadata['00480006']['Value'][0];
-  const totalPixelMatrixRows = metadata['00480007']['Value'][0];
-  const sopInstanceUID = metadata['00080018']['Value'][0];
-  let numberOfFrames = 1;
-  if ('00280008' in metadata) {
-    numberOfFrames = Number(metadata['00280008']['Value'][0]);
-  }
-  let frameOffsetNumber = 0;
-  if ('00209161' in metadata) {
-    frameOffsetNumber = Number(metadata['00209228']['Value'][0]);
-  }
+  const rows = metadata.Rows;
+  const columns = metadata.Columns;
+  const totalPixelMatrixColumns = metadata.TotalPixelMatrixColumns;
+  const totalPixelMatrixRows = metadata.TotalPixelMatrixRows;
+  const sopInstanceUID = metadata.SOPInstanceUID;
+  let numberOfFrames = metadata.NumberOfFrames || 1;
+  numberOfFrames = Number(numberOfFrames);
+  let frameOffsetNumber = metadata.ConcatenationFrameOffsetNumber || 0;
+  frameOffsetNumber = Number(frameOffsetNumber);
   /*
    * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
    * of the standard. Older datasets are equivalent to "TILED_SPARSE"
    * even though they may not have a value or a different value.
   */
-  try {
-    var dimensionOrganizationType = metadata['00209311']['Value'][0];
-  } catch (error) {
-    var dimensionOrganizationType = 'TILED_SPARSE';
-  }
+  const dimensionOrganizationType = metadata.DimensionOrganizationType || 'TILED_SPARSE';
   const tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns);
   const tilesPerColumn = Math.ceil(totalPixelMatrixRows / rows);
   const frameMapping = {};
@@ -39,13 +31,13 @@ function getFrameMapping(metadata) {
       frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
     }
   } else {
-    const perFrameFunctionalGroupsSequence = metadata['52009230']['Value'];
+    const functionalGroups = metadata.PerFrameFunctionalGroupsSequence;
     for (let j = 0; j < numberOfFrames; j++) {
-      let planePositionSlideSequence = perFrameFunctionalGroupsSequence[j]['0048021A']['Value'][0];
-      let rowPositionInTotalPixelMatrix = planePositionSlideSequence['0048021F']['Value'][0];
-      let columnPositionInTotalPixelMatrix = planePositionSlideSequence['0048021E']['Value'][0];
-      let rowIndex = Math.ceil(rowPositionInTotalPixelMatrix / columns);
-      let colIndex = Math.ceil(columnPositionInTotalPixelMatrix / rows);
+      let planePositions = functionalGroups[j].PlanePositionSlideSequence[0];
+      let rowPosition = planePositions.RowPositionInTotalImagePixelMatrix;
+      let columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix;
+      let rowIndex = Math.ceil(rowPosition / columns);
+      let colIndex = Math.ceil(columnPosition / rows);
       let index = rowIndex + '-' + colIndex;
       let frameNumber = j + 1;
       frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
