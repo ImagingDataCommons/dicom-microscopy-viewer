@@ -132,7 +132,7 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
       [
         (point1[0] + point2[0]) / parseFloat(2),
         (point1[1] + point2[1]) / parseFloat(2),
-        1
+        0
       ],
       point2
     ];
@@ -163,17 +163,26 @@ function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
   * slide coordinate system
 */
 function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
-  if(coordinates.length === 3){
+  let transform = false;
+  if(!(coordinates[0] instanceof Array)) {
     coordinates = [coordinates];
+    transform = true;
   }
-  coordinates.map(coord =>{
-    const pixelSpacing = _getPixelSpacing(pyramid[pyramid.length-1]);
-    const x = (coord[0] * pixelSpacing[0]).toFixed(4);
-    const y = (-(coord[1] - 1) * pixelSpacing[1]).toFixed(4);
-    const z = (1).toFixed(4);
-    coordinates = [Number(x), Number(y), Number(z)];
-  })
-  return(coordinates);
+  const metadata = pyramid[pyramid.length-1];
+  const origin = metadata.TotalPixelMatrixOriginSequence[0];
+  const xOffset = Number(origin.XOffsetInSlideCoordinateSystem);
+  const yOffset = Number(origin.YOffsetInSlideCoordinateSystem);
+  const pixelSpacing = _getPixelSpacing(metadata);
+  coordinates = coordinates.map(point => {
+    const x = Number((xOffset + (point[0] * pixelSpacing[0])).toFixed(4));
+    const y = Number((yOffset - ((point[1] - 1) * pixelSpacing[1])).toFixed(4));
+    const z = Number((0).toFixed(4));
+    return [x, y, z];
+  });
+  if (transform) {
+    return coordinates[0];
+  }
+  return coordinates;
 }
 
 /*
@@ -181,17 +190,26 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
   * slide coordinate system
 */
 function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
-  if(coordinates.length === 3){
+  let transform = false;
+  if(!(coordinates[0] instanceof Array)) {
     coordinates = [coordinates];
+    transform = true;
   }
-  coordinates.map(coord =>{
+  const metadata = pyramid[pyramid.length-1];
+  const origin = metadata.TotalPixelMatrixOriginSequence[0];
+  const xOffset = Number(origin.XOffsetInSlideCoordinateSystem);
+  const yOffset = Number(origin.YOffsetInSlideCoordinateSystem);
+  coordinates = coordinates.map(coord =>{
     const pixelSpacing = _getPixelSpacing(pyramid[pyramid.length-1]);
-    const x = (coord[0] / pixelSpacing[0] - 1);
-    const y = -(coord[1] /pixelSpacing[1] - 1);
+    const x = (coord[0] / pixelSpacing[0] - 1) - xOffset;
+    const y = -(coord[1] /pixelSpacing[1] - 1) - yOffset;
     const z = coord[2];
-    coordinates = [x, y, z];
+    return [x, y, z];
   });
-   return(coordinates);
+  if (transform) {
+    return coordinates[0];
+  }
+  return coordinates;
 }
 
 function _getROIFromFeature(feature, pyramid){
