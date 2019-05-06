@@ -307,7 +307,6 @@ class VLWholeSlideMicroscopyImageViewer {
       const cols = this[_metadata][i].TotalPixelMatrixColumns;
       const rows = this[_metadata][i].TotalPixelMatrixRows;
       const numberOfFrames = this[_metadata][i].NumberOfFrames;
-      const perFrameFunctionalGroups = this[_metadata][i].PerFrameFunctionalGroupsSequence;
       /*
        * Instances may be broken down into multiple concatentation parts.
        * Therefore, we have to re-assemble instance metadata.
@@ -327,9 +326,11 @@ class VLWholeSlideMicroscopyImageViewer {
         // Update with information obtained from current concatentation part.
         Object.assign(this[_pyramidFrameMappings][index], frameMappings[i]);
         this[_pyramidMetadata][index].NumberOfFrames += numberOfFrames;
-        this[_pyramidMetadata][index].PerFrameFunctionalGroupsSequence.push(
-          ...perFrameFunctionalGroups
-        );
+        if ("PerFrameFunctionalGroupsSequence" in this[_metadata][index]) {
+          this[_pyramidMetadata][index].PerFrameFunctionalGroupsSequence.push(
+            ...this[_metadata][i].PerFrameFunctionalGroupsSequence
+          );
+        }
         if (!"SOPInstanceUIDOfConcatenationSource" in this[_metadata][i]) {
           throw new Error(
             'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
