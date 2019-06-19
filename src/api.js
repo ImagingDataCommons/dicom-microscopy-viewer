@@ -697,14 +697,7 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   resize(){
-    
-    const map = this[_map];
-    (function(map) {
-      setTimeout(function() {
-          
-          map.updateSize();
-      }, 200);
-    })(map)
+    this[_map].updateSize();
   }
   
 
