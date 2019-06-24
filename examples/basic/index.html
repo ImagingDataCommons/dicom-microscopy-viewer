@@ -48,9 +48,13 @@
       return(Promise.all(promises));
     }).then(metadata => {
       metadata = metadata.filter(m => m);
+
+      // Note: We are using retrieveRendered: false because dcm4chee does not yet
+      // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
       const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
         client,
-        metadata
+        metadata,
+        retrieveRendered: false
       });
 
       var container = document.getElementById('root');
