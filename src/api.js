@@ -41,7 +41,6 @@ import {
 
 import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
-
 function _getPixelSpacing(metadata) {
   const functionalGroup = metadata.SharedFunctionalGroupsSequence[0];
   const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
@@ -696,6 +695,11 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_map].getView().fit(extent, this[_map].getSize());
 
   }
+
+  resize(){
+    this[_map].updateSize();
+  }
+  
 
   /* Renders the images.
    */
