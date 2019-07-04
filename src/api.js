@@ -41,7 +41,6 @@ import {
 
 import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
-
 function _getPixelSpacing(metadata) {
   const functionalGroup = metadata.SharedFunctionalGroupsSequence[0];
   const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
@@ -248,7 +247,7 @@ class VLWholeSlideMicroscopyImageViewer {
    * options:
    *   - client (instance of DICOMwebClient)
    *   - metadata (array of DICOM JSON metadata for each image instance)
-   *   - retrieveRendered (whether frames should be retrieved using DICOMweb RetrieveRenderedTransaction)
+   *   - retrieveRendered (whether frames should be retrieved using DICOMweb RetrieveRenderedTransaction; default: true)
    *   - useWebGL (whether WebGL renderer should be used; default: true)
    */
   constructor(options) {
@@ -260,7 +259,7 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_client] = options.client;
 
     if (!('retrieveRendered' in options)) {
-      options.retrieveRendered = false;
+      options.retrieveRendered = true;
     }
 
     if (!('controls' in options)) {
@@ -490,12 +489,13 @@ class VLWholeSlideMicroscopyImageViewer {
         } else {
           // TODO: support "image/jp2" and "image/jls"
           const mimeType = 'image/jpeg';
+
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
-            mimeType
+            mimeType: `${mimeType}; transfer-syntax=1.2.840.10008.1.2.4.50`
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then((rawFrames) => {
             const blob = new Blob(rawFrames, {type: mimeType});
@@ -697,6 +697,11 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_map].getView().fit(extent, this[_map].getSize());
 
   }
+
+  resize(){
+    this[_map].updateSize();
+  }
+  
 
   /* Renders the images.
    */
