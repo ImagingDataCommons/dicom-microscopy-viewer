@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "build/dicom-microscopy-viewer.js",
   "scripts": {
@@ -31,7 +31,7 @@
   "devDependencies": {
     "chai": "^4.1.2",
     "mocha": "^5.2.0",
-    "mochify": "^5.8.0",
+    "mochify": "^6.3.0",
     "rollup": "^0.63.2",
     "rollup-plugin-commonjs": "8.3.0",
     "rollup-plugin-json": "^3.0.0",
