@@ -93,7 +93,6 @@ It leverages the [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)
 
 Currently, the viewer only supports
 
-* baseline JPEG compressed data (transfer syntax "1.2.840.10008.1.2.4.50")
 * brightfield illumination (no fluorescence)
 * 2D images (no z-stacks)
 
