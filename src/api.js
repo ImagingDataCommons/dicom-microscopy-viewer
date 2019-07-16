@@ -474,31 +474,31 @@ class VLWholeSlideMicroscopyImageViewer {
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
         const img = tile.getImage();
         if (options.retrieveRendered) {
-          const mimeType = 'image/png';
+          const mediaType = 'image/png';
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
-            mimeType
+            mediaTypes: [{ mediaType }]
           };
           options.client.retrieveInstanceFramesRendered(retrieveOptions).then((renderedFrame) => {
-            const blob = new Blob([renderedFrame], {type: mimeType});
+            const blob = new Blob([renderedFrame], {type: mediaType});
             img.src = window.URL.createObjectURL(blob);
           });
         } else {
           // TODO: support "image/jp2" and "image/jls"
-          const mimeType = 'image/jpeg';
+          const mediaType = 'image/jpeg';
 
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
-            mimeType: `${mimeType}; transfer-syntax=1.2.840.10008.1.2.4.50`
+            mediaTypes: [{mediaType, transferSyntaxUID: '1.2.840.10008.1.2.4.50'}]
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then((rawFrames) => {
-            const blob = new Blob(rawFrames, {type: mimeType});
+            const blob = new Blob(rawFrames, {type: mediaType});
             img.src = window.URL.createObjectURL(blob);
           });
         }
