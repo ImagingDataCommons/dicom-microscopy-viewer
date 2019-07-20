@@ -743,6 +743,27 @@ class VLWholeSlideMicroscopyImageViewer {
     });
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+      const geometry = e.feature.getGeometry();
+      const type = geometry.getType();
+      // The first and last point of a polygon must be identical. The last point
+      // is an implmentation detail and is hidden from the user in the graphical
+      // interface. However, we must update the last point in case the first
+      // piont has been modified by the user.
+      if (type === 'Polygon') {
+        // NOTE: Polyon in GeoJSON format contains an array of geometries,
+        // where the first element represents the coordinates of the outer ring
+        // and the second element represents the coordinates of the inner ring
+        // (in our case the inner ring should not be present).
+        const layout = geometry.getLayout();
+        const coordinates = geometry.getCoordinates();
+        const firstPoint = coordinates[0][0];
+        const lastPoint = coordinates[0][coordinates[0].length-1];
+        if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+            coordinates[0][coordinates[0].length-1] = firstPoint;
+            geometry.setCoordinates(coordinates, layout);
+            e.feature.setGeometry(geometry);
+        }
+      }
       publish(container, EVENT.ROI_MODIFIED, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
