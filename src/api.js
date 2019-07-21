@@ -951,7 +951,7 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_features].remove(feature);
   }
 
-  removeAllROI() {
+  removeAllROIs() {
     this[_features].clear();
   }
 
