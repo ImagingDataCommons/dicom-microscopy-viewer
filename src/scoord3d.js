@@ -229,7 +229,26 @@ class Ellipse extends Scoord3D {
     if(options.coordinates.find(c => c.some((item => item < 0)))) {
       throw new Error('coordinates of Ellipse must be positive numbers')
     }
-    // TODO: assert major and minor axes are in right angle
+    const majorAxis = [
+        options.coordinates[0][0] - options.coordinates[1][0],
+        options.coordinates[0][1] - options.coordinates[1][1]
+    ];
+    const minorAxis = [
+        options.coordinates[2][0] - options.coordinates[3][0],
+        options.coordinates[2][1] - options.coordinates[3][1]
+    ];
+    const majorAxisNorm = Math.sqrt(
+        Math.pow(majorAxis[0], 2) + Math.pow(majorAxis[1], 2)
+    );
+    const minorAxisNorm = Math.sqrt(
+        Math.pow(minorAxis[0], 2) + Math.pow(minorAxis[1], 2)
+    );
+    const dotProduct = majorAxis[0] * minorAxis[0] + majorAxis[1] * minorAxis[1];
+    const angle = Math.acos(dotProduct / (majorAxisNorm * minorAxisNorm));
+    const degree = angle * 180 / Math.PI;
+    if(degree !== 90) {
+      throw new Error('major and minor axis of Ellipse must have right angle')
+    }
     super({
       coordinates: options.coordinates,
       frameOfReferenceUID: options.frameOfReferenceUID,
