@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dcmjs-org/dicom-microscopy-viewer.git"
+    "url": "git+https://github.com/mghcomputationalpathology/dicom-microscopy-viewer.git"
   },
   "keywords": [
     "dicom",
@@ -25,9 +25,9 @@
   "author": "Markus D. Herrmann",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/dcmjs-org/dicom-microscopy-viewer/issues"
+    "url": "https://github.com/mghcomputationalpathology/dicom-microscopy-viewer/issues"
   },
-  "homepage": "https://github.com/dcmjs-org/dicom-microscopy-viewer#readme",
+  "homepage": "https://github.com/mghcomputationalpathology/dicom-microscopy-viewer#readme",
   "devDependencies": {
     "chai": "^4.1.2",
     "mocha": "^5.2.0",

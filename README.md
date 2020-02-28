@@ -1,11 +1,11 @@
-[![Build Status](https://travis-ci.com/dcmjs-org/dicom-microscopy-viewer.svg?branch=master)](https://travis-ci.com/dcmjs-org/dicom-microscopy-viewer)
+[![Build Status](https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer.svg?branch=master)](https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer)
 
 # DICOM Microscopy Viewer
 Vanilla JS library for web-based visualization of [DICOM VL Whole Slide Microscopy Image](http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html) datasets.
 
 ## Motivation and implementation
 The library is intended to provide a lightweight and standard-compliant viewer for microscopy images in DICOM format.
-The viewer relies on [Openlayers](http://openlayers.org/) for rendering pyramid images and dynamically retrieves pyramid tiles (image frames) via [DICOMweb WADO-RS](https://www.dicomstandard.org/dicomweb/retrieve-wado-rs-and-wado-uri/) using [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client).
+The viewer relies on [Openlayers](http://openlayers.org/) for rendering pyramid images and dynamically retrieves pyramid tiles (image frames) via [DICOMweb WADO-RS](https://www.dicomstandard.org/dicomweb/retrieve-wado-rs-and-wado-uri/) using [dicomweb-client](https://github.com/mghcomputationalpathology/dicomweb-client).
 However, the viewer API fully abstracts the underlying rendering library and doesn't expose the lower level Openlayers API directly, such that another rendering library could in principle be used in the future if this would be of advantage.
 
 ## Installation
@@ -21,7 +21,7 @@ npm install dicom-microscopy-viewer
 Build and test code locally:
 
 ```None
-git clone https://github.com/dcmjs-org/dicom-microscopy-viewer ~/dicom-microscopy-viewer
+git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
 cd ~/dicom-microscopy-viewer
 npm install
 npm run build
