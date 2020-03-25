@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "build/dicom-microscopy-viewer.js",
   "scripts": {
@@ -40,6 +40,6 @@
   },
   "dependencies": {
     "dicomweb-client": "^0.5.2",
-    "ol": "^5.3.3"
+    "ol": "^6.2.1"
   }
 }

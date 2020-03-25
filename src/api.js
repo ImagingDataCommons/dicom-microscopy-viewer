@@ -1,4 +1,3 @@
-import WebGLMap from 'ol/WebGLMap';
 import Map from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
@@ -360,7 +359,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const totalSizes = [];
     const resolutions = [];
     const origins = [];
-    const offset = [0, -1];
+    const offset = [0, 0];
     const basePixelSpacing = _getPixelSpacing(this[_pyramidBaseMetadata]);
     const baseColumns = this[_pyramidBaseMetadata].Columns;
     const baseRows = this[_pyramidBaseMetadata].Rows;
@@ -368,8 +367,6 @@ class VLWholeSlideMicroscopyImageViewer {
     const baseTotalPixelMatrixRows = this[_pyramidBaseMetadata].TotalPixelMatrixRows;
     const baseColFactor = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
     const baseRowFactor = Math.ceil(baseTotalPixelMatrixRows / baseRows);
-    const baseAdjustedTotalPixelMatrixColumns = baseColumns * baseColFactor;
-    const baseAdjustedTotalPixelMatrixRows = baseRows * baseRowFactor;
     for (let j = (nLevels - 1); j >= 0; j--) {
       const columns = this[_pyramidMetadata][j].Columns;
       const rows = this[_pyramidMetadata][j].Rows;
@@ -378,15 +375,13 @@ class VLWholeSlideMicroscopyImageViewer {
       const pixelSpacing = _getPixelSpacing(this[_pyramidMetadata][j]);
       const colFactor = Math.ceil(totalPixelMatrixColumns / columns);
       const rowFactor = Math.ceil(totalPixelMatrixRows / rows);
-      const adjustedTotalPixelMatrixColumns = columns * colFactor;
-      const adjustedTotalPixelMatrixRows = rows * rowFactor;
       tileSizes.push([
         columns,
         rows
       ]);
       totalSizes.push([
-        adjustedTotalPixelMatrixColumns,
-        adjustedTotalPixelMatrixRows
+        totalPixelMatrixColumns,
+        totalPixelMatrixRows
       ]);
 
       /*
@@ -404,7 +399,8 @@ class VLWholeSlideMicroscopyImageViewer {
       origins.push(offset);
     }
     resolutions.reverse();
-    tileSizes.reverse();
+    tileSizes.reverse();  // FIXME
+    totalSizes.reverse();  // FIXME
     origins.reverse();
 
     // Functions won't be able to access "this"
@@ -427,12 +423,7 @@ class VLWholeSlideMicroscopyImageViewer {
        */
       let z = tileCoord[0];
       let y = tileCoord[1] + 1;
-      /*
-       * The vertical axis is inverted for the chosen tile source, i.e.
-       * it starts at -1 at the top left corner and descreases along the
-       * vertical axis to the lower left corner of the viewport.
-       */
-      let x = -(tileCoord[2] + 1) + 1;
+      let x = tileCoord[2] + 1;
       let index = x + "-" + y;
       let path = pyramidFrameMappings[z][index];
       if (path === undefined) {
@@ -662,6 +653,7 @@ class VLWholeSlideMicroscopyImageViewer {
     if (options.controls.has('overview')) {
       this[_controls].overview = new OverviewMap({
         view: overviewView,
+        layers: [imageLayer, this[_drawingLayer]],
         collapsed: true,
       });
     }
@@ -670,26 +662,14 @@ class VLWholeSlideMicroscopyImageViewer {
      * Creates the map with the defined layers and view and renders it via
      * WebGL.
      */
-    if (this[_usewebgl]) {
-      this[_map] = new WebGLMap({
-        layers: [imageLayer, this[_drawingLayer]],
-        view: view,
-        controls: [],
-        loadTilesWhileAnimating: true,
-        loadTilesWhileInteracting: true,
-        logo: false
-      });
-    } else {
-
-      this[_map] = new Map({
-        layers: [imageLayer, this[_drawingLayer]],
-        view: view,
-        controls: [],
-        loadTilesWhileAnimating: true,
-        loadTilesWhileInteracting: true,
-        logo: false
-      });
-    }
+    this[_map] = new Map({
+      layers: [imageLayer, this[_drawingLayer]],
+      view: view,
+      controls: [],
+      loadTilesWhileAnimating: true,
+      loadTilesWhileInteracting: true,
+      logo: false
+    });
 
     for (let control in this[_controls]) {
       this[_map].addControl(this[_controls][control]);
@@ -701,7 +681,7 @@ class VLWholeSlideMicroscopyImageViewer {
   resize(){
     this[_map].updateSize();
   }
-  
+
 
   /* Renders the images.
    */
@@ -710,6 +690,7 @@ class VLWholeSlideMicroscopyImageViewer {
       console.error('container must be provided for rendering images')
     }
     this[_map].setTarget(options.container);
+    this[_map].updateSize();
 
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")
     let scaleElement = this[_controls]['scale'].element;
