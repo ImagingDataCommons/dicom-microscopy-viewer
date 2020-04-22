@@ -36,8 +36,8 @@ function getFrameMapping(metadata) {
       let planePositions = functionalGroups[j].PlanePositionSlideSequence[0];
       let rowPosition = planePositions.RowPositionInTotalImagePixelMatrix;
       let columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix;
-      let rowIndex = Math.ceil(rowPosition / columns);
-      let colIndex = Math.ceil(columnPosition / rows);
+      let rowIndex = Math.ceil(rowPosition / rows);
+      let colIndex = Math.ceil(columnPosition / columns);
       let index = rowIndex + '-' + colIndex;
       let frameNumber = j + 1;
       frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
