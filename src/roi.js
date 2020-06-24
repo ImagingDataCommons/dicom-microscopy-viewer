@@ -2,6 +2,7 @@ import { generateUID } from './utils.js';
 
 const _uid = Symbol('uid');
 const _scoord3d = Symbol('scoord3d');
+const _properties = Symbol('properties');
 
 /* Region of interest.
  */
@@ -27,6 +28,7 @@ class ROI {
       this[_uid] = options.uid;
     }
     this[_scoord3d] = options.scoord3d;
+    this[_properties] = options.properties;
     // TODO: store SOPInstanceUID, SOPClassUID and FrameNumbers as reference
   }
 
@@ -36,6 +38,10 @@ class ROI {
 
   get scoord3d() {
     return this[_scoord3d];
+  }
+
+  get properties() {
+    return this[_properties];
   }
 
 }

@@ -9,7 +9,7 @@ const dicomMicroscopyViewer = require('../build/dicom-microscopy-viewer.js');
 
 describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
 
-    let viewer;
+    const viewer;
     const properties = {};
     const ellipse = new dicomMicroscopyViewer.scoord3d.Ellipse({
       coordinates: [
@@ -90,7 +90,7 @@ describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
 
     before(() => {
         viewer = new dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
-            client: 'foo',
+            client: 'test',
             metadata: metadata,
             useWebGL: false
         });

@@ -1,27 +1,30 @@
-import Map from 'ol/Map';
-import View from 'ol/View';
-import TileLayer from 'ol/layer/Tile';
-import XYZ from 'ol/source/XYZ';
-import TileGrid from 'ol/tilegrid/TileGrid';
-import Projection from 'ol/proj/Projection';
-import OverviewMap from 'ol/control/OverviewMap';
-import FullScreen from 'ol/control/FullScreen';
-import ScaleLine from 'ol/control/ScaleLine';
-import Draw, {createRegularPolygon, createBox} from 'ol/interaction/Draw';
-import Select from 'ol/interaction/Select';
-import Modify from 'ol/interaction/Modify';
-import VectorLayer from 'ol/layer/Vector';
-import VectorSource from 'ol/source/Vector';
+import 'ol/ol.css';
 import Collection from 'ol/Collection';
+import Draw, { createRegularPolygon, createBox } from 'ol/interaction/Draw';
+import EVENT from "./events";
 import Feature from 'ol/Feature';
+import FullScreen from 'ol/control/FullScreen';
+import Map from 'ol/Map';
+import Modify from 'ol/interaction/Modify';
+import MouseWheelZoom from 'ol/interaction/MouseWheelZoom';
+import OverviewMap from 'ol/control/OverviewMap';
+import Projection from 'ol/proj/Projection';
+import publish from "./eventPublisher";
+import ScaleLine from 'ol/control/ScaleLine';
+import Select from 'ol/interaction/Select';
+import TileLayer from 'ol/layer/Tile';
+import TileImage from 'ol/source/TileImage';
+import TileGrid from 'ol/tilegrid/TileGrid';
+import VectorSource from 'ol/source/Vector';
+import VectorLayer from 'ol/layer/Vector';
+import View from 'ol/View';
 import { default as PolygonGeometry } from 'ol/geom/Polygon';
 import { default as PointGeometry } from 'ol/geom/Point';
 import { default as LineStringGeometry } from 'ol/geom/LineString';
 import { default as CircleGeometry } from 'ol/geom/Circle';
-import publish from "./eventPublisher";
-import EVENT from "./events";
 import { default as VectorEventType } from "ol/source/VectorEventType";
 import { default as MapEventType } from "ol/MapEventType";
+import { defaults as defaultInteractions } from 'ol/interaction';
 
 import { getCenter } from 'ol/extent';
 import { toStringXY } from 'ol/coordinate';
@@ -225,19 +228,20 @@ function _getROIFromFeature(feature, pyramid){
   return roi;
 }
 
-const _usewebgl = Symbol('usewebgl');
-const _map = Symbol('map');
-const _features = Symbol('features');
-const _drawingSource = Symbol('drawingSource');
-const _drawingLayer = Symbol('drawingLayer');
-const _segmentations = Symbol('segmentations');
 const _client = Symbol('client');
 const _controls = Symbol('controls');
+const _drawingLayer = Symbol('drawingLayer');
+const _drawingSource = Symbol('drawingSource');
+const _features = Symbol('features');
+const _imageLayer = Symbol('imageLayer');
 const _interactions = Symbol('interactions');
+const _map = Symbol('map');
+const _metadata = Symbol('metadata');
 const _pyramidMetadata = Symbol('pyramidMetadata');
 const _pyramidFrameMappings = Symbol('pyramidFrameMappings');
 const _pyramidBaseMetadata = Symbol('pyramidMetadataBase');
-const _metadata = Symbol('metadata');
+const _segmentations = Symbol('segmentations');
+const _usewebgl = Symbol('usewebgl');
 
 
 class VLWholeSlideMicroscopyImageViewer {
@@ -356,32 +360,32 @@ class VLWholeSlideMicroscopyImageViewer {
      * level to construct the Openlayers map.
     */
     const tileSizes = [];
-    const totalSizes = [];
+    const tileGridSizes = [];
     const resolutions = [];
     const origins = [];
-    const offset = [0, 0];
+    const offset = [0, -1];
     const basePixelSpacing = _getPixelSpacing(this[_pyramidBaseMetadata]);
-    const baseColumns = this[_pyramidBaseMetadata].Columns;
-    const baseRows = this[_pyramidBaseMetadata].Rows;
     const baseTotalPixelMatrixColumns = this[_pyramidBaseMetadata].TotalPixelMatrixColumns;
     const baseTotalPixelMatrixRows = this[_pyramidBaseMetadata].TotalPixelMatrixRows;
-    const baseColFactor = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
-    const baseRowFactor = Math.ceil(baseTotalPixelMatrixRows / baseRows);
+    const baseColumns = this[_pyramidBaseMetadata].Columns;
+    const baseRows = this[_pyramidBaseMetadata].Rows;
+    const baseNColumns = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
+    const baseNRows = Math.ceil(baseTotalPixelMatrixRows / baseRows);
     for (let j = (nLevels - 1); j >= 0; j--) {
       const columns = this[_pyramidMetadata][j].Columns;
       const rows = this[_pyramidMetadata][j].Rows;
       const totalPixelMatrixColumns = this[_pyramidMetadata][j].TotalPixelMatrixColumns;
       const totalPixelMatrixRows = this[_pyramidMetadata][j].TotalPixelMatrixRows;
       const pixelSpacing = _getPixelSpacing(this[_pyramidMetadata][j]);
-      const colFactor = Math.ceil(totalPixelMatrixColumns / columns);
-      const rowFactor = Math.ceil(totalPixelMatrixRows / rows);
+      const nColumns = Math.ceil(totalPixelMatrixColumns / columns);
+      const nRows = Math.ceil(totalPixelMatrixRows / rows);
       tileSizes.push([
         columns,
-        rows
+        rows,
       ]);
-      totalSizes.push([
-        totalPixelMatrixColumns,
-        totalPixelMatrixRows
+      tileGridSizes.push([
+        nColumns,
+        nRows,
       ]);
 
       /*
@@ -399,8 +403,8 @@ class VLWholeSlideMicroscopyImageViewer {
       origins.push(offset);
     }
     resolutions.reverse();
-    tileSizes.reverse();  // FIXME
-    totalSizes.reverse();  // FIXME
+    tileSizes.reverse();
+    tileGridSizes.reverse();
     origins.reverse();
 
     // Functions won't be able to access "this"
@@ -508,10 +512,10 @@ class VLWholeSlideMicroscopyImageViewer {
      * number of rows in the total pixel matrix.
     */
     const extent = [
-      0,                            // min X
-      -baseTotalPixelMatrixRows,    // min Y
-      baseTotalPixelMatrixColumns,  // max X
-      -1                            // max Y
+      0,                                // min X
+      -(baseTotalPixelMatrixRows + 1),  // min Y
+      baseTotalPixelMatrixColumns,      // max X
+      -1                                // max Y
     ];
 
     /*
@@ -582,15 +586,15 @@ class VLWholeSlideMicroscopyImageViewer {
       extent: extent,
       origins: origins,
       resolutions: resolutions,
-      sizes: totalSizes,
+      sizes: tileGridSizes,
       tileSizes: tileSizes
     });
 
     /*
-     * We use the implemented XYZ tile source but customize it to retrieve
+     * We use the existing TileImage source but customize it to retrieve
      * frames (load tiles) via DICOMweb WADO-RS.
      */
-    const rasterSource = new XYZ({
+    const rasterSource = new TileImage({
       crossOrigin: "Anonymous",
       tileGrid: tileGrid,
       projection: projection,
@@ -599,10 +603,10 @@ class VLWholeSlideMicroscopyImageViewer {
     rasterSource.setTileUrlFunction(tileUrlFunction);
     rasterSource.setTileLoadFunction(tileLoadFunction);
 
-    const imageLayer = new TileLayer({
+    this[_imageLayer] = new TileLayer({
       extent: extent,
       source: rasterSource,
-      preload: 1,
+      preload: 0,
       projection: projection
     });
 
@@ -629,12 +633,6 @@ class VLWholeSlideMicroscopyImageViewer {
       rotation: rotation
     });
 
-    const overviewView = new View({
-      projection: projection,
-      resolutions: resolutions,
-      rotation: rotation
-    });
-
     this[_interactions] = {
       draw: undefined,
       select: undefined,
@@ -651,9 +649,22 @@ class VLWholeSlideMicroscopyImageViewer {
       this[_controls].fullscreen = new FullScreen();
     }
     if (options.controls.has('overview')) {
+      const overviewImageLayer = new TileLayer({
+        extent: extent,
+        source: rasterSource,
+        preload: 0,
+        projection: projection
+      });
+
+      const overviewView = new View({
+        projection: projection,
+        resolutions: resolutions,
+        rotation: rotation
+      });
+
       this[_controls].overview = new OverviewMap({
         view: overviewView,
-        layers: [imageLayer, this[_drawingLayer]],
+        layers: [overviewImageLayer],
         collapsed: true,
       });
     }
@@ -663,25 +674,28 @@ class VLWholeSlideMicroscopyImageViewer {
      * WebGL.
      */
     this[_map] = new Map({
-      layers: [imageLayer, this[_drawingLayer]],
+      layers: [this[_imageLayer], this[_drawingLayer]],
       view: view,
       controls: [],
-      loadTilesWhileAnimating: true,
-      loadTilesWhileInteracting: true,
-      logo: false
+      keyboardEventTarget: document,
     });
+    this[_map].addInteraction(new MouseWheelZoom());
 
     for (let control in this[_controls]) {
       this[_map].addControl(this[_controls][control]);
     }
-    this[_map].getView().fit(extent, this[_map].getSize());
-
+    this[_map].getView().fit(extent);
   }
 
   resize(){
     this[_map].updateSize();
   }
 
+  /* Gets the DICOM metadata for each image instance.
+   */
+  getMetadata(){
+    return this[_pyramidMetadata];
+  }
 
   /* Renders the images.
    */
@@ -690,7 +704,6 @@ class VLWholeSlideMicroscopyImageViewer {
       console.error('container must be provided for rendering images')
     }
     this[_map].setTarget(options.container);
-    this[_map].updateSize();
 
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")
     let scaleElement = this[_controls]['scale'].element;

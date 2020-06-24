@@ -1,7 +1,8 @@
-import builtins from 'rollup-plugin-node-builtins';
-import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
+import builtins from 'rollup-plugin-node-builtins';
 import json from 'rollup-plugin-json';
+import resolve from 'rollup-plugin-node-resolve';
+import postcss from 'rollup-plugin-postcss'
 
 export default {
   input: 'src/dicom-microscopy-viewer.js',
@@ -22,6 +23,9 @@ export default {
       main: true,
       browser: true,
     }),
+    postcss({
+      plugins: []
+    })
   ],
   onwarn: function(warning, superOnWarn) {
     /*

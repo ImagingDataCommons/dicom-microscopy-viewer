@@ -36,10 +36,11 @@
     "rollup-plugin-commonjs": "8.3.0",
     "rollup-plugin-json": "^3.1.0",
     "rollup-plugin-node-builtins": "^2.1.2",
-    "rollup-plugin-node-resolve": "^3.4.0"
+    "rollup-plugin-node-resolve": "^3.4.0",
+    "rollup-plugin-postcss": "^2.5.0"
   },
   "dependencies": {
     "dicomweb-client": "^0.5.2",
-    "ol": "^6.2.1"
+    "ol": "^6.3.1"
   }
 }
