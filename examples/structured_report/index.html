@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta name="theme-color" content="#000000" />
+
+    <title>dicom-microscopy-viewer example</title>
+
+    <!-- Latest compiled and minified CSS -->
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+      integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+      integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0="
+      crossorigin="anonymous"
+    />
+  </head>
+
+  <body>
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
+
+    <script src="https://unpkg.com/dicomweb-client@latest"
+            type="application/javascript"
+            charset="utf-8">
+    </script>
+    <script src="https://unpkg.com/dicom-microscopy-viewer@latest"
+            type="application/javascript"
+            charset="utf-8">
+    </script>
+    <script src="https://unpkg.com/dcmjs@latest"
+            type="application/javascript"
+            charset="utf-8">
+    </script>
+    <script src="../../js/FileSaver.min.js"></script>
+
+    <script>
+
+      document.addEventListener("DOMContentLoaded", () => {
+
+        document.getElementById("tools-list").addEventListener("click", (event) => {
+          const geometryType = event.target.id;
+          disableToolList();
+          window.viewer.activateDrawInteraction({ geometryType });
+          document.getElementById(`${geometryType}`).parentNode.setAttribute("class", "active");
+        });
+
+        document.getElementById("downloadReport").addEventListener("click", (event) => {
+          const rois = window.viewer.getAllROIs();
+          if(rois.length === 0){
+            alert('Please, draw an region of interest first.');
+            return;
+          }
+
+          // Metadata of image at highest resolution level
+          const imageMetadata = window.viewer.imageMetadata[window.viewer.imageMetadata.length-1];
+          const observationContext = new dcmjs.sr.templates.ObservationContext({
+            observerPersonContext: new dcmjs.sr.templates.ObserverContext({
+              observerType: new dcmjs.sr.coding.CodedConcept({
+                value: "121006",
+                schemeDesignator: "DCM",
+                meaning: "Person",
+              }),
+              observerIdentifyingAttributes: new dcmjs.sr.templates.PersonObserverIdentifyingAttributes({
+                name: "Robo^Doc"
+              })
+            }),
+            observerDeviceContext: new dcmjs.sr.templates.ObserverContext({
+              observerType: new dcmjs.sr.coding.CodedConcept({
+                value: "121007",
+                schemeDesignator: "DCM",
+                meaning: "Device",
+              }),
+              observerIdentifyingAttributes: new dcmjs.sr.templates.DeviceObserverIdentifyingAttributes({
+                uid: dcmjs.data.DicomMetaDictionary.uid()  // FIXME
+              })
+            }),
+            subjectContext: new dcmjs.sr.templates.SubjectContext({
+              subjectClass: new dcmjs.sr.coding.CodedConcept({
+                value: "121027",
+                schemeDesignator: "DCM",
+                meaning: "Specimen",
+              }),
+              subjectClassSpecificContext: new dcmjs.sr.templates.SubjectContextSpecimen({
+                uid: imageMetadata.SpecimenDescriptionSequence[0].SpecimenUID,
+                identifier: imageMetadata.SpecimenDescriptionSequence[0].SpecimenIdentifier,
+                containerIdentifier: imageMetadata.ContainerIdentifier
+              })
+            })
+          });
+
+          const imagingMeasurements = [];
+          for (let i = 0; i < rois.length; i++) {
+            const roi = rois[i];
+            const group = new dcmjs.sr.templates.PlanarROIMeasurementsAndQualitativeEvaluations({
+              trackingIdentifier: new dcmjs.sr.templates.TrackingIdentifier({
+                uid: roi.uid,
+                identifier: `Measurements of ROI #${i+1}`
+              }),
+              referencedRegion: new dcmjs.sr.contentItems.ImageRegion3D({
+                graphicType: roi.scoord3d.graphicType,
+                graphicData: roi.scoord3d.graphicData,
+                frameOfReferenceUID: roi.scoord3d.frameOfReferenceUID
+              }),
+              findingType: new dcmjs.sr.coding.CodedConcept({
+                value: "108369006",
+                schemeDesignator: "SCT",
+                meaning: "Tumor",
+              })
+            });
+            imagingMeasurements.push(...group);
+          }
+
+          const measurementReport = new dcmjs.sr.templates.MeasurementReport({
+            languageOfContentItemAndDescendants: new dcmjs.sr.templates.LanguageOfContentItemAndDescendants({}),
+            observationContext: observationContext,
+            procedureReported: new dcmjs.sr.coding.CodedConcept({
+              value: "112703",
+              schemeDesignator: "DCM",
+              meaning: "Whole Slide Imaging",
+            }),
+            imagingMeasurements: imagingMeasurements
+          });
+
+          const dataset = new dcmjs.sr.documents.Comprehensive3DSR({
+            content: measurementReport[0],
+            evidence: [imageMetadata],
+            seriesInstanceUID: dcmjs.data.DicomMetaDictionary.uid(),
+            seriesNumber: 1,
+            seriesDescription: "Whole slide imaging structured report example",
+            sopInstanceUID: dcmjs.data.DicomMetaDictionary.uid(),
+            instanceNumber: 1,
+            manufacturer: "dcmjs-org",
+          });
+          console.log(dataset)
+          const fileMetaInformationVersionArray = new Uint8Array(2);
+          fileMetaInformationVersionArray[1] = 1;
+          dataset._meta = {
+              FileMetaInformationVersion: {
+                  Value: [fileMetaInformationVersionArray.buffer], // TODO
+                  vr: "OB"
+              },
+              MediaStorageSOPClassUID: dataset.sopClassUID,
+              MediaStorageSOPInstanceUID: dataset.sopInstanceUID,
+              TransferSyntaxUID: {
+                  Value: ["1.2.840.10008.1.2.1"],
+                  vr: "UI"
+              },
+              ImplementationClassUID: {
+                  Value: [dcmjs.data.DicomMetaDictionary.uid()],
+                  vr: "UI"
+              },
+              ImplementationVersionName: {
+                  Value: ["dicom-microscopy-viewer-example"],
+                  vr: "SH"
+              }
+          };
+          const blob = dcmjs.data.datasetToBlob(dataset);
+          saveAs(blob, `${dataset.SOPInstanceUID}.dcm`, true);
+        });
+
+      });
+
+      function disableToolList(){
+        const toolList = document.getElementById("tools-list").querySelector("li.active")
+        if(toolList !== null){
+          toolList.classList.remove("active");
+        }
+      }
+
+      const url = "https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs";
+      const client = new DICOMwebClient.api.DICOMwebClient({ url });
+      const studyInstanceUID = "1.2.392.200140.2.1.1.1.2.799008771.2448.1519719572.518";
+      const seriesInstanceUID = "1.2.392.200140.2.1.1.1.3.799008771.2448.1519719572.519";
+
+      const searchInstanceOptions = {
+        studyInstanceUID,
+        seriesInstanceUID
+      };
+
+      client.searchForInstances(searchInstanceOptions)
+        .then(instances => {
+          const promises = [];
+
+          for (let i = 0; i < instances.length; i++) {
+
+            const sopInstanceUID = instances[i]["00080018"]["Value"][0];
+
+            const retrieveInstanceOptions = {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID
+            };
+
+            const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions)
+              .then(metadata => {
+                const imageType = metadata[0]["00080008"]["Value"];
+                if (imageType[2] === "VOLUME") {
+                  return metadata[0];
+                }
+              });
+            promises.push(promise);
+          }
+          return Promise.all(promises);
+        })
+        .then(metadata => {
+          metadata = metadata.filter(m => m);
+          const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
+            client,
+            metadata,
+            retrieveRendered:false
+          });
+
+          const container = document.getElementById("dicomImage");
+          viewer.render({ container });
+
+          viewer.activateDrawInteraction({ geometryType: "polygon" });
+          window.viewer = viewer;
+
+        });
+
+        window.dcmjs = dcmjs;
+
+    </script>
+  </body>
+  <body>
+    <div class="container">
+      <div class="page-header">
+        <h1>
+          Example for Slide Microscopy Image Annotation
+        </h1>
+        <p>
+          This example demonstrates how to annotate regions of interest (ROIs) on a digital slide represented by DICOM <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html" target="_blank">VL Whole Slide Microscopy Image</a> instances and to store the graphic annotations as SCOORD3D content items using the <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.18.9.html" target="_blank">3D Spatial Coordinates Macro</a> in a
+          DICOM <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.35.13.html" target="_blank">Comprehensive 3D SR</a> document based on the DICOM Structured Reporting template <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_A.html#sect_TID_1500" target="_blank">TID 1500 "Measurement Report"</a>.
+        </p>
+        <a href="../../index.html">Go back to the Examples page</a>
+      </div>
+
+      <div class="bs-example" data-example-id="simple-thumbnails">
+        <div class="row">
+
+          <div class="col-xs-12 col-md-9" >
+            <div class="alert alert-warning text-center" role="alert">Select below the tool you want to use to draw</div>
+            <ul class="nav nav-pills" id="tools-list">
+              <li role="presentation" class="active"><a id="polygon">Polygon</a></li>
+              <li role="presentation"><a id="point">Point</a></li>
+              <li role="presentation"><a id="circle">Circle</a></li>
+              <li role="presentation"><a id="box">Box</a></li>
+              <li role="presentation"><a id="freehandpolygon">Freehand Polygon</a></li>
+              <li role="presentation"><a id="line">Line</a></li>
+              <li role="presentation"><a id="freehandline">Freehand Line</a></li>
+            </ul>
+            <br/>
+
+          </div>
+          <div class="col-xs-12 col-md-3">
+            <div class="alert alert-warning text-center" role="alert">Structured Report</div>
+            <div class="list-group">
+                <input
+                    type="button" class="btn btn-primary center-block" id="downloadReport"
+                    value="Download"
+                    />
+            </div>
+          </div>
+          <div class="col-xs-12 col-md-12">
+              <div style="width:100%;height:550px;position:relative;display:inline-block;">
+              <div id="dicomImage"
+                   style="width:100%;height:550px;top:0px;left:0px; position:absolute; border: 1px solid black;">
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </body>
+</html>
