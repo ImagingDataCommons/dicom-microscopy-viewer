@@ -27,7 +27,7 @@ import { default as MapEventType } from "ol/MapEventType";
 import { defaults as defaultInteractions } from 'ol/interaction';
 
 import { getCenter } from 'ol/extent';
-import { toStringXY } from 'ol/coordinate';
+import { toStringXY, rotate } from 'ol/coordinate';
 
 import { formatImageMetadata, getFrameMapping } from './metadata.js';
 import { ROI } from './roi.js';
@@ -43,13 +43,115 @@ import {
 
 import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
 
+
 function _getPixelSpacing(metadata) {
   const functionalGroup = metadata.SharedFunctionalGroupsSequence[0];
   const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
   return pixelMeasures.PixelSpacing;
 }
 
+
+function _getRotation(metadata) {
+  /*
+   * Determine whether image needs to be rotated relative to slide
+   * coordinate system based on direction cosines.
+   * We want to rotate all images such that the X axis of the slide coordinate
+   * system is the vertical axis (ordinate) of the viewport and the Y axis
+   * of the slide coordinate system is the horizontal axis (abscissa) of the
+   * viewport. Note that this is opposite to the Openlayers coordinate system.
+   * There are only planar rotations, since the total pixel matrix is
+   * parallel to the slide surface. Here, we further assume that rows and
+   * columns of total pixel matrix are parallel to the borders of the slide,
+   * i.e. the x and y axis of the slide coordinate system.
+   * Hence, we only account for the case where the image may be rotated by
+   * 180 degrees.
+   *
+   * The row direction (left to right) of the Total Pixel Matrix
+   * is defined by the first three values.
+   * The three values specify how the direction changes from the last pixel
+   * to the first pixel in the row along each of the three axes of the
+   * slide coordinate system (x, y, z), i.e. it express in which direction one
+   * is moving in the slide coordinate system when the COLUMN index changes.
+   * The column direction (top to bottom) of the Total Pixel Matrix
+   * is defined by the second three values.
+   * The three values specify how the direction changes from the last pixel
+   * to the first pixel in the column along each of the three axes of the
+   * slide coordinate system (x, y, z), i.e. it express in which direction one
+   * is moving in the slide coordinate system when the ROW index changes.
+  */
+  var degrees;
+  if (
+    (metadata.ImageOrientationSlide[0] === 0) &&
+    (metadata.ImageOrientationSlide[1] === -1) &&
+    (metadata.ImageOrientationSlide[2] === 0) &&
+    (metadata.ImageOrientationSlide[3] === -1) &&
+    (metadata.ImageOrientationSlide[4] === 0) &&
+    (metadata.ImageOrientationSlide[5] === 0)
+  ) {
+    /*
+     * The Total Pixel Matrix is rotated with respect to the slide coordinate
+     * system by 180 degrees, such that an increase along the row direction
+     * (left to right) leads to lower Y coordinate values and an increase
+     * along the column direction (top to bottom) leads to lower X coordinate
+     * values.
+     */
+    degrees = 180;
+  } else if (
+    (metadata.ImageOrientationSlide[0] === 1) &&
+    (metadata.ImageOrientationSlide[1] === 0) &&
+    (metadata.ImageOrientationSlide[2] === 0) &&
+    (metadata.ImageOrientationSlide[3] === 0) &&
+    (metadata.ImageOrientationSlide[4] === -1) &&
+    (metadata.ImageOrientationSlide[5] === 0)
+  ) {
+    /*
+     * The Total Pixel Matrix is rotated with respect to the slide coordinate
+     * system by 90 degrees, such that an increase along the row direction
+     * (left to right) leads to higher X coordinate values and an increase
+     * along the column direction (top to bottom) leads to lower Y coordinate
+     * values.
+     */
+    degrees = 90;
+  } else if (
+    (metadata.ImageOrientationSlide[0] === -1) &&
+    (metadata.ImageOrientationSlide[1] === 0) &&
+    (metadata.ImageOrientationSlide[2] === 0) &&
+    (metadata.ImageOrientationSlide[3] === 0) &&
+    (metadata.ImageOrientationSlide[4] === 1) &&
+    (metadata.ImageOrientationSlide[5] === 0)
+  ) {
+    /*
+     * The Total Pixel Matrix is rotated with respect to the slide coordinate
+     * system by 270 degrees, such that an increase along the row direction
+     * (left to right) leads to lower X coordinate values and an increase
+     * along the column direction (top to bottom) leads to higher Y coordinate
+     * values.
+     */
+    degrees = 270;
+  } else if (
+    (metadata.ImageOrientationSlide[0] === 0) &&
+    (metadata.ImageOrientationSlide[1] === 1) &&
+    (metadata.ImageOrientationSlide[2] === 0) &&
+    (metadata.ImageOrientationSlide[3] === 1) &&
+    (metadata.ImageOrientationSlide[4] === 0) &&
+    (metadata.ImageOrientationSlide[5] === 0)
+  ) {
+    /*
+     * The Total Pixel Matrix is aligned with the slide coordinate system
+     * such that an increase along the row direction (left to right) leads to
+     * higher Y coordinate values and an increase along the column direction
+     * (top to bottom) leads to higher X coordinate values.
+     */
+    degrees = 0;
+  } else {
+    throw new Error(`Unexpected image orientation ${metadata.ImageOrientationSlide}`);
+  }
+  return degrees * (Math.PI / 180);
+}
+
+
 function _geometry2Scoord3d(geometry, pyramid) {
+  console.info('map coordinates from image to slide coordinate system')
   const frameOfReferenceUID = pyramid[pyramid.length-1].FrameOfReferenceUID;
   const type = geometry.getType();
   if (type === 'Point') {
@@ -80,20 +182,22 @@ function _geometry2Scoord3d(geometry, pyramid) {
       frameOfReferenceUID: frameOfReferenceUID
     });
   } else if (type === 'Circle') {
-    let centerCoordinate = geometry.getCenter();
-    let radius = geometry.getRadius();
+    const center = geometry.getCenter();
+    const radius = geometry.getRadius();
     // Endpoints of major and  minor axis of the ellipse.
-    // In case of a circle they both have the same length.
     let coordinates = [
-      [centerCoordinate[0] - radius, centerCoordinate[1]],
-      [centerCoordinate[0] + radius, centerCoordinate[1]],
-      [centerCoordinate[0], centerCoordinate[1] - radius],
-      [centerCoordinate[0], centerCoordinate[1] + radius],
+      [center[0] - radius, center[1], 0],
+      [center[0] + radius, center[1], 0],
+      [center[0], center[1] - radius, 0],
+      [center[0], center[1] + radius, 0],
     ];
     coordinates = coordinates.map(c => {
-      c.push(0)
-      return _geometryCoordinates2scoord3dCoordinates(c, pyramid)
+        return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
     })
+
+    // const metadata = pyramid[pyramid.length-1];
+    // const pixelSpacing = _getPixelSpacing(metadata);
+
     return new Ellipse({
       coordinates,
       frameOfReferenceUID: frameOfReferenceUID
@@ -105,8 +209,10 @@ function _geometry2Scoord3d(geometry, pyramid) {
 }
 
 function _scoord3d2Geometry(scoord3d, pyramid) {
+  console.info('map coordinates from slide to image coordinate system')
   const type = scoord3d.graphicType;
   const data = scoord3d.graphicData;
+
   if (type === 'POINT') {
     let coordinates = _scoord3dCoordinates2geometryCoordinates(data, pyramid);
     return new PointGeometry(coordinates);
@@ -123,12 +229,12 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
   } else if (type === 'ELLIPSE') {
     // TODO: ensure that the ellipse represents a circle, i.e. that
     // major and minor axis form a right angle and have the same length
-    let majorAxisCoordinates = data.slice(0, 2);
-    let minorAxisCoordinates = data.slice(2, 4);
+    const majorAxisCoordinates = data.slice(0, 2);
+    const minorAxisCoordinates = data.slice(2, 4);
     // Circle is defined by two points: the center point and a point on the
     // circumference.
-    let point1 = majorAxisCoordinates[0];
-    let point2 = majorAxisCoordinates[1];
+    const point1 = majorAxisCoordinates[0];
+    const point2 = majorAxisCoordinates[1];
     let coordinates = [
       [
         (point1[0] + point2[0]) / parseFloat(2),
@@ -152,7 +258,7 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
 }
 
 function _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
-  return _coordinateFormatGeometry2Scoord3d([coordinates[0] + 1, coordinates[1], coordinates[2]], pyramid);
+  return _coordinateFormatGeometry2Scoord3d([coordinates[0], coordinates[1], coordinates[2]], pyramid);
 }
 
 function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
@@ -174,9 +280,13 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
   const xOffset = Number(origin.XOffsetInSlideCoordinateSystem);
   const yOffset = Number(origin.YOffsetInSlideCoordinateSystem);
   const pixelSpacing = _getPixelSpacing(metadata);
-  coordinates = coordinates.map(point => {
-    const x = Number((xOffset + (point[0] * pixelSpacing[0])).toFixed(4));
-    const y = Number((yOffset - ((point[1] - 1) * pixelSpacing[1])).toFixed(4));
+
+  const rotation = _getRotation(metadata);
+
+  coordinates = coordinates.map(c => {
+    const position = rotate(c, rotation);
+    const x = Number((xOffset - ((position[1] - 1) * pixelSpacing[1])).toFixed(4));
+    const y = Number((yOffset + (position[0] * pixelSpacing[0])).toFixed(4));
     const z = Number((0).toFixed(4));
     return [x, y, z];
   });
@@ -200,12 +310,15 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   const origin = metadata.TotalPixelMatrixOriginSequence[0];
   const xOffset = Number(origin.XOffsetInSlideCoordinateSystem);
   const yOffset = Number(origin.YOffsetInSlideCoordinateSystem);
-  coordinates = coordinates.map(coord =>{
-    const pixelSpacing = _getPixelSpacing(pyramid[pyramid.length-1]);
-    const x = (coord[0] / pixelSpacing[0] - 1) - xOffset;
-    const y = -(coord[1] /pixelSpacing[1] - 1) - yOffset;
-    const z = coord[2];
-    return [x, y, z];
+  const pixelSpacing = _getPixelSpacing(metadata);
+
+  let rotation = _getRotation(metadata);
+  rotation = (360 - rotation * (180 / Math.PI)) * (Math.PI / 180)
+  coordinates = coordinates.map(c =>{
+    const x = (c[1] - yOffset) / pixelSpacing[0];
+    const y = -((c[0] - xOffset) / pixelSpacing[1] - 1);
+    const z = c[2];
+    return rotate([x, y, z], rotation);
   });
   if (transform) {
     return coordinates[0];
@@ -412,8 +525,7 @@ class VLWholeSlideMicroscopyImageViewer {
     const pyramidFrameMappings = this[_pyramidFrameMappings];
 
     /*
-     * Define custom tile URL function to retrive frames via DICOMweb
-     * WADO-RS.
+     * Define custom tile URL function to retrive frames via DICOMweb WADO-RS.
      */
     const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
       /*
@@ -518,38 +630,7 @@ class VLWholeSlideMicroscopyImageViewer {
       -1                                // max Y
     ];
 
-    /*
-     * Determine whether image needs to be rotated relative to slide
-     * coordinate system based on direction cosines.
-     * There are only planar rotations, since the total pixel matrix is
-     * parallel to the slide surface. Here, we further assume that rows and
-     * columns of total pixel matrix are parallel to the borders of the slide,
-     * i.e. the x and y axis of the slide coordinate system.
-     * Hence, we only account for the case where the image may be rotated by
-     * 180 degrees.
-    */
-    var degrees = 0;
-    if (
-      (this[_pyramidBaseMetadata].ImageOrientationSlide[1] === -1) &&
-      (this[_pyramidBaseMetadata].ImageOrientationSlide[3] === -1)
-    ) {
-      /*
-       * The row direction (left to right) of the total pixel matrix
-       * is defined by the first three values.
-       * The three values specify how the direction changes from the last pixel
-       * to the first pixel in the row along each of the three axes of the
-       * slide coordinate system (x, y, z), i.e. it express in which direction one
-       * is moving in the slide coordinate system when the COLUMN index changes.
-       * The column direction (top to bottom) of the total pixel matrix
-       * is defined by the first three values.
-       * The three values specify how the direction changes from the last pixel
-       * to the first pixel in the column along each of the three axes of the
-       * slide coordinate system (x, y, z), i.e. it express in which direction one
-       * is moving in the slide coordinate system when the ROW index changes.
-      */
-      degrees = 180;
-    }
-    const rotation = degrees * (Math.PI / 180);
+    const rotation = _getRotation(this[_pyramidBaseMetadata]);
 
     /*
      * Specify projection to prevent default automatic projection
@@ -781,6 +862,7 @@ class VLWholeSlideMicroscopyImageViewer {
    */
   activateDrawInteraction(options) {
     this.deactivateDrawInteraction();
+    console.info('activate "draw" interaction')
 
     const customOptionsMapping = {
       point: {
@@ -847,6 +929,7 @@ class VLWholeSlideMicroscopyImageViewer {
   /* Deactivate draw interaction.
    */
   deactivateDrawInteraction() {
+    console.info('deactivate "draw" interaction')
     if (this[_interactions].draw !== undefined) {
       this[_map].removeInteraction(this[_interactions].draw);
       this[_interactions].draw = undefined;
@@ -861,6 +944,7 @@ class VLWholeSlideMicroscopyImageViewer {
    */
   activateSelectInteraction(options={}) {
     this.deactivateSelectInteraction();
+    console.info('activate "select" interaction')
     this[_interactions].select = new Select({
       layers: [this[_drawingLayer]]
     });
@@ -877,6 +961,7 @@ class VLWholeSlideMicroscopyImageViewer {
   /* Deactivate select interaction.
    */
   deactivateSelectInteraction() {
+    console.info('deactivate "select" interaction')
     if (this[_interactions].select) {
       this[_map].removeInteraction(this[_interactions].select);
       this[_interactions].select = undefined;
@@ -891,6 +976,7 @@ class VLWholeSlideMicroscopyImageViewer {
    */
   activateModifyInteraction(options={}) {
     this.deactivateModifyInteraction();
+    console.info('activate "modify" interaction')
     this[_interactions].modify = new Modify({
       features: this[_features],  // TODO: or source, i.e. "drawings"???
     });
@@ -900,6 +986,7 @@ class VLWholeSlideMicroscopyImageViewer {
   /* Deactivate modify interaction.
    */
   deactivateModifyInteraction() {
+    console.info('deactivate "modify" interaction')
     if (this[_interactions].modify) {
       this[_map].removeInteraction(this[_interactions].modify);
       this[_interactions].modify = undefined;
@@ -911,6 +998,7 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   getAllROIs() {
+    console.info('get all ROIs')
     let rois = [];
     this[_features].forEach((item) => {
         rois.push(this.getROI(item.getId()));
@@ -923,16 +1011,19 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   getROI(uid) {
+    console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid);
     return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
   popROI() {
+    console.info('pop ROI')
     const feature = this[_features].pop();
     return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
   addROI(item) {
+    console.info(`add ROI ${item.uid}`)
     const geometry = _scoord3d2Geometry(item.scoord3d, this[_pyramidMetadata]);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
@@ -941,19 +1032,23 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   removeROI(uid) {
+    console.info(`add ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid);
     this[_features].remove(feature);
   }
 
   removeAllROIs() {
+    console.info('remove all ROIs')
     this[_features].clear();
   }
 
   hideROIs() {
+    console.info('hide ROIs')
     this[_drawingLayer].setVisible(false);
   }
 
   showROIs() {
+    console.info('show ROIs')
     this[_drawingLayer].setVisible(true);
   }
 

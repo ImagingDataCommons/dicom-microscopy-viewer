@@ -229,28 +229,37 @@ class Ellipse extends Scoord3D {
     if(options.coordinates.find(c => c.some((item => item < 0)))) {
       throw new Error('coordinates of Ellipse must be positive numbers')
     }
-    const majorAxis = [
+    const firstAxis = [
         options.coordinates[0][0] - options.coordinates[1][0],
         options.coordinates[0][1] - options.coordinates[1][1]
     ];
-    const minorAxis = [
+    const secondAxis = [
         options.coordinates[2][0] - options.coordinates[3][0],
         options.coordinates[2][1] - options.coordinates[3][1]
     ];
-    const majorAxisNorm = Math.sqrt(
-        Math.pow(majorAxis[0], 2) + Math.pow(majorAxis[1], 2)
+    const firstAxisNorm = Math.sqrt(
+        Math.pow(firstAxis[0], 2) + Math.pow(firstAxis[1], 2)
     );
-    const minorAxisNorm = Math.sqrt(
-        Math.pow(minorAxis[0], 2) + Math.pow(minorAxis[1], 2)
+    const secondAxisNorm = Math.sqrt(
+        Math.pow(secondAxis[0], 2) + Math.pow(secondAxis[1], 2)
     );
-    const dotProduct = majorAxis[0] * minorAxis[0] + majorAxis[1] * minorAxis[1];
-    const angle = Math.acos(dotProduct / (majorAxisNorm * minorAxisNorm));
-    const degree = angle * 180 / Math.PI;
-    if(degree !== 90) {
-      throw new Error('major and minor axis of Ellipse must have right angle')
+    const dotProduct = firstAxis[0] * secondAxis[0] + firstAxis[1] * secondAxis[1];
+    const angle = Math.acos(dotProduct / (firstAxisNorm * secondAxisNorm));
+    const degrees = angle * 180 / Math.PI;
+    if(degrees !== 90) {
+      throw new Error('Two axis of Ellipse must have right angle')
+    }
+    var coordinates = options.coordinates;
+    if (firstAxisNorm < secondAxisNorm) {
+        coordinates = [
+            coordinates[2],
+            coordinates[3],
+            coordinates[0],
+            coordinates[1]
+        ];
     }
     super({
-      coordinates: options.coordinates,
+      coordinates: coordinates,
       frameOfReferenceUID: options.frameOfReferenceUID,
       fiducialUID: options.fiducialUID
     })

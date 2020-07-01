@@ -55,11 +55,6 @@ function formatImageMetadata(metadata) {
   }
 
   const imageType = metadata['00080008']['Value'];
-  if ( imageType[2] !== 'VOLUME' ) {
-    throw new Error(
-      'expected image type value 3 to be "VOLUME", is "' + imageType[2] + '" instead'
-    );
-  }
 
   const loadJSONDataset = (elements) => {
     const dataset = {};
@@ -67,7 +62,7 @@ function formatImageMetadata(metadata) {
       const keyword = tagToKeyword[tag];
       const vr = elements[tag]['vr'];
       if ('BulkDataURI' in elements[tag]) {
-        console.log(`skip bulk data element "${keyword}"`)
+        console.debug(`skip bulk data element "${keyword}"`)
       } else if ('Value' in elements[tag]) {
         const value = elements[tag]['Value'];
         if (vr === 'SQ') {
@@ -104,16 +99,5 @@ function formatImageMetadata(metadata) {
 
   return dataset;
 }
-
-// Combine concatenation parts
-const concatenate = (datasets) => {
-
-  // let sopInstanceUID = metadata['00080018']['Value'][0];
-  // if ('00209161' in metadata) {
-  //   sopInstanceUID = metadata['00209161']['Value'][0];
-  // }
-
-};
-
 
 export { formatImageMetadata, getFrameMapping };
