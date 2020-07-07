@@ -63,8 +63,6 @@ function _getRotation(metadata) {
    * parallel to the slide surface. Here, we further assume that rows and
    * columns of total pixel matrix are parallel to the borders of the slide,
    * i.e. the x and y axis of the slide coordinate system.
-   * Hence, we only account for the case where the image may be rotated by
-   * 180 degrees.
    *
    * The row direction (left to right) of the Total Pixel Matrix
    * is defined by the first three values.
@@ -1032,7 +1030,7 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
   removeROI(uid) {
-    console.info(`add ROI ${uid}`)
+    console.info(`remove ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid);
     this[_features].remove(feature);
   }
