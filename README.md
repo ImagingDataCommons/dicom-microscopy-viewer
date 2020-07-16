@@ -8,6 +8,10 @@ The library is intended to provide a lightweight and standard-compliant viewer f
 The viewer relies on [Openlayers](http://openlayers.org/) for rendering pyramid images and dynamically retrieves pyramid tiles (image frames) via [DICOMweb WADO-RS](https://www.dicomstandard.org/dicomweb/retrieve-wado-rs-and-wado-uri/) using [dicomweb-client](https://github.com/mghcomputationalpathology/dicomweb-client).
 However, the viewer API fully abstracts the underlying rendering library and doesn't expose the lower level Openlayers API directly, such that another rendering library could in principle be used in the future if this would be of advantage.
 
+## Live demo
+
+Check out the online examples at [microscopy.dcmjs.org](https://microscopy.dcmjs.org/).
+
 ## Installation
 
 Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-microscopy-viewer) package using the `npm` package manager:
