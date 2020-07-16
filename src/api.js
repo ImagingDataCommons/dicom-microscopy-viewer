@@ -31,7 +31,11 @@ import { toStringXY, rotate } from 'ol/coordinate';
 
 import { formatImageMetadata, getFrameMapping } from './metadata.js';
 import { ROI } from './roi.js';
-import { generateUID } from './utils.js';
+import {
+    generateUID,
+    mapPixelCoord2SlideCoord,
+    mapSlideCoord2PixelCoord
+} from './utils.js';
 import {
   Point,
   Multipoint,
@@ -77,6 +81,7 @@ function _getRotation(metadata) {
    * slide coordinate system (x, y, z), i.e. it express in which direction one
    * is moving in the slide coordinate system when the ROW index changes.
   */
+
   var degrees;
   if (
     (metadata.ImageOrientationSlide[0] === 0) &&
@@ -149,7 +154,7 @@ function _getRotation(metadata) {
 
 
 function _geometry2Scoord3d(geometry, pyramid) {
-  console.info('map coordinates from image to slide coordinate system')
+  console.info('map coordinates from pixel matrix to slide coordinate system')
   const frameOfReferenceUID = pyramid[pyramid.length-1].FrameOfReferenceUID;
   const type = geometry.getType();
   if (type === 'Point') {
@@ -207,7 +212,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
 }
 
 function _scoord3d2Geometry(scoord3d, pyramid) {
-  console.info('map coordinates from slide to image coordinate system')
+  console.info('map coordinates from slide coordinate system to pixel matrix')
   const type = scoord3d.graphicType;
   const data = scoord3d.graphicData;
 
@@ -269,24 +274,28 @@ function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
 */
 function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
   let transform = false;
-  if(!(coordinates[0] instanceof Array)) {
+  if(!Array.isArray(coordinates[0])) {
     coordinates = [coordinates];
     transform = true;
   }
   const metadata = pyramid[pyramid.length-1];
   const origin = metadata.TotalPixelMatrixOriginSequence[0];
-  const xOffset = Number(origin.XOffsetInSlideCoordinateSystem);
-  const yOffset = Number(origin.YOffsetInSlideCoordinateSystem);
-  const pixelSpacing = _getPixelSpacing(metadata);
-
-  const rotation = _getRotation(metadata);
+  const orientation = metadata.ImageOrientationSlide;
+  const spacing = _getPixelSpacing(metadata);
+  const offset = [
+    Number(origin.XOffsetInSlideCoordinateSystem),
+    Number(origin.YOffsetInSlideCoordinateSystem),
+  ];
 
   coordinates = coordinates.map(c => {
-    const position = rotate(c, rotation);
-    const x = Number((xOffset - ((position[1] - 1) * pixelSpacing[1])).toFixed(4));
-    const y = Number((yOffset + (position[0] * pixelSpacing[0])).toFixed(4));
-    const z = Number((0).toFixed(4));
-    return [x, y, z];
+    const pixelCoord = [c[0], -(c[1] + 1)];
+    const slideCoord = mapPixelCoord2SlideCoord({
+      orientation,
+      spacing,
+      offset,
+      point: pixelCoord
+    });
+    return [slideCoord[0], slideCoord[1], 0];
   });
   if (transform) {
     return coordinates[0];
@@ -300,23 +309,28 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
 */
 function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   let transform = false;
-  if(!(coordinates[0] instanceof Array)) {
+  if(!Array.isArray(coordinates[0])) {
     coordinates = [coordinates];
     transform = true;
   }
   const metadata = pyramid[pyramid.length-1];
+  const orientation = metadata.ImageOrientationSlide;
+  const spacing = _getPixelSpacing(metadata);
   const origin = metadata.TotalPixelMatrixOriginSequence[0];
-  const xOffset = Number(origin.XOffsetInSlideCoordinateSystem);
-  const yOffset = Number(origin.YOffsetInSlideCoordinateSystem);
-  const pixelSpacing = _getPixelSpacing(metadata);
+  const offset = [
+    Number(origin.XOffsetInSlideCoordinateSystem),
+    Number(origin.YOffsetInSlideCoordinateSystem),
+  ];
 
-  let rotation = _getRotation(metadata);
-  rotation = (360 - rotation * (180 / Math.PI)) * (Math.PI / 180)
   coordinates = coordinates.map(c =>{
-    const x = (c[1] - yOffset) / pixelSpacing[0];
-    const y = -((c[0] - xOffset) / pixelSpacing[1] - 1);
-    const z = c[2];
-    return rotate([x, y, z], rotation);
+    const slideCoord = [c[0], c[1]];
+    const pixelCoord = mapSlideCoord2PixelCoord({
+      offset,
+      orientation,
+      spacing,
+      point: slideCoord
+    });
+    return [pixelCoord[0], -(pixelCoord[1] + 1), 0];
   });
   if (transform) {
     return coordinates[0];

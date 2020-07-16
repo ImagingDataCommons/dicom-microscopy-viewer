@@ -81,7 +81,7 @@ function formatImageMetadata(metadata) {
         if (vr === 'SQ') {
           dataset[keyword] = [];
         } else {
-          dataset[keyword] = "";  // TODO: should rather be null?
+          dataset[keyword] = null;
         }
       }
     });

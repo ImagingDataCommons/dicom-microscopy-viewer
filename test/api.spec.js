@@ -3,24 +3,10 @@ const assert = require('assert');
 
 chai.should();
 
-const testCase1 = require('./data/metadata.json');
-
-const testCase2 = testCase1.map(m => {
-    m["00480102"]["Value"] = [1.0, 0.0, 0.0, 0.0, -1.0, 0.0];
-    return m;
-});
-
-const testCase3 = testCase1.map(m => {
-    m["00480102"]["Value"] = [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
-    return m;
-});
-
-const testCase4 = testCase1.map(m => {
-    m["00480102"]["Value"] = [0.0, -1.0, 0.0, -1.0, 0.0, 0.0];
-    return m;
-});
-
-const testCases = [testCase1, testCase2, testCase3, testCase4];
+const testCase1 = require('./data/testCase1.json');
+const testCase2 = require('./data/testCase2.json');
+const testCase3 = require('./data/testCase3.json');
+const testCases = [testCase1, testCase2, testCase3];
 
 const dicomMicroscopyViewer = require('../build/dicom-microscopy-viewer.js');
 
@@ -28,8 +14,8 @@ const dicomMicroscopyViewer = require('../build/dicom-microscopy-viewer.js');
 describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
 
     var viewer;
-    testCases.forEach(metadata => {
-
+    testCases.forEach((metadata, index) => {
+        console.log(`run test case #${index+1}`)
         before(() => {
             viewer = new dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
                 client: 'test',
