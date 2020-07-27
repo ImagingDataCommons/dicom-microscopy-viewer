@@ -6,6 +6,7 @@ import Feature from 'ol/Feature';
 import FullScreen from 'ol/control/FullScreen';
 import Map from 'ol/Map';
 import Modify from 'ol/interaction/Modify';
+import DragPan from 'ol/interaction/DragPan';
 import MouseWheelZoom from 'ol/interaction/MouseWheelZoom';
 import OverviewMap from 'ol/control/OverviewMap';
 import Projection from 'ol/proj/Projection';
@@ -729,7 +730,8 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_interactions] = {
       draw: undefined,
       select: undefined,
-      modify: undefined
+      modify: undefined,
+      dragPan: undefined
     };
 
     this[_controls] = {
@@ -924,6 +926,11 @@ class VLWholeSlideMicroscopyImageViewer {
       customDrawOptions.style = options.style;
     }
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
+
+    if (options.condition) {
+      allDrawOptions.condition = options.condition;
+    }
+
     this[_interactions].draw = new Draw(allDrawOptions);
 
     const container = this[_map].getTargetElement();
@@ -989,11 +996,25 @@ class VLWholeSlideMicroscopyImageViewer {
   activateModifyInteraction(options={}) {
     this.deactivateModifyInteraction();
     console.info('activate "modify" interaction')
-    this[_interactions].modify = new Modify({
+
+
+    const modifyOptions = {
       features: this[_features],  // TODO: or source, i.e. "drawings"???
-    });
+    }
+
+    if (options.condition) {
+      modifyOptions.condition = options.condition;
+    }
+
+    this[_interactions].modify = new Modify(
+      modifyOptions
+    );
     this[_map].addInteraction(this[_interactions].modify);
   }
+
+
+
+  
 
   /* Deactivate modify interaction.
    */
@@ -1002,6 +1023,37 @@ class VLWholeSlideMicroscopyImageViewer {
     if (this[_interactions].modify) {
       this[_map].removeInteraction(this[_interactions].modify);
       this[_interactions].modify = undefined;
+    }
+  }
+
+
+  activateDragPanInteraction(options={}) {
+    this.deactivateDragPanInteraction();
+    console.info('activate "drag pan" interaction')
+
+
+    const modifyOptions = {
+      features: this[_features],  // TODO: or source, i.e. "drawings"???
+    }
+
+    if (options.condition) {
+      modifyOptions.condition = options.condition;
+    }
+
+    this[_interactions].dragPan = new DragPan(
+      modifyOptions
+    );
+    this[_map].addInteraction(this[_interactions].dragPan);
+  }
+
+
+  /* Deactivate drag pan interaction.
+   */
+  deactivateDragPanInteraction() {
+    console.info('deactivate "drag pan" interaction')
+    if (this[_interactions].modify) {
+      this[_map].removeInteraction(this[_interactions].dragPan);
+      this[_interactions].dragPan = undefined;
     }
   }
 
