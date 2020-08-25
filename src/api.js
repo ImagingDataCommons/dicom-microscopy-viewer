@@ -35,7 +35,8 @@ import { ROI } from './roi.js';
 import {
     generateUID,
     mapPixelCoord2SlideCoord,
-    mapSlideCoord2PixelCoord
+    mapSlideCoord2PixelCoord,
+    generateOpenLayersCondition
 } from './utils.js';
 import {
   Point,
@@ -927,8 +928,8 @@ class VLWholeSlideMicroscopyImageViewer {
     }
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
 
-    if (options.condition) {
-      allDrawOptions.condition = options.condition;
+    if (options.bindings) {
+      allDrawOptions.condition = generateOpenLayersCondition(options.bindings);
     }
 
     this[_interactions].draw = new Draw(allDrawOptions);
@@ -964,9 +965,14 @@ class VLWholeSlideMicroscopyImageViewer {
   activateSelectInteraction(options={}) {
     this.deactivateSelectInteraction();
     console.info('activate "select" interaction')
-    this[_interactions].select = new Select({
-      layers: [this[_drawingLayer]]
-    });
+
+    const selectOptions = {layers: [this[_drawingLayer]]}
+
+    if (options.bindings) {
+      selectOptions.condition = generateOpenLayersCondition(options.bindings);
+    }
+
+    this[_interactions].select = new Select(selectOptions);
 
     const container = this[_map].getTargetElement();
 
@@ -1002,10 +1008,10 @@ class VLWholeSlideMicroscopyImageViewer {
       features: this[_features],  // TODO: or source, i.e. "drawings"???
     }
 
-    if (options.condition) {
-      modifyOptions.condition = options.condition;
+    if (options.bindings) {
+      modifyOptions.condition = generateOpenLayersCondition(options.bindings);
     }
-
+    
     this[_interactions].modify = new Modify(
       modifyOptions
     );
@@ -1036,8 +1042,8 @@ class VLWholeSlideMicroscopyImageViewer {
       features: this[_features],  // TODO: or source, i.e. "drawings"???
     }
 
-    if (options.condition) {
-      modifyOptions.condition = options.condition;
+    if (options.bindings) {
+      modifyOptions.condition = generateOpenLayersCondition(options.bindings);
     }
 
     this[_interactions].dragPan = new DragPan(
