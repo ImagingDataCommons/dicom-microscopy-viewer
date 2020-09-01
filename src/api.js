@@ -1,7 +1,7 @@
 import 'ol/ol.css';
 import Collection from 'ol/Collection';
 import Draw, { createRegularPolygon, createBox } from 'ol/interaction/Draw';
-import EVENT from "./events";
+import EVENT from './events';
 import Feature from 'ol/Feature';
 import FullScreen from 'ol/control/FullScreen';
 import Map from 'ol/Map';
@@ -10,7 +10,7 @@ import DragPan from 'ol/interaction/DragPan';
 import MouseWheelZoom from 'ol/interaction/MouseWheelZoom';
 import OverviewMap from 'ol/control/OverviewMap';
 import Projection from 'ol/proj/Projection';
-import publish from "./eventPublisher";
+import publish from './eventPublisher';
 import ScaleLine from 'ol/control/ScaleLine';
 import Select from 'ol/interaction/Select';
 import TileLayer from 'ol/layer/Tile';
@@ -23,8 +23,8 @@ import { default as PolygonGeometry } from 'ol/geom/Polygon';
 import { default as PointGeometry } from 'ol/geom/Point';
 import { default as LineStringGeometry } from 'ol/geom/LineString';
 import { default as CircleGeometry } from 'ol/geom/Circle';
-import { default as VectorEventType } from "ol/source/VectorEventType";
-import { default as MapEventType } from "ol/MapEventType";
+import { default as VectorEventType } from 'ol/source/VectorEventType';
+import { default as MapEventType } from 'ol/MapEventType';
 import { defaults as defaultInteractions } from 'ol/interaction';
 
 import { getCenter } from 'ol/extent';
@@ -33,10 +33,9 @@ import { toStringXY, rotate } from 'ol/coordinate';
 import { formatImageMetadata, getFrameMapping } from './metadata.js';
 import { ROI } from './roi.js';
 import {
-    generateUID,
-    mapPixelCoord2SlideCoord,
-    mapSlideCoord2PixelCoord,
-    generateOpenLayersCondition
+  generateUID,
+  mapPixelCoord2SlideCoord,
+  mapSlideCoord2PixelCoord,
 } from './utils.js';
 import {
   Point,
@@ -48,6 +47,65 @@ import {
 } from './scoord3d.js';
 
 import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
+
+function _generateOpenLayersCondition(bindings) {
+  const { mouseButtons, modifierKey } = bindings;
+
+  const _mouseButtonCondition = e => {
+    if (!mouseButtons || !mouseButtons.length) {
+      // No mouse button condition set.
+      return true;
+    }
+
+    const button = e.pointerEvent.buttons;
+
+    return mouseButtons.some(mb => BUTTONS[mb] === button);
+  };
+
+  const _modifierKeyCondition = e => {
+    const { pointerEvent } = e;
+
+    if (!modifierKey) {
+      // No modifier key, don't pass if key pressed as other tool may be using this tool.
+      return (
+        !pointerEvent.altKey &&
+        !pointerEvent.metaKey &&
+        !pointerEvent.shiftKey &&
+        !pointerEvent.ctrlKey
+      );
+    }
+
+    switch (modifierKey) {
+      case 'alt':
+        return (
+          pointerEvent.altKey === true ||
+          pointerEvent.metaKey === true
+        );
+      case 'shift':
+        return pointerEvent.shiftKey === true;
+      case 'ctrl':
+        return pointerEvent.ctrlKey === true;
+      default:
+        // invalid modifier key set (ignore requirement as if key not pressed).
+        return (
+          !pointerEvent.altKey &&
+          !pointerEvent.metaKey &&
+          !pointerEvent.shiftKey &&
+          !pointerEvent.ctrlKey
+        );
+    }
+  };
+
+  return function (e) {
+    return _mouseButtonCondition(e) && _modifierKeyCondition(e);
+  };
+}
+
+const BUTTONS = {
+  left: 1,
+  middle: 4,
+  right: 2
+};
 
 
 function _getPixelSpacing(metadata) {
@@ -157,7 +215,7 @@ function _getRotation(metadata) {
 
 function _geometry2Scoord3d(geometry, pyramid) {
   console.info('map coordinates from pixel matrix to slide coordinate system')
-  const frameOfReferenceUID = pyramid[pyramid.length-1].FrameOfReferenceUID;
+  const frameOfReferenceUID = pyramid[pyramid.length - 1].FrameOfReferenceUID;
   const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
@@ -197,7 +255,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
       [center[0], center[1] + radius, 0],
     ];
     coordinates = coordinates.map(c => {
-        return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
+      return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
     })
 
     // const metadata = pyramid[pyramid.length-1];
@@ -209,7 +267,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
     });
   } else {
     // TODO: Combine multiple points into MULTIPOINT.
-    console.error(`unknown geometry type "${type}"`)
+    console.error(`unknown geometry type '${type}'`)
   }
 }
 
@@ -226,7 +284,7 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     return new LineStringGeometry(coordinates);
-  } else if(type === 'POLYGON'){
+  } else if (type === 'POLYGON') {
     const coordinates = data.map(d => {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
@@ -252,13 +310,13 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     // to flat coordinates
-    coordinates = [...coordinates[0].slice(0,2), ...coordinates[1].slice(0,2)];
+    coordinates = [...coordinates[0].slice(0, 2), ...coordinates[1].slice(0, 2)];
 
     // flat coordinates in combination with opt_layout and no opt_radius are also accepted
     // and internaly it calculates the Radius
-    return new CircleGeometry(coordinates, null, "XY");
+    return new CircleGeometry(coordinates, null, 'XY');
   } else {
-    console.error(`unsupported graphic type "${type}"`)
+    console.error(`unsupported graphic type '${type}'`)
   }
 }
 
@@ -276,11 +334,11 @@ function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
 */
 function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
   let transform = false;
-  if(!Array.isArray(coordinates[0])) {
+  if (!Array.isArray(coordinates[0])) {
     coordinates = [coordinates];
     transform = true;
   }
-  const metadata = pyramid[pyramid.length-1];
+  const metadata = pyramid[pyramid.length - 1];
   const origin = metadata.TotalPixelMatrixOriginSequence[0];
   const orientation = metadata.ImageOrientationSlide;
   const spacing = _getPixelSpacing(metadata);
@@ -311,11 +369,11 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
 */
 function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   let transform = false;
-  if(!Array.isArray(coordinates[0])) {
+  if (!Array.isArray(coordinates[0])) {
     coordinates = [coordinates];
     transform = true;
   }
-  const metadata = pyramid[pyramid.length-1];
+  const metadata = pyramid[pyramid.length - 1];
   const orientation = metadata.ImageOrientationSlide;
   const spacing = _getPixelSpacing(metadata);
   const origin = metadata.TotalPixelMatrixOriginSequence[0];
@@ -324,7 +382,7 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
     Number(origin.YOffsetInSlideCoordinateSystem),
   ];
 
-  coordinates = coordinates.map(c =>{
+  coordinates = coordinates.map(c => {
     const slideCoord = [c[0], c[1]];
     const pixelCoord = mapSlideCoord2PixelCoord({
       offset,
@@ -340,7 +398,7 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   return coordinates;
 }
 
-function _getROIFromFeature(feature, pyramid){
+function _getROIFromFeature(feature, pyramid) {
   let roi = {}
   if (feature !== undefined) {
     const geometry = feature.getGeometry();
@@ -350,7 +408,7 @@ function _getROIFromFeature(feature, pyramid){
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
     const uid = feature.getId();
-    roi = new ROI({scoord3d, properties, uid});
+    roi = new ROI({ scoord3d, properties, uid });
   }
   return roi;
 }
@@ -397,13 +455,13 @@ class VLWholeSlideMicroscopyImageViewer {
     }
     options.controls = new Set(options.controls);
 
-    // Collection of Openlayers "VectorLayer" instances indexable by
+    // Collection of Openlayers 'VectorLayer' instances indexable by
     // DICOM Series Instance UID
     this[_segmentations] = {};
 
-    // Collection of Openlayers "Feature" instances
-    this[_features] = new Collection([], {unique: true});
-    // Add unique identifier to each created "Feature" instance
+    // Collection of Openlayers 'Feature' instances
+    this[_features] = new Collection([], { unique: true });
+    // Add unique identifier to each created 'Feature' instance
     this[_features].on('add', (e) => {
       // The ID may have already been set when drawn. However, features could
       // have also been added without a draw event.
@@ -444,9 +502,9 @@ class VLWholeSlideMicroscopyImageViewer {
       let index = null;
       for (let j = 0; j < this[_pyramidMetadata].length; j++) {
         if (
-            (this[_pyramidMetadata][j].TotalPixelMatrixColumns === cols) &&
-            (this[_pyramidMetadata][j].TotalPixelMatrixRows === rows)
-          ) {
+          (this[_pyramidMetadata][j].TotalPixelMatrixColumns === cols) &&
+          (this[_pyramidMetadata][j].TotalPixelMatrixRows === rows)
+        ) {
           alreadyExists = true;
           index = j;
         }
@@ -455,12 +513,12 @@ class VLWholeSlideMicroscopyImageViewer {
         // Update with information obtained from current concatentation part.
         Object.assign(this[_pyramidFrameMappings][index], frameMappings[i]);
         this[_pyramidMetadata][index].NumberOfFrames += numberOfFrames;
-        if ("PerFrameFunctionalGroupsSequence" in this[_metadata][index]) {
+        if ('PerFrameFunctionalGroupsSequence' in this[_metadata][index]) {
           this[_pyramidMetadata][index].PerFrameFunctionalGroupsSequence.push(
             ...this[_metadata][i].PerFrameFunctionalGroupsSequence
           );
         }
-        if (!"SOPInstanceUIDOfConcatenationSource" in this[_metadata][i]) {
+        if (!'SOPInstanceUIDOfConcatenationSource' in this[_metadata][i]) {
           throw new Error(
             'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
             'for concatenation parts.'
@@ -534,7 +592,7 @@ class VLWholeSlideMicroscopyImageViewer {
     tileGridSizes.reverse();
     origins.reverse();
 
-    // Functions won't be able to access "this"
+    // Functions won't be able to access 'this'
     const pyramid = this[_pyramidMetadata];
     const pyramidFrameMappings = this[_pyramidFrameMappings];
 
@@ -554,31 +612,31 @@ class VLWholeSlideMicroscopyImageViewer {
       let z = tileCoord[0];
       let y = tileCoord[1] + 1;
       let x = tileCoord[2] + 1;
-      let index = x + "-" + y;
+      let index = x + '-' + y;
       let path = pyramidFrameMappings[z][index];
       if (path === undefined) {
-        console.warn("tile " + index + " not found at level " + z);
-        return(null);
+        console.warn('tile ' + index + ' not found at level ' + z);
+        return (null);
       }
       let url = options.client.wadoURL +
-        "/studies/" + pyramid[z].StudyInstanceUID +
-        "/series/" + pyramid[z].SeriesInstanceUID +
+        '/studies/' + pyramid[z].StudyInstanceUID +
+        '/series/' + pyramid[z].SeriesInstanceUID +
         '/instances/' + path;
       if (options.retrieveRendered) {
         url = url + '/rendered';
       }
-      return(url);
+      return (url);
     }
 
     /*
      * Define custonm tile loader function, which is required because the
-     * WADO-RS response message has content type "multipart/related".
+     * WADO-RS response message has content type 'multipart/related'.
     */
     const base64Encode = (data) => {
       const uint8Array = new Uint8Array(data);
       const chunkSize = 0x8000;
       const strArray = [];
-      for (let i=0; i < uint8Array.length; i+=chunkSize) {
+      for (let i = 0; i < uint8Array.length; i += chunkSize) {
         const str = String.fromCharCode.apply(
           null, uint8Array.subarray(i, i + chunkSize)
         );
@@ -604,11 +662,11 @@ class VLWholeSlideMicroscopyImageViewer {
             mediaTypes: [{ mediaType }]
           };
           options.client.retrieveInstanceFramesRendered(retrieveOptions).then((renderedFrame) => {
-            const blob = new Blob([renderedFrame], {type: mediaType});
+            const blob = new Blob([renderedFrame], { type: mediaType });
             img.src = window.URL.createObjectURL(blob);
           });
         } else {
-          // TODO: support "image/jp2" and "image/jls"
+          // TODO: support 'image/jp2' and 'image/jls'
           const mediaType = 'image/jpeg';
 
           const retrieveOptions = {
@@ -616,10 +674,10 @@ class VLWholeSlideMicroscopyImageViewer {
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
-            mediaTypes: [{mediaType, transferSyntaxUID: '1.2.840.10008.1.2.4.50'}]
+            mediaTypes: [{ mediaType, transferSyntaxUID: '1.2.840.10008.1.2.4.50' }]
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then((rawFrames) => {
-            const blob = new Blob(rawFrames, {type: mediaType});
+            const blob = new Blob(rawFrames, { type: mediaType });
             img.src = window.URL.createObjectURL(blob);
           });
         }
@@ -651,17 +709,17 @@ class VLWholeSlideMicroscopyImageViewer {
      * with the default Mercator projection.
      */
     const projection = new Projection({
-      code: "NONE",
+      code: 'NONE',
       units: 'metric',
       extent: extent,
-      getPointResolution: function(pixelRes, point) {
+      getPointResolution: function (pixelRes, point) {
         /*
          * DICOM pixel spacing has millimeter unit while the projection has
          * has meter unit.
          */
-        let spacing = _getPixelSpacing(pyramid[nLevels-1])[0] / 10**3;
+        let spacing = _getPixelSpacing(pyramid[nLevels - 1])[0] / 10 ** 3;
         let res = pixelRes * spacing;
-        return(res);
+        return (res);
       }
     });
     /*
@@ -690,7 +748,7 @@ class VLWholeSlideMicroscopyImageViewer {
      * frames (load tiles) via DICOMweb WADO-RS.
      */
     const rasterSource = new TileImage({
-      crossOrigin: "Anonymous",
+      crossOrigin: 'Anonymous',
       tileGrid: tileGrid,
       projection: projection,
       wrapX: false
@@ -783,13 +841,13 @@ class VLWholeSlideMicroscopyImageViewer {
     this[_map].getView().fit(extent);
   }
 
-  resize(){
+  resize() {
     this[_map].updateSize();
   }
 
   /* Gets the DICOM metadata for each image instance.
    */
-  getMetadata(){
+  getMetadata() {
     return this[_pyramidMetadata];
   }
 
@@ -801,7 +859,7 @@ class VLWholeSlideMicroscopyImageViewer {
     }
     this[_map].setTarget(options.container);
 
-    // Style scale element (overriding default Openlayers CSS "ol-scale-line")
+    // Style scale element (overriding default Openlayers CSS 'ol-scale-line')
     let scaleElement = this[_controls]['scale'].element;
     scaleElement.style.position = 'absolute';
     scaleElement.style.right = '.5em';
@@ -848,9 +906,9 @@ class VLWholeSlideMicroscopyImageViewer {
           const layout = geometry.getLayout();
           const coordinates = geometry.getCoordinates();
           const firstPoint = coordinates[0][0];
-          const lastPoint = coordinates[0][coordinates[0].length-1];
+          const lastPoint = coordinates[0][coordinates[0].length - 1];
           if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
-            coordinates[0][coordinates[0].length-1] = firstPoint;
+            coordinates[0][coordinates[0].length - 1] = firstPoint;
             geometry.setCoordinates(coordinates, layout);
             e.feature.setGeometry(geometry);
           }
@@ -918,10 +976,10 @@ class VLWholeSlideMicroscopyImageViewer {
       console.error('geometry type must be specified for drawing interaction')
     }
     if (!(options.geometryType in customOptionsMapping)) {
-      console.error(`unsupported geometry type "${options.geometryType}"`)
+      console.error(`unsupported geometry type '${options.geometryType}'`)
     }
 
-    const defaultDrawOptions = {source: this[_drawingSource]};
+    const defaultDrawOptions = { source: this[_drawingSource] };
     const customDrawOptions = customOptionsMapping[options.geometryType];
     if ('style' in options) {
       customDrawOptions.style = options.style;
@@ -929,7 +987,14 @@ class VLWholeSlideMicroscopyImageViewer {
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
 
     if (options.bindings) {
-      allDrawOptions.condition = generateOpenLayersCondition(options.bindings);
+      // options.bindings is used to define which mouse buttons will fire the action.
+      // bindings: {
+      //   // mouseButtons can be 'left', 'right' and/or 'middle'. if absent, the action is bound to all mouse buttons.
+      //   mouseButtons: ['left', 'right'], 
+      //   // modifierKey can be 'shift', 'ctrl' or 'alt'. If not present, the action is bound to no modifier key.
+      //   modifierKey: 'ctrl' // The modifier 
+      // },
+      allDrawOptions.condition = _generateOpenLayersCondition(options.bindings);
     }
 
     this[_interactions].draw = new Draw(allDrawOptions);
@@ -962,14 +1027,15 @@ class VLWholeSlideMicroscopyImageViewer {
 
   /* Activate select interaction.
    */
-  activateSelectInteraction(options={}) {
+  activateSelectInteraction(options = {}) {
     this.deactivateSelectInteraction();
     console.info('activate "select" interaction')
 
-    const selectOptions = {layers: [this[_drawingLayer]]}
+    const selectOptions = { layers: [this[_drawingLayer]] }
 
     if (options.bindings) {
-      selectOptions.condition = generateOpenLayersCondition(options.bindings);
+      // See "options.binding" comment in activateDrawInteraction() definition.
+      selectOptions.condition = _generateOpenLayersCondition(options.bindings);
     }
 
     this[_interactions].select = new Select(selectOptions);
@@ -999,19 +1065,20 @@ class VLWholeSlideMicroscopyImageViewer {
 
   /* Activate modify interaction.
    */
-  activateModifyInteraction(options={}) {
+  activateModifyInteraction(options = {}) {
     this.deactivateModifyInteraction();
     console.info('activate "modify" interaction')
 
 
     const modifyOptions = {
-      features: this[_features],  // TODO: or source, i.e. "drawings"???
+      features: this[_features],  // TODO: or source, i.e. 'drawings'???
     }
 
     if (options.bindings) {
-      modifyOptions.condition = generateOpenLayersCondition(options.bindings);
+      // See "options.binding" comment in activateDrawInteraction() definition.
+      modifyOptions.condition = _generateOpenLayersCondition(options.bindings);
     }
-    
+
     this[_interactions].modify = new Modify(
       modifyOptions
     );
@@ -1020,7 +1087,7 @@ class VLWholeSlideMicroscopyImageViewer {
 
 
 
-  
+
 
   /* Deactivate modify interaction.
    */
@@ -1033,17 +1100,18 @@ class VLWholeSlideMicroscopyImageViewer {
   }
 
 
-  activateDragPanInteraction(options={}) {
+  activateDragPanInteraction(options = {}) {
     this.deactivateDragPanInteraction();
     console.info('activate "drag pan" interaction')
 
 
     const modifyOptions = {
-      features: this[_features],  // TODO: or source, i.e. "drawings"???
+      features: this[_features],  // TODO: or source, i.e. 'drawings'???
     }
 
     if (options.bindings) {
-      modifyOptions.condition = generateOpenLayersCondition(options.bindings);
+      // See "options.binding" comment in activateDrawInteraction() definition.
+      modifyOptions.condition = _generateOpenLayersCondition(options.bindings);
     }
 
     this[_interactions].dragPan = new DragPan(
@@ -1071,7 +1139,7 @@ class VLWholeSlideMicroscopyImageViewer {
     console.info('get all ROIs')
     let rois = [];
     this[_features].forEach((item) => {
-        rois.push(this.getROI(item.getId()));
+      rois.push(this.getROI(item.getId()));
     });
     return rois;
   }
