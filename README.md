@@ -30,6 +30,11 @@ npm test
 
 We use [rollup](https://rollupjs.org/guide/en) for bundling and [mochify](https://github.com/mantoni/mochify.js) for testing (based on [mocha](https://mochajs.org/) and [chai](http://www.chaijs.com/)).
 
+Build the documentation:
+
+```None
+npm run generateDocs
+```
 
 ## Usage
 
@@ -39,7 +44,7 @@ We use [rollup](https://rollupjs.org/guide/en) for bundling and [mochify](https:
 
 The viewer can be embedded in any website, one only needs to
 
-* Create an instance of the `VLWholeSlideMicroscopyImageViewer`. The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image instance formatted according to the [
+* Create an instance of the `viewer.VolumeViewer`. The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image instance formatted according to the [
 DICOM JSON Model](http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_F.2.html).
 
 * Call the `render()` method, passing it the HTML element (or the name of the element), which shall contain the viewport.
@@ -74,7 +79,7 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
   return(Promise.all(promises));
 }).then(metadata => {
   metadata = metadata.filter(m => m);
-  const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
+  const viewer = new DICOMMicroscopyViewer.viewer.VolumeViewer({
     client,
     metadata
   });
@@ -84,16 +89,23 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
 
 ## Status
 
-**This is work-in-progress and should not be used in clinical practice.**
+**Investigational use only!**
 
 The viewer allows visualization of *VL Whole Slide Microscopy Image* datasets stored in a [DICOMweb](https://www.dicomstandard.org/dicomweb/) compatible archive.
 It leverages the [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client) JavaScript library to retrieve data from the archive.
+
+### Features
+
+* Display of different image types: `VOLUME`, `OVERVIEW`, `LABEL`
+* Server-side rendering of images with inclusion of ICC profiles for color reproducibility
+* Client-side assembly of concatenations
+* Vector graphic annotation of regions of interest (ROI) based on 3-dimensional spatial coordinates (SCOORD3D): `POINT`, `MULTIPOINT`, `POLYLINE`, `POLYGON`, `ELLIPSE`, `ELLIPSOID`
 
 ### Limitations
 
 Currently, the viewer only supports
 
-* brightfield illumination (no fluorescence)
+* Brightfield illumination (no fluorescence)
 * 2D images (no z-stacks)
 
 ## Citation
@@ -119,6 +131,15 @@ Please cite the following article when using the viewer for scientific studies: 
 
 ```
 
+## Documentation
+
+The online Application Programming Interface (API) documentation is available at [mghcomputationalpathology.github.io/dicom-microscopy-viewer](https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/).
+
+## Getting started
+
+Take a look at the examples in the `/examples` directory.
+They are also available online at [microscopy.dcmjs.org](https://microscopy.dcmjs.org/).
+
 ## Support
 
 The developers gratefully acknowledge their reseach support:
@@ -128,4 +149,5 @@ The developers gratefully acknowledge their reseach support:
 * The [Neuroimage Analysis Center](http://nac.spl.harvard.edu)
 * The [National Center for Image Guided Therapy](http://ncigt.org)
 * The [MGH & BWH Center for Clinical Data Science](https://www.ccds.io/)
+
 

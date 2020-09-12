@@ -1,4 +1,32 @@
-import { generateUID } from './utils.js';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: scoord3d.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: scoord3d.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import { generateUID } from './utils.js';
 
 const _coordinates = Symbol('coordinates')
 const _majorAxisEndpointCoordinates = Symbol('majorAxisEndpointCoordinates')
@@ -85,7 +113,7 @@ class Point extends Scoord3D {
     if (options.coordinates.length !== 3) {
       throw new Error('coordinates of Point must be an array of length 3')
     }
-    if (options.coordinates.some((c => c < 0))) {
+    if (options.coordinates.some((c => c &lt; 0))) {
       throw new Error('coordinates of Point must be positive numbers')
     }
     super({
@@ -132,7 +160,7 @@ class Multipoint extends Scoord3D {
     if(options.coordinates.find(c => c.length !== 3)!== undefined) {
       throw new Error('coordinates of Multipoint must be an array of (X,Y,Z) triplets')
     }
-    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+    if(options.coordinates.find(c => c.some((item => item &lt; 0)))) {
       throw new Error('coordinates of Multipoint must be positive numbers')
     }
     super({
@@ -171,7 +199,7 @@ class Polyline extends Scoord3D {
     if(options.coordinates.find(c => c.length !== 3)!== undefined) {
       throw new Error('coordinates of Polyline must be an array of (X,Y,Z) triplets')
     }
-    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+    if(options.coordinates.find(c => c.some((item => item &lt; 0)))) {
       throw new Error('coordinates of Polyline must be positive numbers')
     }
     super({
@@ -211,7 +239,7 @@ class Polygon extends Scoord3D {
     if(options.coordinates.find(c => c.length !== 3)!== undefined) {
       throw new Error('coordinates of Polygon must be an array of (X,Y,Z) triplets')
     }
-    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+    if(options.coordinates.find(c => c.some((item => item &lt; 0)))) {
       throw new Error('coordinates of Polygon must be positive numbers')
     }
     const n = options.coordinates.length;
@@ -262,7 +290,7 @@ class Ellipsoid extends Scoord3D {
     if(options.coordinates.find(c => c.length !== 3)!== undefined) {
       throw new Error('coordinates of Ellipsoid must be an array of (X,Y,Z) triplets')
     }
-    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+    if(options.coordinates.find(c => c.some((item => item &lt; 0)))) {
       throw new Error('coordinates of Ellipsoid must be positive numbers')
     }
     super({
@@ -306,7 +334,7 @@ class Ellipse extends Scoord3D {
     if(options.coordinates.find(c => c.length !== 3)!== undefined) {
       throw new Error('coordinates of Ellipse must be an array of (X,Y,Z) triplets')
     }
-    if(options.coordinates.find(c => c.some((item => item < 0)))) {
+    if(options.coordinates.find(c => c.some((item => item &lt; 0)))) {
       throw new Error('coordinates of Ellipse must be positive numbers')
     }
     const firstAxis = [
@@ -330,7 +358,7 @@ class Ellipse extends Scoord3D {
       throw new Error('Two axis of Ellipse must have right angle')
     }
     var coordinates = options.coordinates;
-    if (firstAxisNorm < secondAxisNorm) {
+    if (firstAxisNorm &lt; secondAxisNorm) {
         coordinates = [
             coordinates[2],
             coordinates[3],
@@ -353,3 +381,26 @@ class Ellipse extends Scoord3D {
 
 export { Point, Multipoint, Polyline, Polygon, Ellipse, Ellipsoid }
 
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Sat Sep 12 2020 17:44:46 GMT-0400 (Eastern Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
