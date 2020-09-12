@@ -26,7 +26,7 @@ import {
  * @deprecated use the viewer namespace instead
  */
 const api = {
-  VLWholeSlideMicroscopyViewer: VolumeImageViewer
+  VLWholeSlideMicroscopyImageViewer: VolumeImageViewer
 };
 
 /** Namespace for the viewer.
@@ -86,4 +86,4 @@ const utils = {
   mapPixelCoordToSlideCoord,
 };
 
-export { events, metadata, roi, scoord3d, utils, viewer };
+export { api, events, metadata, roi, scoord3d, utils, viewer };

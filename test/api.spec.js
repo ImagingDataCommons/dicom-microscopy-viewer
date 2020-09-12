@@ -11,7 +11,7 @@ const testCases = [testCase1, testCase2, testCase3];
 const dicomMicroscopyViewer = require('../build/dicom-microscopy-viewer.js');
 
 
-describe('dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer', ()=> {
+describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
 
     var viewer;
     testCases.forEach((metadata, index) => {
