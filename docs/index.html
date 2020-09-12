@@ -42,6 +42,133 @@
 
 
 
+    <section>
+        <article><p><a href="https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer"><img src="https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer.svg?branch=master" alt="Build Status"></a></p>
+<h1>DICOM Microscopy Viewer</h1>
+<p>Vanilla JS library for web-based visualization of <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html">DICOM VL Whole Slide Microscopy Image</a> datasets.</p>
+<h2>Motivation and implementation</h2>
+<p>The library is intended to provide a lightweight and standard-compliant viewer for microscopy images in DICOM format.
+The viewer relies on <a href="http://openlayers.org/">Openlayers</a> for rendering pyramid images and dynamically retrieves pyramid tiles (image frames) via <a href="https://www.dicomstandard.org/dicomweb/retrieve-wado-rs-and-wado-uri/">DICOMweb WADO-RS</a> using <a href="https://github.com/mghcomputationalpathology/dicomweb-client">dicomweb-client</a>.
+However, the viewer API fully abstracts the underlying rendering library and doesn't expose the lower level Openlayers API directly, such that another rendering library could in principle be used in the future if this would be of advantage.</p>
+<h2>Live demo</h2>
+<p>Check out the online examples at <a href="https://microscopy.dcmjs.org/">microscopy.dcmjs.org</a>.</p>
+<h2>Installation</h2>
+<p>Install the <a href="https://www.npmjs.com/package/dicom-microscopy-viewer">dicom-microscopy-viewer</a> package using the <code>npm</code> package manager:</p>
+<pre class="prettyprint source lang-None"><code>npm install dicom-microscopy-viewer
+</code></pre>
+<h2>Building and testing</h2>
+<p>Build and test code locally:</p>
+<pre class="prettyprint source lang-None"><code>git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
+cd ~/dicom-microscopy-viewer
+npm install
+npm run build
+npm test
+</code></pre>
+<p>We use <a href="https://rollupjs.org/guide/en">rollup</a> for bundling and <a href="https://github.com/mantoni/mochify.js">mochify</a> for testing (based on <a href="https://mochajs.org/">mocha</a> and <a href="http://www.chaijs.com/">chai</a>).</p>
+<p>Build the documentation:</p>
+<pre class="prettyprint source lang-None"><code>npm run generateDocs
+</code></pre>
+<h2>Usage</h2>
+<pre class="prettyprint source lang-html"><code>&lt;script type=&quot;text/javascript&quot; src=&quot;https://unpkg.com/dicom-microscopy-viewer&quot;>&lt;/script>
+</code></pre>
+<p>The viewer can be embedded in any website, one only needs to</p>
+<ul>
+<li>
+<p>Create an instance of the <code>viewer.VolumeViewer</code>. The constructor requires an instance of <code>DICOMwebClient</code> for retrieving frames from the archive as well as the metadata for each DICOM image instance formatted according to the <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_F.2.html">
+DICOM JSON Model</a>.</p>
+</li>
+<li>
+<p>Call the <code>render()</code> method, passing it the HTML element (or the name of the element), which shall contain the viewport.</p>
+</li>
+</ul>
+<pre class="prettyprint source lang-js"><code>const url = 'http://localhost:8080/dicomweb';
+const client = new DICOMwebClient.api.DICOMwebClient({url});
+const studyInstanceUID = '1.2.3.4';
+const seriesInstanceUID = '1.2.3.5';
+const searchInstanceOptions = {
+  studyInstanceUID,
+  seriesInstanceUID
+};
+client.searchForInstances(searchInstanceOptions).then((instances) => {
+  const promises = []
+  for (let i = 0; i &lt; instances.length; i++) {
+    const sopInstanceUID = instances[i][&quot;00080018&quot;][&quot;Value&quot;][0];
+    const retrieveInstanceOptions = {
+      studyInstanceUID,
+      seriesInstanceUID,
+      sopInstanceUID,
+    };
+    const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
+      const imageType = metadata[0][&quot;00080008&quot;][&quot;Value&quot;];
+      if (imageType[2] === &quot;VOLUME&quot;) {
+        return(metadata[0]);
+      }
+    });
+    promises.push(promise);
+  }
+  return(Promise.all(promises));
+}).then(metadata => {
+  metadata = metadata.filter(m => m);
+  const viewer = new DICOMMicroscopyViewer.viewer.VolumeViewer({
+    client,
+    metadata
+  });
+  viewer.render({container: 'viewport'});
+});
+</code></pre>
+<h2>Status</h2>
+<p><strong>Investigational use only!</strong></p>
+<p>The viewer allows visualization of <em>VL Whole Slide Microscopy Image</em> datasets stored in a <a href="https://www.dicomstandard.org/dicomweb/">DICOMweb</a> compatible archive.
+It leverages the <a href="https://github.com/dcmjs-org/dicomweb-client">dicomweb-client</a> JavaScript library to retrieve data from the archive.</p>
+<h3>Features</h3>
+<ul>
+<li>Display of different image types: <code>VOLUME</code>, <code>OVERVIEW</code>, <code>LABEL</code></li>
+<li>Server-side rendering of images with inclusion of ICC profiles for color reproducibility</li>
+<li>Client-side assembly of concatenations</li>
+<li>Vector graphic annotation of regions of interest (ROI) based on 3-dimensional spatial coordinates (SCOORD3D): <code>POINT</code>, <code>MULTIPOINT</code>, <code>POLYLINE</code>, <code>POLYGON</code>, <code>ELLIPSE</code>, <code>ELLIPSOID</code></li>
+</ul>
+<h3>Limitations</h3>
+<p>Currently, the viewer only supports</p>
+<ul>
+<li>Brightfield illumination (no fluorescence)</li>
+<li>2D images (no z-stacks)</li>
+</ul>
+<h2>Citation</h2>
+<p>Please cite the following article when using the viewer for scientific studies: <a href="http://www.jpathinformatics.org/article.asp?issn=2153-3539;year=2018;volume=9;issue=1;spage=37;epage=37;aulast=Herrmann">Herrmann et al. J Path Inform. 2018</a>:</p>
+<pre class="prettyprint source lang-None"><code>@article{jpathinform-2018-9-37,
+    Author={
+        Herrmann, M. D. and Clunie, D. A. and Fedorov A. and Doyle, S. W. and Pieper, S. and
+        Klepeis, V. and Le, L. P. and Mutter, G. L. and Milstone, D. S. and Schultz, T. J. and
+        Kikinis, R. and Kotecha, G. K. and Hwang, D. H. and Andriole, K, P. and Iafrate, A. J. and
+        Brink, J. A. and Boland, G. W. and Dreyer, K. J. and Michalski, M. and
+        Golden, J. A. and Louis, D. N. and Lennerz, J. K.
+    },
+    Title={Implementing the {DICOM} standard for digital pathology},
+    Journal={Journal of Pathology Informatics},
+    Year={2018},
+    Number={1},
+    Volume={9},
+    Number={37}
+}
+
+</code></pre>
+<h2>Documentation</h2>
+<p>The online Application Programming Interface (API) documentation is available at <a href="https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/">mghcomputationalpathology.github.io/dicom-microscopy-viewer</a>.</p>
+<h2>Getting started</h2>
+<p>Take a look at the examples in the <code>/examples</code> directory.
+They are also available online at <a href="https://microscopy.dcmjs.org/">microscopy.dcmjs.org</a>.</p>
+<h2>Support</h2>
+<p>The developers gratefully acknowledge their reseach support:</p>
+<ul>
+<li>Open Health Imaging Foundation (<a href="http://ohif.org">OHIF</a>)</li>
+<li>Quantitative Image Informatics for Cancer Research (<a href="http://qiicr.org">QIICR</a>)</li>
+<li><a href="http://radiomics.io">Radiomics</a></li>
+<li>The <a href="http://nac.spl.harvard.edu">Neuroimage Analysis Center</a></li>
+<li>The <a href="http://ncigt.org">National Center for Image Guided Therapy</a></li>
+<li>The <a href="https://www.ccds.io/">MGH &amp; BWH Center for Clinical Data Science</a></li>
+</ul></article>
+    </section>
+
 
 
 
@@ -56,7 +183,7 @@
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Sat Sep 12 2020 17:44:46 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Sat Sep 12 2020 17:54:34 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

@@ -1270,7 +1270,7 @@ class _NonVolumeImageViewer {
       projection: projection
     });
 
-    /** Creates the map with the defined layers and view and renders it. */
+    // Creates the map with the defined layers and view and renders it.
     this[_map] = new Map({
       layers: [this[_imageLayer]],
       view: view,
