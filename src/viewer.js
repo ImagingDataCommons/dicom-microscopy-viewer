@@ -13,6 +13,8 @@ import Projection from 'ol/proj/Projection';
 import publish from "./eventPublisher";
 import ScaleLine from 'ol/control/ScaleLine';
 import Select from 'ol/interaction/Select';
+import Snap from 'ol/interaction/Snap';
+import Translate from 'ol/interaction/Translate';
 import Static from 'ol/source/ImageStatic';
 import TileLayer from 'ol/layer/Tile';
 import TileImage from 'ol/source/TileImage';
@@ -20,6 +22,10 @@ import TileGrid from 'ol/tilegrid/TileGrid';
 import VectorSource from 'ol/source/Vector';
 import VectorLayer from 'ol/layer/Vector';
 import View from 'ol/View';
+
+import Overlay from 'ol/Overlay';
+import { unByKey } from 'ol/Observable';
+
 import { default as PolygonGeometry } from 'ol/geom/Polygon';
 import { default as PointGeometry } from 'ol/geom/Point';
 import { default as LineStringGeometry } from 'ol/geom/LineString';
@@ -34,9 +40,9 @@ import { toStringXY, rotate } from 'ol/coordinate';
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js';
 import { ROI } from './roi.js';
 import {
-    generateUID,
-    mapPixelCoordToSlideCoord,
-    mapSlideCoordToPixelCoord
+  generateUID,
+  mapPixelCoordToSlideCoord,
+  mapSlideCoordToPixelCoord
 } from './utils.js';
 import {
   Point,
@@ -47,8 +53,14 @@ import {
   Ellipse
 } from './scoord3d.js';
 
-import DICOMwebClient from 'dicomweb-client/build/dicomweb-client.js'
+import * as DICOMwebClient from 'dicomweb-client'
+import { formatLength } from './length-example';
 
+const CustomGeometry = {
+  Length: 'Length',
+  Arrow: 'Arrow',
+  FreeText: 'FreeText'
+};
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -61,7 +73,6 @@ function _getPixelSpacing(metadata) {
   const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
   return pixelMeasures.PixelSpacing;
 }
-
 
 /** Determines whether image needs to be rotated relative to slide
  * coordinate system based on direction cosines.
@@ -173,7 +184,7 @@ function _getRotation(metadata) {
  */
 function _geometry2Scoord3d(geometry, pyramid) {
   console.info('map coordinates from pixel matrix to slide coordinate system')
-  const frameOfReferenceUID = pyramid[pyramid.length-1].FrameOfReferenceUID;
+  const frameOfReferenceUID = pyramid[pyramid.length - 1].FrameOfReferenceUID;
   const type = geometry.getType();
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
@@ -213,7 +224,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
       [center[0], center[1] + radius, 0],
     ];
     coordinates = coordinates.map(c => {
-        return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
+      return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
     })
 
     // const metadata = pyramid[pyramid.length-1];
@@ -250,7 +261,7 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     return new LineStringGeometry(coordinates);
-  } else if(type === 'POLYGON'){
+  } else if (type === 'POLYGON') {
     const coordinates = data.map(d => {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
@@ -276,7 +287,7 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     // to flat coordinates
-    coordinates = [...coordinates[0].slice(0,2), ...coordinates[1].slice(0,2)];
+    coordinates = [...coordinates[0].slice(0, 2), ...coordinates[1].slice(0, 2)];
 
     // flat coordinates in combination with opt_layout and no opt_radius are also accepted
     // and internaly it calculates the Radius
@@ -304,11 +315,11 @@ function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
  */
 function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
   let transform = false;
-  if(!Array.isArray(coordinates[0])) {
+  if (!Array.isArray(coordinates[0])) {
     coordinates = [coordinates];
     transform = true;
   }
-  const metadata = pyramid[pyramid.length-1];
+  const metadata = pyramid[pyramid.length - 1];
   const origin = metadata.TotalPixelMatrixOriginSequence[0];
   const orientation = metadata.ImageOrientationSlide;
   const spacing = _getPixelSpacing(metadata);
@@ -344,11 +355,11 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
  */
 function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   let transform = false;
-  if(!Array.isArray(coordinates[0])) {
+  if (!Array.isArray(coordinates[0])) {
     coordinates = [coordinates];
     transform = true;
   }
-  const metadata = pyramid[pyramid.length-1];
+  const metadata = pyramid[pyramid.length - 1];
   const orientation = metadata.ImageOrientationSlide;
   const spacing = _getPixelSpacing(metadata);
   const origin = metadata.TotalPixelMatrixOriginSequence[0];
@@ -357,7 +368,7 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
     Number(origin.YOffsetInSlideCoordinateSystem),
   ];
 
-  coordinates = coordinates.map(c =>{
+  coordinates = coordinates.map(c => {
     const slideCoord = [c[0], c[1]];
     const pixelCoord = mapSlideCoordToPixelCoord({
       offset,
@@ -381,7 +392,7 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
  * @returns {ROI} Region of interest
  * @private
  */
-function _getROIFromFeature(feature, pyramid){
+function _getROIFromFeature(feature, pyramid) {
   let roi = {}
   if (feature !== undefined) {
     const geometry = feature.getGeometry();
@@ -391,7 +402,7 @@ function _getROIFromFeature(feature, pyramid){
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
     const uid = feature.getId();
-    roi = new ROI({scoord3d, properties, uid});
+    roi = new ROI({ scoord3d, properties, uid });
   }
   return roi;
 }
@@ -452,7 +463,7 @@ class VolumeImageViewer {
     this[_segmentations] = {};
 
     // Collection of Openlayers "Feature" instances
-    this[_features] = new Collection([], {unique: true});
+    this[_features] = new Collection([], { unique: true });
     // Add unique identifier to each created "Feature" instance
     this[_features].on('add', (e) => {
       // The ID may have already been set when drawn. However, features could
@@ -469,7 +480,7 @@ class VolumeImageViewer {
     */
     this[_metadata] = [];
     options.metadata.forEach(m => {
-      const image = new VLWholeSlideMicroscopyImage({metadata: m});
+      const image = new VLWholeSlideMicroscopyImage({ metadata: m });
       if (image.ImageType[2] === 'VOLUME') {
         this[_metadata].push(image);
       }
@@ -503,9 +514,9 @@ class VolumeImageViewer {
       let index = null;
       for (let j = 0; j < this[_pyramidMetadata].length; j++) {
         if (
-            (this[_pyramidMetadata][j].TotalPixelMatrixColumns === cols) &&
-            (this[_pyramidMetadata][j].TotalPixelMatrixRows === rows)
-          ) {
+          (this[_pyramidMetadata][j].TotalPixelMatrixColumns === cols) &&
+          (this[_pyramidMetadata][j].TotalPixelMatrixRows === rows)
+        ) {
           alreadyExists = true;
           index = j;
         }
@@ -617,7 +628,7 @@ class VolumeImageViewer {
       const path = pyramidFrameMappings[z][index];
       if (path === undefined) {
         console.warn("tile " + index + " not found at level " + z);
-        return(null);
+        return (null);
       }
       let url = options.client.wadoURL +
         "/studies/" + pyramid[z].StudyInstanceUID +
@@ -626,7 +637,7 @@ class VolumeImageViewer {
       if (options.retrieveRendered) {
         url = url + '/rendered';
       }
-      return(url);
+      return (url);
     }
 
     /*
@@ -653,7 +664,7 @@ class VolumeImageViewer {
             }
           };
           options.client.retrieveInstanceFramesRendered(retrieveOptions).then((renderedFrame) => {
-            const blob = new Blob([renderedFrame], {type: mediaType});
+            const blob = new Blob([renderedFrame], { type: mediaType });
             img.src = window.URL.createObjectURL(blob);
           });
         } else {
@@ -665,10 +676,10 @@ class VolumeImageViewer {
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
-            mediaTypes: [{mediaType, transferSyntaxUID: '1.2.840.10008.1.2.4.50'}]
+            mediaTypes: [{ mediaType, transferSyntaxUID: '1.2.840.10008.1.2.4.50' }]
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then((rawFrames) => {
-            const blob = new Blob(rawFrames, {type: mediaType});
+            const blob = new Blob(rawFrames, { type: mediaType });
             img.src = window.URL.createObjectURL(blob);
           });
         }
@@ -706,7 +717,7 @@ class VolumeImageViewer {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
          * has meter unit.
          */
-        const spacing = _getPixelSpacing(pyramid[nLevels-1])[0] / 10**3;
+        const spacing = _getPixelSpacing(pyramid[nLevels - 1])[0] / 10 ** 3;
         return pixelRes * spacing;
       }
     });
@@ -777,7 +788,9 @@ class VolumeImageViewer {
     this[_interactions] = {
       draw: undefined,
       select: undefined,
-      modify: undefined
+      translate: undefined,
+      modify: undefined,
+      snap: undefined
     };
 
     this[_controls] = {
@@ -826,7 +839,7 @@ class VolumeImageViewer {
   }
 
   /** Resizes the viewer to fit the viewport. */
-  resize(){
+  resize() {
     this[_map].updateSize();
   }
 
@@ -834,7 +847,7 @@ class VolumeImageViewer {
    *
    * @type {number[]}
    */
-  get size(){
+  get size() {
     return this[_map].getSize();
   }
 
@@ -895,9 +908,9 @@ class VolumeImageViewer {
           const layout = geometry.getLayout();
           const coordinates = geometry.getCoordinates();
           const firstPoint = coordinates[0][0];
-          const lastPoint = coordinates[0][coordinates[0].length-1];
+          const lastPoint = coordinates[0][coordinates[0].length - 1];
           if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
-            coordinates[0][coordinates[0].length-1] = firstPoint;
+            coordinates[0][coordinates[0].length - 1] = firstPoint;
             geometry.setCoordinates(coordinates, layout);
             e.feature.setGeometry(geometry);
           }
@@ -922,11 +935,11 @@ class VolumeImageViewer {
     const customOptionsMapping = {
       point: {
         type: 'Point',
-        geometryName: 'Point'
+        geometryName: 'Point',
       },
       circle: {
         type: 'Circle',
-        geometryName: 'Circle'
+        geometryName: 'Circle',
       },
       box: {
         type: 'Circle',
@@ -953,32 +966,124 @@ class VolumeImageViewer {
         geometryName: 'FreeHandLine',
         freehand: true,
       },
+      length: {
+        type: 'LineString',
+        geometryName: CustomGeometry.Length,
+        freehand: false,
+        maxPoints: 1,
+        minPoints: 1,
+        style: feature => {
+          debugger
+        }
+                // this[_drawingLayer].setStyle(feature => {
+        //   const styles = [];
+        //   const centerStyle = new ol.style.Style({
+        //     image: new ol.style.Circle({ 
+        //       radius: 7, 
+        //       fill: new ol.style.Fill({ color: 'red' }) 
+        //     })
+        //   });
+        //   if (feature.getGeometry().getType() == 'Length') {
+        //     centerStyle.setGeometry(new ol.geom.Point(feature.getGeometry().getCenter()));
+        //     styles.push(centerStyle);
+        //   }
+        //   return styles;
+        // });
+      },
     };
+
     if (!('geometryType' in options)) {
       console.error('geometry type must be specified for drawing interaction')
     }
+
     if (!(options.geometryType in customOptionsMapping)) {
       console.error(`unsupported geometry type "${options.geometryType}"`)
     }
 
-    const defaultDrawOptions = {source: this[_drawingSource]};
+    const defaultDrawOptions = { source: this[_drawingSource] };
     const customDrawOptions = customOptionsMapping[options.geometryType];
+
     if ('style' in options) {
       customDrawOptions.style = options.style;
     }
+
+    debugger
+
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
-
     const container = this[_map].getTargetElement();
 
-    //attaching openlayers events handling
+    this.listener = {};
+    this.measureTooltips = {};
+    const styleTag = document.createElement("style");
+    styleTag.innerHTML = `
+      .ol-tooltip {
+        position: relative;
+        color: #9ccef9;
+        padding: 4px 8px;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+      .ol-tooltip-measure { opacity: 1; }
+      .ol-tooltip-static { color: #9ccef9; }
+      .ol-tooltip-measure:before,
+      .ol-tooltip-static:before {
+        content: "";
+        position: absolute;
+        bottom: -6px;
+        margin-left: -7px;
+        left: 50%;
+      }
+    `;
+    const stylesOverlay = new Overlay({ element: styleTag });
+    map.addOverlay(stylesOverlay);
+    const createMeasureTooltip = (featureId, map) => {
+      if (this.measureTooltips && !this.measureTooltips[featureId]) {
+        this.measureTooltips[featureId] = {};
+        const tooltip = document.createElement('div');
+        tooltip.className = 'ol-tooltip ol-tooltip-measure';
+
+        this.measureTooltips[featureId].element = tooltip;
+        this.measureTooltips[featureId].overlay = new Overlay({
+          element: tooltip,
+          offset: [0, -15],
+          positioning: 'bottom-center',
+        });
+
+        map.addOverlay(this.measureTooltips[featureId].overlay);
+      }
+    };
+
+    if ([CustomGeometry.Length].includes(customDrawOptions.geometryName)) {
+      this[_interactions].draw.on('drawstart', evt => {
+        const featureId = evt.feature.ol_uid;
+        createMeasureTooltip(featureId, this[_map]);
+        const sketch = evt.feature;
+        let tooltipCoord = evt.coordinate;
+        this.listener[featureId] = sketch.getGeometry().on('change', evt => {
+          let geom = evt.target;
+          let output = formatLength(geom);
+          tooltipCoord = geom.getLastCoordinate();
+          this.measureTooltips[featureId].element.innerHTML = output;
+          this.measureTooltips[featureId].overlay.setPosition(tooltipCoord);
+        });
+      });
+    }
+
+    // attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
+      const featureId = e.feature.ol_uid;
       e.feature.setId(generateUID());
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
+
+      if (this.measureTooltips && this.measureTooltips[featureId]) {
+        this.measureTooltips[featureId].element.className = 'ol-tooltip ol-tooltip-static';
+        this.measureTooltips[featureId].overlay.setOffset([0, -7]);
+        unByKey(this.listener[featureId]);
+      }
     });
 
     this[_map].addInteraction(this[_interactions].draw);
-
   }
 
   /** Deactivates draw interaction. */
@@ -998,15 +1103,62 @@ class VolumeImageViewer {
     return this[_interactions].draw !== undefined;
   }
 
+  /* Activates translate interaction.
+   *
+   * @param {Object} options - Translation options.
+   */
+  activateTranslateInteraction(options = {}) {
+    this.deactivateTranslateInteraction();
+    console.info('activate "translate" interaction')
+    this[_interactions].translate = new Translate({
+      layers: [this[_drawingLayer]],
+      ...options
+    });
+
+    this[_interactions].translate.on('translatestart', this.updateMeasurementTooltipLocation);
+
+    this[_map].addInteraction(this[_interactions].translate);
+  }
+
+  updateMeasurementTooltipLocation = evt => {
+    evt.features.forEach(feature => {
+      const sketch = feature;
+      const featureId = sketch.ol_uid;
+      if (this.measureTooltips && this.measureTooltips[featureId]) {
+        let tooltipCoord = evt.coordinate;
+        const gem = sketch.getGeometry();
+        if (gem instanceof LineStringGeometry) {
+          this.listener[featureId] = gem.on('change', evt => {
+            let geom = evt.target;
+            let output = formatLength(geom);
+            tooltipCoord = geom.getLastCoordinate();
+            this.measureTooltips[featureId].element.innerHTML = output;
+            this.measureTooltips[featureId].overlay.setPosition(tooltipCoord);
+          });
+        }
+      }
+    });
+  }
+
+  /** Deactivates translate interaction. */
+  deactivateTranslateInteraction() {
+    console.info('deactivate "translate" interaction')
+    if (this[_interactions].translate) {
+      this[_map].removeInteraction(this[_interactions].translate);
+      this[_interactions].translate = undefined;
+    }
+  }
+
   /* Activates select interaction.
    *
    * @param {Object} options - Selection options.
    */
-  activateSelectInteraction(options={}) {
+  activateSelectInteraction(options = {}) {
     this.deactivateSelectInteraction();
     console.info('activate "select" interaction')
     this[_interactions].select = new Select({
-      layers: [this[_drawingLayer]]
+      layers: [this[_drawingLayer]],
+      ...options
     });
 
     const container = this[_map].getTargetElement();
@@ -1027,6 +1179,34 @@ class VolumeImageViewer {
     }
   }
 
+  /** Activates snap interaction.
+   *
+   * @param {Object} options - Snap options.
+   */
+  activateSnapInteraction(options = {}) {
+    this.deactivateSnapInteraction();
+    console.info('activate "snap" interaction');
+    this[_interactions].snap = new Snap({
+      source: this[_drawingSource],
+      ...options // add features to snap only to edge of length
+    });
+
+    this[_interactions].snap.on('propertychange', evt => {
+      debugger
+    });
+
+    this[_map].addInteraction(this[_interactions].snap);
+  }
+
+  /** Deactivates snap interaction. */
+  deactivateSnapInteraction() {
+    console.info('deactivate "snap" interaction')
+    if (this[_interactions].snap) {
+      this[_map].removeInteraction(this[_interactions].snap);
+      this[_interactions].snap = undefined;
+    }
+  }
+
   /** Whether select interaction is active.
    *
    * @type {boolean}
@@ -1039,12 +1219,21 @@ class VolumeImageViewer {
    *
    * @param {Object} options - Modification options.
    */
-  activateModifyInteraction(options={}) {
+  activateModifyInteraction(options = {}) {
     this.deactivateModifyInteraction();
     console.info('activate "modify" interaction')
     this[_interactions].modify = new Modify({
       features: this[_features],  // TODO: or source, i.e. "drawings"???
+      insertVertexCondition: event => {
+        /** Only allow modifying the edge of the Length */
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate_);
+        return feature ? ![CustomGeometry.Length].includes(feature.getGeometryName()) : true;
+      },
+      ...options
     });
+
+    this[_interactions].modify.on('modifystart', this.updateMeasurementTooltipLocation);
+
     this[_map].addInteraction(this[_interactions].modify);
   }
 
@@ -1073,7 +1262,7 @@ class VolumeImageViewer {
     console.info('get all ROIs')
     let rois = [];
     this[_features].forEach((item) => {
-        rois.push(this.getROI(item.getId()));
+      rois.push(this.getROI(item.getId()));
     });
     return rois;
   }
@@ -1127,6 +1316,15 @@ class VolumeImageViewer {
   removeROI(uid) {
     console.info(`remove ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid);
+
+    const featureId = feature.ol_uid;
+    if (this.measureTooltips && this.measureTooltips[featureId]) {
+      const { overlay } = this.measureTooltips[featureId];
+      this[_map].removeOverlay(overlay);
+      this.measureTooltips[featureId] = {};
+      this.listener[featureId] = {};
+    }
+
     this[_features].remove(feature);
   }
 
@@ -1227,7 +1425,7 @@ class _NonVolumeImageViewer {
         }
       };
       options.client.retrieveInstanceRendered(retrieveOptions).then((thumbnail) => {
-        const blob = new Blob([thumbnail], {type: mediaType});
+        const blob = new Blob([thumbnail], { type: mediaType });
         image.getImage().src = window.URL.createObjectURL(blob);
       });
     }
@@ -1241,7 +1439,7 @@ class _NonVolumeImageViewer {
          * has meter unit.
          */
         const mmSpacing = _getPixelSpacing(this[_metadata])[0];
-        const spacing = (mmSpacing / resizeFactor) / 10**3;
+        const spacing = (mmSpacing / resizeFactor) / 10 ** 3;
         return pixelRes * spacing;
       }
     });
@@ -1304,7 +1502,7 @@ class _NonVolumeImageViewer {
   }
 
   /** Resizes the viewer to fit the viewport. */
-  resize(){
+  resize() {
     this[_map].updateSize();
   }
 
@@ -1312,7 +1510,7 @@ class _NonVolumeImageViewer {
    *
    * @type {number[]}
    */
-  get size(){
+  get size() {
     return this[_map].getSize();
   }
 
