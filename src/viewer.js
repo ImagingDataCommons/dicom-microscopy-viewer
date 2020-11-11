@@ -52,7 +52,7 @@ import {
 } from './scoord3d.js';
 
 import * as DICOMwebClient from 'dicomweb-client';
-import LengthGeomtry from './length';
+import LengthGeometry from './length';
 
 const CustomGeometry = {
   Length: 'Length',
@@ -839,7 +839,7 @@ class VolumeImageViewer {
     this[_map].getView().fit(extent);
 
     /** Wire custom geometries */
-    LengthGeomtry.init({ map: this[_map] });
+    LengthGeometry.init({ map: this[_map] });
   }
 
   /** Resizes the viewer to fit the viewport. */
@@ -1006,7 +1006,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].draw);
 
-    LengthGeomtry.wireEvents(this[_interactions]);
+    LengthGeometry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates draw interaction. */
@@ -1040,7 +1040,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].translate);
 
-    LengthGeomtry.wireEvents(this[_interactions]);
+    LengthGeometry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates translate interaction. */
@@ -1072,7 +1072,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].select);
 
-    LengthGeomtry.wireEvents(this[_interactions]);
+    LengthGeometry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates select interaction. */
@@ -1118,7 +1118,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].snap);
 
-    LengthGeomtry.wireEvents(this[_interactions]);
+    LengthGeometry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates snap interaction. */
@@ -1157,7 +1157,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].modify);
 
-    LengthGeomtry.wireEvents(this[_interactions]);
+    LengthGeometry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates modify interaction. */
@@ -1239,11 +1239,10 @@ class VolumeImageViewer {
   removeROI(uid) {
     console.info(`remove ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid);
-
-    // if (feature.geometryname
-    LengthGeomtry.remove({ map: this[_map], feature });
-
     this[_features].remove(feature);
+
+    /** Clear this custom feature  */
+    LengthGeometry.remove({ map: this[_map], feature });
   }
 
   /** Removes all annotated regions of interest. */

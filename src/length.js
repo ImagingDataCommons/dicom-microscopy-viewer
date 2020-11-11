@@ -11,6 +11,7 @@ import DragPan from 'ol/interaction/DragPan';
 import Style from 'ol/style/Style';
 import Stroke from 'ol/style/Stroke';
 import Collection from 'ol/Collection';
+import Map from 'ol/Map';
 
 const CustomGeometry = {
   Length: 'Length',
@@ -53,6 +54,12 @@ styleTag.innerHTML = `
 
 const stylesOverlay = new Overlay({ element: styleTag });
 
+/**
+ * Creates an overlay with a div containing length information.
+ * 
+ * @param {Feature} feature The feature to plug the measure marker
+ * @param {Map} map The map instance
+ */
 const createMeasureMarker = (feature, map) => {
   const featureId = feature.ol_uid;
 
@@ -113,7 +120,13 @@ const createMeasureMarker = (feature, map) => {
   }
 };
 
-const updateMeasurementTooltipLocation = evt => {
+/**
+ * Updates measurement marker location based on LineStringGeometry change events
+ * for a specific feature id.
+ * 
+ * @param {object} event The event
+ */
+const updateMeasureMarkerLocation = evt => {
   evt.features.forEach(feature => {
     const sketch = feature;
     const featureId = sketch.ol_uid;
@@ -139,6 +152,14 @@ const updateMeasurementTooltipLocation = evt => {
   });
 };
 
+/**
+ * Builds a new LineStringGeometry instance with the shortest
+ * distance between a given overlay and a feature.
+ * 
+ * @param {object} feature The feature
+ * @param {object} overlay The overlay instance
+ * @returns {LineStringGeometry} The smallest line between the overlay and feature
+ */
 const getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
   let result;
   let distanceSq = Infinity;
@@ -166,6 +187,12 @@ const getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
   return new LineStringGeometry(result);
 };
 
+/**
+ * This event is responsible to create/update the measure mark on drawstart event
+ * and cache the marker using the feature id.
+ * 
+ * @param {object} event The event
+ */
 const onDrawStart = event => {
   const featureId = event.feature.ol_uid;
   createMeasureMarker(event.feature, map);
@@ -186,6 +213,12 @@ const onDrawStart = event => {
   });
 };
 
+/**
+ * This event is responsible to unbind the previsouly set listener on drawstart
+ * and assign marker classes.
+ * 
+ * @param {object} event The event
+ */
 const onDrawEnd = event => {
   const featureId = event.feature.ol_uid;
   if (measureMarkers[featureId]) {
@@ -197,16 +230,17 @@ const onDrawEnd = event => {
 
 const eventKeys = {};
 
+/**
+ * This utility makes use of the unByKey to unbind an event.
+ * 
+ * @param {string} eventKey The event name/key
+ */
 const unbindEvent = eventKey => {
   if (eventKeys[eventKey]) {
     unByKey(eventKeys[eventKey]);
     eventKeys[eventKey] = null;
   }
 };
-
-export const hasLength = features => features.getArray().some(feature => {
-  return [CustomGeometry.Length].includes(feature.getGeometryName());
-});
 
 const linkFeatures = new Collection([], { unique: true });
 const linkStyle = new Style({
@@ -224,7 +258,15 @@ const linksVector = new VectorLayer({
 
 export const addDrawLinksLayer = ({ map }) => map.addLayer(linksVector);
 
-export const drawLink = ({ id, map, feature, measureMarker }) => {
+/**
+ * This method draws a line between a feature and its marker.
+ * 
+ * @param {object} options
+ * @param {object} options.id The link id
+ * @param {object} options.feature The feature
+ * @param {object} options.measureMarker The feature marker defined previously
+ */
+export const drawLink = ({ id, feature, measureMarker }) => {
   const lineString = getShortestLineBetweenOverlayAndFeature(feature, measureMarker);
 
   const updated = linkFeatures.getArray().some(feature => {
@@ -258,7 +300,7 @@ const LengthGeometry = {
       unbindEvent('translatestart');
       eventKeys['translatestart'] = interactions.translate.on(
         'translatestart',
-        updateMeasurementTooltipLocation
+        updateMeasureMarkerLocation
       );
     }
 
@@ -266,7 +308,7 @@ const LengthGeometry = {
       unbindEvent('modifystart');
       eventKeys['modifystart'] = interactions.modify.on(
         'modifystart',
-        updateMeasurementTooltipLocation
+        updateMeasureMarkerLocation
       );
     }
   },
