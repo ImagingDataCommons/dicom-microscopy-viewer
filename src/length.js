@@ -4,13 +4,11 @@ import { LineString } from 'ol/geom';
 import { getLength } from 'ol/sphere';
 import { unByKey } from 'ol/Observable';
 import { default as LineStringGeometry } from 'ol/geom/LineString';
-import { default as PointGeometry } from 'ol/geom/Point';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import DragPan from 'ol/interaction/DragPan';
 import Style from 'ol/style/Style';
-import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Collection from 'ol/Collection';
 
@@ -97,8 +95,8 @@ const createMeasureMarker = (feature, map) => {
         drawLink({
           id: featureId,
           map,
-          tooltipCoord: event.coordinate,
-          closestPointToFeature: feature.getGeometry().getClosestPoint(feature.getGeometry().getCoordinates()[1])
+          feature,
+          measureMarker: marker.overlay,
         });
       }
     });
@@ -129,10 +127,43 @@ const updateMeasurementTooltipLocation = evt => {
           tooltipCoord = geom.getLastCoordinate();
           measureMarkers[featureId].element.innerHTML = output;
           measureMarkers[featureId].overlay.setPosition(tooltipCoord);
+          drawLink({
+            id: featureId,
+            map,
+            feature: sketch,
+            measureMarker: measureMarkers[featureId].overlay,
+          });
         });
       }
     }
   });
+};
+
+const getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
+  let result;
+  let distanceSq = Infinity;
+
+  const featureGeometry = feature.getGeometry();
+  const geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
+
+  geometry.getCoordinates().forEach(coordinates => {
+    const closest = overlay.getPosition();
+    const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2);
+    if (distanceNew < distanceSq) {
+      distanceSq = distanceNew;
+      result = [coordinates, closest];
+    }
+  });
+
+  const coordinates = overlay.getPosition();
+  const closest = geometry.getClosestPoint(coordinates);
+  const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2);
+  if (distanceNew < distanceSq) {
+    distanceSq = distanceNew;
+    result = [closest, coordinates];
+  }
+
+  return new LineStringGeometry(result);
 };
 
 const onDrawStart = event => {
@@ -149,8 +180,8 @@ const onDrawStart = event => {
     drawLink({
       id: featureId,
       map,
-      tooltipCoord,
-      closestPointToFeature: geom.getClosestPoint(geom.getCoordinates()[1])
+      feature: sketch,
+      measureMarker: measureMarkers[featureId].overlay,
     });
   });
 };
@@ -180,7 +211,7 @@ export const hasLength = features => features.getArray().some(feature => {
 const linkFeatures = new Collection([], { unique: true });
 const linkStyle = new Style({
   stroke: new Stroke({
-    color: '#ffcc33',
+    color: '#9ccef9',
     lineDash: [.3, 7],
     width: 3
   })
@@ -193,13 +224,8 @@ const linksVector = new VectorLayer({
 
 export const addDrawLinksLayer = ({ map }) => map.addLayer(linksVector);
 
-export const drawLink = ({ id, map, tooltipCoord, closestPointToFeature }) => {
-  const coords = [
-    tooltipCoord ? tooltipCoord : [-96.36, 30.75],
-    closestPointToFeature ? closestPointToFeature : [-96.36, 30.75]
-  ];
-
-  const lineString = new LineStringGeometry(coords);
+export const drawLink = ({ id, map, feature, measureMarker }) => {
+  const lineString = getShortestLineBetweenOverlayAndFeature(feature, measureMarker);
 
   const updated = linkFeatures.getArray().some(feature => {
     if (feature.getId() === id) {
@@ -218,7 +244,6 @@ export const drawLink = ({ id, map, tooltipCoord, closestPointToFeature }) => {
 const LengthGeometry = {
   init: ({ map }) => {
     map.addOverlay(stylesOverlay);
-    drawLink({ map });
     addDrawLinksLayer({ map });
   },
   wireEvents: interactions => {
