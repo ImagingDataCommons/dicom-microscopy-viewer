@@ -22,9 +22,7 @@ import TileGrid from 'ol/tilegrid/TileGrid';
 import VectorSource from 'ol/source/Vector';
 import VectorLayer from 'ol/layer/Vector';
 import View from 'ol/View';
-
-import Overlay from 'ol/Overlay';
-import { unByKey } from 'ol/Observable';
+import DragPan from 'ol/interaction/DragPan';
 
 import { default as PolygonGeometry } from 'ol/geom/Polygon';
 import { default as PointGeometry } from 'ol/geom/Point';
@@ -53,8 +51,8 @@ import {
   Ellipse
 } from './scoord3d.js';
 
-import * as DICOMwebClient from 'dicomweb-client'
-import { formatLength } from './length-example';
+import * as DICOMwebClient from 'dicomweb-client';
+import LengthGeomtry from './length';
 
 const CustomGeometry = {
   Length: 'Length',
@@ -790,7 +788,8 @@ class VolumeImageViewer {
       select: undefined,
       translate: undefined,
       modify: undefined,
-      snap: undefined
+      snap: undefined,
+      dragPan: undefined
     };
 
     this[_controls] = {
@@ -830,12 +829,17 @@ class VolumeImageViewer {
       controls: [],
       keyboardEventTarget: document,
     });
+
     this[_map].addInteraction(new MouseWheelZoom());
 
     for (let control in this[_controls]) {
       this[_map].addControl(this[_controls][control]);
     }
+
     this[_map].getView().fit(extent);
+
+    /** Wire custom geometries */
+    LengthGeomtry.init({ map: this[_map] });
   }
 
   /** Resizes the viewer to fit the viewport. */
@@ -930,7 +934,7 @@ class VolumeImageViewer {
    */
   activateDrawInteraction(options) {
     this.deactivateDrawInteraction();
-    console.info('activate "draw" interaction')
+    console.info('activate "draw" interaction');
 
     const customOptionsMapping = {
       point: {
@@ -972,23 +976,6 @@ class VolumeImageViewer {
         freehand: false,
         maxPoints: 1,
         minPoints: 1,
-        style: feature => {
-          debugger
-        }
-                // this[_drawingLayer].setStyle(feature => {
-        //   const styles = [];
-        //   const centerStyle = new ol.style.Style({
-        //     image: new ol.style.Circle({ 
-        //       radius: 7, 
-        //       fill: new ol.style.Fill({ color: 'red' }) 
-        //     })
-        //   });
-        //   if (feature.getGeometry().getType() == 'Length') {
-        //     centerStyle.setGeometry(new ol.geom.Point(feature.getGeometry().getCenter()));
-        //     styles.push(centerStyle);
-        //   }
-        //   return styles;
-        // });
       },
     };
 
@@ -1007,83 +994,19 @@ class VolumeImageViewer {
       customDrawOptions.style = options.style;
     }
 
-    debugger
-
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
     const container = this[_map].getTargetElement();
 
-    this.listener = {};
-    this.measureTooltips = {};
-    const styleTag = document.createElement("style");
-    styleTag.innerHTML = `
-      .ol-tooltip {
-        position: relative;
-        color: #9ccef9;
-        padding: 4px 8px;
-        white-space: nowrap;
-        font-size: 14px;
-      }
-      .ol-tooltip-measure { opacity: 1; }
-      .ol-tooltip-static { color: #9ccef9; }
-      .ol-tooltip-measure:before,
-      .ol-tooltip-static:before {
-        content: "";
-        position: absolute;
-        bottom: -6px;
-        margin-left: -7px;
-        left: 50%;
-      }
-    `;
-    const stylesOverlay = new Overlay({ element: styleTag });
-    map.addOverlay(stylesOverlay);
-    const createMeasureTooltip = (featureId, map) => {
-      if (this.measureTooltips && !this.measureTooltips[featureId]) {
-        this.measureTooltips[featureId] = {};
-        const tooltip = document.createElement('div');
-        tooltip.className = 'ol-tooltip ol-tooltip-measure';
-
-        this.measureTooltips[featureId].element = tooltip;
-        this.measureTooltips[featureId].overlay = new Overlay({
-          element: tooltip,
-          offset: [0, -15],
-          positioning: 'bottom-center',
-        });
-
-        map.addOverlay(this.measureTooltips[featureId].overlay);
-      }
-    };
-
-    if ([CustomGeometry.Length].includes(customDrawOptions.geometryName)) {
-      this[_interactions].draw.on('drawstart', evt => {
-        const featureId = evt.feature.ol_uid;
-        createMeasureTooltip(featureId, this[_map]);
-        const sketch = evt.feature;
-        let tooltipCoord = evt.coordinate;
-        this.listener[featureId] = sketch.getGeometry().on('change', evt => {
-          let geom = evt.target;
-          let output = formatLength(geom);
-          tooltipCoord = geom.getLastCoordinate();
-          this.measureTooltips[featureId].element.innerHTML = output;
-          this.measureTooltips[featureId].overlay.setPosition(tooltipCoord);
-        });
-      });
-    }
-
     // attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
-      const featureId = e.feature.ol_uid;
       e.feature.setId(generateUID());
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
-
-      if (this.measureTooltips && this.measureTooltips[featureId]) {
-        this.measureTooltips[featureId].element.className = 'ol-tooltip ol-tooltip-static';
-        this.measureTooltips[featureId].overlay.setOffset([0, -7]);
-        unByKey(this.listener[featureId]);
-      }
     });
 
     this[_map].addInteraction(this[_interactions].draw);
+
+    LengthGeomtry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates draw interaction. */
@@ -1115,34 +1038,14 @@ class VolumeImageViewer {
       ...options
     });
 
-    this[_interactions].translate.on('translatestart', this.updateMeasurementTooltipLocation);
-
     this[_map].addInteraction(this[_interactions].translate);
-  }
 
-  updateMeasurementTooltipLocation = evt => {
-    evt.features.forEach(feature => {
-      const sketch = feature;
-      const featureId = sketch.ol_uid;
-      if (this.measureTooltips && this.measureTooltips[featureId]) {
-        let tooltipCoord = evt.coordinate;
-        const gem = sketch.getGeometry();
-        if (gem instanceof LineStringGeometry) {
-          this.listener[featureId] = gem.on('change', evt => {
-            let geom = evt.target;
-            let output = formatLength(geom);
-            tooltipCoord = geom.getLastCoordinate();
-            this.measureTooltips[featureId].element.innerHTML = output;
-            this.measureTooltips[featureId].overlay.setPosition(tooltipCoord);
-          });
-        }
-      }
-    });
+    LengthGeomtry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates translate interaction. */
   deactivateTranslateInteraction() {
-    console.info('deactivate "translate" interaction')
+    console.info('deactivate "translate" interaction');
     if (this[_interactions].translate) {
       this[_map].removeInteraction(this[_interactions].translate);
       this[_interactions].translate = undefined;
@@ -1155,7 +1058,7 @@ class VolumeImageViewer {
    */
   activateSelectInteraction(options = {}) {
     this.deactivateSelectInteraction();
-    console.info('activate "select" interaction')
+    console.info('activate "select" interaction');
     this[_interactions].select = new Select({
       layers: [this[_drawingLayer]],
       ...options
@@ -1168,14 +1071,36 @@ class VolumeImageViewer {
     });
 
     this[_map].addInteraction(this[_interactions].select);
+
+    LengthGeomtry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates select interaction. */
   deactivateSelectInteraction() {
-    console.info('deactivate "select" interaction')
+    console.info('deactivate "select" interaction');
     if (this[_interactions].select) {
       this[_map].removeInteraction(this[_interactions].select);
       this[_interactions].select = undefined;
+    }
+  }
+
+  /** Activates dragpan interaction.
+   *
+   * @param {Object} options - DragPan options.
+   */
+  activateDragPanInteraction(options = {}) {
+    this.deactivateDragPanInteraction();
+    console.info('activate "drag pan" interaction');
+    this[_interactions].dragPan = new DragPan({ features: this[_features] });
+    this[_map].addInteraction(this[_interactions].dragPan);
+  }
+
+  /** Deactivate dragpan interaction. */
+  deactivateDragPanInteraction() {
+    console.info('deactivate "drag pan" interaction');
+    if (this[_interactions].modify) {
+      this[_map].removeInteraction(this[_interactions].dragPan);
+      this[_interactions].dragPan = undefined;
     }
   }
 
@@ -1188,14 +1113,12 @@ class VolumeImageViewer {
     console.info('activate "snap" interaction');
     this[_interactions].snap = new Snap({
       source: this[_drawingSource],
-      ...options // add features to snap only to edge of length
-    });
-
-    this[_interactions].snap.on('propertychange', evt => {
-      debugger
+      ...options
     });
 
     this[_map].addInteraction(this[_interactions].snap);
+
+    LengthGeomtry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates snap interaction. */
@@ -1232,9 +1155,9 @@ class VolumeImageViewer {
       ...options
     });
 
-    this[_interactions].modify.on('modifystart', this.updateMeasurementTooltipLocation);
-
     this[_map].addInteraction(this[_interactions].modify);
+
+    LengthGeomtry.wireEvents(this[_interactions]);
   }
 
   /** Deactivates modify interaction. */
@@ -1317,13 +1240,8 @@ class VolumeImageViewer {
     console.info(`remove ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid);
 
-    const featureId = feature.ol_uid;
-    if (this.measureTooltips && this.measureTooltips[featureId]) {
-      const { overlay } = this.measureTooltips[featureId];
-      this[_map].removeOverlay(overlay);
-      this.measureTooltips[featureId] = {};
-      this.listener[featureId] = {};
-    }
+    // if (feature.geometryname
+    LengthGeomtry.remove({ map: this[_map], feature });
 
     this[_features].remove(feature);
   }
