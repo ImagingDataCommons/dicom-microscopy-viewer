@@ -52,13 +52,7 @@ import {
 } from './scoord3d.js';
 
 import * as DICOMwebClient from 'dicomweb-client';
-import LengthGeometry from './length';
-
-const CustomGeometry = {
-  Length: 'Length',
-  Arrow: 'Arrow',
-  FreeText: 'FreeText'
-};
+import { LengthGeometry, ArrowGeometry, CustomGeometry } from './geometries';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -462,14 +456,23 @@ class VolumeImageViewer {
 
     // Collection of Openlayers "Feature" instances
     this[_features] = new Collection([], { unique: true });
+
     // Add unique identifier to each created "Feature" instance
     this[_features].on('add', (e) => {
+      ArrowGeometry.onAdd(e.element);
+      LengthGeometry.onAdd(e.element);
       // The ID may have already been set when drawn. However, features could
       // have also been added without a draw event.
       if (e.element.getId() === undefined) {
         e.element.setId(generateUID());
       }
     });
+
+    this[_features].on('remove', (e) => {
+      LengthGeometry.onRemove(e.element);
+      ArrowGeometry.onRemove(e.element);
+    });
+
 
     /*
      * To visualize images accross multiple scales, we first need to
@@ -840,6 +843,7 @@ class VolumeImageViewer {
 
     /** Wire custom geometries */
     LengthGeometry.init({ map: this[_map] });
+    ArrowGeometry.init({ map: this[_map] });
   }
 
   /** Resizes the viewer to fit the viewport. */
@@ -970,13 +974,8 @@ class VolumeImageViewer {
         geometryName: 'FreeHandLine',
         freehand: true,
       },
-      length: {
-        type: 'LineString',
-        geometryName: CustomGeometry.Length,
-        freehand: false,
-        maxPoints: 1,
-        minPoints: 1,
-      },
+      ...LengthGeometry.getDefinition(options),
+      ...ArrowGeometry.getDefinition(options),
     };
 
     if (!('geometryType' in options)) {
@@ -990,7 +989,7 @@ class VolumeImageViewer {
     const defaultDrawOptions = { source: this[_drawingSource] };
     const customDrawOptions = customOptionsMapping[options.geometryType];
 
-    if ('style' in options) {
+    if ('style' in options && !customDrawOptions.style) {
       customDrawOptions.style = options.style;
     }
 
@@ -1006,7 +1005,8 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].draw);
 
-    LengthGeometry.wireEvents(this[_interactions]);
+    LengthGeometry.onInteractionsChange(this[_interactions]);
+    ArrowGeometry.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates draw interaction. */
@@ -1040,7 +1040,8 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].translate);
 
-    LengthGeometry.wireEvents(this[_interactions]);
+    LengthGeometry.onInteractionsChange(this[_interactions]);
+    ArrowGeometry.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates translate interaction. */
@@ -1072,7 +1073,8 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].select);
 
-    LengthGeometry.wireEvents(this[_interactions]);
+    LengthGeometry.onInteractionsChange(this[_interactions]);
+    ArrowGeometry.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates select interaction. */
@@ -1118,7 +1120,8 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].snap);
 
-    LengthGeometry.wireEvents(this[_interactions]);
+    LengthGeometry.onInteractionsChange(this[_interactions]);
+    ArrowGeometry.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates snap interaction. */
@@ -1150,14 +1153,18 @@ class VolumeImageViewer {
       insertVertexCondition: event => {
         /** Only allow modifying the edge of the Length */
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate_);
-        return feature ? ![CustomGeometry.Length].includes(feature.getGeometryName()) : true;
+        return feature ? ![
+          CustomGeometry.Length,
+          CustomGeometry.Arrow
+        ].includes(feature.getGeometryName()) : true;
       },
       ...options
     });
 
     this[_map].addInteraction(this[_interactions].modify);
 
-    LengthGeometry.wireEvents(this[_interactions]);
+    LengthGeometry.onInteractionsChange(this[_interactions]);
+    ArrowGeometry.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates modify interaction. */
@@ -1240,9 +1247,6 @@ class VolumeImageViewer {
     console.info(`remove ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid);
     this[_features].remove(feature);
-
-    /** Clear this custom feature  */
-    LengthGeometry.remove({ map: this[_map], feature });
   }
 
   /** Removes all annotated regions of interest. */
