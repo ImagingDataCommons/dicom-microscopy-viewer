@@ -38,7 +38,7 @@ const getStyleFunction = options => {
   };
 };
 
-const isArrow = feature => CustomGeometry.Arrow === feature.getGeometryName();
+export const isArrow = feature => CustomGeometry.Arrow === feature.getGeometryName();
 
 const getDefinition = options => {
   const styleFunction = getStyleFunction(options);
@@ -59,7 +59,7 @@ const getDefinition = options => {
 let _map;
 
 const ArrowGeometry = {
-  init: ({ map }) => {
+  init: ({ map, drawingSource }) => {
     console.debug('ArrowGeometry: init');
     _map = map;
   },
@@ -75,9 +75,10 @@ const ArrowGeometry = {
     }
   },
   onInteractionsChange: () => {
-    
+
   },
-  getDefinition
+  getDefinition,
+  isArrow
 };
 
 export default ArrowGeometry;

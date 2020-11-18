@@ -70,7 +70,7 @@ class MarkerManager {
   }
 
   /**
-   * Returns a marker.
+   * Returns a marker
    * 
    * @param {string} id The marker id
    * @return {object} The marker
@@ -80,7 +80,7 @@ class MarkerManager {
   }
 
   /**
-   * Removes a marker.
+   * Removes a marker
    * 
    * @param {string} id The marker id
    * @return {string} The marker id
@@ -98,7 +98,7 @@ class MarkerManager {
   }
 
   /**
-   * Sets a marker.
+   * Sets a marker
    * 
    * @param {object} marker The marker
    * @return {void}
@@ -108,7 +108,7 @@ class MarkerManager {
   }
 
   /**
-   * Creates a new marker.
+   * Creates a new marker
    * 
    * @param {Feature} feature The feature to plug the measure marker
    * @param {string} id The marker id
@@ -206,7 +206,7 @@ class MarkerManager {
   }
 
   /**
-   * This utility makes use of the unByKey to unbind an event.
+   * This utility makes use of the unByKey to unbind an event
    * 
    * @param {string} eventKey The event name/key
    */
@@ -234,7 +234,7 @@ class MarkerManager {
 
   /**
    * This event is responsible to unbind the previsouly set listener on drawstart
-   * and assign marker classes.
+   * and assign marker classes
    * 
    * @param {object} event The event
    */
@@ -253,7 +253,7 @@ class MarkerManager {
   }
 
   /**
-   * Update marker location on geometry change.
+   * Update marker location on geometry change
    * 
    * @param {object} feature The feature
    * @param {object} coordinate The marker coordinate

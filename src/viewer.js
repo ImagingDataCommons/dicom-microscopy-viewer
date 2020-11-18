@@ -1003,10 +1003,10 @@ class VolumeImageViewer {
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
-    this[_map].addInteraction(this[_interactions].draw);
-
     LengthGeometry.onInteractionsChange(this[_interactions]);
     ArrowGeometry.onInteractionsChange(this[_interactions]);
+
+    this[_map].addInteraction(this[_interactions].draw);
   }
 
   /** Deactivates draw interaction. */
@@ -1038,10 +1038,10 @@ class VolumeImageViewer {
       ...options
     });
 
-    this[_map].addInteraction(this[_interactions].translate);
-
     LengthGeometry.onInteractionsChange(this[_interactions]);
     ArrowGeometry.onInteractionsChange(this[_interactions]);
+
+    this[_map].addInteraction(this[_interactions].translate);
   }
 
   /** Deactivates translate interaction. */
@@ -1071,10 +1071,10 @@ class VolumeImageViewer {
       publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this[_pyramidMetadata]));
     });
 
-    this[_map].addInteraction(this[_interactions].select);
-
     LengthGeometry.onInteractionsChange(this[_interactions]);
     ArrowGeometry.onInteractionsChange(this[_interactions]);
+
+    this[_map].addInteraction(this[_interactions].select);
   }
 
   /** Deactivates select interaction. */
@@ -1094,6 +1094,10 @@ class VolumeImageViewer {
     this.deactivateDragPanInteraction();
     console.info('activate "drag pan" interaction');
     this[_interactions].dragPan = new DragPan({ features: this[_features] });
+
+    LengthGeometry.onInteractionsChange(this[_interactions]);
+    ArrowGeometry.onInteractionsChange(this[_interactions]);
+
     this[_map].addInteraction(this[_interactions].dragPan);
   }
 
@@ -1118,10 +1122,10 @@ class VolumeImageViewer {
       ...options
     });
 
-    this[_map].addInteraction(this[_interactions].snap);
-
     LengthGeometry.onInteractionsChange(this[_interactions]);
     ArrowGeometry.onInteractionsChange(this[_interactions]);
+
+    this[_map].addInteraction(this[_interactions].snap);
   }
 
   /** Deactivates snap interaction. */
@@ -1150,21 +1154,19 @@ class VolumeImageViewer {
     console.info('activate "modify" interaction')
     this[_interactions].modify = new Modify({
       features: this[_features],  // TODO: or source, i.e. "drawings"???
+      ...options,
       insertVertexCondition: event => {
-        /** Only allow modifying the edge of the Length */
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate_);
-        return feature ? ![
-          CustomGeometry.Length,
-          CustomGeometry.Arrow
-        ].includes(feature.getGeometryName()) : true;
-      },
-      ...options
+        return !LengthGeometry.isLength(feature) && !ArrowGeometry.isArrow(feature);
+      }
     });
-
-    this[_map].addInteraction(this[_interactions].modify);
 
     LengthGeometry.onInteractionsChange(this[_interactions]);
     ArrowGeometry.onInteractionsChange(this[_interactions]);
+
+    console.debug(this[_interactions].modify.getProperties());
+
+    this[_map].addInteraction(this[_interactions].modify);
   }
 
   /** Deactivates modify interaction. */

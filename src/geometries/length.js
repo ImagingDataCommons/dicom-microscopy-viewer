@@ -8,7 +8,7 @@ let _map;
 let _markerManager;
 
 /**
- * Format length output.
+ * Format length output
  * @param {LineString} line The line.
  * @return {string} The formatted length.
  */
@@ -18,10 +18,10 @@ export const formatLength = line => {
   return output;
 };
 
-const isLength = feature => CustomGeometry.Length === feature.getGeometryName();
+export const isLength = feature => CustomGeometry.Length === feature.getGeometryName();
 
 const LengthGeometry = {
-  init: ({ map }) => {
+  init: ({ map, drawingSource }) => {
     console.debug('LengthGeometry: init');
     _map = map;
     _markerManager = new MarkerManager({
@@ -56,7 +56,8 @@ const LengthGeometry = {
         minPoints: 1,
       },
     };
-  }
+  },
+  isLength
 };
 
 export default LengthGeometry;
