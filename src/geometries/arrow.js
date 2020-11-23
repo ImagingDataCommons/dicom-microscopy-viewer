@@ -2,6 +2,7 @@ import Style from 'ol/style/Style';
 import Point from 'ol/geom/Point';
 import Icon from 'ol/style/Icon';
 
+import MarkerManager from './MarkerManager';
 import { CustomGeometry } from '.';
 
 const getStyleFunction = options => {
@@ -13,7 +14,10 @@ const getStyleFunction = options => {
       styles.push(options.style);
     }
 
+    console.debug(feature.getGeometryName());
     if (isArrow(feature)) {
+      console.debug('Styling...');
+
       geometry.forEachSegment((start, end) => {
         const dx = end[0] - start[0];
         const dy = end[1] - start[1];
@@ -57,21 +61,37 @@ const getDefinition = options => {
 };
 
 let _map;
+let _markerManager;
 
 const ArrowGeometry = {
-  init: ({ map, drawingSource }) => {
+  init: ({ map }) => {
     console.debug('ArrowGeometry: init');
     _map = map;
+    _markerManager = new MarkerManager({
+      map: _map,
+      geometry: CustomGeometry.Arrow,
+      formatter: (feature, geometry) => feature.get('label')
+    });
   },
-  onAdd: feature => {
+  getProperties: (feature, properties = {}) => {
+    return properties;
+  },
+  onAdd: (feature, properties = {}) => {
     if (isArrow(feature)) {
       console.debug('ArrowGeometry: onAdd');
+      _markerManager.create({
+        id: feature.ol_uid,
+        feature,
+        value: properties.label
+      });
       feature.setStyle(getStyleFunction());
     }
   },
   onRemove: feature => {
     if (isArrow(feature)) {
       console.debug('ArrowGeometry: onRemove');
+      const featureId = feature.ol_uid;
+      _markerManager.remove(featureId);
     }
   },
   onInteractionsChange: () => {
