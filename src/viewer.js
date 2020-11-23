@@ -199,7 +199,8 @@ function _geometry2Scoord3d(geometry, pyramid) {
     });
   } else if (type === 'LineString') {
     let coordinates = geometry.getCoordinates().map(c => {
-      return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
+      const result = _geometryCoordinates2scoord3dCoordinates(c, pyramid);
+      return result;
     });
     return new Polyline({
       coordinates,
@@ -387,14 +388,21 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
 function _getROIFromFeature(feature, pyramid) {
   let roi = {}
   if (feature !== undefined) {
+    const originalFeature = feature;
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
-    const properties = feature.getProperties();
+    let properties = feature.getProperties();
+    properties = ArrowGeometry.getProperties(originalFeature, properties);
+    properties = LengthGeometry.getProperties(originalFeature, properties);
     // Remove geometry from properties mapping
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
     const uid = feature.getId();
-    roi = new ROI({ scoord3d, properties, uid });
+    roi = new ROI({
+      scoord3d,
+      properties,
+      uid,
+    });
   }
   return roi;
 }
@@ -459,8 +467,6 @@ class VolumeImageViewer {
 
     // Add unique identifier to each created "Feature" instance
     this[_features].on('add', (e) => {
-      ArrowGeometry.onAdd(e.element);
-      LengthGeometry.onAdd(e.element);
       // The ID may have already been set when drawn. However, features could
       // have also been added without a draw event.
       if (e.element.getId() === undefined) {
@@ -1235,9 +1241,20 @@ class VolumeImageViewer {
   addROI(item) {
     console.info(`add ROI ${item.uid}`)
     const geometry = _scoord3d2Geometry(item.scoord3d, this[_pyramidMetadata]);
-    const feature = new Feature(geometry);
+    const properties = { geometry };
+
+    const geometryName = item.properties.geometryName;
+    if (geometryName) properties[geometryName] = geometry;
+    
+    const feature = new Feature(properties);
     feature.setProperties(item.properties, true);
     feature.setId(item.uid);
+
+    if (geometryName) feature.setGeometryName(geometryName, true);
+
+    ArrowGeometry.onAdd(feature, item.properties);
+    LengthGeometry.onAdd(feature, item.properties);
+
     this[_features].push(feature);
   }
 
