@@ -12,7 +12,8 @@ let _markerManager;
  * @param {LineString} line The line.
  * @return {string} The formatted length.
  */
-export const formatLength = line => {
+export const formatLength = (feature, geometry) => {
+  const line = feature ? feature.getGeometry() : geometry;
   const length = getLength(line);
   let output = Math.round((length / 10) * 100) / 100 + ' ' + 'mm';
   return output;
@@ -21,7 +22,7 @@ export const formatLength = line => {
 export const isLength = feature => CustomGeometry.Length === feature.getGeometryName();
 
 const LengthGeometry = {
-  init: ({ map, drawingSource }) => {
+  init: ({ map }) => {
     console.debug('LengthGeometry: init');
     _map = map;
     _markerManager = new MarkerManager({
@@ -29,6 +30,9 @@ const LengthGeometry = {
       geometry: CustomGeometry.Length,
       formatter: formatLength
     });
+  },
+  getProperties: (feature, properties = {}) => {
+    return properties;
   },
   onInteractionsChange: interactions => {
     _markerManager.onInteractionsChange(interactions);
@@ -40,9 +44,14 @@ const LengthGeometry = {
       _markerManager.remove(featureId);
     }
   },
-  onAdd: feature => {
+  onAdd: (feature, properties = {}) => {
     if (isLength(feature)) {
       console.debug('LengthGeometry: onAdd');
+      _markerManager.create({
+        id: feature.ol_uid,
+        feature,
+        value: formatLength(feature)
+      });
     }
   },
   getDefinition: (options) => {
