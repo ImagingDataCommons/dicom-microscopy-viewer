@@ -240,7 +240,6 @@ class MarkerManager {
    */
   _updateMarkerLocation(event) {
     event.features.forEach(feature => {
-      console.debug('isValidate?', feature.getGeometryName());
       if (this._isValidFeature(feature)) {
         this._updateMarkerOnGeometryChange({
           feature, coordinate: event.coordinate

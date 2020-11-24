@@ -2,6 +2,13 @@ import { LineString } from 'ol/geom';
 import { getLength } from 'ol/sphere';
 
 import { CustomGeometry } from '.';
+import { defaultStyle } from './styles';
+
+const getStyleFunction = (options) => {
+  return (feature, resolution) => {
+    return [defaultStyle];
+  };
+};
 
 /**
  * Format length output
@@ -43,10 +50,13 @@ const LengthGeometry = {
         feature,
         value: formatLength(feature)
       });
+      feature.setStyle(getStyleFunction(properties));
     }
   },
-  onUpdate: feature => {},
+  onUpdate: feature => { },
   getDefinition: (options) => {
+    const styleFunction = getStyleFunction(options);
+
     /** Length Geometry Definition */
     return {
       length: {
@@ -55,11 +65,13 @@ const LengthGeometry = {
         freehand: false,
         maxPoints: 1,
         minPoints: 1,
+        style: styleFunction
       },
     };
   },
   isLength,
-  format: formatLength
+  format: formatLength,
+  style: getStyleFunction
 };
 
 export default LengthGeometry;

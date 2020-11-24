@@ -32,7 +32,7 @@ const commonAPI = {
   },
   onUpdate: feature => {
     ArrowGeometry.onUpdate(feature);
-    LengthGeometry.onUpdate(feature);    
+    LengthGeometry.onUpdate(feature);
     FreeTextGeometry.onUpdate(feature);
   },
   getROIProperties: (feature, properties = {}) => {

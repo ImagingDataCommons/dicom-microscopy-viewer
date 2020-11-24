@@ -1,11 +1,15 @@
+import Style from 'ol/style/Style';
+import Circle from 'ol/style/Circle';
+import Fill from 'ol/style/Fill';
+import Stroke from 'ol/style/Stroke';
+
 import { CustomGeometry } from '.';
+import { defaultStyle } from './styles';
 
 export const isFreeText = feature => CustomGeometry.FreeText === feature.getGeometryName();
 
-
 const getStyleFunction = options => {
-  return feature => {
-    const geometry = feature.getGeometry();
+  return (feature, resolution) => {
     const styles = [];
 
     if (options && 'style' in options) {
@@ -13,7 +17,21 @@ const getStyleFunction = options => {
     }
 
     if (isFreeText(feature)) {
-      styles.push({ display: 'none'});
+      const emptyFill = new Fill({ color: 'rgba(255,255,255,0.0)' });
+      const defaultStroke = new Stroke({
+        color: 'rgba(255,255,255,0.0)',
+        width: 0,
+      });
+
+      styles.push(
+        new Style({
+          image: new Circle({
+            fill: emptyFill,
+            stroke: defaultStroke,
+            radius: 15,
+          })
+        })
+      );
     }
 
     return styles;
@@ -59,7 +77,7 @@ const FreeTextGeometry = {
         feature,
         value: formatFreeText(feature)
       });
-      feature.setStyle(getStyleFunction());
+      feature.setStyle(getStyleFunction(properties));
     }
   },
   onUpdate: feature => {
@@ -82,7 +100,9 @@ const FreeTextGeometry = {
   },
   getDefinition,
   isFreeText,
-  format: formatFreeText
+  format: formatFreeText,
+  style: getStyleFunction,
+  hitTolerance: 15
 };
 
 export default FreeTextGeometry;

@@ -1015,7 +1015,7 @@ class VolumeImageViewer {
 
   /** Deactivates draw interaction. */
   deactivateDrawInteraction() {
-    console.info('deactivate "draw" interaction')
+    console.info('deactivate "draw" interaction');
     if (this[_interactions].draw !== undefined) {
       this[_map].removeInteraction(this[_interactions].draw);
       this[_interactions].draw = undefined;
@@ -1036,7 +1036,7 @@ class VolumeImageViewer {
    */
   activateTranslateInteraction(options = {}) {
     this.deactivateTranslateInteraction();
-    console.info('activate "translate" interaction')
+    console.info('activate "translate" interaction');
     this[_interactions].translate = new Translate({
       layers: [this[_drawingLayer]],
       ...options
@@ -1130,7 +1130,7 @@ class VolumeImageViewer {
 
   /** Deactivates snap interaction. */
   deactivateSnapInteraction() {
-    console.info('deactivate "snap" interaction')
+    console.info('deactivate "snap" interaction');
     if (this[_interactions].snap) {
       this[_map].removeInteraction(this[_interactions].snap);
       this[_interactions].snap = undefined;
@@ -1168,7 +1168,7 @@ class VolumeImageViewer {
 
   /** Deactivates modify interaction. */
   deactivateModifyInteraction() {
-    console.info('deactivate "modify" interaction')
+    console.info('deactivate "modify" interaction');
     if (this[_interactions].modify) {
       this[_map].removeInteraction(this[_interactions].modify);
       this[_interactions].modify = undefined;
@@ -1188,7 +1188,7 @@ class VolumeImageViewer {
    * @returns {ROI[]} Array of regions of interest.
    */
   getAllROIs() {
-    console.info('get all ROIs')
+    console.info('get all ROIs');
     let rois = [];
     this[_features].forEach((item) => {
       rois.push(this.getROI(item.getId()));

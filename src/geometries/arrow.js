@@ -3,18 +3,18 @@ import Point from 'ol/geom/Point';
 import Icon from 'ol/style/Icon';
 
 import { CustomGeometry } from '.';
+import { defaultStyle } from './styles';
 
-const getStyleFunction = options => {
-  return feature => {
+const getStyleFunction = (options) => {
+  return (feature, resolution) => {
     const geometry = feature.getGeometry();
-    const styles = [];
+    const styles = [defaultStyle];
 
     if (options && 'style' in options) {
       styles.push(options.style);
     }
 
     if (isArrow(feature)) {
-      console.debug('Styling...');
       geometry.forEachSegment((start, end) => {
         const dx = end[0] - start[0];
         const dy = end[1] - start[1];
@@ -48,6 +48,7 @@ const getDefinition = options => {
   return {
     arrow: {
       type: 'LineString',
+      name: 'ArrowAnnotation',
       geometryName: CustomGeometry.Arrow,
       freehand: false,
       maxPoints: 1,
@@ -77,13 +78,13 @@ const ArrowGeometry = {
   },
   onAdd: (feature, properties = {}) => {
     if (isArrow(feature)) {
-      console.debug('ArrowGeometry: onAdd');
+      console.debug('ArrowGeometry: onAdd', feature);
       api.markerManager.create({
         id: feature.ol_uid,
         feature,
         value: formatArrow(feature)
       });
-      feature.setStyle(getStyleFunction());
+      feature.setStyle(getStyleFunction(properties));
     }
   },
   onUpdate: feature => {
@@ -106,7 +107,8 @@ const ArrowGeometry = {
   },
   getDefinition,
   isArrow,
-  format: formatArrow
+  format: formatArrow,
+  style: getStyleFunction
 };
 
 export default ArrowGeometry;

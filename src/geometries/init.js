@@ -4,7 +4,7 @@ import LengthGeometry from './length';
 import ArrowGeometry from './arrow';
 import FreeTextGeometry from './freeText';
 
-const init = ({ map }) => {
+const init = ({ map, source }) => {
   const markerManager = new MarkerManager({
     map,
     geometries: [CustomGeometry.Length, CustomGeometry.Arrow, CustomGeometry.FreeText],
@@ -17,9 +17,18 @@ const init = ({ map }) => {
     }
   });
 
-  LengthGeometry.init({ markerManager, map });
-  ArrowGeometry.init({ markerManager, map });
-  FreeTextGeometry.init({ markerManager, map });
+  LengthGeometry.init({ markerManager, map, source });
+  ArrowGeometry.init({ markerManager, map, source });
+  FreeTextGeometry.init({ markerManager, map, source });
+
+  // const hitTolerance = FreeTextGeometry.hitTolerance;
+  map.on('singleclick', function (event) {
+    map.forEachFeatureAtPixel(
+      event.pixel,
+      function () {},
+      { hitTolerance: 20 }
+    );
+  });
 };
 
 export default init;
