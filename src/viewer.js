@@ -1039,7 +1039,6 @@ class VolumeImageViewer {
     console.info('activate "translate" interaction');
     this[_interactions].translate = new Translate({
       layers: [this[_drawingLayer]],
-      ...options
     });
 
     CustomGeometries.onInteractionsChange(this[_interactions]);
@@ -1065,7 +1064,6 @@ class VolumeImageViewer {
     console.info('activate "select" interaction');
     this[_interactions].select = new Select({
       layers: [this[_drawingLayer]],
-      ...options
     });
 
     const container = this[_map].getTargetElement();
@@ -1120,7 +1118,6 @@ class VolumeImageViewer {
     console.info('activate "snap" interaction');
     this[_interactions].snap = new Snap({
       source: this[_drawingSource],
-      ...options
     });
 
     CustomGeometries.onInteractionsChange(this[_interactions]);
@@ -1154,7 +1151,6 @@ class VolumeImageViewer {
     console.info('activate "modify" interaction');
     this[_interactions].modify = new Modify({
       features: this[_features],  // TODO: or source, i.e. "drawings"???
-      ...options,
       insertVertexCondition: event => {
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate_);
         return CustomGeometries.insertVertexCondition(feature);

@@ -138,7 +138,7 @@ class MarkerManager {
       this._markers[uid].drawLink = feature => this._drawLink(feature, this._markers[uid]);
 
       const element = document.createElement('div');
-      element.id = 'marker';
+      element.id = this.isValidDrag(feature) ? 'marker' : '';
       element.className = 'ol-tooltip ol-tooltip-measure';
       element.innerHTML = value ? value : '';
 
@@ -268,7 +268,7 @@ class MarkerManager {
     }
   }
 
-  _getFormatter = (feature) => {
+  _getFormatter(feature) {
     const geometryName = feature.getGeometryName();
     const formatter = this._formatters[geometryName];
     if (!formatter) return () => '';
