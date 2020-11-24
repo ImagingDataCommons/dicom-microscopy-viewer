@@ -7,7 +7,7 @@ import FreeTextGeometry from './freeText';
 const init = ({ map, source }) => {
   const markerManager = new MarkerManager({
     map,
-    geometries: [CustomGeometry.Length, CustomGeometry.Arrow, CustomGeometry.FreeText],
+    geometries: [CustomGeometry.Length, CustomGeometry.Arrow],
     unlinkGeometries: [CustomGeometry.FreeText],
     undraggableGeometries: [CustomGeometry.FreeText],
     formatters: {
@@ -20,15 +20,6 @@ const init = ({ map, source }) => {
   LengthGeometry.init({ markerManager, map, source });
   ArrowGeometry.init({ markerManager, map, source });
   FreeTextGeometry.init({ markerManager, map, source });
-
-  // const hitTolerance = FreeTextGeometry.hitTolerance;
-  // map.on('singleclick', function (event) {
-  //   map.forEachFeatureAtPixel(
-  //     event.pixel,
-  //     function () {},
-  //     { hitTolerance: 20 }
-  //   );
-  // });
 };
 
 export default init;
