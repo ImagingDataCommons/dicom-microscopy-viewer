@@ -53,10 +53,7 @@ import {
 
 import * as DICOMwebClient from 'dicomweb-client';
 
-import CustomGeometries, { 
-  LengthGeometry, 
-  ArrowGeometry,
-} from './geometries';
+import CustomGeometries from './geometries';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -395,8 +392,7 @@ function _getROIFromFeature(feature, pyramid) {
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
     let properties = feature.getProperties();
-    properties = ArrowGeometry.getROIProperties(feature, properties);
-    properties = LengthGeometry.getROIProperties(feature, properties);
+    properties = CustomGeometries.getROIProperties(feature, properties);
     // Remove geometry from properties mapping
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
@@ -478,10 +474,8 @@ class VolumeImageViewer {
     });
 
     this[_features].on('remove', (e) => {
-      LengthGeometry.onRemove(e.element);
-      ArrowGeometry.onRemove(e.element);
+      CustomGeometries.onRemove(e.element);
     });
-
 
     /*
      * To visualize images accross multiple scales, we first need to
@@ -982,8 +976,7 @@ class VolumeImageViewer {
         geometryName: 'FreeHandLine',
         freehand: true,
       },
-      ...LengthGeometry.getDefinition(options),
-      ...ArrowGeometry.getDefinition(options),
+      ...CustomGeometries.getDefinitions(options),
     };
 
     if (!('geometryType' in options)) {
@@ -1011,8 +1004,7 @@ class VolumeImageViewer {
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
-    LengthGeometry.onInteractionsChange(this[_interactions]);
-    ArrowGeometry.onInteractionsChange(this[_interactions]);
+    CustomGeometries.onInteractionsChange(this[_interactions]);
 
     this[_map].addInteraction(this[_interactions].draw);
   }
@@ -1046,8 +1038,7 @@ class VolumeImageViewer {
       ...options
     });
 
-    LengthGeometry.onInteractionsChange(this[_interactions]);
-    ArrowGeometry.onInteractionsChange(this[_interactions]);
+    CustomGeometries.onInteractionsChange(this[_interactions]);
 
     this[_map].addInteraction(this[_interactions].translate);
   }
@@ -1079,8 +1070,7 @@ class VolumeImageViewer {
       publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this[_pyramidMetadata]));
     });
 
-    LengthGeometry.onInteractionsChange(this[_interactions]);
-    ArrowGeometry.onInteractionsChange(this[_interactions]);
+    CustomGeometries.onInteractionsChange(this[_interactions]);
 
     this[_map].addInteraction(this[_interactions].select);
   }
@@ -1103,8 +1093,7 @@ class VolumeImageViewer {
     console.info('activate "drag pan" interaction');
     this[_interactions].dragPan = new DragPan({ features: this[_features] });
 
-    LengthGeometry.onInteractionsChange(this[_interactions]);
-    ArrowGeometry.onInteractionsChange(this[_interactions]);
+    CustomGeometries.onInteractionsChange(this[_interactions]);
 
     this[_map].addInteraction(this[_interactions].dragPan);
   }
@@ -1130,8 +1119,7 @@ class VolumeImageViewer {
       ...options
     });
 
-    LengthGeometry.onInteractionsChange(this[_interactions]);
-    ArrowGeometry.onInteractionsChange(this[_interactions]);
+    CustomGeometries.onInteractionsChange(this[_interactions]);
 
     this[_map].addInteraction(this[_interactions].snap);
   }
@@ -1165,12 +1153,11 @@ class VolumeImageViewer {
       ...options,
       insertVertexCondition: event => {
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate_);
-        return !LengthGeometry.isLength(feature) && !ArrowGeometry.isArrow(feature);
+        return CustomGeometries.insertVertexCondition(feature);
       }
     });
 
-    LengthGeometry.onInteractionsChange(this[_interactions]);
-    ArrowGeometry.onInteractionsChange(this[_interactions]);
+    CustomGeometries.onInteractionsChange(this[_interactions]);
 
     console.debug(this[_interactions].modify.getProperties());
 
@@ -1256,8 +1243,7 @@ class VolumeImageViewer {
     /** If custom geometry, sets it as the one to use */
     if (geometryName) feature.setGeometryName(geometryName, true);
 
-    ArrowGeometry.onAdd(feature, item.properties);
-    LengthGeometry.onAdd(feature, item.properties);
+    CustomGeometries.onAdd(feature, item.properties);
 
     this[_features].push(feature);
   }
@@ -1275,8 +1261,7 @@ class VolumeImageViewer {
     const feature = this[_drawingSource].getFeatureById(uid);
     feature.setProperties(properties, true);
 
-    ArrowGeometry.onUpdate(feature);
-    LengthGeometry.onUpdate(feature);
+    CustomGeometries.onUpdate(feature);
   }
 
   /** Removes an individual regions of interest.
