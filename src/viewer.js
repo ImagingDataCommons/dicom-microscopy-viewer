@@ -779,11 +779,6 @@ class VolumeImageViewer {
       projection: projection,
       updateWhileAnimating: true,
       updateWhileInteracting: true,
-      style: function(feature, resolution) {
-        debugger
-        const name = feature.get('name').toUpperCase();
-        return name < "N" ? style1 : style2; // assuming these are created elsewhere
-      }
     });
 
     const view = new View({
@@ -850,7 +845,7 @@ class VolumeImageViewer {
     this[_map].getView().fit(extent);
 
     /** Wire custom geometries */
-    CustomGeometries.init({ map: this[_map] });
+    CustomGeometries.init({ map: this[_map], source: this[_drawingSource] });
   }
 
   /** Resizes the viewer to fit the viewport. */
@@ -943,7 +938,7 @@ class VolumeImageViewer {
    * @param {Object} options - Drawing options.
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
    */
-  activateDrawInteraction(options) {
+  activateDrawInteraction(options = {}) {
     this.deactivateDrawInteraction();
     console.info('activate "draw" interaction');
 
@@ -951,35 +946,42 @@ class VolumeImageViewer {
       point: {
         type: 'Point',
         geometryName: 'Point',
+        style: options.style
       },
       circle: {
         type: 'Circle',
         geometryName: 'Circle',
+        style: options.style
       },
       box: {
         type: 'Circle',
         geometryName: 'Box',
         geometryFunction: createRegularPolygon(4),
+        style: options.style
       },
       polygon: {
         type: 'Polygon',
         geometryName: 'Polygon',
         freehand: false,
+        style: options.style
       },
       freehandpolygon: {
         type: 'Polygon',
         geometryName: 'FreeHandPolygon',
         freehand: true,
+        style: options.style
       },
       line: {
         type: 'LineString',
         geometryName: 'Line',
         freehand: false,
+        style: options.style
       },
       freehandline: {
         type: 'LineString',
         geometryName: 'FreeHandLine',
         freehand: true,
+        style: options.style
       },
       ...CustomGeometries.getDefinitions(options),
     };
@@ -995,10 +997,6 @@ class VolumeImageViewer {
     const defaultDrawOptions = { source: this[_drawingSource] };
     const customDrawOptions = customOptionsMapping[options.geometryType];
 
-    if ('style' in options && !customDrawOptions.style) {
-      customDrawOptions.style = options.style;
-    }
-
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
     const container = this[_map].getTargetElement();
@@ -1006,6 +1004,7 @@ class VolumeImageViewer {
     // attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
       e.feature.setId(generateUID());
+      CustomGeometries.onAdd(e.feature);
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
@@ -1152,7 +1151,7 @@ class VolumeImageViewer {
    */
   activateModifyInteraction(options = {}) {
     this.deactivateModifyInteraction();
-    console.info('activate "modify" interaction')
+    console.info('activate "modify" interaction');
     this[_interactions].modify = new Modify({
       features: this[_features],  // TODO: or source, i.e. "drawings"???
       ...options,
@@ -1163,8 +1162,6 @@ class VolumeImageViewer {
     });
 
     CustomGeometries.onInteractionsChange(this[_interactions]);
-
-    console.debug(this[_interactions].modify.getProperties());
 
     this[_map].addInteraction(this[_interactions].modify);
   }
@@ -1228,25 +1225,39 @@ class VolumeImageViewer {
     return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
+  overrideStyle({ feature, style }) {
+    if (!this.originalStyles) this.originalStyles = {};
+    if (!this.originalStyles[feature.ol_uid]) {
+      this.originalStyles[feature.ol_uid] = feature.getStyle();
+    }
+    feature.setStyle(style);
+  }
+
+  resetStyle({ feature }) {
+    if (this.originalStyles[feature.ol_uid]) {
+      feature.setStyle(this.originalStyles[feature.ol_uid]);
+    }
+  }
+
   /** Adds a regions of interest.
    *
    * @param {ROI} Regions of interest.
    */
   addROI(item) {
-    console.info(`add ROI ${item.uid}`)
+    console.info(`add ROI ${item.uid}`);
     const geometry = _scoord3d2Geometry(item.scoord3d, this[_pyramidMetadata]);
     const featureOptions = { geometry };
 
-    /** Get custom geometry of this ROI */
-    const geometryName = item.properties.geometryName;
+    /** Update feature with given item propeties */
+    const { geometryName, style } = item.properties;
     if (geometryName) featureOptions[geometryName] = geometry;
 
     const feature = new Feature(featureOptions);
     feature.setProperties(item.properties, true);
-    feature.setStyle(feature => { console.debug('APOSEKASEKOPEASKOPAESPOK') });
     feature.setId(item.uid);
 
-    /** If custom geometry, sets it as the one to use */
+    /** Update feature with given item propeties */
+    if (style) feature.setStyle(style);
     if (geometryName) feature.setGeometryName(geometryName, true);
 
     CustomGeometries.onAdd(feature, item.properties);
