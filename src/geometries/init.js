@@ -22,13 +22,13 @@ const init = ({ map, source }) => {
   FreeTextGeometry.init({ markerManager, map, source });
 
   // const hitTolerance = FreeTextGeometry.hitTolerance;
-  map.on('singleclick', function (event) {
-    map.forEachFeatureAtPixel(
-      event.pixel,
-      function () {},
-      { hitTolerance: 20 }
-    );
-  });
+  // map.on('singleclick', function (event) {
+  //   map.forEachFeatureAtPixel(
+  //     event.pixel,
+  //     function () {},
+  //     { hitTolerance: 20 }
+  //   );
+  // });
 };
 
 export default init;

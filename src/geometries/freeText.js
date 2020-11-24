@@ -4,17 +4,12 @@ import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 
 import { CustomGeometry } from '.';
-import { defaultStyle } from './styles';
 
 export const isFreeText = feature => CustomGeometry.FreeText === feature.getGeometryName();
 
 const getStyleFunction = options => {
   return (feature, resolution) => {
     const styles = [];
-
-    if (options && 'style' in options) {
-      styles.push(options.style);
-    }
 
     if (isFreeText(feature)) {
       const emptyFill = new Fill({ color: 'rgba(255,255,255,0.0)' });
