@@ -14,7 +14,7 @@ const getStyleFunction = options => {
     }
 
     if (isArrow(feature)) {
-
+      console.debug('Styling...');
       geometry.forEachSegment((start, end) => {
         const dx = end[0] - start[0];
         const dy = end[1] - start[1];

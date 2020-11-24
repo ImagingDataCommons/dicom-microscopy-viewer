@@ -53,7 +53,7 @@ import {
 
 import * as DICOMwebClient from 'dicomweb-client';
 
-import CustomGeometries from './geometries';
+import CustomGeometries, { CustomGeometry } from './geometries';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -779,6 +779,11 @@ class VolumeImageViewer {
       projection: projection,
       updateWhileAnimating: true,
       updateWhileInteracting: true,
+      style: function(feature, resolution) {
+        debugger
+        const name = feature.get('name').toUpperCase();
+        return name < "N" ? style1 : style2; // assuming these are created elsewhere
+      }
     });
 
     const view = new View({
@@ -1235,9 +1240,10 @@ class VolumeImageViewer {
     /** Get custom geometry of this ROI */
     const geometryName = item.properties.geometryName;
     if (geometryName) featureOptions[geometryName] = geometry;
-    
+
     const feature = new Feature(featureOptions);
     feature.setProperties(item.properties, true);
+    feature.setStyle(feature => { console.debug('APOSEKASEKOPEASKOPAESPOK') });
     feature.setId(item.uid);
 
     /** If custom geometry, sets it as the one to use */

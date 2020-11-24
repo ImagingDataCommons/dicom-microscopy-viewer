@@ -17,9 +17,11 @@ const MapEvents = {
 };
 
 class MarkerManager {
-  constructor({ map, geometries, formatters } = {}) {
+  constructor({ map, geometries, unlinkGeometries = [], undraggableGeometries = [], formatters } = {}) {
     this._markers = {};
     this._listeners = {};
+    this._unlinkGeometries = unlinkGeometries;
+    this._undraggableGeometries = undraggableGeometries;
     this._geometries = geometries;
     this._formatters = formatters;
     this._links = new Collection([], { unique: true });
@@ -66,6 +68,14 @@ class MarkerManager {
     this._onDrawEnd = this._onDrawEnd.bind(this);
     this._onTranslateStart = this._onTranslateStart.bind(this);
     this._onModifyStart = this._onModifyStart.bind(this);
+  }
+
+  isValidLink(feature) {
+    return !this._unlinkGeometries.includes(feature.getGeometryName());
+  }
+
+  isValidDrag(feature) {
+    return !this._undraggableGeometries.includes(feature.getGeometryName());
   }
 
   /**
@@ -164,7 +174,7 @@ class MarkerManager {
 
       this._map.on(MapEvents.POINTER_MOVE, event => {
         const marker = this._markers[uid];
-        if (marker && marker.overlay.get(dragProperty) === true) {        
+        if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
           marker.overlay.setPosition(event.coordinate);
           marker.drawLink(feature);
         }
@@ -172,7 +182,7 @@ class MarkerManager {
 
       this._map.on(MapEvents.POINTER_UP, () => {
         const marker = this._markers[uid];
-        if (marker && marker.overlay.get(dragProperty) === true) {
+        if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
           dragPan.setActive(true);
           marker.overlay.set(dragProperty, false);
         }
@@ -340,6 +350,8 @@ class MarkerManager {
   }
 
   _drawLink(feature, marker) {
+    if (!this.isValidLink(feature)) return;
+
     const line = getShortestLineBetweenOverlayAndFeature(feature, marker.overlay);
 
     const updated = this._links.getArray().some(feature => {
