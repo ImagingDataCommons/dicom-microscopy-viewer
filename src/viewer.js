@@ -421,7 +421,6 @@ const _pyramidBaseMetadata = Symbol('pyramidMetadataBase');
 const _segmentations = Symbol('segmentations');
 const _usewebgl = Symbol('usewebgl');
 
-
 /** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
  *
@@ -815,11 +814,10 @@ class VolumeImageViewer {
         projection: projection
       });
 
-      const overviewView = new View({
-        projection: projection,
-        resolutions: resolutions,
-        rotation: rotation
-      });
+      const overviewViewOptions = { projection: projection, rotation: rotation };
+      if (resolutions && !options.overviewZoom) overviewViewOptions.resolutions = resolutions;      
+      if (options.overviewZoom) overviewViewOptions.zoom = options.overviewZoom;
+      const overviewView = new View(overviewViewOptions);
 
       this[_controls].overview = new OverviewMap({
         view: overviewView,
@@ -1493,7 +1491,7 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
     if (!('orientation' in options)) {
       options.orientation = 'horizontal';
     }
-    super(options)
+    super(options);
   }
 }
 
@@ -1515,7 +1513,7 @@ class LabelImageViewer extends _NonVolumeImageViewer {
     if (!('orientation' in options)) {
       options.orientation = 'vertical';
     }
-    super(options)
+    super(options);
   }
 }
 
