@@ -8,13 +8,15 @@ import { defaultStyle } from './styles';
 const getStyleFunction = (options) => {
   return (feature, resolution) => {
     const geometry = feature.getGeometry();
-    const styles = [defaultStyle];
+    const styles = [];
 
     if (options && 'style' in options) {
       styles.push(options.style);
     }
 
     if (isArrow(feature)) {
+      styles.push(defaultStyle);
+
       geometry.forEachSegment((start, end) => {
         const dx = end[0] - start[0];
         const dy = end[1] - start[1];

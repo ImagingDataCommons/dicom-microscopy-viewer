@@ -2,6 +2,7 @@ import Style from 'ol/style/Style';
 import Circle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
+import Text from 'ol/style/Text';
 
 import { CustomGeometry } from '.';
 
@@ -12,17 +13,25 @@ const getStyleFunction = options => {
     const styles = [];
 
     if (isFreeText(feature)) {
-      const emptyFill = new Fill({ color: 'rgba(255,255,255,0.0)' });
-      const defaultStroke = new Stroke({
-        color: 'rgba(255,255,255,0.0)',
-        width: 0,
-      });
+      styles.push(
+        new Style({
+          text: new Text({
+            font: '14px sans-serif',
+            overflow: true,
+            fill: new Fill({ color: '#9ccef9' }),
+            text: feature.get('label')
+          })
+        })
+      );
 
       styles.push(
         new Style({
           image: new Circle({
-            fill: emptyFill,
-            stroke: defaultStroke,
+            fill: new Fill({ color: 'rgba(255,255,255,0.0)' }),
+            stroke: new Stroke({
+              color: 'rgba(255,255,255,0.0)',
+              width: 0,
+            }),
             radius: 15,
           })
         })
@@ -67,27 +76,18 @@ const FreeTextGeometry = {
   onAdd: (feature, properties = {}) => {
     if (isFreeText(feature)) {
       console.debug('FreeTextGeometry: onAdd');
-      api.markerManager.create({
-        id: feature.ol_uid,
-        feature,
-        value: formatFreeText(feature)
-      });
       feature.setStyle(getStyleFunction(properties));
     }
   },
   onUpdate: feature => {
     if (isFreeText(feature)) {
-      api.markerManager.updateMarker({
-        id: feature.ol_uid,
-        value: formatFreeText(feature)
-      });
+      console.debug('FreeTextGeometry: onUpdate');
+      feature.changed();
     }
   },
   onRemove: feature => {
     if (isFreeText(feature)) {
       console.debug('FreeTextGeometry: onRemove');
-      const featureId = feature.ol_uid;
-      api.markerManager.remove(featureId);
     }
   },
   onInteractionsChange: () => {

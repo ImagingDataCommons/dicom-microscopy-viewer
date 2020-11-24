@@ -22,5 +22,5 @@ const defaultStyle = new Style({
   stroke: defaultStroke,
 });
 
-export default { defaultStyle };
-export { defaultStyle }
+export default { defaultStyle, defaultStroke };
+export { defaultStyle, defaultStroke }

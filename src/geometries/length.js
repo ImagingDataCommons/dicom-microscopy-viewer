@@ -6,7 +6,13 @@ import { defaultStyle } from './styles';
 
 const getStyleFunction = (options) => {
   return (feature, resolution) => {
-    return [defaultStyle];
+    const styles = [];
+
+    if (isLength(feature)) {
+      styles.push(defaultStyle);
+    }
+    
+    return styles;
   };
 };
 
