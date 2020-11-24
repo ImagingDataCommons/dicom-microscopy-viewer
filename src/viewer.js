@@ -52,7 +52,11 @@ import {
 } from './scoord3d.js';
 
 import * as DICOMwebClient from 'dicomweb-client';
-import { LengthGeometry, ArrowGeometry, CustomGeometry } from './geometries';
+
+import CustomGeometries, { 
+  LengthGeometry, 
+  ArrowGeometry,
+} from './geometries';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -388,12 +392,11 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
 function _getROIFromFeature(feature, pyramid) {
   let roi = {}
   if (feature !== undefined) {
-    const originalFeature = feature;
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
     let properties = feature.getProperties();
-    properties = ArrowGeometry.getProperties(originalFeature, properties);
-    properties = LengthGeometry.getProperties(originalFeature, properties);
+    properties = ArrowGeometry.getROIProperties(feature, properties);
+    properties = LengthGeometry.getROIProperties(feature, properties);
     // Remove geometry from properties mapping
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
@@ -848,8 +851,7 @@ class VolumeImageViewer {
     this[_map].getView().fit(extent);
 
     /** Wire custom geometries */
-    LengthGeometry.init({ map: this[_map] });
-    ArrowGeometry.init({ map: this[_map] });
+    CustomGeometries.init({ map: this[_map] });
   }
 
   /** Resizes the viewer to fit the viewport. */
@@ -1241,21 +1243,40 @@ class VolumeImageViewer {
   addROI(item) {
     console.info(`add ROI ${item.uid}`)
     const geometry = _scoord3d2Geometry(item.scoord3d, this[_pyramidMetadata]);
-    const properties = { geometry };
+    const featureOptions = { geometry };
 
+    /** Get custom geometry of this ROI */
     const geometryName = item.properties.geometryName;
-    if (geometryName) properties[geometryName] = geometry;
+    if (geometryName) featureOptions[geometryName] = geometry;
     
-    const feature = new Feature(properties);
+    const feature = new Feature(featureOptions);
     feature.setProperties(item.properties, true);
     feature.setId(item.uid);
 
+    /** If custom geometry, sets it as the one to use */
     if (geometryName) feature.setGeometryName(geometryName, true);
 
     ArrowGeometry.onAdd(feature, item.properties);
     LengthGeometry.onAdd(feature, item.properties);
 
     this[_features].push(feature);
+  }
+
+  /** Update properties of regions of interest.
+   *
+   * @param {object} roi - ROI to be updated
+   * @param {string} roi.uid - Unique identifier of the region of interest
+   * @param {object} roi.properties - ROI properties
+   */
+  updateROI({ uid, properties }) {
+    if (!uid) return;
+    console.info(`update ROI ${uid}`)
+
+    const feature = this[_drawingSource].getFeatureById(uid);
+    feature.setProperties(properties, true);
+
+    ArrowGeometry.onUpdate(feature);
+    LengthGeometry.onUpdate(feature);
   }
 
   /** Removes an individual regions of interest.

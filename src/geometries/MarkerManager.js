@@ -9,7 +9,6 @@ import Collection from 'ol/Collection';
 import Feature from 'ol/Feature';
 import { unByKey } from 'ol/Observable';
 
-import { generateUID } from '../utils';
 import { getShortestLineBetweenOverlayAndFeature } from './utils';
 
 const MapEvents = {
@@ -18,11 +17,11 @@ const MapEvents = {
 };
 
 class MarkerManager {
-  constructor({ map, geometry, formatter } = {}) {
+  constructor({ map, geometries, formatters } = {}) {
     this._markers = {};
     this._listeners = {};
-    this._geometry = geometry;
-    this._formatter = formatter;
+    this._geometries = geometries;
+    this._formatters = formatters;
     this._links = new Collection([], { unique: true });
     this._map = map;
 
@@ -122,7 +121,7 @@ class MarkerManager {
 
     if (this._markers[uid]) return this._markers[uid];
 
-    const uid = id || generateUID();
+    const uid = id;
 
     if (!this._markers[uid]) {
       this._markers[uid] = { id: uid };
@@ -165,7 +164,7 @@ class MarkerManager {
 
       this._map.on(MapEvents.POINTER_MOVE, event => {
         const marker = this._markers[uid];
-        if (marker && marker.overlay.get(dragProperty) === true) {
+        if (marker && marker.overlay.get(dragProperty) === true) {        
           marker.overlay.setPosition(event.coordinate);
           marker.drawLink(feature);
         }
@@ -193,7 +192,7 @@ class MarkerManager {
    * @param {Feature} feature The feature
    */
   _isValidFeature(feature) {
-    return feature.getGeometryName() === this._geometry;
+    return this._geometries.includes(feature.getGeometryName());
   }
 
   /**
@@ -207,7 +206,7 @@ class MarkerManager {
     const marker = this.get(id);
     if (marker) {
       marker.element.innerHTML = value;
-      marker.overlay.setPosition(coordinate);
+      if (coordinate) marker.overlay.setPosition(coordinate);
       this.set({ id, ...marker });
     }
   }
@@ -231,6 +230,7 @@ class MarkerManager {
    */
   _updateMarkerLocation(event) {
     event.features.forEach(feature => {
+      console.debug('isValidate?', feature.getGeometryName());
       if (this._isValidFeature(feature)) {
         this._updateMarkerOnGeometryChange({
           feature, coordinate: event.coordinate
@@ -259,6 +259,13 @@ class MarkerManager {
     }
   }
 
+  _getFormatter = (feature) => {
+    const geometryName = feature.getGeometryName();
+    const formatter = this._formatters[geometryName];
+    if (!formatter) return () => '';
+    return formatter;
+  };
+
   /**
    * Update marker location on geometry change
    * 
@@ -273,7 +280,7 @@ class MarkerManager {
       const marker = this.get(featureId);
       if (marker) {
         let currentGeometry = event.target;
-        let output = this._formatter(feature, currentGeometry);
+        let output = this._getFormatter(feature)(feature, currentGeometry);
         markerCoordinate = currentGeometry.getLastCoordinate();
         this.updateMarker({ id: featureId, value: output, coordinate: markerCoordinate });
         marker.drawLink(feature);

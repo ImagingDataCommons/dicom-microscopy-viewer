@@ -2,7 +2,6 @@ import Style from 'ol/style/Style';
 import Point from 'ol/geom/Point';
 import Icon from 'ol/style/Icon';
 
-import MarkerManager from './MarkerManager';
 import { CustomGeometry } from '.';
 
 const getStyleFunction = options => {
@@ -14,9 +13,7 @@ const getStyleFunction = options => {
       styles.push(options.style);
     }
 
-    console.debug(feature.getGeometryName());
     if (isArrow(feature)) {
-      console.debug('Styling...');
 
       geometry.forEachSegment((start, end) => {
         const dx = end[0] - start[0];
@@ -60,45 +57,56 @@ const getDefinition = options => {
   };
 };
 
-let _map;
-let _markerManager;
+/**
+ * Format arrow output
+ * @param {LineString} arrow geometry
+ * @return {string} The formatted output
+ */
+const formatArrow = (feature, geometry) => {
+  const properties = feature.getProperties();
+  return properties.label || '';
+};
 
+let api;
 const ArrowGeometry = {
-  init: ({ map }) => {
-    console.debug('ArrowGeometry: init');
-    _map = map;
-    _markerManager = new MarkerManager({
-      map: _map,
-      geometry: CustomGeometry.Arrow,
-      formatter: (feature, geometry) => feature.get('label')
-    });
-  },
-  getProperties: (feature, properties = {}) => {
-    return properties;
+  init: apiInstance => api = apiInstance,
+  getROIProperties: (feature, properties = {}) => {
+    return isArrow(feature) ?
+      { ...properties, geometryName: CustomGeometry.Arrow }
+      : properties;
   },
   onAdd: (feature, properties = {}) => {
     if (isArrow(feature)) {
       console.debug('ArrowGeometry: onAdd');
-      _markerManager.create({
+      api.markerManager.create({
         id: feature.ol_uid,
         feature,
-        value: properties.label
+        value: formatArrow(feature)
       });
       feature.setStyle(getStyleFunction());
+    }
+  },
+  onUpdate: feature => {
+    if (isArrow(feature)) {
+      api.markerManager.updateMarker({
+        id: feature.ol_uid,
+        value: formatArrow(feature)
+      });
     }
   },
   onRemove: feature => {
     if (isArrow(feature)) {
       console.debug('ArrowGeometry: onRemove');
       const featureId = feature.ol_uid;
-      _markerManager.remove(featureId);
+      api.markerManager.remove(featureId);
     }
   },
   onInteractionsChange: () => {
 
   },
   getDefinition,
-  isArrow
+  isArrow,
+  format: formatArrow
 };
 
 export default ArrowGeometry;

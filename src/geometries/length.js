@@ -2,58 +2,50 @@ import { LineString } from 'ol/geom';
 import { getLength } from 'ol/sphere';
 
 import { CustomGeometry } from '.';
-import MarkerManager from './MarkerManager';
-
-let _map;
-let _markerManager;
 
 /**
  * Format length output
- * @param {LineString} line The line.
- * @return {string} The formatted length.
+ * @param {LineString} line geometry
+ * @return {string} The formatted output
  */
-export const formatLength = (feature, geometry) => {
+const formatLength = (feature, geometry) => {
   const line = feature ? feature.getGeometry() : geometry;
   const length = getLength(line);
   let output = Math.round((length / 10) * 100) / 100 + ' ' + 'mm';
   return output;
 };
 
-export const isLength = feature => CustomGeometry.Length === feature.getGeometryName();
+const isLength = feature => CustomGeometry.Length === feature.getGeometryName();
 
+let api;
 const LengthGeometry = {
-  init: ({ map }) => {
-    console.debug('LengthGeometry: init');
-    _map = map;
-    _markerManager = new MarkerManager({
-      map: _map,
-      geometry: CustomGeometry.Length,
-      formatter: formatLength
-    });
-  },
-  getProperties: (feature, properties = {}) => {
-    return properties;
+  init: apiInstance => api = apiInstance,
+  getROIProperties: (feature, properties = {}) => {
+    return isLength(feature) ?
+      { ...properties, geometryName: CustomGeometry.Length }
+      : properties;
   },
   onInteractionsChange: interactions => {
-    _markerManager.onInteractionsChange(interactions);
+    api.markerManager.onInteractionsChange(interactions);
   },
   onRemove: feature => {
     if (isLength(feature)) {
       console.debug('LengthGeometry: onRemove');
       const featureId = feature.ol_uid;
-      _markerManager.remove(featureId);
+      api.markerManager.remove(featureId);
     }
   },
   onAdd: (feature, properties = {}) => {
     if (isLength(feature)) {
       console.debug('LengthGeometry: onAdd');
-      _markerManager.create({
+      api.markerManager.create({
         id: feature.ol_uid,
         feature,
         value: formatLength(feature)
       });
     }
   },
+  onUpdate: feature => {},
   getDefinition: (options) => {
     /** Length Geometry Definition */
     return {
@@ -66,7 +58,8 @@ const LengthGeometry = {
       },
     };
   },
-  isLength
+  isLength,
+  format: formatLength
 };
 
 export default LengthGeometry;
