@@ -144,7 +144,8 @@ class MarkerManager {
       positioning: 'center-center',
       stopEvent: false,
       dragging: false,
-      element,
+      offset: [7, 7],
+      element: this._markers[id].element,
     });
 
     const coordinate = feature.getGeometry().getLastCoordinate();
