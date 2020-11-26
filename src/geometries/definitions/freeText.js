@@ -4,7 +4,7 @@ import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Text from 'ol/style/Text';
 
-import { CustomGeometry } from '.';
+import { CustomGeometry } from '..';
 
 export const isFreeText = feature => CustomGeometry.FreeText === feature.getGeometryName();
 

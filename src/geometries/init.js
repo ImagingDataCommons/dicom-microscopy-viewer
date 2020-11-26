@@ -1,8 +1,9 @@
-import { CustomGeometry } from '.';
-import MarkerManager from './MarkerManager';
-import LengthGeometry from './length';
-import ArrowGeometry from './arrow';
-import FreeTextGeometry from './freeText';
+import { CustomGeometry, MarkerManager } from './index';
+import {
+  ArrowGeometry,
+  LengthGeometry,
+  FreeTextGeometry
+} from './definitions';
 
 const init = ({ map, source }) => {
   const markerManager = new MarkerManager({

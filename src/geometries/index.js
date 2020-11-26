@@ -1,18 +1,21 @@
 import init from './init';
-import ArrowGeometry from './arrow';
-import LengthGeometry from './length';
-import FreeTextGeometry from './freeText';
+import MarkerManager from './MarkerManager';
+import Geometries from './definitions';
 
-export { default as ArrowGeometry } from './arrow';
-export { default as LengthGeometry } from './length';
-export { default as FreeTextGeometry } from './freeText';
-export { default as init } from './init';
+export { default as MarkerManager } from './MarkerManager';
+export { default as Geometries } from './definitions';
 
 export const CustomGeometry = {
   Length: 'Length',
   Arrow: 'Arrow',
   FreeText: 'FreeText'
 };
+
+const {
+  LengthGeometry,
+  ArrowGeometry,
+  FreeTextGeometry
+} = Geometries;
 
 const commonAPI = {
   onInteractionsChange: interactions => {
@@ -58,7 +61,7 @@ const commonAPI = {
 export default {
   ...commonAPI,
   init,
+  Geometries,
   CustomGeometry,
-  ArrowGeometry,
-  LengthGeometry
+  MarkerManager
 };

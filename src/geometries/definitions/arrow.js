@@ -2,8 +2,15 @@ import Style from 'ol/style/Style';
 import Point from 'ol/geom/Point';
 import Icon from 'ol/style/Icon';
 
-import { CustomGeometry } from '.';
-import { defaultStyle } from './styles';
+import { CustomGeometry } from '..';
+import { defaultStyle } from '../styles';
+
+const svg = `
+  <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+    width="106px" height="106px" viewBox="0 0 306 306" xml:space="preserve">
+    <g><polygon style="fill:%233399CC;" points="207.093,30.187 176.907,0 48.907,128 176.907,256 207.093,225.813 109.28,128"/></g>
+  </svg>
+`;
 
 const getStyleFunction = (options) => {
   return (feature, resolution) => {
@@ -27,8 +34,10 @@ const getStyleFunction = (options) => {
           new Style({
             geometry: new Point(start),
             image: new Icon({
-              src: 'https://openlayers.org/en/latest/examples/data/arrow.png',
-              anchor: [0.75, 0.5],
+              opacity: 1,
+              src: `data:image/svg+xml;utf8,${svg}`,
+              scale: 0.2,
+              anchor: [0.4, 0.4],
               rotateWithView: true,
               rotation: -rotation,
             }),

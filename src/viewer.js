@@ -1,6 +1,6 @@
 import 'ol/ol.css';
 import Collection from 'ol/Collection';
-import Draw, { createRegularPolygon, createBox } from 'ol/interaction/Draw';
+import Draw, { createRegularPolygon } from 'ol/interaction/Draw';
 import EVENT from "./events";
 import Feature from 'ol/Feature';
 import FullScreen from 'ol/control/FullScreen';
@@ -29,11 +29,10 @@ import { default as PointGeometry } from 'ol/geom/Point';
 import { default as LineStringGeometry } from 'ol/geom/LineString';
 import { default as CircleGeometry } from 'ol/geom/Circle';
 import { default as VectorEventType } from "ol/source/VectorEventType";
-import { default as MapEventType } from "ol/MapEventType";
-import { defaults as defaultInteractions } from 'ol/interaction';
 
 import { getCenter } from 'ol/extent';
-import { toStringXY, rotate } from 'ol/coordinate';
+
+import * as DICOMwebClient from 'dicomweb-client';
 
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js';
 import { ROI } from './roi.js';
@@ -44,16 +43,12 @@ import {
 } from './utils.js';
 import {
   Point,
-  Multipoint,
   Polyline,
   Polygon,
-  Ellipsoid,
   Ellipse
 } from './scoord3d.js';
 
-import * as DICOMwebClient from 'dicomweb-client';
-
-import CustomGeometries, { CustomGeometry } from './geometries';
+import CustomGeometries from './geometries';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *

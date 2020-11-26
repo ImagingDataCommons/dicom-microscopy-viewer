@@ -1,8 +1,8 @@
 import { LineString } from 'ol/geom';
 import { getLength } from 'ol/sphere';
 
-import { CustomGeometry } from '.';
-import { defaultStyle } from './styles';
+import { CustomGeometry } from '..';
+import { defaultStyle } from '../styles';
 
 const getStyleFunction = (options) => {
   return (feature, resolution) => {
@@ -11,7 +11,7 @@ const getStyleFunction = (options) => {
     if (isLength(feature)) {
       styles.push(defaultStyle);
     }
-    
+
     return styles;
   };
 };
