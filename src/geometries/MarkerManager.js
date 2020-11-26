@@ -31,10 +31,8 @@ class MarkerManager {
     styleTag.innerHTML = `
       .ol-tooltip {
         color: #9ccef9;
-        padding: 4px 8px;
         white-space: nowrap;
         font-size: 14px;
-        position: absolute;
       }
       .ol-tooltip-measure { opacity: 1; }
       .ol-tooltip-static { color: #9ccef9; }
@@ -58,7 +56,8 @@ class MarkerManager {
       })]
     });
 
-    this._map.addOverlay(new Overlay({ element: styleTag }));
+    const markersOverlay = new Overlay({ element: styleTag });
+    this._map.addOverlay(markersOverlay);
     this._map.addLayer(linksVector);
 
     this.onInteractionsChange(this._map.getInteractions());
@@ -96,13 +95,13 @@ class MarkerManager {
    */
   remove(id) {
     const marker = this.get(id);
-    if (marker) {
-      this._map.removeOverlay(marker.overlay);
-      this._markers[id] = null;
-      const drawnLink = this._links.getArray().find(feature => feature.ol_uid === id);
-      if (drawnLink) this._links.remove(drawnLink);
-      if (this._listeners[id]) this._listeners[id] = null;
-    }
+    if (!marker) return id;
+    const links = this._links.getArray();
+    const link = links.find(feature => feature.getId() === id);
+    if (link) this._links.remove(link);
+    this._map.removeOverlay(marker.overlay);
+    this._markers[id] = null;
+    if (this._listeners[id]) this._listeners[id] = null;
     return id;
   }
 
@@ -129,71 +128,63 @@ class MarkerManager {
       return;
     }
 
-    if (this._markers[uid]) return this._markers[uid];
+    if (this._markers[id]) return this._markers[id];
 
-    const uid = id;
+    this._markers[id] = { id };
+    this._markers[id].drawLink = feature => this._drawLink(feature, this._markers[id]);
 
-    if (!this._markers[uid]) {
-      this._markers[uid] = { id: uid };
-      this._markers[uid].drawLink = feature => this._drawLink(feature, this._markers[uid]);
+    const element = document.createElement('div');
+    element.id = this.isValidDrag(feature) ? 'marker' : '';
+    element.className = 'ol-tooltip ol-tooltip-measure';
+    element.innerHTML = value ? value : '';
 
-      const element = document.createElement('div');
-      element.id = this.isValidDrag(feature) ? 'marker' : '';
-      element.className = 'ol-tooltip ol-tooltip-measure';
-      element.innerHTML = value ? value : '';
+    this._markers[id].element = defaultElement || element;
+    this._markers[id].overlay = defaultOverlay || new Overlay({
+      className: 'marker-container',
+      positioning: 'center-center',
+      stopEvent: false,
+      dragging: false,
+      element,
+    });
 
-      this._markers[uid].element = defaultElement || element;
-      this._markers[uid].overlay = defaultOverlay || new Overlay({
-        className: 'marker-container',
-        positioning: 'center-center',
-        stopEvent: false,
-        dragging: false,
-        element,
-      });
+    const coordinate = feature.getGeometry().getLastCoordinate();
+    this._markers[id].overlay.setPosition(coordinate);
+    this._drawLink(feature, this._markers[id]);
 
-      const coordinate = feature.getGeometry().getLastCoordinate();
-      this._markers[uid].overlay.setPosition(coordinate);
+    let dragPan;
+    let dragProperty = 'dragging';
+    this._map.getInteractions().forEach(interaction => {
+      if (interaction instanceof DragPan) {
+        dragPan = interaction;
+      }
+    });
 
-      this._drawLink(feature, this._markers[uid]);
+    element.addEventListener('mousedown', () => {
+      const marker = this._markers[id];
+      if (marker) {
+        dragPan.setActive(false);
+        marker.overlay.set(dragProperty, true);
+      }
+    });
 
-      let dragPan;
-      let dragProperty = 'dragging';
-      this._map.getInteractions().forEach(interaction => {
-        if (interaction instanceof DragPan) {
-          dragPan = interaction;
-        }
-      });
+    this._map.on(MapEvents.POINTER_MOVE, event => {
+      const marker = this._markers[id];
+      if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
+        marker.overlay.setPosition(event.coordinate);
+        marker.drawLink(feature);
+      }
+    });
 
-      element.addEventListener('mousedown', () => {
-        const marker = this._markers[uid];
-        if (marker) {
-          dragPan.setActive(false);
-          marker.overlay.set(dragProperty, true);
-        }
-      });
+    this._map.on(MapEvents.POINTER_UP, () => {
+      const marker = this._markers[id];
+      if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
+        dragPan.setActive(true);
+        marker.overlay.set(dragProperty, false);
+      }
+    });
 
-      this._map.on(MapEvents.POINTER_MOVE, event => {
-        const marker = this._markers[uid];
-        if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
-          marker.overlay.setPosition(event.coordinate);
-          marker.drawLink(feature);
-        }
-      });
-
-      this._map.on(MapEvents.POINTER_UP, () => {
-        const marker = this._markers[uid];
-        if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
-          dragPan.setActive(true);
-          marker.overlay.set(dragProperty, false);
-        }
-      });
-
-      this._map.addOverlay(this._markers[uid].overlay);
-
-      return this._markers[uid];
-    }
-
-    return this._markers[uid];
+    this._map.addOverlay(this._markers[id].overlay);
+    return this._markers[id];
   }
 
   /**
@@ -214,11 +205,10 @@ class MarkerManager {
    */
   updateMarker({ id, value, coordinate }) {
     const marker = this.get(id);
-    if (marker) {
-      marker.element.innerHTML = value;
-      if (coordinate) marker.overlay.setPosition(coordinate);
-      this.set({ id, ...marker });
-    }
+    if (!marker) return id;
+    marker.element.innerHTML = value;
+    if (coordinate) marker.overlay.setPosition(coordinate);
+    this.set({ id, ...marker });
   }
 
   /**
@@ -261,7 +251,6 @@ class MarkerManager {
       const marker = this.get(featureId);
       if (marker) {
         marker.element.className = 'ol-tooltip ol-tooltip-static';
-        marker.overlay.setOffset([0, -7]);
         this.set({ id: featureId, ...marker });
         unByKey(this._listeners['drawend']);
       }
