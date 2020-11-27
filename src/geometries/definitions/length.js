@@ -3,6 +3,7 @@ import { getLength } from 'ol/sphere';
 
 import { CustomGeometry } from '..';
 import { defaultStyle } from '../styles';
+import { getUnitsSuffix } from '../utils';
 
 const getStyleFunction = (options) => {
   return (feature, resolution) => {
@@ -21,10 +22,10 @@ const getStyleFunction = (options) => {
  * @param {LineString} line geometry
  * @return {string} The formatted output
  */
-const formatLength = (feature, geometry) => {
+const formatLength = (feature, geometry, units) => {
   const line = feature ? feature.getGeometry() : geometry;
   const length = getLength(line);
-  let output = Math.round((length / 10) * 100) / 100 + ' ' + 'mm';
+  let output = Math.round((length / 10) * 100) / 100 + ' ' + units;
   return output;
 };
 
@@ -35,31 +36,44 @@ const LengthGeometry = {
   init: apiInstance => api = apiInstance,
   getROIProperties: (feature, properties = {}) => {
     return isLength(feature) ?
-      { ...properties, geometryName: CustomGeometry.Length }
-      : properties;
-  },
-  onInteractionsChange: interactions => {
-    api.markerManager.onInteractionsChange(interactions);
+      {
+        ...properties,
+        geometryName: CustomGeometry.Length,
+      } : properties;
   },
   onRemove: feature => {
     if (isLength(feature)) {
-      console.debug('LengthGeometry: onRemove');
       const featureId = feature.ol_uid;
       api.markerManager.remove(featureId);
     }
   },
   onAdd: (feature, properties = {}) => {
     if (isLength(feature)) {
-      console.debug('LengthGeometry: onAdd');
       api.markerManager.create({
         id: feature.ol_uid,
         feature,
-        value: formatLength(feature)
+        value: formatLength(feature, null, getUnitsSuffix(api.map.getView()))
       });
       feature.setStyle(getStyleFunction(properties));
     }
   },
-  onUpdate: feature => { },
+  onUpdate: feature => {
+    if (isLength(feature)) {
+      const marker = feature.get('marker');
+      if (marker) {
+        const { id, label, coordinate } = marker;
+        api.markerManager.updateMarker({
+          id,
+          value: label,
+          coordinate,
+          feature
+        });
+      }
+    }
+  },
+  onInteractionsChange: interactions => {
+    api.markerManager.onInteractionsChange(interactions);
+  },
   getDefinition: (options) => {
     const styleFunction = getStyleFunction(options);
 

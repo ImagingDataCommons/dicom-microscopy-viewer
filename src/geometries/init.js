@@ -5,7 +5,8 @@ import {
   FreeTextGeometry
 } from './definitions';
 
-const init = ({ map, source }) => {
+const init = ({ map, source, controls }) => {
+  console.debug('Geometries: init');
   const markerManager = new MarkerManager({
     map,
     geometries: [CustomGeometry.Length, CustomGeometry.Arrow],
@@ -15,12 +16,12 @@ const init = ({ map, source }) => {
       [CustomGeometry.Length]: LengthGeometry.format,
       [CustomGeometry.Arrow]: ArrowGeometry.format,
       [CustomGeometry.FreeText]: FreeTextGeometry.format
-    }
+    },
   });
 
-  LengthGeometry.init({ markerManager, map, source });
-  ArrowGeometry.init({ markerManager, map, source });
-  FreeTextGeometry.init({ markerManager, map, source });
+  LengthGeometry.init({ markerManager, map, source, controls });
+  ArrowGeometry.init({ markerManager, map, source, controls });
+  FreeTextGeometry.init({ markerManager, map, source, controls });
 };
 
 export default init;

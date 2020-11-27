@@ -9,6 +9,7 @@ import Collection from 'ol/Collection';
 import Feature from 'ol/Feature';
 import { unByKey } from 'ol/Observable';
 
+import { getUnitsSuffix } from './utils';
 import { getShortestLineBetweenOverlayAndFeature } from './utils';
 
 const MapEvents = {
@@ -17,7 +18,13 @@ const MapEvents = {
 };
 
 class MarkerManager {
-  constructor({ map, geometries, unlinkGeometries = [], undraggableGeometries = [], formatters } = {}) {
+  constructor({
+    map,
+    geometries,
+    unlinkGeometries = [],
+    undraggableGeometries = [],
+    formatters,
+  } = {}) {
     this._markers = {};
     this._listeners = {};
     this._unlinkGeometries = unlinkGeometries;
@@ -209,7 +216,8 @@ class MarkerManager {
     if (!marker) return id;
     marker.element.innerHTML = value;
     if (coordinate) marker.overlay.setPosition(coordinate);
-    this.set({ id, ...marker });
+    const updatedMarker = { id, ...marker };
+    this.set(updatedMarker);
   }
 
   /**
@@ -279,7 +287,9 @@ class MarkerManager {
       const marker = this.get(featureId);
       if (marker) {
         let currentGeometry = event.target;
-        let output = this._getFormatter(feature)(feature, currentGeometry);
+        const view = this._map.getView();
+        const unitsSuffix = getUnitsSuffix(view);
+        let output = this._getFormatter(feature)(feature, currentGeometry, unitsSuffix);
         markerCoordinate = currentGeometry.getLastCoordinate();
         this.updateMarker({ id: featureId, value: output, coordinate: markerCoordinate });
         marker.drawLink(feature);

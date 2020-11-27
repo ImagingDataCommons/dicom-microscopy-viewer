@@ -89,7 +89,6 @@ const ArrowGeometry = {
   },
   onAdd: (feature, properties = {}) => {
     if (isArrow(feature)) {
-      console.debug('ArrowGeometry: onAdd', feature);
       api.markerManager.create({
         id: feature.ol_uid,
         feature,
@@ -108,14 +107,11 @@ const ArrowGeometry = {
   },
   onRemove: feature => {
     if (isArrow(feature)) {
-      console.debug('ArrowGeometry: onRemove');
       const featureId = feature.ol_uid;
       api.markerManager.remove(featureId);
     }
   },
-  onInteractionsChange: () => {
-
-  },
+  onInteractionsChange: interactions => { },
   getDefinition,
   isArrow,
   format: formatArrow,

@@ -810,7 +810,7 @@ class VolumeImageViewer {
       });
 
       const overviewViewOptions = { projection: projection, rotation: rotation };
-      if (resolutions && !options.overviewZoom) overviewViewOptions.resolutions = resolutions;      
+      if (resolutions && !options.overviewZoom) overviewViewOptions.resolutions = resolutions;
       if (options.overviewZoom) overviewViewOptions.zoom = options.overviewZoom;
       const overviewView = new View(overviewViewOptions);
 
@@ -838,7 +838,11 @@ class VolumeImageViewer {
     this[_map].getView().fit(extent);
 
     /** Wire custom geometries */
-    CustomGeometries.init({ map: this[_map], source: this[_drawingSource] });
+    CustomGeometries.init({
+      map: this[_map],
+      source: this[_drawingSource],
+      controls: this[_controls],
+    });
   }
 
   /** Resizes the viewer to fit the viewport. */
@@ -997,6 +1001,7 @@ class VolumeImageViewer {
     // attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
       e.feature.setId(generateUID());
+      /** TODO: Added to fix styles being overwritten, remove this? */
       CustomGeometries.onAdd(e.feature);
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });

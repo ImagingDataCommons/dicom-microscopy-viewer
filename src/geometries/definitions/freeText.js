@@ -75,29 +75,21 @@ const FreeTextGeometry = {
   },
   onAdd: (feature, properties = {}) => {
     if (isFreeText(feature)) {
-      console.debug('FreeTextGeometry: onAdd');
       feature.setStyle(getStyleFunction(properties));
     }
   },
   onUpdate: feature => {
     if (isFreeText(feature)) {
-      console.debug('FreeTextGeometry: onUpdate');
+      /** Get latest value of label property updated externally */
       feature.changed();
     }
   },
-  onRemove: feature => {
-    if (isFreeText(feature)) {
-      console.debug('FreeTextGeometry: onRemove');
-    }
-  },
-  onInteractionsChange: () => {
-
-  },
+  onRemove: feature => {},
+  onInteractionsChange: () => {},
   getDefinition,
   isFreeText,
   format: formatFreeText,
   style: getStyleFunction,
-  hitTolerance: 15
 };
 
 export default FreeTextGeometry;
