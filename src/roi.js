@@ -115,4 +115,4 @@ class ROI {
 
 }
 
-export { Property, ROI };
+export { ROI };
