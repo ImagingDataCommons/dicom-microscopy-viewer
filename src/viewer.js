@@ -1106,6 +1106,42 @@ class VolumeImageViewer {
     return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
+  /** Adds a measurement to a region of interest.
+   *
+   * @param {string} uid - Unique identifier of the region of interest
+   * @param {Object} item - NUM content item representing a measurement
+   */
+  addROIMeasurement(uid, item) {
+    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
+    console.info(`add measurement "${meaning}" to ROI ${uid}`)
+    this[_features].forEach(feature => {
+      const id = feature.getId();
+      if (id === uid) {
+        const properties = feature.getProperties();
+        properties['measurements'].push(item);
+        feature.setProperties(properties, true);
+      }
+    })
+  }
+
+  /** Adds a qualitative evaluation to a region of interest.
+   *
+   * @param {string} uid - Unique identifier of the region of interest
+   * @param {Object} item - CODE content item representing a qualitative evaluation
+   */
+  addROIEvaluation(uid, item) {
+    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
+    console.info(`add qualitative evaluation "${meaning}" to ROI ${uid}`)
+    this[_features].forEach(feature => {
+      const id = feature.getId();
+      if (id === uid) {
+        const properties = feature.getProperties();
+        properties['evaluations'].push(item);
+        feature.setProperties(properties, true);
+      }
+    })
+  }
+
   /** Pops the most recently annotated regions of interest.
    *
    * @returns {ROI} Regions of interest.
