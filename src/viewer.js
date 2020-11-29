@@ -1118,7 +1118,11 @@ class VolumeImageViewer {
       const id = feature.getId();
       if (id === uid) {
         const properties = feature.getProperties();
-        properties['measurements'].push(item);
+        if (!('measurements' in properties)) {
+          properties['measurements'] = [item]
+        } else {
+          properties['measurements'].push(item);
+        }
         feature.setProperties(properties, true);
       }
     })
@@ -1136,7 +1140,11 @@ class VolumeImageViewer {
       const id = feature.getId();
       if (id === uid) {
         const properties = feature.getProperties();
-        properties['evaluations'].push(item);
+        if (!('evaluations' in properties)) {
+          properties['evaluations'] = [item]
+        } else {
+          properties['evaluations'].push(item);
+        }
         feature.setProperties(properties, true);
       }
     })
