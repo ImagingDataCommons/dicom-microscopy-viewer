@@ -67,19 +67,32 @@ class MarkerManager {
     this._map.addOverlay(markersOverlay);
     this._map.addLayer(linksVector);
 
-    this.onInteractionsChange(this._map.getInteractions());
-
     /** Bind events */
     this._onDrawStart = this._onDrawStart.bind(this);
     this._onDrawEnd = this._onDrawEnd.bind(this);
     this._onTranslateStart = this._onTranslateStart.bind(this);
     this._onModifyStart = this._onModifyStart.bind(this);
+
+    /** Wire interactions events */
+    this.wireInteractionsEvents(this._map.getInteractions());
   }
 
+  /**
+   * Checks if given link can be created for a given geometry name.
+   * 
+   * @param {Feature} feature The feature
+   * @return {boolean} the validation
+   */
   isValidLink(feature) {
     return !this._unlinkGeometries.includes(feature.getGeometryName());
   }
 
+  /**
+   * Checks if drag is allowed for a given geometry name.
+   * 
+   * @param {Feature} feature The feature
+   * @return {boolean} the validation
+   */
   isValidDrag(feature) {
     return !this._undraggableGeometries.includes(feature.getGeometryName());
   }
@@ -281,6 +294,12 @@ class MarkerManager {
     }
   }
 
+  /**
+   * Returns the string format function for a given geometry name.
+   * 
+   * @param {object} feature The feature
+   * @returns {function} format function
+   */
   _getFormatter(feature) {
     const geometryName = feature.getGeometryName();
     const formatter = this._formatters[geometryName];
@@ -312,23 +331,33 @@ class MarkerManager {
     });
   }
 
-  onInteractionsChange(interactions) {
+  /**
+   * Wire interaction events everytime new interactions is added or updated.
+   * 
+   * @param {object[]} interactions The map interactions
+   */
+  wireInteractionsEvents(interactions) {
     if (interactions.draw) {
-      this._unbindEvent('drawstart');
-      this._unbindEvent('drawend');
       this._listeners['drawstart'] = interactions.draw.on('drawstart', this._onDrawStart);
       this._listeners['drawend'] = interactions.draw.on('drawend', this._onDrawEnd);
     }
 
     if (interactions.translate) {
-      this._unbindEvent('translatestart');
       this._listeners['translatestart'] = interactions.translate.on('translatestart', this._onTranslateStart);
     }
 
     if (interactions.modify) {
-      this._unbindEvent('modifystart');
       this._listeners['modifystart'] = interactions.modify.on('modifystart', this._onModifyStart);
     }
+  }
+
+  /**
+   * Wire interaction events everytime new interactions is added or updated.
+   * 
+   * @param {object[]} interactions The map interactions
+   */
+  onInteractionsChange(interactions) {
+    this.wireInteractionsEvents(interactions);
   }
 
   /**
@@ -363,6 +392,12 @@ class MarkerManager {
     this._updateMarkerLocation(event);
   }
 
+  /**
+   * Draws a new link feature between marker and feature.
+   * 
+   * @param {object} feature The feature
+   * @param {object} marker The marker
+   */
   _drawLink(feature, marker) {
     if (!this.isValidLink(feature)) return;
 

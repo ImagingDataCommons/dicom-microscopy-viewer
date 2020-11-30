@@ -1009,9 +1009,9 @@ class VolumeImageViewer {
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
-
     this[_map].addInteraction(this[_interactions].draw);
+
+    CustomGeometries.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates draw interaction. */
@@ -1042,9 +1042,9 @@ class VolumeImageViewer {
       layers: [this[_drawingLayer]],
     });
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
-
     this[_map].addInteraction(this[_interactions].translate);
+
+    CustomGeometries.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates translate interaction. */
@@ -1073,9 +1073,9 @@ class VolumeImageViewer {
       publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this[_pyramidMetadata]));
     });
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
-
     this[_map].addInteraction(this[_interactions].select);
+
+    CustomGeometries.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates select interaction. */
@@ -1096,9 +1096,9 @@ class VolumeImageViewer {
     console.info('activate "drag pan" interaction');
     this[_interactions].dragPan = new DragPan({ features: this[_features] });
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
-
     this[_map].addInteraction(this[_interactions].dragPan);
+
+    CustomGeometries.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivate dragpan interaction. */
@@ -1121,9 +1121,9 @@ class VolumeImageViewer {
       source: this[_drawingSource],
     });
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
-
     this[_map].addInteraction(this[_interactions].snap);
+
+    CustomGeometries.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates snap interaction. */
@@ -1158,9 +1158,9 @@ class VolumeImageViewer {
       }
     });
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
-
     this[_map].addInteraction(this[_interactions].modify);
+    
+    CustomGeometries.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates modify interaction. */
@@ -1280,7 +1280,7 @@ class VolumeImageViewer {
    */
   updateROI({ uid, properties }) {
     if (!uid) return;
-    console.info(`update ROI ${uid}`)
+    console.info(`update ROI ${uid}`);
 
     const feature = this[_drawingSource].getFeatureById(uid);
     feature.setProperties(properties, true);
@@ -1293,14 +1293,14 @@ class VolumeImageViewer {
    * @param {string} uid - Unique identifier of the region of interest
    */
   removeROI(uid) {
-    console.info(`remove ROI ${uid}`)
+    console.info(`remove ROI ${uid}`);
     const feature = this[_drawingSource].getFeatureById(uid);
     this[_features].remove(feature);
   }
 
   /** Removes all annotated regions of interest. */
   removeAllROIs() {
-    console.info('remove all ROIs')
+    console.info('remove all ROIs');
     this[_features].clear();
   }
 
@@ -1308,7 +1308,7 @@ class VolumeImageViewer {
    *  visible on the viewport.
    */
   hideROIs() {
-    console.info('hide ROIs')
+    console.info('hide ROIs');
     this[_drawingLayer].setVisible(false);
   }
 
@@ -1316,7 +1316,7 @@ class VolumeImageViewer {
    *  on the viewport ontop of the images.
    */
   showROIs() {
-    console.info('show ROIs')
+    console.info('show ROIs');
     this[_drawingLayer].setVisible(true);
   }
 

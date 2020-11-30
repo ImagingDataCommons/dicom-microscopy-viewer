@@ -6,7 +6,6 @@ import {
 } from './definitions';
 
 const init = ({ map, source, controls }) => {
-  console.debug('Geometries: init');
   const markerManager = new MarkerManager({
     map,
     geometries: [CustomGeometry.Length, CustomGeometry.Arrow],
