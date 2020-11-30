@@ -91,6 +91,8 @@ const ArrowGeometry = {
     if (isArrow(feature)) {
       api.markerManager.create({ feature, value: formatArrow(feature) });
       feature.setStyle(getStyleFunction(properties));
+      /** Get latest value of label property updated externally */
+      feature.changed();
     }
   },
   onUpdate: feature => {

@@ -249,18 +249,6 @@ class MarkerManager {
   }
 
   /**
-   * This utility makes use of the unByKey to unbind an event
-   * 
-   * @param {string} eventKey The event name/key
-   */
-  _unbindEvent(eventKey) {
-    if (this._listeners[eventKey]) {
-      unByKey(this._listeners[eventKey]);
-      this._listeners[eventKey] = null;
-    }
-  };
-
-  /**
    * Updates marker location on geometry change
    * 
    * @param {object} event The event
@@ -276,8 +264,7 @@ class MarkerManager {
   }
 
   /**
-   * This event is responsible to unbind the previsouly set listener on drawstart
-   * and assign marker classes
+   * This event is responsible assign marker classes
    * 
    * @param {object} event The event
    */
@@ -289,7 +276,6 @@ class MarkerManager {
       if (marker) {
         marker.element.className = 'ol-tooltip ol-tooltip-static';
         this.set({ id: featureId, ...marker });
-        unByKey(this._listeners['drawend']);
       }
     }
   }
@@ -337,17 +323,19 @@ class MarkerManager {
    * @param {object[]} interactions The map interactions
    */
   wireInteractionsEvents(interactions) {
-    if (interactions.draw) {
-      this._listeners['drawstart'] = interactions.draw.on('drawstart', this._onDrawStart);
-      this._listeners['drawend'] = interactions.draw.on('drawend', this._onDrawEnd);
+    const { draw, translate, modify } = interactions;
+
+    if (draw) {
+      this._listeners['drawstart'] = draw.on('drawstart', this._onDrawStart);
+      this._listeners['drawend'] = draw.on('drawend', this._onDrawEnd);
     }
 
-    if (interactions.translate) {
-      this._listeners['translatestart'] = interactions.translate.on('translatestart', this._onTranslateStart);
+    if (translate) {
+      this._listeners['translatestart'] = translate.on('translatestart', this._onTranslateStart);
     }
 
-    if (interactions.modify) {
-      this._listeners['modifystart'] = interactions.modify.on('modifystart', this._onModifyStart);
+    if (modify) {
+      this._listeners['modifystart'] = modify.on('modifystart', this._onModifyStart);
     }
   }
 
