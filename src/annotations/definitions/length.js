@@ -49,12 +49,7 @@ const LengthAnnotation = api => {
       if (isLength(feature)) {
         const view = api.map.getView();
         const length = formatLength(feature, null, getUnitsSuffix(view));
-        const marker = feature.get('marker');
-        api.markerManager.create({
-          feature,
-          value: marker ? marker.value : length,
-          coordinate: marker ? marker.coordinate : null
-        });
+        api.markerManager.create({ feature, value: length });
       }
     },
     onDrawEnd: (feature) => {
