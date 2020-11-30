@@ -998,9 +998,12 @@ class VolumeImageViewer {
     this[_interactions].draw = new Draw(allDrawOptions);
     const container = this[_map].getTargetElement();
 
+    this[_interactions].draw.on('drawstart', (e) => {
+      e.feature.setId(generateUID());
+    });
+
     // attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
-      e.feature.setId(generateUID());
       /** TODO: Added to fix styles being overwritten, remove this? */
       CustomGeometries.onAdd(e.feature);
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
@@ -1219,18 +1222,28 @@ class VolumeImageViewer {
     return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
+  /**
+   * Override styles of given feature.
+   *
+   * @returns void
+   */
   overrideStyle({ feature, style }) {
+    const id = feature.getId();
+    const styles = this.originalStyles[id];
     if (!this.originalStyles) this.originalStyles = {};
-    if (!this.originalStyles[feature.ol_uid]) {
-      this.originalStyles[feature.ol_uid] = feature.getStyle();
-    }
+    if (!styles) styles = feature.getStyle();
     feature.setStyle(style);
   }
 
+  /**
+   * Reset styles of given feature.
+   *
+   * @returns void
+   */
   resetStyle({ feature }) {
-    if (this.originalStyles[feature.ol_uid]) {
-      feature.setStyle(this.originalStyles[feature.ol_uid]);
-    }
+    const id = feature.getId();
+    const styles = this.originalStyles[id];
+    if (styles) feature.setStyle(styles);
   }
 
   /** Adds a regions of interest.

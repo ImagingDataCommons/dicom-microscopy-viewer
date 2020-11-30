@@ -125,13 +125,21 @@ class MarkerManager {
   /**
    * Creates a new marker
    * 
-   * @param {Feature} feature The feature to plug the measure marker
-   * @param {string} id The marker id
-   * @return {string} The marker id
+   * @param {object} options The options
+   * @param {Feature} options.feature The feature to plug the measure marker
+   * @param {HTMLElement} options.element The overlay element
+   * @param {HTMLElement} options.overlay The overlay element
+   * @return {object} The marker
    */
-  create({ id, feature, element: defaultElement, overlay: defaultOverlay, value }) {
+  create({ feature, element: givenElement, overlay: givenOverlay, value }) {
     if (!this._isValidFeature(feature)) {
       console.warn('Invalid feature geometry:', feature.getGeometryName());
+      return;
+    }
+
+    const id = feature.getId();
+    if (!id) {
+      console.warn('Failed to create marker, feature with empty id');
       return;
     }
 
@@ -145,8 +153,8 @@ class MarkerManager {
     element.className = 'ol-tooltip ol-tooltip-measure';
     element.innerHTML = value ? value : '';
 
-    this._markers[id].element = defaultElement || element;
-    this._markers[id].overlay = defaultOverlay || new Overlay({
+    this._markers[id].element = givenElement || element;
+    this._markers[id].overlay = givenOverlay || new Overlay({
       className: 'marker-container',
       positioning: 'center-center',
       stopEvent: false,
@@ -207,11 +215,18 @@ class MarkerManager {
   /**
    * Update marker content
    * 
-   * @param {string} id The marker id
+   * @param {Feature} feature The feature
    * @param {string} value The marker content
    * @param {string} coordinate The marker coordinate
    */
-  updateMarker({ id, value, coordinate }) {
+  updateMarker({ feature, value, coordinate }) {
+    const id = feature.getId();
+
+    if (!id) {
+      console.warn('Failed attempt to update marker, feature with empty id');
+      return;
+    }
+
     const marker = this.get(id);
     if (!marker) return id;
     marker.element.innerHTML = value;
@@ -256,7 +271,7 @@ class MarkerManager {
   _onDrawEnd(event) {
     const feature = event.feature;
     if (this._isValidFeature(feature)) {
-      const featureId = feature.ol_uid;
+      const featureId = feature.getId();
       const marker = this.get(featureId);
       if (marker) {
         marker.element.className = 'ol-tooltip ol-tooltip-static';
@@ -281,7 +296,7 @@ class MarkerManager {
    */
   _updateMarkerOnGeometryChange({ feature, coordinate }) {
     let markerCoordinate = coordinate;
-    const featureId = feature.ol_uid;
+    const featureId = feature.getId();
     const geometry = feature.getGeometry();
     this._listeners[featureId] = geometry.on('change', event => {
       const marker = this.get(featureId);
@@ -291,7 +306,7 @@ class MarkerManager {
         const unitsSuffix = getUnitsSuffix(view);
         let output = this._getFormatter(feature)(feature, currentGeometry, unitsSuffix);
         markerCoordinate = currentGeometry.getLastCoordinate();
-        this.updateMarker({ id: featureId, value: output, coordinate: markerCoordinate });
+        this.updateMarker({ feature, value: output, coordinate: markerCoordinate });
         marker.drawLink(feature);
       }
     });
@@ -325,7 +340,7 @@ class MarkerManager {
   _onDrawStart(event) {
     const feature = event.feature;
     if (this._isValidFeature(feature)) {
-      this.create({ id: feature.ol_uid, feature });
+      this.create({ feature });
       this._updateMarkerOnGeometryChange({ feature, coordinate: event.coordinate });
     }
   }

@@ -43,14 +43,13 @@ const LengthGeometry = {
   },
   onRemove: feature => {
     if (isLength(feature)) {
-      const featureId = feature.ol_uid;
+      const featureId = feature.getId();
       api.markerManager.remove(featureId);
     }
   },
   onAdd: (feature, properties = {}) => {
     if (isLength(feature)) {
       api.markerManager.create({
-        id: feature.ol_uid,
         feature,
         value: formatLength(feature, null, getUnitsSuffix(api.map.getView()))
       });
@@ -63,7 +62,6 @@ const LengthGeometry = {
       if (marker) {
         const { id, label, coordinate } = marker;
         api.markerManager.updateMarker({
-          id,
           value: label,
           coordinate,
           feature
