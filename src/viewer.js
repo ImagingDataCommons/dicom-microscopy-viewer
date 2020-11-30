@@ -1158,7 +1158,7 @@ class VolumeImageViewer {
     });
 
     this[_map].addInteraction(this[_interactions].modify);
-    
+
     CustomGeometries.onInteractionsChange(this[_interactions]);
   }
 
@@ -1227,10 +1227,10 @@ class VolumeImageViewer {
    * @returns void
    */
   overrideStyle({ feature, style }) {
-    const id = feature.getId();
-    const styles = this.originalStyles[id];
     if (!this.originalStyles) this.originalStyles = {};
-    if (!styles) styles = feature.getStyle();
+    if (!this.originalStyles[feature.getId()]) {
+      this.originalStyles[feature.getId()] = feature.getStyle();
+    }
     feature.setStyle(style);
   }
 
@@ -1240,9 +1240,9 @@ class VolumeImageViewer {
    * @returns void
    */
   resetStyle({ feature }) {
-    const id = feature.getId();
-    const styles = this.originalStyles[id];
-    if (styles) feature.setStyle(styles);
+    if (this.originalStyles[feature.getId()]) {
+      feature.setStyle(this.originalStyles[feature.getId()]);
+    }
   }
 
   /** Adds a regions of interest.
