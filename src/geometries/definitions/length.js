@@ -47,15 +47,19 @@ const LengthGeometry = {
       api.markerManager.remove(featureId);
     }
   },
-  onAdd: (feature, properties = {}) => {
+  onAdd: (feature) => {
     if (isLength(feature)) {
       const view = api.map.getView();
       const length = formatLength(feature, null, getUnitsSuffix(view));
       api.markerManager.create({ feature, value: length });
-      feature.setStyle(getStyleFunction(properties));
     }
   },
-  onUpdate: feature => {},
+  onDrawEnd: (feature) => {
+    if (isLength(feature)) {
+      feature.setStyle(getStyleFunction());
+    }
+  },
+  onUpdate: feature => { },
   onInteractionsChange: interactions => {
     api.markerManager.onInteractionsChange(interactions);
   },

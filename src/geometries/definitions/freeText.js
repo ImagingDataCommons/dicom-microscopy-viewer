@@ -84,6 +84,11 @@ const FreeTextGeometry = {
       feature.changed();
     }
   },
+  onDrawEnd: (feature) => {
+    if (isFreeText(feature)) {
+      feature.setStyle(getStyleFunction());
+    }
+  },
   onRemove: feature => {},
   onInteractionsChange: () => {},
   getDefinition,

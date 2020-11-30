@@ -38,6 +38,11 @@ const commonAPI = {
     LengthGeometry.onUpdate(feature);
     FreeTextGeometry.onUpdate(feature);
   },
+  onDrawEnd: (feature) => {
+    ArrowGeometry.onDrawEnd(feature);
+    LengthGeometry.onDrawEnd(feature);
+    FreeTextGeometry.onDrawEnd(feature);
+  },
   getROIProperties: (feature, properties = {}) => {
     return {
       ...properties,

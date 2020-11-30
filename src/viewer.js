@@ -1004,8 +1004,7 @@ class VolumeImageViewer {
 
     // attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
-      /** TODO: Added to fix styles being overwritten, remove this? */
-      CustomGeometries.onAdd(e.feature);
+      CustomGeometries.onDrawEnd(e.feature);
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
     });
 
@@ -1267,9 +1266,9 @@ class VolumeImageViewer {
     if (style) feature.setStyle(style);
     if (geometryName) feature.setGeometryName(geometryName, true);
 
-    CustomGeometries.onAdd(feature, item.properties);
-
     this[_features].push(feature);
+
+    CustomGeometries.onAdd(feature, item.properties);
   }
 
   /** Update properties of regions of interest.

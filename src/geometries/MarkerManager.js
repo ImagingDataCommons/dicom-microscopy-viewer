@@ -7,7 +7,6 @@ import Style from 'ol/style/Style';
 import Stroke from 'ol/style/Stroke';
 import Collection from 'ol/Collection';
 import Feature from 'ol/Feature';
-import { unByKey } from 'ol/Observable';
 
 import { getUnitsSuffix } from './utils';
 import { getShortestLineBetweenOverlayAndFeature } from './utils';
@@ -25,13 +24,14 @@ class MarkerManager {
     undraggableGeometries = [],
     formatters,
   } = {}) {
-    this._markers = {};
-    this._listeners = {};
+    this._markers = new Map();
+    this._listeners = new Map();
+    this._links = new Collection([], { unique: true });
+
     this._unlinkGeometries = unlinkGeometries;
     this._undraggableGeometries = undraggableGeometries;
     this._geometries = geometries;
     this._formatters = formatters;
-    this._links = new Collection([], { unique: true });
     this._map = map;
 
     const styleTag = document.createElement('style');
@@ -104,7 +104,7 @@ class MarkerManager {
    * @return {object} The marker
    */
   get(id) {
-    return this._markers[id];
+    return this._markers.get(id);
   }
 
   /**
@@ -120,19 +120,9 @@ class MarkerManager {
     const link = links.find(feature => feature.getId() === id);
     if (link) this._links.remove(link);
     this._map.removeOverlay(marker.overlay);
-    this._markers[id] = null;
-    if (this._listeners[id]) this._listeners[id] = null;
+    this._markers.delete(id);
+    if (this._listeners.get(id)) this._listeners.delete(id);
     return id;
-  }
-
-  /**
-   * Sets a marker
-   * 
-   * @param {object} marker The marker
-   * @return {void}
-   */
-  set(marker) {
-    this._markers[marker.id] = marker;
   }
 
   /**
@@ -140,11 +130,10 @@ class MarkerManager {
    * 
    * @param {object} options The options
    * @param {Feature} options.feature The feature to plug the measure marker
-   * @param {HTMLElement} options.element The overlay element
-   * @param {HTMLElement} options.overlay The overlay element
+   * @param {Feature} options.value The inner content of element
    * @return {object} The marker
    */
-  create({ feature, element: givenElement, overlay: givenOverlay, value }) {
+  create({ feature, value }) {
     if (!this._isValidFeature(feature)) {
       console.warn('Invalid feature geometry:', feature.getGeometryName());
       return;
@@ -156,29 +145,34 @@ class MarkerManager {
       return;
     }
 
-    if (this._markers[id]) return this._markers[id];
+    if (this._markers.has(id)) {
+      console.warn('Marker for feature already exists', id);
+      return this._markers.get(id);
+    }
 
-    this._markers[id] = { id };
-    this._markers[id].drawLink = feature => this._drawLink(feature, this._markers[id]);
+    const marker = {
+      id,
+      drawLink: feature => this._drawLink(feature, this._markers.get(id))
+    };
 
     const element = document.createElement('div');
     element.id = this.isValidDrag(feature) ? 'marker' : '';
     element.className = 'ol-tooltip ol-tooltip-measure';
     element.innerHTML = value ? value : '';
 
-    this._markers[id].element = givenElement || element;
-    this._markers[id].overlay = givenOverlay || new Overlay({
+    marker.element = element;
+    marker.overlay = new Overlay({
       className: 'marker-container',
       positioning: 'center-center',
       stopEvent: false,
       dragging: false,
       offset: [7, 7],
-      element: this._markers[id].element,
+      element: marker.element,
     });
 
-    const coordinate = feature.getGeometry().getLastCoordinate();
-    this._markers[id].overlay.setPosition(coordinate);
-    this._drawLink(feature, this._markers[id]);
+    const featureCoordinate = feature.getGeometry().getLastCoordinate();
+    marker.overlay.setPosition(featureCoordinate);
+    this._drawLink(feature, marker);
 
     let dragPan;
     let dragProperty = 'dragging';
@@ -189,7 +183,7 @@ class MarkerManager {
     });
 
     element.addEventListener('mousedown', () => {
-      const marker = this._markers[id];
+      const marker = this._markers.get(id);
       if (marker) {
         dragPan.setActive(false);
         marker.overlay.set(dragProperty, true);
@@ -197,7 +191,7 @@ class MarkerManager {
     });
 
     this._map.on(MapEvents.POINTER_MOVE, event => {
-      const marker = this._markers[id];
+      const marker = this._markers.get(id);
       if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
         marker.overlay.setPosition(event.coordinate);
         marker.drawLink(feature);
@@ -205,15 +199,17 @@ class MarkerManager {
     });
 
     this._map.on(MapEvents.POINTER_UP, () => {
-      const marker = this._markers[id];
+      const marker = this._markers.get(id);
       if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
         dragPan.setActive(true);
         marker.overlay.set(dragProperty, false);
       }
     });
 
-    this._map.addOverlay(this._markers[id].overlay);
-    return this._markers[id];
+    this._map.addOverlay(marker.overlay);
+    this._markers.set(id, marker);
+
+    return marker;
   }
 
   /**
@@ -241,11 +237,14 @@ class MarkerManager {
     }
 
     const marker = this.get(id);
-    if (!marker) return id;
+    if (!marker) {
+      console.warn('No marker found for given feature');
+      return;
+    }
+
     marker.element.innerHTML = value;
     if (coordinate) marker.overlay.setPosition(coordinate);
-    const updatedMarker = { id, ...marker };
-    this.set(updatedMarker);
+    this._markers.set(id, marker);
   }
 
   /**
@@ -275,7 +274,7 @@ class MarkerManager {
       const marker = this.get(featureId);
       if (marker) {
         marker.element.className = 'ol-tooltip ol-tooltip-static';
-        this.set({ id: featureId, ...marker });
+        this._markers.set(featureId, marker);
       }
     }
   }
@@ -303,7 +302,7 @@ class MarkerManager {
     let markerCoordinate = coordinate;
     const featureId = feature.getId();
     const geometry = feature.getGeometry();
-    this._listeners[featureId] = geometry.on('change', event => {
+    const listener = geometry.on('change', event => {
       const marker = this.get(featureId);
       if (marker) {
         let currentGeometry = event.target;
@@ -315,6 +314,7 @@ class MarkerManager {
         marker.drawLink(feature);
       }
     });
+    this._listeners.set(featureId, listener);
   }
 
   /**
@@ -323,19 +323,17 @@ class MarkerManager {
    * @param {object[]} interactions The map interactions
    */
   wireInteractionsEvents(interactions) {
-    const { draw, translate, modify } = interactions;
-
-    if (draw) {
-      this._listeners['drawstart'] = draw.on('drawstart', this._onDrawStart);
-      this._listeners['drawend'] = draw.on('drawend', this._onDrawEnd);
+    if (interactions.draw) {
+      this._listeners.set('drawstart', interactions.draw.on('drawstart', this._onDrawStart));
+      this._listeners.set('drawend', interactions.draw.on('drawend', this._onDrawEnd));
     }
 
-    if (translate) {
-      this._listeners['translatestart'] = translate.on('translatestart', this._onTranslateStart);
+    if (interactions.translate) {
+      this._listeners.set('translatestart', interactions.translate.on('translatestart', this._onTranslateStart));
     }
 
-    if (modify) {
-      this._listeners['modifystart'] = modify.on('modifystart', this._onModifyStart);
+    if (interactions.modify) {
+      this._listeners.set('modifystart', interactions.modify.on('modifystart', this._onModifyStart));
     }
   }
 

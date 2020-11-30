@@ -106,6 +106,11 @@ const ArrowGeometry = {
       api.markerManager.remove(featureId);
     }
   },
+  onDrawEnd: (feature) => {
+    if (isArrow(feature)) {
+      feature.setStyle(getStyleFunction());
+    }
+  },
   onInteractionsChange: interactions => { },
   getDefinition,
   isArrow,
