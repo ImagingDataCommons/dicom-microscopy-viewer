@@ -48,7 +48,7 @@ import {
   Ellipse
 } from './scoord3d.js';
 
-import CustomGeometries from './geometries';
+import AnnotationManager from './annotations';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -378,16 +378,17 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
  *
  * @param {Object} feature - Openlayers Feature
  * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
+ * @param {Object} context - Context
  * @returns {ROI} Region of interest
  * @private
  */
-function _getROIFromFeature(feature, pyramid) {
+function _getROIFromFeature(feature, pyramid, context) {
   let roi = {}
   if (feature !== undefined) {
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
     let properties = feature.getProperties();
-    properties = CustomGeometries.getROIProperties(feature, properties);
+    properties = context.annotationManager.getROIProperties(feature, properties);
     // Remove geometry from properties mapping
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
@@ -468,7 +469,7 @@ class VolumeImageViewer {
     });
 
     this[_features].on('remove', (e) => {
-      CustomGeometries.onRemove(e.element);
+      this.annotationManager.onRemove(e.element);
     });
 
     /*
@@ -838,7 +839,7 @@ class VolumeImageViewer {
     this[_map].getView().fit(extent);
 
     /** Wire custom geometries */
-    CustomGeometries.init({
+    this.annotationManager = new AnnotationManager({
       map: this[_map],
       source: this[_drawingSource],
       controls: this[_controls],
@@ -896,7 +897,7 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement();
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      publish(container, EVENT.ROI_ADDED, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
+      publish(container, EVENT.ROI_ADDED, _getROIFromFeature(e.feature, this[_pyramidMetadata], this));
     });
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
@@ -923,11 +924,11 @@ class VolumeImageViewer {
           }
         }
       }
-      publish(container, EVENT.ROI_MODIFIED, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
+      publish(container, EVENT.ROI_MODIFIED, _getROIFromFeature(e.feature, this[_pyramidMetadata], this));
     });
 
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(container, EVENT.ROI_REMOVED, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
+      publish(container, EVENT.ROI_REMOVED, _getROIFromFeature(e.feature, this[_pyramidMetadata], this));
     });
   }
 
@@ -980,7 +981,7 @@ class VolumeImageViewer {
         freehand: true,
         style: options.style
       },
-      ...CustomGeometries.getDefinitions(options),
+      ...this.annotationManager.getDefinitions(options),
     };
 
     if (!('geometryType' in options)) {
@@ -1004,13 +1005,13 @@ class VolumeImageViewer {
 
     // attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
-      CustomGeometries.onDrawEnd(e.feature);
-      publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata]));
+      this.annotationManager.onDrawEnd(e.feature);
+      publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata], this));
     });
 
     this[_map].addInteraction(this[_interactions].draw);
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
+    this.annotationManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates draw interaction. */
@@ -1043,7 +1044,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].translate);
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
+    this.annotationManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates translate interaction. */
@@ -1069,12 +1070,12 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement();
 
     this[_interactions].select.on('select', (e) => {
-      publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this[_pyramidMetadata]));
+      publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this[_pyramidMetadata], this));
     });
 
     this[_map].addInteraction(this[_interactions].select);
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
+    this.annotationManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates select interaction. */
@@ -1097,7 +1098,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].dragPan);
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
+    this.annotationManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivate dragpan interaction. */
@@ -1122,7 +1123,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].snap);
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
+    AnnotationManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates snap interaction. */
@@ -1153,13 +1154,13 @@ class VolumeImageViewer {
       features: this[_features],  // TODO: or source, i.e. "drawings"???
       insertVertexCondition: event => {
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate_);
-        return CustomGeometries.insertVertexCondition(feature);
+        return this.annotationManager.insertVertexCondition(feature);
       }
     });
 
     this[_map].addInteraction(this[_interactions].modify);
 
-    CustomGeometries.onInteractionsChange(this[_interactions]);
+    this.annotationManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates modify interaction. */
@@ -1208,7 +1209,7 @@ class VolumeImageViewer {
   getROI(uid) {
     console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid);
-    return _getROIFromFeature(feature, this[_pyramidMetadata]);
+    return _getROIFromFeature(feature, this[_pyramidMetadata], this);
   }
 
   /** Pops the most recently annotated regions of interest.
@@ -1218,7 +1219,7 @@ class VolumeImageViewer {
   popROI() {
     console.info('pop ROI')
     const feature = this[_features].pop();
-    return _getROIFromFeature(feature, this[_pyramidMetadata]);
+    return _getROIFromFeature(feature, this[_pyramidMetadata], this);
   }
 
   /**
@@ -1268,7 +1269,7 @@ class VolumeImageViewer {
 
     this[_features].push(feature);
 
-    CustomGeometries.onAdd(feature, item.properties);
+    this.annotationManager.onAdd(feature, item.properties);
   }
 
   /** Update properties of regions of interest.
@@ -1284,7 +1285,7 @@ class VolumeImageViewer {
     const feature = this[_drawingSource].getFeatureById(uid);
     feature.setProperties(properties, true);
 
-    CustomGeometries.onUpdate(feature);
+    this.annotationManager.onUpdate(feature);
   }
 
   /** Removes an individual regions of interest.

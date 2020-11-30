@@ -4,9 +4,9 @@ import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Text from 'ol/style/Text';
 
-import { CustomGeometry } from '..';
+import { Annotation } from '..';
 
-export const isFreeText = feature => CustomGeometry.FreeText === feature.getGeometryName();
+export const isFreeText = feature => Annotation.FreeText === feature.getGeometryName();
 
 const getStyleFunction = options => {
   return (feature, resolution) => {
@@ -49,7 +49,7 @@ const getDefinition = options => {
   return {
     freetext: {
       type: 'Point',
-      geometryName: CustomGeometry.FreeText,
+      geometryName: Annotation.FreeText,
       style: styleFunction
     }
   };
@@ -65,36 +65,36 @@ const formatFreeText = (feature, geometry) => {
   return properties.label || '';
 };
 
-let api;
-const FreeTextGeometry = {
-  init: apiInstance => api = apiInstance,
-  getROIProperties: (feature, properties = {}) => {
-    return isFreeText(feature) ?
-      { ...properties, geometryName: CustomGeometry.FreeText }
-      : properties;
-  },
-  onAdd: (feature, properties = {}) => {
-    if (isFreeText(feature)) {
-      feature.setStyle(getStyleFunction(properties));
-    }
-  },
-  onUpdate: feature => {
-    if (isFreeText(feature)) {
-      /** Get latest value of label property updated externally */
-      feature.changed();
-    }
-  },
-  onDrawEnd: (feature) => {
-    if (isFreeText(feature)) {
-      feature.setStyle(getStyleFunction());
-    }
-  },
-  onRemove: feature => {},
-  onInteractionsChange: () => {},
-  getDefinition,
-  isFreeText,
-  format: formatFreeText,
-  style: getStyleFunction,
+const FreeTextAnnotation = api => {
+  return {
+    getROIProperties: (feature, properties = {}) => {
+      return isFreeText(feature) ?
+        { ...properties, geometryName: Annotation.FreeText }
+        : properties;
+    },
+    onAdd: (feature, properties = {}) => {
+      if (isFreeText(feature)) {
+        feature.setStyle(getStyleFunction(properties));
+      }
+    },
+    onUpdate: feature => {
+      if (isFreeText(feature)) {
+        /** Get latest value of label property updated externally */
+        feature.changed();
+      }
+    },
+    onDrawEnd: (feature) => {
+      if (isFreeText(feature)) {
+        feature.setStyle(getStyleFunction());
+      }
+    },
+    onRemove: feature => { },
+    onInteractionsChange: () => { },
+    getDefinition,
+    isFreeText,
+    format: formatFreeText,
+    style: getStyleFunction,
+  };
 };
 
-export default FreeTextGeometry;
+export default FreeTextAnnotation;

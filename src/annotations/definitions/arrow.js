@@ -2,7 +2,7 @@ import Style from 'ol/style/Style';
 import Point from 'ol/geom/Point';
 import Icon from 'ol/style/Icon';
 
-import { CustomGeometry } from '..';
+import { Annotation } from '..';
 import { defaultStyle } from '../styles';
 
 const svg = `
@@ -50,7 +50,7 @@ const getStyleFunction = (options) => {
   };
 };
 
-export const isArrow = feature => CustomGeometry.Arrow === feature.getGeometryName();
+export const isArrow = feature => Annotation.Arrow === feature.getGeometryName();
 
 const getDefinition = options => {
   const styleFunction = getStyleFunction(options);
@@ -60,7 +60,7 @@ const getDefinition = options => {
     arrow: {
       type: 'LineString',
       name: 'ArrowAnnotation',
-      geometryName: CustomGeometry.Arrow,
+      geometryName: Annotation.Arrow,
       freehand: false,
       maxPoints: 1,
       minPoints: 1,
@@ -79,43 +79,43 @@ const formatArrow = (feature, geometry) => {
   return properties.label || '';
 };
 
-let api;
-const ArrowGeometry = {
-  init: apiInstance => api = apiInstance,
-  getROIProperties: (feature, properties = {}) => {
-    return isArrow(feature) ?
-      { ...properties, geometryName: CustomGeometry.Arrow }
-      : properties;
-  },
-  onAdd: (feature, properties = {}) => {
-    if (isArrow(feature)) {
-      api.markerManager.create({ feature, value: formatArrow(feature) });
-      feature.setStyle(getStyleFunction(properties));
-      /** Get latest value of label property updated externally */
-      feature.changed();
-    }
-  },
-  onUpdate: feature => {
-    if (isArrow(feature)) {
-      api.markerManager.updateMarker({ feature, value: formatArrow(feature) });
-    }
-  },
-  onRemove: feature => {
-    if (isArrow(feature)) {
-      const featureId = feature.getId();
-      api.markerManager.remove(featureId);
-    }
-  },
-  onDrawEnd: (feature) => {
-    if (isArrow(feature)) {
-      feature.setStyle(getStyleFunction());
-    }
-  },
-  onInteractionsChange: interactions => { },
-  getDefinition,
-  isArrow,
-  format: formatArrow,
-  style: getStyleFunction
+const ArrowAnnotation = api => {
+  return {
+    getROIProperties: (feature, properties = {}) => {
+      return isArrow(feature) ?
+        { ...properties, geometryName: Annotation.Arrow }
+        : properties;
+    },
+    onAdd: (feature, properties = {}) => {
+      if (isArrow(feature)) {
+        api.markerManager.create({ feature, value: formatArrow(feature) });
+        feature.setStyle(getStyleFunction(properties));
+        /** Get latest value of label property updated externally */
+        feature.changed();
+      }
+    },
+    onUpdate: feature => {
+      if (isArrow(feature)) {
+        api.markerManager.updateMarker({ feature, value: formatArrow(feature) });
+      }
+    },
+    onRemove: feature => {
+      if (isArrow(feature)) {
+        const featureId = feature.getId();
+        api.markerManager.remove(featureId);
+      }
+    },
+    onDrawEnd: (feature) => {
+      if (isArrow(feature)) {
+        feature.setStyle(getStyleFunction());
+      }
+    },
+    onInteractionsChange: interactions => { },
+    getDefinition,
+    isArrow,
+    format: formatArrow,
+    style: getStyleFunction
+  };
 };
 
-export default ArrowGeometry;
+export default ArrowAnnotation;

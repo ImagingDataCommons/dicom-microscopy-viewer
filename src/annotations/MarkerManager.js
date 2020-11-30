@@ -19,6 +19,7 @@ const MapEvents = {
 class MarkerManager {
   constructor({
     map,
+    source,
     geometries,
     unlinkGeometries = [],
     undraggableGeometries = [],
@@ -33,6 +34,7 @@ class MarkerManager {
     this._geometries = geometries;
     this._formatters = formatters;
     this._map = map;
+    this._source = source;
 
     const styleTag = document.createElement('style');
     styleTag.innerHTML = `
@@ -158,7 +160,7 @@ class MarkerManager {
     const element = document.createElement('div');
     element.id = this.isValidDrag(feature) ? 'marker' : '';
     element.className = 'ol-tooltip ol-tooltip-measure';
-    element.innerHTML = value ? value : '';
+    element.innerText = value ? value : '';
 
     marker.element = element;
     marker.overlay = new Overlay({
@@ -242,9 +244,10 @@ class MarkerManager {
       return;
     }
 
-    marker.element.innerHTML = value;
+    marker.element.innerText = value;
     if (coordinate) marker.overlay.setPosition(coordinate);
     this._markers.set(id, marker);
+    feature.set('marker', this._getMetadata(feature));
   }
 
   /**
@@ -260,6 +263,24 @@ class MarkerManager {
         });
       }
     });
+  }
+
+  /**
+   * Get basic metadata of marker
+   * 
+   * @param {Feature} feature The feature
+   * @return {object} metadata
+   */
+  _getMetadata(feature) {
+    const id = feature.getId();
+    const marker = this.get(id);
+    if (marker) {
+      return {
+        id: marker.id,
+        value: marker.element.innerText,
+        coordinate: marker.overlay.getPosition()
+      };
+    }
   }
 
   /**
