@@ -49,26 +49,13 @@ const LengthGeometry = {
   },
   onAdd: (feature, properties = {}) => {
     if (isLength(feature)) {
-      api.markerManager.create({
-        feature,
-        value: formatLength(feature, null, getUnitsSuffix(api.map.getView()))
-      });
+      const view = api.map.getView();
+      const length = formatLength(feature, null, getUnitsSuffix(view));
+      api.markerManager.create({ feature, value: length });
       feature.setStyle(getStyleFunction(properties));
     }
   },
-  onUpdate: feature => {
-    if (isLength(feature)) {
-      const marker = feature.get('marker');
-      if (marker) {
-        const { id, label, coordinate } = marker;
-        api.markerManager.updateMarker({
-          value: label,
-          coordinate,
-          feature
-        });
-      }
-    }
-  },
+  onUpdate: feature => {},
   onInteractionsChange: interactions => {
     api.markerManager.onInteractionsChange(interactions);
   },

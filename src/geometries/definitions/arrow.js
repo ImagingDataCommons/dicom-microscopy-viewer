@@ -89,19 +89,13 @@ const ArrowGeometry = {
   },
   onAdd: (feature, properties = {}) => {
     if (isArrow(feature)) {
-      api.markerManager.create({
-        feature,
-        value: formatArrow(feature)
-      });
+      api.markerManager.create({ feature, value: formatArrow(feature) });
       feature.setStyle(getStyleFunction(properties));
     }
   },
   onUpdate: feature => {
     if (isArrow(feature)) {
-      api.markerManager.updateMarker({
-        feature,
-        value: formatArrow(feature)
-      });
+      api.markerManager.updateMarker({ feature, value: formatArrow(feature) });
     }
   },
   onRemove: feature => {
