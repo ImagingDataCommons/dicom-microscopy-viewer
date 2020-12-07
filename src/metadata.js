@@ -106,7 +106,10 @@ function formatMetadata(metadata) {
   // The top level (lowest resolution) image may be a single frame image in
   // which case the "NumberOfFrames" attribute is optional. We include it for
   // consistency.
-  if (!('NumberOfFrames' in dataset)) {
+  if (dataset === undefined) {
+    throw new Error('Could not format metadata: ', metadata)
+  }
+  if (!('NumberOfFrames' in dataset) && (dataset.Modality === 'SM')) {
     dataset.NumberOfFrames = 1;
   }
 
@@ -114,7 +117,8 @@ function formatMetadata(metadata) {
 }
 
 
-/** DICOM VL Whole Slide Microscopy Image instance.
+/** DICOM VL Whole Slide Microscopy Image instance
+ * (without Pixel Data or any other bulk data).
  *
  * @class
  * @memberof metadata
@@ -126,17 +130,45 @@ class VLWholeSlideMicroscopyImage {
      * @params {Object} options.metadata - Metadata in DICOM JSON format
      */
     constructor(options) {
-      const sopClassUID = options.metadata['00080016']['Value'][0];
-      if (sopClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
+      const dataset = formatMetadata(options.metadata);
+      if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
         throw new Error(
           'Cannot construct VL Whole Slide Microscopy Image instance ' +
-          `given dataset with SOP Class UID "${sopClassUID}"`
+          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
         );
       }
 
-      const dataset = formatMetadata(options.metadata);
       Object.assign(this, dataset);
     }
 }
 
-export { VLWholeSlideMicroscopyImage, formatMetadata, getFrameMapping };
+/** DICOM Comprehensive 3D SR instance.
+ *
+ * @class
+ * @memberof metadata
+ */
+class Comprehensive3DSR {
+
+    /**
+     * @params {Object} options
+     * @params {Object} options.metadata - Metadata in DICOM JSON format
+     */
+    constructor(options) {
+      const dataset = formatMetadata(options.metadata);
+      if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.88.34') {
+        throw new Error(
+          'Cannot construct Comprehensive 3D SR instance ' +
+          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+        );
+      }
+
+      Object.assign(this, dataset);
+    }
+}
+
+export {
+  Comprehensive3DSR,
+  formatMetadata,
+  getFrameMapping,
+  VLWholeSlideMicroscopyImage,
+};
