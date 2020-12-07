@@ -3,6 +3,7 @@ import Collection from 'ol/Collection';
 import Draw, { createRegularPolygon, createBox } from 'ol/interaction/Draw';
 import EVENT from "./events";
 import Feature from 'ol/Feature';
+import Fill from 'ol/style/Fill';
 import FullScreen from 'ol/control/FullScreen';
 import ImageLayer from 'ol/layer/Image';
 import Map from 'ol/Map';
@@ -13,6 +14,8 @@ import Projection from 'ol/proj/Projection';
 import publish from "./eventPublisher";
 import ScaleLine from 'ol/control/ScaleLine';
 import Select from 'ol/interaction/Select';
+import Style from 'ol/style/Style';
+import Stroke from 'ol/style/Stroke';
 import Static from 'ol/source/ImageStatic';
 import Overlay from 'ol/Overlay';
 import TileLayer from 'ol/layer/Tile';
@@ -215,10 +218,6 @@ function _geometry2Scoord3d(geometry, pyramid) {
     coordinates = coordinates.map(c => {
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
     })
-
-    // const metadata = pyramid[pyramid.length-1];
-    // const pixelSpacing = _getPixelSpacing(metadata);
-
     return new Ellipse({
       coordinates,
       frameOfReferenceUID: frameOfReferenceUID
@@ -357,7 +356,11 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
     Number(origin.YOffsetInSlideCoordinateSystem),
   ];
 
+  let outOfFrame = false
   coordinates = coordinates.map(c => {
+    if (c[0] > 25 || c[1] > 76) {
+      outOfFrame = true
+    }
     const slideCoord = [c[0], c[1]];
     const pixelCoord = mapSlideCoordToPixelCoord({
       offset,
@@ -369,6 +372,11 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   });
   if (transform) {
     return coordinates[0];
+  }
+  if (outOfFrame) {
+    console.warning(
+      'found coordinates outside slide coordinate system 25 x 76 mm'
+    )
   }
   return coordinates;
 }
@@ -382,8 +390,7 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
  * @private
  */
 function _getROIFromFeature(feature, pyramid) {
-  let roi = {}
-  if (feature !== undefined) {
+  if (feature !== undefined && feature !== null) {
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
     const properties = feature.getProperties();
@@ -391,9 +398,40 @@ function _getROIFromFeature(feature, pyramid) {
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
     const uid = feature.getId();
-    roi = new ROI({ scoord3d, properties, uid });
+    return new ROI({ scoord3d, properties, uid });
   }
-  return roi;
+  return
+}
+
+/** Updates the style of a feature.
+ *
+ * @param {object} styleOptions - Style options
+ * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+ * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
+ * @param {number} styleOptions.stroke.width - Width of the outline
+ * @param {object} styleOptions.fill - Style options for body the geometry
+ * @param {number[]} styleOptions.fill.color - RGBA color of the body
+ */
+function _setFeatureStyle(feature, styleOptions) {
+  if (styleOptions !== undefined) {
+    const style = new Style();
+    if ('stroke' in styleOptions) {
+      const strokeOptions = {
+        color: styleOptions.stroke.color,
+        width: styleOptions.stroke.width,
+      }
+      const stroke = new Stroke(strokeOptions);
+      style.setStroke(stroke);
+    }
+    if ('fill' in styleOptions) {
+      const fillOptions = {
+        color: styleOptions.fill.color
+      }
+      const fill = new Fill(fillOptions);
+      style.setFill(fill);
+    }
+    feature.setStyle(style);
+  }
 }
 
 const _client = Symbol('client');
@@ -814,7 +852,8 @@ class VolumeImageViewer {
       this[_controls].overview = new OverviewMap({
         view: overviewView,
         layers: [overviewImageLayer],
-        collapsed: true,
+        collapsed: false,
+        collapsible: false,
       });
     }
 
@@ -923,6 +962,8 @@ class VolumeImageViewer {
   /** Activates the draw interaction for graphic annotation of regions of interest.
    * @param {object} options - Drawing options.
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
+   * @param {object} options.strokeStyle - Style of the geometry stroke (keys: "color", "width")
+   * @param {object} options.fillStyle - Style of the geometry body (keys: "color")
    */
   activateDrawInteraction(options) {
     this.deactivateDrawInteraction();
@@ -972,9 +1013,6 @@ class VolumeImageViewer {
 
     const defaultDrawOptions = { source: this[_drawingSource] };
     const customDrawOptions = customOptionsMapping[options.geometryType];
-    if ('style' in options) {
-      customDrawOptions.style = options.style;
-    }
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
 
@@ -1162,15 +1200,43 @@ class VolumeImageViewer {
 
   /** Adds a regions of interest.
    *
-   * @param {ROI} Regions of interest.
+   * @param {ROI} item - Regions of interest.
+   * @param {object} styleOptions - Style options
+   * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+   * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
+   * @param {number} styleOptions.stroke.width - Width of the outline
+   * @param {object} styleOptions.fill - Style options for body the geometry
+   * @param {number[]} styleOptions.fill.color - RGBA color of the body
+   *
    */
-  addROI(item) {
+  addROI(item, styleOptions) {
     console.info(`add ROI ${item.uid}`)
     const geometry = _scoord3d2Geometry(item.scoord3d, this[_pyramidMetadata]);
     const feature = new Feature(geometry);
     feature.setProperties(item.properties, true);
     feature.setId(item.uid);
+    _setFeatureStyle(feature, styleOptions)
     this[_features].push(feature);
+  }
+
+  /** Sets the style of a region of interest.
+   *
+   * @param {string} uid - Unique identifier of the regions of interest.
+   * @param {object} styleOptions - Style options
+   * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+   * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
+   * @param {number} styleOptions.stroke.width - Width of the outline
+   * @param {object} styleOptions.fill - Style options for body the geometry
+   * @param {number[]} styleOptions.fill.color - RGBA color of the body
+   *
+   */
+  setROIStyle(uid, styleOptions) {
+    this[_features].forEach(feature => {
+      const id = feature.getId();
+      if (id === uid) {
+        _setFeatureStyle(feature, styleOptions)
+      }
+    })
   }
 
   /** Adds a new viewport overlay.
