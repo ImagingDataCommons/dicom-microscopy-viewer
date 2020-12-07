@@ -8,22 +8,22 @@ const testCase2 = require('./data/testCase2.json');
 const testCase3 = require('./data/testCase3.json');
 const testCases = [testCase1, testCase2, testCase3];
 
-const dicomMicroscopyViewer = require('../build/dicom-microscopy-viewer.js');
+const dmv = require('../build/dicom-microscopy-viewer.js');
 
 
-describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
+describe('dmv.viewer.VolumeImageViewer', ()=> {
 
     var viewer;
     testCases.forEach((metadata, index) => {
         console.log(`run test case #${index+1}`)
         before(() => {
-            viewer = new dicomMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
+            viewer = new dmv.api.VLWholeSlideMicroscopyImageViewer({
                 client: 'test',
                 metadata: metadata,
             });
         })
 
-        const ellipse = new dicomMicroscopyViewer.scoord3d.Ellipse({
+        const ellipse = new dmv.scoord3d.Ellipse({
           coordinates: [
             [8.0, 9.2, 0],
             [8.8, 9.2, 0],
@@ -32,11 +32,11 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
           ],
           frameOfReferenceUID: '1.2.3'
         });
-        const point = new dicomMicroscopyViewer.scoord3d.Point({
+        const point = new dmv.scoord3d.Point({
           coordinates: [9.0467, 8.7631, 0],
           frameOfReferenceUID: '1.2.3'
         });
-        const box = new dicomMicroscopyViewer.scoord3d.Polygon({
+        const box = new dmv.scoord3d.Polygon({
           coordinates: [
             [8.8824, 8.8684, 0],
             [9.2255, 9.9634, 0],
@@ -46,7 +46,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
           ],
           frameOfReferenceUID: '1.2.3'
         })
-        const polygon = new dicomMicroscopyViewer.scoord3d.Polygon({
+        const polygon = new dmv.scoord3d.Polygon({
           coordinates: [
             [7.8326, 8.4428, 0],
             [7.1919, 7.9169, 0],
@@ -55,7 +55,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
           ],
           frameOfReferenceUID: '1.2.3'
         })
-        const freehandPolygon = new dicomMicroscopyViewer.scoord3d.Polygon({
+        const freehandPolygon = new dmv.scoord3d.Polygon({
           coordinates: [
             [6.9340, 7.0669, 0],
             [6.9340, 7.0669, 0],
@@ -74,14 +74,14 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
           ],
           frameOfReferenceUID: '1.2.3'
         })
-        const line = new dicomMicroscopyViewer.scoord3d.Polyline({
+        const line = new dmv.scoord3d.Polyline({
           coordinates: [
             [7.0442, 7.5295, 0],
             [7.6725, 7.0580, 0]
           ],
           frameOfReferenceUID: '1.2.3'
         })
-        const freeHandLine = new dicomMicroscopyViewer.scoord3d.Polyline({
+        const freeHandLine = new dmv.scoord3d.Polyline({
           coordinates: [
             [6.6769, 9.1169, 0],
             [6.6769, 9.1169, 0],
@@ -105,7 +105,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
         })
 
         it('should add property to ROI upon construction', () => {
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : point,
             properties : { foo: 'bar' }
           });
@@ -135,7 +135,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
             }],
             ValueType: 'CODE',
           }
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : point,
             properties : {
               'evaluations': [evaluation]
@@ -166,7 +166,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
             }],
             ValueType: 'CODE',
           }
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : point
           });
           assert.deepEqual(
@@ -207,7 +207,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
             }],
             ValueType: 'CODE',
           }
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : point,
             properties : { measurements: [measurement] }
           });
@@ -239,7 +239,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
             }],
             ValueType: 'CODE',
           }
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : point
           });
           assert.deepEqual(
@@ -264,7 +264,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
         })
 
         it('should create a Point ROI and return it back successfuly', () => {
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : point
           });
           viewer.addROI(roi);
@@ -290,7 +290,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
         })
 
         it('should create a Box ROI and return it back successfuly', () => {
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : box,
             properties : { 'foo': 'bar' }
           });
@@ -349,7 +349,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
         })
 
         it('should create a Polygon ROI and return it back successfuly', () => {
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : polygon
           });
           viewer.addROI(roi);
@@ -360,7 +360,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
         })
 
         it('should create a Freehand Polygon ROI and return it back successfuly', () => {
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : freehandPolygon
           });
           viewer.addROI(roi);
@@ -371,7 +371,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
         })
 
         it('should create a Line ROI and return it back successfuly', () => {
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : line
           });
           viewer.addROI(roi);
@@ -382,7 +382,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
         })
 
         it('should create a FreehandLine ROI and return it back successfuly', () => {
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : freeHandLine
           });
           viewer.addROI(roi);
@@ -414,7 +414,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
         })
 
         it('should create an Ellipse ROI and return it back successfuly', () => {
-          const roi = new dicomMicroscopyViewer.roi.ROI({
+          const roi = new dmv.roi.ROI({
             scoord3d : ellipse
           });
           viewer.addROI(roi);
@@ -435,7 +435,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
 
         it('should throw an error if uid of ROI is undefined', () => {
           assert.throws( function() {
-            const roi = new dicomMicroscopyViewer.roi.ROI({
+            const roi = new dmv.roi.ROI({
               scoord3d : point,
               uid : undefined,
               properties : {}
@@ -447,7 +447,7 @@ describe('dicomMicroscopyViewer.viewer.VolumeImageViewer', ()=> {
 
         it('should throw an error if uid of ROI is null', () => {
           assert.throws( function() {
-            const roi = new dicomMicroscopyViewer.roi.ROI({
+            const roi = new dmv.roi.ROI({
               scoord3d : point,
               uid : null,
               properties : {}
