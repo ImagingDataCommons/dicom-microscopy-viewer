@@ -16,6 +16,7 @@ import Select from 'ol/interaction/Select';
 import Snap from 'ol/interaction/Snap';
 import Translate from 'ol/interaction/Translate';
 import Static from 'ol/source/ImageStatic';
+import Overlay from 'ol/Overlay';
 import TileLayer from 'ol/layer/Tile';
 import TileImage from 'ol/source/TileImage';
 import TileGrid from 'ol/tilegrid/TileGrid';
@@ -48,11 +49,12 @@ import {
   Ellipse
 } from './scoord3d.js';
 
+import * as DICOMwebClient from 'dicomweb-client';
 import AnnotationManager from './annotations';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
- * @param {Object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
+ * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
  * @returns {number[]} Spacing between pixel columns and rows in millimeter
  * @private
  */
@@ -86,7 +88,7 @@ function _getPixelSpacing(metadata) {
  * slide coordinate system (x, y, z), i.e. it express in which direction one
  * is moving in the slide coordinate system when the ROW index changes.
  *
- * @param {Object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
+ * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
  * @returns {number} Rotation in radians
  * @private
 */
@@ -165,7 +167,7 @@ function _getRotation(metadata) {
 /** Converts a vector graphic from an Openlayers Geometry into a DICOM SCOORD3D
  * representation.
  *
- * @param {Object} geometry - Openlayers Geometry
+ * @param {object} geometry - Openlayers Geometry
  * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
  * @returns {Scoord3D} DICOM Microscopy Viewer Scoord3D
  * @private
@@ -234,7 +236,7 @@ function _geometry2Scoord3d(geometry, pyramid) {
  *
  * @param {Scoord3D} scoord3d - DICOM Microscopy Viewer Scoord3D
  * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
- * @returns {Object} Openlayers Geometry
+ * @returns {object} Openlayers Geometry
  * @private
  */
 function _scoord3d2Geometry(scoord3d, pyramid) {
@@ -376,7 +378,7 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
 /** Extracts and transforms the region of interest (ROI) from an Openlayers
  * Feature.
  *
- * @param {Object} feature - Openlayers Feature
+ * @param {object} feature - Openlayers Feature
  * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
  * @param {Object} context - Context
  * @returns {ROI} Region of interest
@@ -393,11 +395,7 @@ function _getROIFromFeature(feature, pyramid, context) {
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
     const uid = feature.getId();
-    roi = new ROI({
-      scoord3d,
-      properties,
-      uid,
-    });
+    roi = new ROI({ scoord3d, properties, uid });
   }
   return roi;
 }
@@ -428,11 +426,12 @@ class VolumeImageViewer {
   /**
    * Create a viewer instance for displaying VOLUME images.
    *
-   * @param {Object} options
-   * @param {Object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
+   * @param {object} options
+   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
    * @param {Object[]} options.metadata - An array of DICOM JSON metadata objects, one for each VL Whole Slide Microscopy Image instance.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport.
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
+   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
    * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used.
    */
   constructor(options) {
@@ -658,7 +657,9 @@ class VolumeImageViewer {
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [{ mediaType }],
-            queryParams: {
+          };
+          if (options.includeIccProfile) {
+            retrieveOptions['queryParams'] = {
               iccprofile: 'yes'
             }
           };
@@ -669,7 +670,6 @@ class VolumeImageViewer {
         } else {
           // TODO: support "image/jp2" and "image/jls"
           const mediaType = 'image/jpeg';
-
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
@@ -860,7 +860,7 @@ class VolumeImageViewer {
   }
 
   /** Renders the images in the specified viewport container.
-   * @param {Object} options - Rendering options.
+   * @param {object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render(options) {
@@ -933,7 +933,7 @@ class VolumeImageViewer {
   }
 
   /** Activates the draw interaction for graphic annotation of regions of interest.
-   * @param {Object} options - Drawing options.
+   * @param {object} options - Drawing options.
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
    */
   activateDrawInteraction(options = {}) {
@@ -1058,7 +1058,7 @@ class VolumeImageViewer {
 
   /* Activates select interaction.
    *
-   * @param {Object} options - Selection options.
+   * @param {object} options - Selection options.
    */
   activateSelectInteraction(options = {}) {
     this.deactivateSelectInteraction();
@@ -1145,7 +1145,7 @@ class VolumeImageViewer {
 
   /** Activates modify interaction.
    *
-   * @param {Object} options - Modification options.
+   * @param {object} options - Modification options.
    */
   activateModifyInteraction(options = {}) {
     this.deactivateModifyInteraction();
@@ -1210,6 +1210,50 @@ class VolumeImageViewer {
     console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid);
     return _getROIFromFeature(feature, this[_pyramidMetadata], this);
+  }
+
+  /** Adds a measurement to a region of interest.
+   *
+   * @param {string} uid - Unique identifier of the region of interest
+   * @param {Object} item - NUM content item representing a measurement
+   */
+  addROIMeasurement(uid, item) {
+    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
+    console.info(`add measurement "${meaning}" to ROI ${uid}`)
+    this[_features].forEach(feature => {
+      const id = feature.getId();
+      if (id === uid) {
+        const properties = feature.getProperties();
+        if (!('measurements' in properties)) {
+          properties['measurements'] = [item]
+        } else {
+          properties['measurements'].push(item);
+        }
+        feature.setProperties(properties, true);
+      }
+    })
+  }
+
+  /** Adds a qualitative evaluation to a region of interest.
+   *
+   * @param {string} uid - Unique identifier of the region of interest
+   * @param {Object} item - CODE content item representing a qualitative evaluation
+   */
+  addROIEvaluation(uid, item) {
+    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
+    console.info(`add qualitative evaluation "${meaning}" to ROI ${uid}`)
+    this[_features].forEach(feature => {
+      const id = feature.getId();
+      if (id === uid) {
+        const properties = feature.getProperties();
+        if (!('evaluations' in properties)) {
+          properties['evaluations'] = [item]
+        } else {
+          properties['evaluations'].push(item);
+        }
+        feature.setProperties(properties, true);
+      }
+    })
   }
 
   /** Pops the most recently annotated regions of interest.
@@ -1288,6 +1332,16 @@ class VolumeImageViewer {
     this.annotationManager.onUpdate(feature);
   }
 
+  /** Adds a new viewport overlay.
+   *
+   * @param {object} options Overlay options
+   * @param {object} options.element The custom overlay html element
+   * @param {object} options.className Class to style the OpenLayer's overlay container
+   */
+  addViewportOverlay({ element, className }) {
+    this[_map].addOverlay(new Overlay({ element, className }));
+  }
+
   /** Removes an individual regions of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
@@ -1349,11 +1403,12 @@ class _NonVolumeImageViewer {
 
   /** Creates a viewer instance for displaying non-VOLUME images.
    *
-   * @param {Object} options
-   * @param {Object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
-   * @param {Object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance.
-   * @param {Object} [options.orientation] - Orientation of the slide (vertical: label on top, or horizontal: label on right side).
-   * @param {Object} [options.resizeFactor] - To which extent image should be reduced in size (fraction).
+   * @param {object} options
+   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
+   * @param {object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance.
+   * @param {string} options.orientation - Orientation of the slide (vertical: label on top, or horizontal: label on right side).
+   * @param {number} [options.resizeFactor=1] - To which extent image should be reduced in size (fraction).
+   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
    */
   constructor(options) {
     this[_client] = options.client;
@@ -1381,18 +1436,24 @@ class _NonVolumeImageViewer {
       const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
       const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
       const mediaType = 'image/png';
+      const queryParams = {
+        viewport: [
+          this[_metadata].TotalPixelMatrixRows,
+          this[_metadata].TotalPixelMatrixColumns
+        ].join(',')
+      };
+      // We make this optional because a) not all archives currently support
+      // this query parameter and b) because ICC Profiles can be large and
+      // their inclusion can result in significant overhead.
+      if (options.includeIccProfile) {
+        queryParams['iccprofile'] = 'yes';
+      }
       const retrieveOptions = {
         studyInstanceUID: this[_metadata].StudyInstanceUID,
         seriesInstanceUID: this[_metadata].SeriesInstanceUID,
         sopInstanceUID: this[_metadata].SOPInstanceUID,
         mediaTypes: [{ mediaType }],
-        queryParams: {
-          viewport: [
-            this[_metadata].TotalPixelMatrixRows,
-            this[_metadata].TotalPixelMatrixColumns
-          ].join(','),
-          iccprofile: 'yes'
-        }
+        queryParams: queryParams
       };
       options.client.retrieveInstanceRendered(retrieveOptions).then((thumbnail) => {
         const blob = new Blob([thumbnail], { type: mediaType });
@@ -1426,10 +1487,11 @@ class _NonVolumeImageViewer {
       source: rasterSource,
     });
 
-    var rotation = 0;
-    if (options.orientation === 'horizontal') {
-      const degrees = 90;
-      rotation = degrees * (Math.PI / 180);
+    // The default rotation is 'horizontal' with the slide label on the right
+    var rotation = _getRotation(this[_metadata]);
+    if (options.orientation === 'vertical') {
+      // Rotate counterclockwise by 90 degrees to have slide label at the top
+      rotation -= 90 * (Math.PI / 180);
     }
 
     const view = new View({
@@ -1449,7 +1511,7 @@ class _NonVolumeImageViewer {
   }
 
   /** Renders the image in the specified viewport container.
-   * @param {Object} options - Rendering options.
+   * @param {object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render(options) {
@@ -1496,12 +1558,15 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
 
   /** Creates a viewer instance for displaying OVERVIEW images.
    *
-   * @param {Object} options
-   * @param {Object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
-   * @param {Object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance.
+   * @param {object} options
+   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
+   * @param {object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance.
+   * @param {string} [options.orientation='horizontal'] - Orientation of the slide (vertical: label on top, or horizontal: label on right side).
+   * @param {number} [options.resizeFactor=1] - To which extent image should be reduced in size (fraction).
+   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
    */
   constructor(options) {
-    if (!('orientation' in options)) {
+    if (options.orientation === undefined) {
       options.orientation = 'horizontal';
     }
     super(options);
@@ -1518,12 +1583,15 @@ class LabelImageViewer extends _NonVolumeImageViewer {
 
   /** Creates a viewer instance for displaying LABEL images.
    *
-   * @param {Object} options
-   * @param {Object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
-   * @param {Object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance.
+   * @param {object} options
+   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
+   * @param {object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance.
+   * @param {string} [options.orientation='vertical'] - Orientation of the slide (vertical: label on top, or horizontal: label on right side).
+   * @param {number} [options.resizeFactor=1] - To which extent image should be reduced in size (fraction).
+   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
    */
   constructor(options) {
-    if (!('orientation' in options)) {
+    if (options.orientation === undefined) {
       options.orientation = 'vertical';
     }
     super(options);

@@ -73,15 +73,21 @@ function formatMetadata(metadata) {
       } else if ('Value' in elements[tag]) {
         const value = elements[tag]['Value'];
         if (vr === 'SQ') {
-          dataset[keyword] = value.map(item => {
-            return loadJSONDataset(item);
-          });
+          dataset[keyword] = value.map(item => loadJSONDataset(item));
         } else {
           // Handle value multiplicity.
           if (value.length === 1) {
-            dataset[keyword] = value[0];
+            if (vr === 'DS' || vr === 'IS') {
+              dataset[keyword] = Number(value[0]);
+            } else {
+              dataset[keyword] = value[0];
+            }
           } else {
-            dataset[keyword] = value;
+            if (vr === 'DS' || vr === 'IS') {
+              dataset[keyword] = value.map(v => Number(v));
+            } else {
+              dataset[keyword] = value;
+            }
           }
         }
       } else {

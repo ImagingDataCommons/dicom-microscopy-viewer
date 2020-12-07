@@ -4,6 +4,10 @@ const _uid = Symbol('uid');
 const _scoord3d = Symbol('scoord3d');
 const _properties = Symbol('properties');
 
+const _name = Symbol('name');
+const _value = Symbol('value');
+
+
 /** A region of interest (ROI)
  *
  * @class
@@ -16,7 +20,7 @@ class ROI {
    * @param {Object} options - Options for construction of ROI
    * @param {Scoord3D} options.scoord3d - Spatial 3D coordinates
    * @param {string} options.uid - Unique idenfifier
-   * @param {Object} options.properties - Qualititative evaluations
+   * @param {Object} options.properties - Properties (name-value pairs)
    */
   constructor(options) {
     if (!('scoord3d' in options)) {
@@ -34,8 +38,23 @@ class ROI {
       this[_uid] = options.uid;
     }
     this[_scoord3d] = options.scoord3d;
-    this[_properties] = options.properties;
-    // TODO: store SOPInstanceUID, SOPClassUID and FrameNumbers as reference
+    if ('properties' in options) {
+      if (!(typeof(options.properties) === 'object')) {
+        throw new Error('properties of ROI must be an object')
+      }
+      this[_properties] = options.properties;
+      if (this[_properties].evaluations === undefined) {
+        this[_properties]['evaluations'] = []
+      }
+      if (this[_properties].measurements === undefined) {
+        this[_properties]['measurements'] = []
+      }
+    } else {
+      this[_properties] = {};
+      this[_properties]['evaluations'] = []
+      this[_properties]['measurements'] = []
+    }
+    console.log(this[_properties])
   }
 
   /** Gets unique identifier of region of interest.
@@ -60,6 +79,38 @@ class ROI {
    */
   get properties() {
     return this[_properties];
+  }
+
+  /** Gets measurements of region of interest.
+   *
+   * @returns {Object[]} Measurements
+   */
+  get measurements() {
+    return this[_properties].measurements;
+  }
+
+  /** Gets qualitative evaluations of region of interest.
+   *
+   * @returns {Object[]} QualitativeEvaluations
+   */
+  get evaluations() {
+    return this[_properties].evaluations;
+  }
+
+  /** Adds a measurement.
+   *
+   * @params {Object} item - NUM content item representing a measurement
+   */
+  addMeasurement(item) {
+    this[_properties]['measurements'].push(item);
+  }
+
+  /** Adds a qualitative evaluation.
+   *
+   * @params {Object} item - CODE content item representing a qualitative evaluation
+   */
+  addEvaluation(item) {
+    this[_properties]['evaluations'].push(item);
   }
 
 }
