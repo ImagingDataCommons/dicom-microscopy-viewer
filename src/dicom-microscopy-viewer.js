@@ -14,6 +14,11 @@ import {
   Ellipse,
 } from './scoord3d.js';
 import {
+  applyInverseTransform,
+  applyTransform,
+  buildInverseTransform,
+  buildTransform,
+  computeRotation,
   mapSlideCoordToPixelCoord,
   mapPixelCoordToSlideCoord,
 } from './utils.js';
@@ -87,6 +92,11 @@ const events = {
  * @namespace utils
  */
 const utils = {
+  applyInverseTransform,
+  applyTransform,
+  buildInverseTransform,
+  buildTransform,
+  computeRotation,
   mapSlideCoordToPixelCoord,
   mapPixelCoordToSlideCoord,
 };

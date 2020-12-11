@@ -38,9 +38,12 @@ import { toStringXY, rotate } from 'ol/coordinate';
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js';
 import { ROI } from './roi.js';
 import {
+  computeRotation,
   generateUID,
-  mapPixelCoordToSlideCoord,
-  mapSlideCoordToPixelCoord
+  applyInverseTransform,
+  applyTransform,
+  buildInverseTransform,
+  buildTransform,
 } from './utils.js';
 import {
   Point,
@@ -95,74 +98,13 @@ function _getPixelSpacing(metadata) {
  * @private
 */
 function _getRotation(metadata) {
-  var degrees;
-  if (
-    (metadata.ImageOrientationSlide[0] === 0) &&
-    (metadata.ImageOrientationSlide[1] === -1) &&
-    (metadata.ImageOrientationSlide[2] === 0) &&
-    (metadata.ImageOrientationSlide[3] === -1) &&
-    (metadata.ImageOrientationSlide[4] === 0) &&
-    (metadata.ImageOrientationSlide[5] === 0)
-  ) {
-    /*
-     * The Total Pixel Matrix is rotated with respect to the slide coordinate
-     * system by 180 degrees, such that an increase along the row direction
-     * (left to right) leads to lower Y coordinate values and an increase
-     * along the column direction (top to bottom) leads to lower X coordinate
-     * values.
-     */
-    degrees = 180;
-  } else if (
-    (metadata.ImageOrientationSlide[0] === 1) &&
-    (metadata.ImageOrientationSlide[1] === 0) &&
-    (metadata.ImageOrientationSlide[2] === 0) &&
-    (metadata.ImageOrientationSlide[3] === 0) &&
-    (metadata.ImageOrientationSlide[4] === -1) &&
-    (metadata.ImageOrientationSlide[5] === 0)
-  ) {
-    /*
-     * The Total Pixel Matrix is rotated with respect to the slide coordinate
-     * system by 90 degrees, such that an increase along the row direction
-     * (left to right) leads to higher X coordinate values and an increase
-     * along the column direction (top to bottom) leads to lower Y coordinate
-     * values.
-     */
-    degrees = 90;
-  } else if (
-    (metadata.ImageOrientationSlide[0] === -1) &&
-    (metadata.ImageOrientationSlide[1] === 0) &&
-    (metadata.ImageOrientationSlide[2] === 0) &&
-    (metadata.ImageOrientationSlide[3] === 0) &&
-    (metadata.ImageOrientationSlide[4] === 1) &&
-    (metadata.ImageOrientationSlide[5] === 0)
-  ) {
-    /*
-     * The Total Pixel Matrix is rotated with respect to the slide coordinate
-     * system by 270 degrees, such that an increase along the row direction
-     * (left to right) leads to lower X coordinate values and an increase
-     * along the column direction (top to bottom) leads to higher Y coordinate
-     * values.
-     */
-    degrees = 270;
-  } else if (
-    (metadata.ImageOrientationSlide[0] === 0) &&
-    (metadata.ImageOrientationSlide[1] === 1) &&
-    (metadata.ImageOrientationSlide[2] === 0) &&
-    (metadata.ImageOrientationSlide[3] === 1) &&
-    (metadata.ImageOrientationSlide[4] === 0) &&
-    (metadata.ImageOrientationSlide[5] === 0)
-  ) {
-    /*
-     * The Total Pixel Matrix is aligned with the slide coordinate system
-     * such that an increase along the row direction (left to right) leads to
-     * higher Y coordinate values and an increase along the column direction
-     * (top to bottom) leads to higher X coordinate values.
-     */
-    degrees = 0;
-  } else {
-    throw new Error(`Unexpected image orientation ${metadata.ImageOrientationSlide}`);
-  }
-  return degrees * (Math.PI / 180);
+  // Angle with respect to the reference orientation
+  const angle = computeRotation({
+    orientation: metadata.ImageOrientationSlide
+  });
+  // We want the slide oriented horizontally with the label on the right side
+  const correction = 90 * (Math.PI / 180)
+  return angle + correction
 }
 
 
@@ -316,14 +258,14 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
     Number(origin.YOffsetInSlideCoordinateSystem),
   ];
 
+  const affine = buildTransform({
+    offset,
+    orientation,
+    spacing,
+  })
   coordinates = coordinates.map(c => {
     const pixelCoord = [c[0], -(c[1] + 1)];
-    const slideCoord = mapPixelCoordToSlideCoord({
-      orientation,
-      spacing,
-      offset,
-      point: pixelCoord
-    });
+    const slideCoord = applyTransform({ coordinate: pixelCoord, affine });
     return [slideCoord[0], slideCoord[1], 0];
   });
   if (transform) {
@@ -357,16 +299,19 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   ];
 
   let outOfFrame = false
+  const affine = buildInverseTransform({
+    offset,
+    orientation,
+    spacing,
+  })
   coordinates = coordinates.map(c => {
     if (c[0] > 25 || c[1] > 76) {
       outOfFrame = true
     }
     const slideCoord = [c[0], c[1]];
-    const pixelCoord = mapSlideCoordToPixelCoord({
-      offset,
-      orientation,
-      spacing,
-      point: slideCoord
+    const pixelCoord = applyInverseTransform({
+      coordinate: slideCoord,
+      affine
     });
     return [pixelCoord[0], -(pixelCoord[1] + 1), 0];
   });
