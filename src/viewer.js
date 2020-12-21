@@ -845,7 +845,6 @@ class VolumeImageViewer {
 
     this[_map].getView().fit(extent);
 
-    /** Wire custom geometries */
     this.markersManager = new MarkersManager({
       map: this[_map],
       source: this[_drawingSource],
