@@ -2,7 +2,7 @@ import Style from 'ol/style/Style';
 import Point from 'ol/geom/Point';
 import Icon from 'ol/style/Icon';
 
-import { Annotation } from '..';
+import { Marker } from '../enums';
 import { defaultStyle } from '../styles';
 
 const svg = `
@@ -50,22 +50,18 @@ const getStyleFunction = (options) => {
   };
 };
 
-export const isArrow = feature => Annotation.Arrow === feature.getGeometryName();
+export const isArrow = feature => Marker.Arrow === feature.get('marker');
 
 const getDefinition = options => {
   const styleFunction = getStyleFunction(options);
 
   /** Arrow Geometry Definition */
   return {
-    arrow: {
-      type: 'LineString',
-      name: 'ArrowAnnotation',
-      geometryName: Annotation.Arrow,
-      freehand: false,
-      maxPoints: 1,
-      minPoints: 1,
-      style: styleFunction
-    }
+    ...options,
+    maxPoints: 1,
+    minPoints: 1,
+    style: styleFunction,
+    marker: Marker.Arrow,
   };
 };
 
@@ -79,11 +75,11 @@ const formatArrow = (feature, geometry) => {
   return properties.label || '';
 };
 
-const ArrowAnnotation = api => {
+const ArrowMarker = api => {
   return {
     getROIProperties: (feature, properties = {}) => {
       return isArrow(feature) ?
-        { ...properties, geometryName: Annotation.Arrow }
+        { ...properties, marker: Marker.Arrow }
         : properties;
     },
     onAdd: (feature, properties = {}) => {
@@ -118,4 +114,4 @@ const ArrowAnnotation = api => {
   };
 };
 
-export default ArrowAnnotation;
+export default ArrowMarker;

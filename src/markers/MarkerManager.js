@@ -80,23 +80,23 @@ class MarkerManager {
   }
 
   /**
-   * Checks if given link can be created for a given geometry name.
+   * Checks if given link can be created for a given marker.
    * 
    * @param {Feature} feature The feature
    * @return {boolean} the validation
    */
   isValidLink(feature) {
-    return !this._unlinkGeometries.includes(feature.getGeometryName());
+    return !this._unlinkGeometries.includes(feature.get('marker'));
   }
 
   /**
-   * Checks if drag is allowed for a given geometry name.
+   * Checks if drag is allowed for a given marker.
    * 
    * @param {Feature} feature The feature
    * @return {boolean} the validation
    */
   isValidDrag(feature) {
-    return !this._undraggableGeometries.includes(feature.getGeometryName());
+    return !this._undraggableGeometries.includes(feature.get('marker'));
   }
 
   /**
@@ -137,7 +137,7 @@ class MarkerManager {
    */
   create({ feature, value }) {
     if (!this._isValidFeature(feature)) {
-      console.warn('Invalid feature geometry:', feature.getGeometryName());
+      console.warn('Invalid feature marker:', feature.get('marker'));
       return;
     }
 
@@ -215,12 +215,12 @@ class MarkerManager {
   }
 
   /**
-   * Checks if feature has correct geometry 
+   * Checks if feature has the correct marker 
    * 
    * @param {Feature} feature The feature
    */
   _isValidFeature(feature) {
-    return this._geometries.includes(feature.getGeometryName());
+    return this._geometries.includes(feature.get('marker'));
   }
 
   /**
@@ -247,7 +247,6 @@ class MarkerManager {
     marker.element.innerText = value;
     if (coordinate) marker.overlay.setPosition(coordinate);
     this._markers.set(id, marker);
-    feature.set('marker', this._getMetadata(feature));
   }
 
   /**
@@ -301,14 +300,14 @@ class MarkerManager {
   }
 
   /**
-   * Returns the string format function for a given geometry name.
+   * Returns the string format function for a given marker
    * 
    * @param {object} feature The feature
    * @returns {function} format function
    */
   _getFormatter(feature) {
-    const geometryName = feature.getGeometryName();
-    const formatter = this._formatters[geometryName];
+    const marker = feature.get('marker');
+    const formatter = this._formatters[marker];
     if (!formatter) return () => '';
     return formatter;
   };
@@ -339,7 +338,7 @@ class MarkerManager {
   }
 
   /**
-   * Wire interaction events everytime new interactions is added or updated.
+   * Wire interaction events everytime new interactions is added or updated
    * 
    * @param {object[]} interactions The map interactions
    */
@@ -359,7 +358,7 @@ class MarkerManager {
   }
 
   /**
-   * Wire interaction events everytime new interactions is added or updated.
+   * Wire interaction events everytime new interactions is added or updated
    * 
    * @param {object[]} interactions The map interactions
    */
@@ -400,7 +399,7 @@ class MarkerManager {
   }
 
   /**
-   * Draws a new link feature between marker and feature.
+   * Draws a new link feature between marker and feature
    * 
    * @param {object} feature The feature
    * @param {object} marker The marker

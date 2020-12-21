@@ -1,7 +1,7 @@
 import { LineString } from 'ol/geom';
 import { getLength } from 'ol/sphere';
 
-import { Annotation } from '../';
+import { Marker } from '../enums';
 import { defaultStyle } from '../styles';
 import { getUnitsSuffix } from '../utils';
 
@@ -29,14 +29,14 @@ const formatLength = (feature, geometry, units) => {
   return output;
 };
 
-const isLength = feature => Annotation.Length === feature.getGeometryName();
+const isLength = feature => Marker.Length === feature.get('marker');
 
-const LengthAnnotation = api => {
+const LengthMarker = api => {
   return {
     getROIProperties: (feature, properties = {}) => {
       return isLength(feature) ? {
         ...properties,
-        geometryName: Annotation.Length,
+        marker: Marker.Length,
       } : properties;
     },
     onRemove: feature => {
@@ -66,14 +66,11 @@ const LengthAnnotation = api => {
 
       /** Length Geometry Definition */
       return {
-        length: {
-          type: 'LineString',
-          geometryName: Annotation.Length,
-          freehand: false,
-          maxPoints: 1,
-          minPoints: 1,
-          style: styleFunction
-        },
+        ...options,
+        maxPoints: 1,
+        minPoints: 1,
+        style: styleFunction,
+        marker: Marker.Length,
       };
     },
     isLength,
@@ -82,4 +79,4 @@ const LengthAnnotation = api => {
   };
 };
 
-export default LengthAnnotation;
+export default LengthMarker;

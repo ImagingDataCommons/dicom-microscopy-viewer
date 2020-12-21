@@ -4,9 +4,9 @@ import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Text from 'ol/style/Text';
 
-import { Annotation } from '..';
+import { Marker } from '../enums';
 
-export const isFreeText = feature => Annotation.FreeText === feature.getGeometryName();
+export const isFreeText = feature => Marker.FreeText === feature.get('marker');
 
 const getStyleFunction = options => {
   return (feature, resolution) => {
@@ -47,11 +47,9 @@ const getDefinition = options => {
 
   /** FreeText Geometry Definition */
   return {
-    freetext: {
-      type: 'Point',
-      geometryName: Annotation.FreeText,
-      style: styleFunction
-    }
+    ...options,
+    style: styleFunction,
+    marker: Marker.FreeText,
   };
 };
 
@@ -65,11 +63,11 @@ const formatFreeText = (feature, geometry) => {
   return properties.label || '';
 };
 
-const FreeTextAnnotation = api => {
+const FreeTextMarker = api => {
   return {
     getROIProperties: (feature, properties = {}) => {
       return isFreeText(feature) ?
-        { ...properties, geometryName: Annotation.FreeText }
+        { ...properties, marker: Marker.FreeText }
         : properties;
     },
     onAdd: (feature, properties = {}) => {
@@ -97,4 +95,4 @@ const FreeTextAnnotation = api => {
   };
 };
 
-export default FreeTextAnnotation;
+export default FreeTextMarker;

@@ -18,6 +18,7 @@ import Snap from 'ol/interaction/Snap';
 import Translate from 'ol/interaction/Translate';
 import Style from 'ol/style/Style';
 import Stroke from 'ol/style/Stroke';
+import Image from 'ol/style/Image';
 import Static from 'ol/source/ImageStatic';
 import Overlay from 'ol/Overlay';
 import TileLayer from 'ol/layer/Tile';
@@ -55,7 +56,7 @@ import {
   Ellipse
 } from './scoord3d.js';
 
-import AnnotationManager from './annotations';
+import MarkersManager from './markers';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -341,7 +342,7 @@ function _getROIFromFeature(feature, pyramid, context) {
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
     let properties = feature.getProperties();
-    properties = context.annotationManager.getROIProperties(feature, properties);
+    properties = context.markersManager.getROIProperties(feature, properties);
     // Remove geometry from properties mapping
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
@@ -363,20 +364,35 @@ function _getROIFromFeature(feature, pyramid, context) {
 function _setFeatureStyle(feature, styleOptions) {
   if (styleOptions !== undefined) {
     const style = new Style();
+    
+    if (styleOptions instanceof Style) {
+      feature.setStyle(styleOptions);
+      return;
+    } 
+
     if ('stroke' in styleOptions) {
       const strokeOptions = {
         color: styleOptions.stroke.color,
         width: styleOptions.stroke.width,
-      }
+      };
       const stroke = new Stroke(strokeOptions);
       style.setStroke(stroke);
     }
     if ('fill' in styleOptions) {
       const fillOptions = {
         color: styleOptions.fill.color
-      }
+      };
       const fill = new Fill(fillOptions);
       style.setFill(fill);
+    }
+    if ('image' in styleOptions) {
+      const imageOptions = {
+        fill: styleOptions.image.fill,
+        stroke: styleOptions.image.stroke,
+        radius: styleOptions.image.radius,
+      }
+      const image = new Image(imageOptions);
+      style.setImage(image);
     }
     feature.setStyle(style);
   }
@@ -422,6 +438,7 @@ class VolumeImageViewer {
     } else {
       this[_usewebgl] = true;
     }
+
     this[_client] = options.client;
 
     if (!('retrieveRendered' in options)) {
@@ -449,9 +466,7 @@ class VolumeImageViewer {
       }
     });
 
-    this[_features].on('remove', (e) => {
-      this.annotationManager.onRemove(e.element);
-    });
+    this[_features].on('remove', (e) => this.markersManager.onRemove(e.element));
 
     /*
      * To visualize images accross multiple scales, we first need to
@@ -465,9 +480,11 @@ class VolumeImageViewer {
         this[_metadata].push(image);
       }
     });
+
     if (this[_metadata].length === 0) {
       throw new Error('No VOLUME image provided.')
     }
+
     // Sort instances and optionally concatenation parts if present.
     this[_metadata].sort((a, b) => {
       const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns;
@@ -479,6 +496,7 @@ class VolumeImageViewer {
       }
       return sizeDiff;
     });
+
     this[_pyramidMetadata] = [];
     this[_pyramidFrameMappings] = [];
     let frameMappings = this[_metadata].map(m => getFrameMapping(m));
@@ -527,11 +545,14 @@ class VolumeImageViewer {
         this[_pyramidFrameMappings].push(frameMappings[i]);
       }
     }
+
     const nLevels = this[_pyramidMetadata].length;
     if (nLevels === 0) {
       console.error('empty pyramid - no levels found')
     }
+
     this[_pyramidBaseMetadata] = this[_pyramidMetadata][nLevels - 1];
+
     /*
      * Collect relevant information from DICOM metadata for each pyramid
      * level to construct the Openlayers map.
@@ -548,6 +569,7 @@ class VolumeImageViewer {
     const baseRows = this[_pyramidBaseMetadata].Rows;
     const baseNColumns = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
     const baseNRows = Math.ceil(baseTotalPixelMatrixRows / baseRows);
+
     for (let j = (nLevels - 1); j >= 0; j--) {
       const columns = this[_pyramidMetadata][j].Columns;
       const rows = this[_pyramidMetadata][j].Rows;
@@ -781,9 +803,11 @@ class VolumeImageViewer {
         className: ''
       })
     }
+
     if (options.controls.has('fullscreen')) {
       this[_controls].fullscreen = new FullScreen();
     }
+
     if (options.controls.has('overview')) {
       const overviewImageLayer = new TileLayer({
         extent: extent,
@@ -822,7 +846,7 @@ class VolumeImageViewer {
     this[_map].getView().fit(extent);
 
     /** Wire custom geometries */
-    this.annotationManager = new AnnotationManager({
+    this.markersManager = new MarkersManager({
       map: this[_map],
       source: this[_drawingSource],
       controls: this[_controls],
@@ -926,47 +950,46 @@ class VolumeImageViewer {
     console.info('activate "draw" interaction');
 
     const customOptionsMapping = {
-      point: {
+      point: this.markersManager.getMarkerOptions(options.marker, {
         type: 'Point',
         geometryName: 'Point',
-        style: options.style
-      },
-      circle: {
+        style: options.style,
+      }),
+      circle: this.markersManager.getMarkerOptions(options.marker, {
         type: 'Circle',
         geometryName: 'Circle',
-        style: options.style
-      },
-      box: {
+        style: options.style,
+      }),
+      box: this.markersManager.getMarkerOptions(options.marker, {
         type: 'Circle',
         geometryName: 'Box',
         geometryFunction: createRegularPolygon(4),
-        style: options.style
-      },
-      polygon: {
+        style: options.style,
+      }),
+      polygon: this.markersManager.getMarkerOptions(options.marker, {
         type: 'Polygon',
         geometryName: 'Polygon',
         freehand: false,
-        style: options.style
-      },
-      freehandpolygon: {
+        style: options.style,
+      }),
+      freehandpolygon: this.markersManager.getMarkerOptions(options.marker, {
         type: 'Polygon',
         geometryName: 'FreeHandPolygon',
         freehand: true,
-        style: options.style
-      },
-      line: {
+        style: options.style,
+      }),
+      line: this.markersManager.getMarkerOptions(options.marker, {
         type: 'LineString',
         geometryName: 'Line',
         freehand: false,
-        style: options.style
-      },
-      freehandline: {
+        style: options.style,
+      }),
+      freehandline: this.markersManager.getMarkerOptions(options.marker, {
         type: 'LineString',
         geometryName: 'FreeHandLine',
         freehand: true,
-        style: options.style
-      },
-      ...this.annotationManager.getDefinitions(options),
+        style: options.style,
+      }),
     };
 
     if (!('geometryType' in options)) {
@@ -985,18 +1008,21 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement();
 
     this[_interactions].draw.on('drawstart', (e) => {
+      if (allDrawOptions.marker && !e.feature.get('marker')) {
+        e.feature.set('marker', allDrawOptions.marker, true);
+      }
       e.feature.setId(generateUID());
     });
 
     // attaching openlayers events handling
     this[_interactions].draw.on('drawend', (e) => {
-      this.annotationManager.onDrawEnd(e.feature);
+      this.markersManager.onDrawEnd(e.feature);
       publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata], this));
     });
 
     this[_map].addInteraction(this[_interactions].draw);
 
-    this.annotationManager.onInteractionsChange(this[_interactions]);
+    this.markersManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates draw interaction. */
@@ -1029,7 +1055,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].translate);
 
-    this.annotationManager.onInteractionsChange(this[_interactions]);
+    this.markersManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates translate interaction. */
@@ -1060,7 +1086,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].select);
 
-    this.annotationManager.onInteractionsChange(this[_interactions]);
+    this.markersManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates select interaction. */
@@ -1083,7 +1109,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].dragPan);
 
-    this.annotationManager.onInteractionsChange(this[_interactions]);
+    this.markersManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivate dragpan interaction. */
@@ -1108,7 +1134,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].snap);
 
-    AnnotationManager.onInteractionsChange(this[_interactions]);
+    this.markersManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates snap interaction. */
@@ -1139,13 +1165,13 @@ class VolumeImageViewer {
       features: this[_features],  // TODO: or source, i.e. "drawings"???
       insertVertexCondition: event => {
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate_);
-        return this.annotationManager.insertVertexCondition(feature);
+        return this.markersManager.insertVertexCondition(feature);
       }
     });
 
     this[_map].addInteraction(this[_interactions].modify);
 
-    this.annotationManager.onInteractionsChange(this[_interactions]);
+    this.markersManager.onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates modify interaction. */
@@ -1192,7 +1218,7 @@ class VolumeImageViewer {
    * @returns {ROI} Regions of interest.
    */
   getROI(uid) {
-    console.info(`get ROI ${uid}`)
+    console.info(`get ROI ${uid}`);
     const feature = this[_drawingSource].getFeatureById(uid);
     return _getROIFromFeature(feature, this[_pyramidMetadata], this);
   }
@@ -1203,14 +1229,14 @@ class VolumeImageViewer {
    * @param {Object} item - NUM content item representing a measurement
    */
   addROIMeasurement(uid, item) {
-    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
+    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning;
     console.info(`add measurement "${meaning}" to ROI ${uid}`)
     this[_features].forEach(feature => {
       const id = feature.getId();
       if (id === uid) {
         const properties = feature.getProperties();
         if (!('measurements' in properties)) {
-          properties['measurements'] = [item]
+          properties['measurements'] = [item];
         } else {
           properties['measurements'].push(item);
         }
@@ -1225,14 +1251,14 @@ class VolumeImageViewer {
    * @param {Object} item - CODE content item representing a qualitative evaluation
    */
   addROIEvaluation(uid, item) {
-    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
-    console.info(`add qualitative evaluation "${meaning}" to ROI ${uid}`)
+    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning;
+    console.info(`add qualitative evaluation "${meaning}" to ROI ${uid}`);
     this[_features].forEach(feature => {
       const id = feature.getId();
       if (id === uid) {
         const properties = feature.getProperties();
         if (!('evaluations' in properties)) {
-          properties['evaluations'] = [item]
+          properties['evaluations'] = [item];
         } else {
           properties['evaluations'].push(item);
         }
@@ -1246,7 +1272,7 @@ class VolumeImageViewer {
    * @returns {ROI} Regions of interest.
    */
   popROI() {
-    console.info('pop ROI')
+    console.info('pop ROI');
     const feature = this[_features].pop();
     return _getROIFromFeature(feature, this[_pyramidMetadata], this);
   }
@@ -1287,25 +1313,19 @@ class VolumeImageViewer {
    *
    */
   addROI(item, styleOptions) {
-    console.info(`add ROI ${item.uid}`)
+    console.info(`add ROI ${item.uid}`);
     const geometry = _scoord3d2Geometry(item.scoord3d, this[_pyramidMetadata]);
     const featureOptions = { geometry };
-
-    /** Update feature with given item propeties */
-    const { geometryName, style } = item.properties;
-    if (geometryName) featureOptions[geometryName] = geometry;
 
     const feature = new Feature(featureOptions);
     feature.setProperties(item.properties, true);
     feature.setId(item.uid);
 
-    /** Update feature with given item propeties */
-    if (geometryName) feature.setGeometryName(geometryName, true);
+    _setFeatureStyle(feature, styleOptions);
 
-    _setFeatureStyle(feature, styleOptions)
     this[_features].push(feature);
 
-    this.annotationManager.onAdd(feature, item.properties);
+    this.markersManager.onAdd(feature, item.properties);
   }
 
   /** Update properties of regions of interest.
@@ -1321,7 +1341,7 @@ class VolumeImageViewer {
     const feature = this[_drawingSource].getFeatureById(uid);
     feature.setProperties(properties, true);
 
-    this.annotationManager.onUpdate(feature);
+    this.markersManager.onUpdate(feature);
   }
 
   /** Sets the style of a region of interest.
@@ -1339,7 +1359,7 @@ class VolumeImageViewer {
     this[_features].forEach(feature => {
       const id = feature.getId();
       if (id === uid) {
-        _setFeatureStyle(feature, styleOptions)
+        _setFeatureStyle(feature, styleOptions);
       }
     })
   }
@@ -1401,9 +1421,7 @@ class VolumeImageViewer {
   get imageMetadata() {
     return this[_pyramidMetadata];
   }
-
 }
-
 
 /** Static viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type other than VOLUME.
@@ -1428,6 +1446,7 @@ class _NonVolumeImageViewer {
     this[_metadata] = new VLWholeSlideMicroscopyImage({
       metadata: options.metadata
     });
+
     if (this[_metadata].ImageType[2] === 'VOLUME') {
       throw new Error('Viewer cannot render images of type VOLUME.')
     }
@@ -1495,9 +1514,7 @@ class _NonVolumeImageViewer {
       url: ''  // will be set by imageLoadFunction()
     });
 
-    this[_imageLayer] = new ImageLayer({
-      source: rasterSource,
-    });
+    this[_imageLayer] = new ImageLayer({ source: rasterSource });
 
     // The default rotation is 'horizontal' with the slide label on the right
     var rotation = _getRotation(this[_metadata]);
@@ -1519,6 +1536,7 @@ class _NonVolumeImageViewer {
       controls: [],
       keyboardEventTarget: document,
     });
+
     this[_map].getView().fit(extent);
   }
 
@@ -1557,7 +1575,6 @@ class _NonVolumeImageViewer {
   get size() {
     return this[_map].getSize();
   }
-
 }
 
 /** Static viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -1567,7 +1584,6 @@ class _NonVolumeImageViewer {
  * @memberof viewer
  */
 class OverviewImageViewer extends _NonVolumeImageViewer {
-
   /** Creates a viewer instance for displaying OVERVIEW images.
    *
    * @param {object} options
@@ -1592,7 +1608,6 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
  * @memberof viewer
  */
 class LabelImageViewer extends _NonVolumeImageViewer {
-
   /** Creates a viewer instance for displaying LABEL images.
    *
    * @param {object} options
