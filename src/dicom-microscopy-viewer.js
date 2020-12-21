@@ -1,5 +1,9 @@
 import EVENTS from './events.js';
-import { VLWholeSlideMicroscopyImage, formatMetadata } from './metadata.js';
+import {
+  Comprehensive3DSR,
+  VLWholeSlideMicroscopyImage,
+  formatMetadata,
+} from './metadata.js';
 import { ROI } from './roi.js';
 import {
   Point,
@@ -10,6 +14,11 @@ import {
   Ellipse,
 } from './scoord3d.js';
 import {
+  applyInverseTransform,
+  applyTransform,
+  buildInverseTransform,
+  buildTransform,
+  computeRotation,
   mapSlideCoordToPixelCoord,
   mapPixelCoordToSlideCoord,
 } from './utils.js';
@@ -46,6 +55,7 @@ const viewer = {
 const metadata = {
   formatMetadata,
   VLWholeSlideMicroscopyImage,
+  Comprehensive3DSR,
 };
 
 /** Namespace for 3-dimensional spatial coordinates (SCOORD3D).
@@ -58,7 +68,7 @@ const scoord3d = {
   Polyline,
   Polygon,
   Ellipsoid,
-  Ellipse
+  Ellipse,
 };
 
 /** Namespace for regions of interest (ROI).
@@ -82,6 +92,11 @@ const events = {
  * @namespace utils
  */
 const utils = {
+  applyInverseTransform,
+  applyTransform,
+  buildInverseTransform,
+  buildTransform,
+  computeRotation,
   mapSlideCoordToPixelCoord,
   mapPixelCoordToSlideCoord,
 };

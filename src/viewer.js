@@ -3,6 +3,7 @@ import Collection from 'ol/Collection';
 import Draw, { createRegularPolygon } from 'ol/interaction/Draw';
 import EVENT from "./events";
 import Feature from 'ol/Feature';
+import Fill from 'ol/style/Fill';
 import FullScreen from 'ol/control/FullScreen';
 import ImageLayer from 'ol/layer/Image';
 import Map from 'ol/Map';
@@ -15,6 +16,8 @@ import ScaleLine from 'ol/control/ScaleLine';
 import Select from 'ol/interaction/Select';
 import Snap from 'ol/interaction/Snap';
 import Translate from 'ol/interaction/Translate';
+import Style from 'ol/style/Style';
+import Stroke from 'ol/style/Stroke';
 import Static from 'ol/source/ImageStatic';
 import Overlay from 'ol/Overlay';
 import TileLayer from 'ol/layer/Tile';
@@ -38,9 +41,12 @@ import * as DICOMwebClient from 'dicomweb-client';
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js';
 import { ROI } from './roi.js';
 import {
+  computeRotation,
   generateUID,
-  mapPixelCoordToSlideCoord,
-  mapSlideCoordToPixelCoord
+  applyInverseTransform,
+  applyTransform,
+  buildInverseTransform,
+  buildTransform,
 } from './utils.js';
 import {
   Point,
@@ -49,7 +55,6 @@ import {
   Ellipse
 } from './scoord3d.js';
 
-import * as DICOMwebClient from 'dicomweb-client';
 import AnnotationManager from './annotations';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
@@ -93,74 +98,13 @@ function _getPixelSpacing(metadata) {
  * @private
 */
 function _getRotation(metadata) {
-  var degrees;
-  if (
-    (metadata.ImageOrientationSlide[0] === 0) &&
-    (metadata.ImageOrientationSlide[1] === -1) &&
-    (metadata.ImageOrientationSlide[2] === 0) &&
-    (metadata.ImageOrientationSlide[3] === -1) &&
-    (metadata.ImageOrientationSlide[4] === 0) &&
-    (metadata.ImageOrientationSlide[5] === 0)
-  ) {
-    /*
-     * The Total Pixel Matrix is rotated with respect to the slide coordinate
-     * system by 180 degrees, such that an increase along the row direction
-     * (left to right) leads to lower Y coordinate values and an increase
-     * along the column direction (top to bottom) leads to lower X coordinate
-     * values.
-     */
-    degrees = 180;
-  } else if (
-    (metadata.ImageOrientationSlide[0] === 1) &&
-    (metadata.ImageOrientationSlide[1] === 0) &&
-    (metadata.ImageOrientationSlide[2] === 0) &&
-    (metadata.ImageOrientationSlide[3] === 0) &&
-    (metadata.ImageOrientationSlide[4] === -1) &&
-    (metadata.ImageOrientationSlide[5] === 0)
-  ) {
-    /*
-     * The Total Pixel Matrix is rotated with respect to the slide coordinate
-     * system by 90 degrees, such that an increase along the row direction
-     * (left to right) leads to higher X coordinate values and an increase
-     * along the column direction (top to bottom) leads to lower Y coordinate
-     * values.
-     */
-    degrees = 90;
-  } else if (
-    (metadata.ImageOrientationSlide[0] === -1) &&
-    (metadata.ImageOrientationSlide[1] === 0) &&
-    (metadata.ImageOrientationSlide[2] === 0) &&
-    (metadata.ImageOrientationSlide[3] === 0) &&
-    (metadata.ImageOrientationSlide[4] === 1) &&
-    (metadata.ImageOrientationSlide[5] === 0)
-  ) {
-    /*
-     * The Total Pixel Matrix is rotated with respect to the slide coordinate
-     * system by 270 degrees, such that an increase along the row direction
-     * (left to right) leads to lower X coordinate values and an increase
-     * along the column direction (top to bottom) leads to higher Y coordinate
-     * values.
-     */
-    degrees = 270;
-  } else if (
-    (metadata.ImageOrientationSlide[0] === 0) &&
-    (metadata.ImageOrientationSlide[1] === 1) &&
-    (metadata.ImageOrientationSlide[2] === 0) &&
-    (metadata.ImageOrientationSlide[3] === 1) &&
-    (metadata.ImageOrientationSlide[4] === 0) &&
-    (metadata.ImageOrientationSlide[5] === 0)
-  ) {
-    /*
-     * The Total Pixel Matrix is aligned with the slide coordinate system
-     * such that an increase along the row direction (left to right) leads to
-     * higher Y coordinate values and an increase along the column direction
-     * (top to bottom) leads to higher X coordinate values.
-     */
-    degrees = 0;
-  } else {
-    throw new Error(`Unexpected image orientation ${metadata.ImageOrientationSlide}`);
-  }
-  return degrees * (Math.PI / 180);
+  // Angle with respect to the reference orientation
+  const angle = computeRotation({
+    orientation: metadata.ImageOrientationSlide
+  });
+  // We want the slide oriented horizontally with the label on the right side
+  const correction = 90 * (Math.PI / 180)
+  return angle + correction
 }
 
 
@@ -217,10 +161,6 @@ function _geometry2Scoord3d(geometry, pyramid) {
     coordinates = coordinates.map(c => {
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
     })
-
-    // const metadata = pyramid[pyramid.length-1];
-    // const pixelSpacing = _getPixelSpacing(metadata);
-
     return new Ellipse({
       coordinates,
       frameOfReferenceUID: frameOfReferenceUID
@@ -319,14 +259,14 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
     Number(origin.YOffsetInSlideCoordinateSystem),
   ];
 
+  const affine = buildTransform({
+    offset,
+    orientation,
+    spacing,
+  })
   coordinates = coordinates.map(c => {
     const pixelCoord = [c[0], -(c[1] + 1)];
-    const slideCoord = mapPixelCoordToSlideCoord({
-      orientation,
-      spacing,
-      offset,
-      point: pixelCoord
-    });
+    const slideCoord = applyTransform({ coordinate: pixelCoord, affine });
     return [slideCoord[0], slideCoord[1], 0];
   });
   if (transform) {
@@ -359,18 +299,30 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
     Number(origin.YOffsetInSlideCoordinateSystem),
   ];
 
+  let outOfFrame = false
+  const affine = buildInverseTransform({
+    offset,
+    orientation,
+    spacing,
+  })
   coordinates = coordinates.map(c => {
+    if (c[0] > 25 || c[1] > 76) {
+      outOfFrame = true
+    }
     const slideCoord = [c[0], c[1]];
-    const pixelCoord = mapSlideCoordToPixelCoord({
-      offset,
-      orientation,
-      spacing,
-      point: slideCoord
+    const pixelCoord = applyInverseTransform({
+      coordinate: slideCoord,
+      affine
     });
     return [pixelCoord[0], -(pixelCoord[1] + 1), 0];
   });
   if (transform) {
     return coordinates[0];
+  }
+  if (outOfFrame) {
+    console.warning(
+      'found coordinates outside slide coordinate system 25 x 76 mm'
+    )
   }
   return coordinates;
 }
@@ -385,8 +337,7 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
  * @private
  */
 function _getROIFromFeature(feature, pyramid, context) {
-  let roi = {}
-  if (feature !== undefined) {
+  if (feature !== undefined && feature !== null) {
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
     let properties = feature.getProperties();
@@ -395,9 +346,40 @@ function _getROIFromFeature(feature, pyramid, context) {
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
     const uid = feature.getId();
-    roi = new ROI({ scoord3d, properties, uid });
+    return new ROI({ scoord3d, properties, uid });
   }
-  return roi;
+  return
+}
+
+/** Updates the style of a feature.
+ *
+ * @param {object} styleOptions - Style options
+ * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+ * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
+ * @param {number} styleOptions.stroke.width - Width of the outline
+ * @param {object} styleOptions.fill - Style options for body the geometry
+ * @param {number[]} styleOptions.fill.color - RGBA color of the body
+ */
+function _setFeatureStyle(feature, styleOptions) {
+  if (styleOptions !== undefined) {
+    const style = new Style();
+    if ('stroke' in styleOptions) {
+      const strokeOptions = {
+        color: styleOptions.stroke.color,
+        width: styleOptions.stroke.width,
+      }
+      const stroke = new Stroke(strokeOptions);
+      style.setStroke(stroke);
+    }
+    if ('fill' in styleOptions) {
+      const fillOptions = {
+        color: styleOptions.fill.color
+      }
+      const fill = new Fill(fillOptions);
+      style.setFill(fill);
+    }
+    feature.setStyle(style);
+  }
 }
 
 const _client = Symbol('client');
@@ -818,7 +800,8 @@ class VolumeImageViewer {
       this[_controls].overview = new OverviewMap({
         view: overviewView,
         layers: [overviewImageLayer],
-        collapsed: true,
+        collapsed: false,
+        collapsible: false,
       });
     }
 
@@ -935,6 +918,8 @@ class VolumeImageViewer {
   /** Activates the draw interaction for graphic annotation of regions of interest.
    * @param {object} options - Drawing options.
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
+   * @param {object} options.strokeStyle - Style of the geometry stroke (keys: "color", "width")
+   * @param {object} options.fillStyle - Style of the geometry body (keys: "color")
    */
   activateDrawInteraction(options = {}) {
     this.deactivateDrawInteraction();
@@ -1292,10 +1277,17 @@ class VolumeImageViewer {
 
   /** Adds a regions of interest.
    *
-   * @param {ROI} Regions of interest.
+   * @param {ROI} item - Regions of interest.
+   * @param {object} styleOptions - Style options
+   * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+   * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
+   * @param {number} styleOptions.stroke.width - Width of the outline
+   * @param {object} styleOptions.fill - Style options for body the geometry
+   * @param {number[]} styleOptions.fill.color - RGBA color of the body
+   *
    */
-  addROI(item) {
-    console.info(`add ROI ${item.uid}`);
+  addROI(item, styleOptions) {
+    console.info(`add ROI ${item.uid}`)
     const geometry = _scoord3d2Geometry(item.scoord3d, this[_pyramidMetadata]);
     const featureOptions = { geometry };
 
@@ -1308,9 +1300,9 @@ class VolumeImageViewer {
     feature.setId(item.uid);
 
     /** Update feature with given item propeties */
-    if (style) feature.setStyle(style);
     if (geometryName) feature.setGeometryName(geometryName, true);
 
+    _setFeatureStyle(feature, styleOptions)
     this[_features].push(feature);
 
     this.annotationManager.onAdd(feature, item.properties);
@@ -1330,6 +1322,26 @@ class VolumeImageViewer {
     feature.setProperties(properties, true);
 
     this.annotationManager.onUpdate(feature);
+  }
+
+  /** Sets the style of a region of interest.
+   *
+   * @param {string} uid - Unique identifier of the regions of interest.
+   * @param {object} styleOptions - Style options
+   * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+   * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
+   * @param {number} styleOptions.stroke.width - Width of the outline
+   * @param {object} styleOptions.fill - Style options for body the geometry
+   * @param {number[]} styleOptions.fill.color - RGBA color of the body
+   *
+   */
+  setROIStyle(uid, styleOptions) {
+    this[_features].forEach(feature => {
+      const id = feature.getId();
+      if (id === uid) {
+        _setFeatureStyle(feature, styleOptions)
+      }
+    })
   }
 
   /** Adds a new viewport overlay.

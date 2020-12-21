@@ -54,7 +54,6 @@ class ROI {
       this[_properties]['evaluations'] = []
       this[_properties]['measurements'] = []
     }
-    console.log(this[_properties])
   }
 
   /** Gets unique identifier of region of interest.
