@@ -1,5 +1,4 @@
 import LineString from 'ol/geom/LineString';
-
 /**
  * Builds a new LineString instance with the shortest
  * distance between a given overlay and a feature.
@@ -13,9 +12,9 @@ const getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
   let distanceSq = Infinity;
 
   const featureGeometry = feature.getGeometry();
-  const geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
+  let geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
 
-  geometry.getCoordinates().forEach(coordinates => {
+  (geometry.getCoordinates() || geometry.getExtent()).forEach(coordinates => {
     const closest = overlay.getPosition();
     const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2);
     if (distanceNew < distanceSq) {

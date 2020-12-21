@@ -3,12 +3,12 @@ import { MarkerManager } from './index';
 import { Marker } from './enums';
 import {
   ArrowMarker,
-  LengthMarker,
+  MeasurementMarker,
   FreeTextMarker
 } from './definitions';
 
 const {
-  Length,
+  Measurement,
   FreeText,
   Arrow
 } = Marker;
@@ -17,18 +17,18 @@ class MarkersManager {
   constructor({ map, source, controls } = {}) {
     this.props = { map, source, controls };
 
-    this[Length] = LengthMarker(this.props);
+    this[Measurement] = MeasurementMarker(this.props);
     this[Arrow] = ArrowMarker(this.props);
     this[FreeText] = FreeTextMarker(this.props);
 
     this.props.markerManager = new MarkerManager({
       map,
       source,
-      geometries: [Length, Arrow],
+      geometries: [Measurement, Arrow],
       unlinkGeometries: [FreeText],
       undraggableGeometries: [FreeText],
       formatters: {
-        [Length]: this[Length].format,
+        [Measurement]: this[Measurement].format,
         [Arrow]: this[Arrow].format,
         [FreeText]: this[FreeText].format
       },
@@ -36,32 +36,32 @@ class MarkersManager {
   }
 
   onInteractionsChange(interactions) {
-    this[Length].onInteractionsChange(interactions);
+    this[Measurement].onInteractionsChange(interactions);
     this[Arrow].onInteractionsChange(interactions);
     this[FreeText].onInteractionsChange(interactions);
   }
 
   onAdd(feature, properties) {
     this[Arrow].onAdd(feature, properties);
-    this[Length].onAdd(feature, properties);
+    this[Measurement].onAdd(feature, properties);
     this[FreeText].onAdd(feature, properties);
   }
 
   onRemove(feature) {
-    this[Length].onRemove(feature);
+    this[Measurement].onRemove(feature);
     this[Arrow].onRemove(feature);
     this[FreeText].onRemove(feature);
   }
 
   onUpdate(feature) {
     this[Arrow].onUpdate(feature);
-    this[Length].onUpdate(feature);
+    this[Measurement].onUpdate(feature);
     this[FreeText].onUpdate(feature);
   }
 
   onDrawEnd(feature) {
     this[Arrow].onDrawEnd(feature);
-    this[Length].onDrawEnd(feature);
+    this[Measurement].onDrawEnd(feature);
     this[FreeText].onDrawEnd(feature);
   }
 
@@ -69,7 +69,7 @@ class MarkersManager {
     return {
       ...properties,
       ...this[Arrow].getROIProperties(feature, properties),
-      ...this[Length].getROIProperties(feature, properties),
+      ...this[Measurement].getROIProperties(feature, properties),
       ...this[FreeText].getROIProperties(feature, properties)
     };
   }
@@ -84,7 +84,7 @@ class MarkersManager {
   }
 
   insertVertexCondition(feature) {
-    return !this[Length].isLength(feature) && !this[Arrow].isArrow(feature);
+    return !this[Measurement].isMeasurement(feature) && !this[Arrow].isArrow(feature);
   }
 }
 

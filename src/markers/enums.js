@@ -1,5 +1,5 @@
 export const Marker = {
-  Length: 'length',
+  Measurement: 'measurement',
   Arrow: 'arrow',
   FreeText: 'freetext'
 };
