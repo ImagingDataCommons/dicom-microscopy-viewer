@@ -445,6 +445,10 @@ class VolumeImageViewer {
       options.retrieveRendered = true;
     }
 
+    if (!('overview' in options)) {
+      options.overview = {};
+    }
+
     if (!('controls' in options)) {
       options.controls = [];
     }
@@ -816,16 +820,16 @@ class VolumeImageViewer {
         projection: projection
       });
 
-      const overviewViewOptions = { projection: projection, rotation: rotation };
-      if (resolutions && !options.overviewZoom) overviewViewOptions.resolutions = resolutions;
-      if (options.overviewZoom) overviewViewOptions.zoom = options.overviewZoom;
-      const overviewView = new View(overviewViewOptions);
+      let viewOptions = { projection: projection, rotation: rotation };
+      if (resolutions && !options.overview.zoom) viewOptions.resolutions = resolutions;
+      if (options.overview.zoom) viewOptions.zoom = options.overview.zoom;
+      const view = new View(viewOptions);
 
       this[_controls].overview = new OverviewMap({
-        view: overviewView,
+        view,
         layers: [overviewImageLayer],
-        collapsed: false,
-        collapsible: false,
+        collapsed: options.overview.hasOwnProperty('collapsed') ? options.overview.collapsed : false,
+        collapsible: options.overview.hasOwnProperty('collapsible') ? options.overview.collapsible : false,
       });
     }
 
