@@ -27,7 +27,7 @@ const getStyleFunction = (options) => {
 const formatMeasurement = (feature, geometry, units) => {
   let geom = feature ? feature.getGeometry() : geometry;
   if (geom instanceof Circle) geom = fromCircle(geom);
-  const value = getArea(geom) ? getArea(geom) : getLength(geom);
+  const value = getLength(geom) ? getLength(geom) : getArea(geom);
   let output = Math.round((value / 10) * 100) / 100 + ' ' + units;
   return output;
 };

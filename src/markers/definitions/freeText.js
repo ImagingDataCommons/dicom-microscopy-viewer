@@ -45,7 +45,7 @@ const getStyleFunction = options => {
 const getDefinition = options => {
   const styleFunction = getStyleFunction(options);
 
-  /** FreeText Geometry Definition */
+  /** FreeText Marker Definition */
   return {
     ...options,
     style: styleFunction,
@@ -55,7 +55,7 @@ const getDefinition = options => {
 
 /**
  * Format free text output
- * @param {LineString} freetext geometry
+ * @param {Feature} feature feature
  * @return {string} The formatted output
  */
 const formatFreeText = (feature, geometry) => {
@@ -77,7 +77,7 @@ const FreeTextMarker = api => {
     },
     onUpdate: feature => {
       if (isFreeText(feature)) {
-        /** Get latest value of label property updated externally */
+        /** Refresh to get latest value of label property */
         feature.changed();
       }
     },

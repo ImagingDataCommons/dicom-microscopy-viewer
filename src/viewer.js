@@ -364,11 +364,11 @@ function _getROIFromFeature(feature, pyramid, context) {
 function _setFeatureStyle(feature, styleOptions) {
   if (styleOptions !== undefined) {
     const style = new Style();
-    
+
     if (styleOptions instanceof Style) {
       feature.setStyle(styleOptions);
       return;
-    } 
+    }
 
     if ('stroke' in styleOptions) {
       const strokeOptions = {
@@ -953,46 +953,46 @@ class VolumeImageViewer {
     console.info('activate "draw" interaction');
 
     const customOptionsMapping = {
-      point: this.markersManager.getMarkerOptions(options.marker, {
+      point: {
         type: 'Point',
         geometryName: 'Point',
         style: options.style,
-      }),
-      circle: this.markersManager.getMarkerOptions(options.marker, {
+      },
+      circle: {
         type: 'Circle',
         geometryName: 'Circle',
         style: options.style,
-      }),
-      box: this.markersManager.getMarkerOptions(options.marker, {
+      },
+      box: {
         type: 'Circle',
         geometryName: 'Box',
         geometryFunction: createRegularPolygon(4),
         style: options.style,
-      }),
-      polygon: this.markersManager.getMarkerOptions(options.marker, {
+      },
+      polygon: {
         type: 'Polygon',
         geometryName: 'Polygon',
         freehand: false,
         style: options.style,
-      }),
-      freehandpolygon: this.markersManager.getMarkerOptions(options.marker, {
+      },
+      freehandpolygon: {
         type: 'Polygon',
         geometryName: 'FreeHandPolygon',
         freehand: true,
         style: options.style,
-      }),
-      line: this.markersManager.getMarkerOptions(options.marker, {
+      },
+      line: {
         type: 'LineString',
         geometryName: 'Line',
         freehand: false,
         style: options.style,
-      }),
-      freehandline: this.markersManager.getMarkerOptions(options.marker, {
+      },
+      freehandline: {
         type: 'LineString',
         geometryName: 'FreeHandLine',
         freehand: true,
         style: options.style,
-      }),
+      },
     };
 
     if (!('geometryType' in options)) {
@@ -1004,7 +1004,8 @@ class VolumeImageViewer {
     }
 
     const defaultDrawOptions = { source: this[_drawingSource] };
-    const customDrawOptions = customOptionsMapping[options.geometryType];
+    const selectedOption = customOptionsMapping[options.geometryType];
+    const customDrawOptions = this.markersManager.getMarkerOptions(options.marker, selectedOption);
 
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
