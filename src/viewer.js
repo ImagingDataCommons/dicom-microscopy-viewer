@@ -341,15 +341,16 @@ function _getROIFromFeature(feature, pyramid, context) {
   if (feature !== undefined && feature !== null) {
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
-    let properties = feature.getProperties();
-    properties = context.markersManager.getROIProperties(feature, properties);
+    const properties = feature.getProperties();
     // Remove geometry from properties mapping
     const geometryName = feature.getGeometryName();
     delete properties[geometryName];
     const uid = feature.getId();
-    return new ROI({ scoord3d, properties, uid });
+    const roi = new ROI({ scoord3d, properties, uid });
+    context.markersManager.addMeasurementsAndEvaluations(feature, roi);
+    return roi;
   }
-  return
+  return;
 }
 
 /** Updates the style of a feature.
@@ -1329,7 +1330,7 @@ class VolumeImageViewer {
 
     this[_features].push(feature);
 
-    this.markersManager.onAdd(feature, item.properties);
+    this.markersManager.onAdd(feature, item);
   }
 
   /** Update properties of regions of interest.

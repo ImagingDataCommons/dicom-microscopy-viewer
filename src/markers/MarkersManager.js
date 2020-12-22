@@ -65,13 +65,10 @@ class MarkersManager {
     this[FreeText].onDrawEnd(feature);
   }
 
-  getROIProperties(feature, properties = {}) {
-    return {
-      ...properties,
-      ...this[Arrow].getROIProperties(feature, properties),
-      ...this[Measurement].getROIProperties(feature, properties),
-      ...this[FreeText].getROIProperties(feature, properties)
-    };
+  addMeasurementsAndEvaluations(feature, roi) {
+    this[Arrow].addMeasurementsAndEvaluations(feature, roi),
+    this[Measurement].addMeasurementsAndEvaluations(feature, roi),
+    this[FreeText].addMeasurementsAndEvaluations(feature, roi)
   }
 
   getMarkerOptions(marker, options = {}) {

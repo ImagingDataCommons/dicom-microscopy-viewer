@@ -5,6 +5,7 @@ import LineString from 'ol/geom/LineString';
 import Icon from 'ol/style/Icon';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
+import dcmjs from 'dcmjs';
 
 import { Marker } from '../enums';
 import { defaultStyle } from '../styles';
@@ -110,17 +111,55 @@ const formatArrow = (feature, geometry) => {
   return properties.label || '';
 };
 
+const getMeasurementsAndEvaluations = (feature, roi, api) => {
+  const evaluations = [
+    new dcmjs.sr.valueTypes.CodeContentItem({
+      name: new dcmjs.sr.coding.CodedConcept({
+        value: "marker",
+        meaning: "Marker Identification",
+        schemeDesignator: "dicom-microscopy-viewer"
+      }),
+      value: new dcmjs.sr.coding.CodedConcept({
+        value: Marker.Arrow,
+        meaning: "Marker Type",
+        schemeDesignator: "dicom-microscopy-viewer"
+      }),
+      relationshipType: 'HAS CONCEPT MOD'
+    }),
+    new dcmjs.sr.valueTypes.CodeContentItem({
+      name: new dcmjs.sr.coding.CodedConcept({
+        value: "label",
+        meaning: "Marker Label",
+        schemeDesignator: "dicom-microscopy-viewer"
+      }),
+      value: new dcmjs.sr.coding.CodedConcept({
+        value: feature.get('label') || '',
+        meaning: "Marker Label",
+        schemeDesignator: "dicom-microscopy-viewer"
+      }),
+      relationshipType: 'HAS CONCEPT MOD'
+    }),
+  ];
+
+  return {
+    measurements: [],
+    evaluations
+  };
+};
+
 const ArrowMarker = api => {
   return {
-    getROIProperties: (feature, properties = {}) => {
-      return isArrow(feature) ?
-        { ...properties, marker: Marker.Arrow }
-        : properties;
+    addMeasurementsAndEvaluations: (feature, roi) => {
+      if (isArrow(feature)) {
+        const { measurements, evaluations } = getMeasurementsAndEvaluations(feature, roi, api);
+        measurements.forEach(measurement => roi.addMeasurement(measurement));
+        evaluations.forEach(evaluation => roi.addEvaluation(evaluation));
+      }
     },
-    onAdd: (feature, properties = {}) => {
+    onAdd: (feature, roi) => {
       if (isArrow(feature)) {
         api.markerManager.create({ feature, value: formatArrow(feature) });
-        feature.setStyle(getStyleFunction(properties));
+        feature.setStyle(getStyleFunction(roi.properties));
         /** Refresh to get latest value of label property */
         feature.changed();
       }

@@ -3,6 +3,7 @@ import Circle from 'ol/style/Circle';
 import Fill from 'ol/style/Fill';
 import Stroke from 'ol/style/Stroke';
 import Text from 'ol/style/Text';
+import dcmjs from 'dcmjs';
 
 import { Marker } from '../enums';
 
@@ -63,16 +64,54 @@ const formatFreeText = (feature, geometry) => {
   return properties.label || '';
 };
 
+const getMeasurementsAndEvaluations = (feature, roi, api) => {
+  const evaluations = [
+    new dcmjs.sr.valueTypes.CodeContentItem({
+      name: new dcmjs.sr.coding.CodedConcept({
+        value: "marker",
+        meaning: "Marker Identification",
+        schemeDesignator: "dicom-microscopy-viewer"
+      }),
+      value: new dcmjs.sr.coding.CodedConcept({
+        value: Marker.FreeText,
+        meaning: "Marker Type",
+        schemeDesignator: "dicom-microscopy-viewer"
+      }),
+      relationshipType: 'HAS CONCEPT MOD'
+    }),
+    new dcmjs.sr.valueTypes.CodeContentItem({
+      name: new dcmjs.sr.coding.CodedConcept({
+        value: "label",
+        meaning: "Marker Label",
+        schemeDesignator: "dicom-microscopy-viewer"
+      }),
+      value: new dcmjs.sr.coding.CodedConcept({
+        value: feature.get('label') || '',
+        meaning: "Marker Label",
+        schemeDesignator: "dicom-microscopy-viewer"
+      }),
+      relationshipType: 'HAS CONCEPT MOD'
+    }),
+  ];
+
+  return {
+    measurements: [],
+    evaluations
+  };
+};
+
 const FreeTextMarker = api => {
   return {
-    getROIProperties: (feature, properties = {}) => {
-      return isFreeText(feature) ?
-        { ...properties, marker: Marker.FreeText }
-        : properties;
-    },
-    onAdd: (feature, properties = {}) => {
+    addMeasurementsAndEvaluations: (feature, roi) => {
       if (isFreeText(feature)) {
-        feature.setStyle(getStyleFunction(properties));
+        const { measurements, evaluations } = getMeasurementsAndEvaluations(feature, roi, api);
+        measurements.forEach(measurement => roi.addMeasurement(measurement));
+        evaluations.forEach(evaluation => roi.addEvaluation(evaluation));
+      }
+    },
+    onAdd: (feature, roi) => {
+      if (isFreeText(feature)) {
+        feature.setStyle(getStyleFunction(roi.properties));
       }
     },
     onUpdate: feature => {
