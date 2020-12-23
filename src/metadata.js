@@ -52,7 +52,6 @@ function getFrameMapping(metadata) {
   return frameMapping;
 }
 
-
 /** Formats DICOM metadata structured according to the DICOM JSON model into a
  * more human friendly representation, where values of data elements can be
  * directly accessed via their keyword (e.g., "SOPInstanceUID").
@@ -63,11 +62,28 @@ function getFrameMapping(metadata) {
  * @memberof metadata
  */
 function formatMetadata(metadata) {
+  const origin = {
+    YOffsetInSlideCoordinateSystem: 0,
+    XOffsetInSlideCoordinateSystem: 0
+  };
+
   const loadJSONDataset = (elements) => {
     const dataset = {};
     Object.keys(elements).forEach(tag => {
       const keyword = tagToKeyword[tag];
       const vr = elements[tag]['vr'];
+
+      /** Calculate offsets if TotalPixelMatrixOriginSequence not present */
+      if (keyword === 'PlanePositionSlideSequence') {
+        const value = elements[tag]['Value'][0];
+        const col = value['0048021E'].Value[0];
+        const row = value['0048021F'].Value[0];
+        if (row === col && col === 1) {
+          origin.YOffsetInSlideCoordinateSystem = value['0040073A'].Value[0];
+          origin.XOffsetInSlideCoordinateSystem = value['0040072A'].Value[0];
+        }
+      }
+
       if ('BulkDataURI' in elements[tag]) {
         console.debug(`skip bulk data element "${keyword}"`)
       } else if ('Value' in elements[tag]) {
@@ -103,6 +119,11 @@ function formatMetadata(metadata) {
 
   const dataset = loadJSONDataset(metadata);
 
+  const isTiledSparse = dataset.DimensionOrganizationType === 'TILED_SPARSE';
+  if (isTiledSparse && !dataset.TotalPixelMatrixOriginSequence) {
+    dataset.TotalPixelMatrixOriginSequence = [origin];
+  }
+
   // The top level (lowest resolution) image may be a single frame image in
   // which case the "NumberOfFrames" attribute is optional. We include it for
   // consistency.
@@ -125,21 +146,21 @@ function formatMetadata(metadata) {
  */
 class VLWholeSlideMicroscopyImage {
 
-    /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-    constructor(options) {
-      const dataset = formatMetadata(options.metadata);
-      if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
-        throw new Error(
-          'Cannot construct VL Whole Slide Microscopy Image instance ' +
-          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
-        );
-      }
-
-      Object.assign(this, dataset);
+  /**
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata in DICOM JSON format
+   */
+  constructor(options) {
+    const dataset = formatMetadata(options.metadata);
+    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
+      throw new Error(
+        'Cannot construct VL Whole Slide Microscopy Image instance ' +
+        `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+      );
     }
+
+    Object.assign(this, dataset);
+  }
 }
 
 /** DICOM Comprehensive 3D SR instance.
@@ -149,21 +170,21 @@ class VLWholeSlideMicroscopyImage {
  */
 class Comprehensive3DSR {
 
-    /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-    constructor(options) {
-      const dataset = formatMetadata(options.metadata);
-      if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.88.34') {
-        throw new Error(
-          'Cannot construct Comprehensive 3D SR instance ' +
-          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
-        );
-      }
-
-      Object.assign(this, dataset);
+  /**
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata in DICOM JSON format
+   */
+  constructor(options) {
+    const dataset = formatMetadata(options.metadata);
+    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.88.34') {
+      throw new Error(
+        'Cannot construct Comprehensive 3D SR instance ' +
+        `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+      );
     }
+
+    Object.assign(this, dataset);
+  }
 }
 
 export {
