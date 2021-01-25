@@ -2,7 +2,7 @@ import { getLength, getArea } from "ol/sphere";
 import { fromCircle } from "ol/geom/Polygon";
 import Circle from "ol/geom/Circle";
 
-import Enums from "../enums";
+import Enums from "../../enums";
 import { defaultStyle } from "../markers/styles";
 import { getUnitsSuffix } from "../markers/utils";
 
@@ -53,7 +53,7 @@ const MeasurementMarkup = (api) => {
     onRemove: (feature) => {
       if (isMeasurement(feature)) {
         const featureId = feature.getId();
-        api.markerManager.remove(featureId);
+        api.markupManager.remove(featureId);
       }
     },
     onAdd: (feature, roi) => {
@@ -64,7 +64,7 @@ const MeasurementMarkup = (api) => {
           null,
           getUnitsSuffix(view)
         );
-        api.markerManager.create({ feature, value: measurement });
+        api.markupManager.create({ feature, value: measurement });
       }
     },
     onDrawEnd: (feature) => {
@@ -74,7 +74,7 @@ const MeasurementMarkup = (api) => {
     },
     onUpdate: (feature) => {},
     onInteractionsChange: (interactions) => {
-      api.markerManager.onInteractionsChange(interactions);
+      api.markupManager.onInteractionsChange(interactions);
     },
     getDefinition: (options) => {
       const styleFunction = getStyleFunction(options);

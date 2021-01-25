@@ -6,7 +6,7 @@ import Icon from "ol/style/Icon";
 import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
 
-import Enums from "../enums";
+import Enums from "../../enums";
 import { defaultStyle } from "./styles";
 
 const arrow = `
@@ -113,7 +113,7 @@ const ArrowMarker = (api) => {
   return {
     onAdd: (feature, roi) => {
       if (isArrow(feature)) {
-        api.markerManager.create({ feature, value: formatArrow(feature) });
+        api.markupManager.create({ feature, value: formatArrow(feature) });
         feature.setStyle(getStyleFunction(roi.properties));
         /** Refresh to get latest value of label property */
         feature.changed();
@@ -121,7 +121,7 @@ const ArrowMarker = (api) => {
     },
     onUpdate: (feature) => {
       if (isArrow(feature)) {
-        api.markerManager.updateMarker({
+        api.markupManager.updateMarker({
           feature,
           value: formatArrow(feature),
         });
@@ -130,7 +130,7 @@ const ArrowMarker = (api) => {
     onRemove: (feature) => {
       if (isArrow(feature)) {
         const featureId = feature.getId();
-        api.markerManager.remove(featureId);
+        api.markupManager.remove(featureId);
       }
     },
     onDrawEnd: (feature) => {

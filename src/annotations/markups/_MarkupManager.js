@@ -11,14 +11,14 @@ import Feature from "ol/Feature";
 import {
   getUnitsSuffix,
   getShortestLineBetweenOverlayAndFeature,
-} from "./utils";
+} from "../markers/utils";
 
 const MapEvents = {
   POINTER_MOVE: "pointermove",
   POINTER_UP: "pointerup",
 };
 
-class _MarkerManager {
+class _MarkupManager {
   constructor({
     map,
     source,
@@ -463,4 +463,4 @@ class _MarkerManager {
   }
 }
 
-export default _MarkerManager;
+export default _MarkupManager;

@@ -51,7 +51,7 @@ import {
 } from "./utils.js";
 import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 
-import _MarkupManager from "./markups/_MarkupManager";
+import _AnnotationManager from "./annotations/_AnnotationManager";
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -418,7 +418,7 @@ const _pyramidFrameMappings = Symbol("pyramidFrameMappings");
 const _pyramidBaseMetadata = Symbol("pyramidMetadataBase");
 const _segmentations = Symbol("segmentations");
 const _usewebgl = Symbol("usewebgl");
-const _markupManager = Symbol("markupManager");
+const _annotationManager = Symbol("annotationManager");
 
 /** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
@@ -477,7 +477,7 @@ class VolumeImageViewer {
     });
 
     this[_features].on("remove", (e) =>
-      this[_markupManager].onRemove(e.element)
+      this[_annotationManager].onRemove(e.element)
     );
 
     /*
@@ -880,7 +880,7 @@ class VolumeImageViewer {
 
     this[_map].getView().fit(extent);
 
-    this[_markupManager] = new _MarkupManager({
+    this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
       source: this[_drawingSource],
       controls: this[_controls],
@@ -1051,7 +1051,7 @@ class VolumeImageViewer {
 
     const defaultDrawOptions = { source: this[_drawingSource] };
     const selectedOption = customOptionsMapping[options.geometryType];
-    const customDrawOptions = this[_markupManager].getMarkerOptions(
+    const customDrawOptions = this[_annotationManager].getDrawOptions(
       options.marker,
       selectedOption
     );
@@ -1069,7 +1069,7 @@ class VolumeImageViewer {
 
     // attaching openlayers events handling
     this[_interactions].draw.on("drawend", (e) => {
-      this[_markupManager].onDrawEnd(e.feature);
+      this[_annotationManager].onDrawEnd(e.feature);
       publish(
         container,
         EVENT.ROI_DRAWN,
@@ -1079,7 +1079,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].draw);
 
-    this[_markupManager].onInteractionsChange(this[_interactions]);
+    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates draw interaction. */
@@ -1112,7 +1112,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].translate);
 
-    this[_markupManager].onInteractionsChange(this[_interactions]);
+    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates translate interaction. */
@@ -1147,7 +1147,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].select);
 
-    this[_markupManager].onInteractionsChange(this[_interactions]);
+    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates select interaction. */
@@ -1170,7 +1170,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].dragPan);
 
-    this[_markupManager].onInteractionsChange(this[_interactions]);
+    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivate dragpan interaction. */
@@ -1195,7 +1195,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].snap);
 
-    this[_markupManager].onInteractionsChange(this[_interactions]);
+    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates snap interaction. */
@@ -1228,13 +1228,13 @@ class VolumeImageViewer {
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(
           event.coordinate_
         );
-        return this[_markupManager].insertVertexCondition(feature);
+        return this[_annotationManager].insertVertexCondition(feature);
       },
     });
 
     this[_map].addInteraction(this[_interactions].modify);
 
-    this[_markupManager].onInteractionsChange(this[_interactions]);
+    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates modify interaction. */
@@ -1388,7 +1388,7 @@ class VolumeImageViewer {
 
     this[_features].push(feature);
 
-    this[_markupManager].onAdd(feature, item);
+    this[_annotationManager].onAdd(feature, item);
   }
 
   /** Update properties of regions of interest.
@@ -1404,7 +1404,7 @@ class VolumeImageViewer {
     const feature = this[_drawingSource].getFeatureById(uid);
     feature.setProperties(properties, true);
 
-    this[_markupManager].onUpdate(feature);
+    this[_annotationManager].onUpdate(feature);
   }
 
   /** Sets the style of a region of interest.

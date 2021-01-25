@@ -4,7 +4,7 @@ import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
 import Text from "ol/style/Text";
 
-import Enums from "../enums";
+import Enums from "../../enums";
 
 export const isFreeText = (feature) =>
   Enums.Markup.FreeTextEvaluation === feature.get("marker");
