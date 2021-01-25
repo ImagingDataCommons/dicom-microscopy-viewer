@@ -24,77 +24,77 @@ const longArrow = `
   </svg>
 `;
 
-const getStyleFunction = (options) => {
-  return (feature, resolution) => {
-    const geometry = feature.getGeometry();
-    const styles = [];
-
-    if (options && "style" in options) {
-      styles.push(options.style);
-    }
-
-    if (isArrow(feature)) {
-      const addArrowStyle = (point, rotation, anchor, icon) => {
-        styles.push(
-          new Style({
-            geometry: new Point(point),
-            image: new Icon({
-              opacity: 1,
-              src: `data:image/svg+xml;utf8,${icon}`,
-              scale: 0.2,
-              anchor,
-              rotateWithView: true,
-              rotation: -rotation,
-            }),
-          })
-        );
-      };
-
-      if (geometry instanceof Point) {
-        /** Remove dot */
-        styles.push(
-          new Style({
-            image: new Circle({
-              fill: new Fill({ color: "rgba(255,255,255,0.0)" }),
-              stroke: new Stroke({
-                color: "rgba(255,255,255,0.0)",
-                width: 0,
-              }),
-              radius: 15,
-            }),
-          })
-        );
-        const point = geometry.getCoordinates();
-        const anchor = [0, 0.5];
-        addArrowStyle(point, 120, anchor, longArrow);
-      }
-
-      if (geometry instanceof LineString) {
-        styles.push(defaultStyle);
-        geometry.forEachSegment((start, end) => {
-          const dx = end[0] - start[0];
-          const dy = end[1] - start[1];
-          const rotation = Math.atan2(dy, dx);
-          const anchor = [0.4, 0.4];
-          addArrowStyle(start, rotation, anchor, arrow);
-        });
-      }
-    }
-
-    return styles;
-  };
+const state = {
+  style: defaultStyle,
 };
 
-export const isArrow = (feature) => Enums.Marker.Arrow === feature.get("marker");
+const getOpenLayersStyleFunction = (defaultStyle) => (feature, resolution) => {
+  if (!isArrow(feature)) {
+    return;
+  }
+
+  const styles = [defaultStyle];
+
+  const addArrowStyle = (point, rotation, anchor, icon) => {
+    styles.push(
+      new Style({
+        geometry: new Point(point),
+        image: new Icon({
+          opacity: 1,
+          src: `data:image/svg+xml;utf8,${icon}`,
+          scale: 0.2,
+          anchor,
+          rotateWithView: true,
+          rotation: -rotation,
+        }),
+      })
+    );
+  };
+
+  const geometry = feature.getGeometry();
+  if (geometry instanceof Point) {
+    /** Remove dot */
+    styles.push(
+      new Style({
+        image: new Circle({
+          fill: new Fill({ color: "rgba(255,255,255,0.0)" }),
+          stroke: new Stroke({
+            color: "rgba(255,255,255,0.0)",
+            width: 0,
+          }),
+          radius: 15,
+        }),
+      })
+    );
+    const anchor = [0, 0.5];
+    const point = geometry.getCoordinates();
+    addArrowStyle(point, 120, anchor, longArrow);
+  }
+
+  if (geometry instanceof LineString) {
+    geometry.forEachSegment((start, end) => {
+      const dx = end[0] - start[0];
+      const dy = end[1] - start[1];
+      const rotation = Math.atan2(dy, dx);
+      const anchor = [0.4, 0.4];
+      addArrowStyle(start, rotation, anchor, arrow);
+    });
+  }
+
+  return styles;
+};
+
+export const isArrow = (feature) =>
+  Enums.Marker.Arrow === feature.get("marker");
 
 const getDefinition = (options) => {
-  const styleFunction = getStyleFunction(options);
+  state.style = options.style ? options.style : state.style;
 
   return {
     ...options,
     maxPoints: options.type === "LineString" ? 1 : undefined,
     minPoints: options.type === "LineString" ? 1 : undefined,
-    style: styleFunction,
+    style: getOpenLayersStyleFunction(state.style),
     marker: Enums.Marker.Arrow,
   };
 };
@@ -111,10 +111,9 @@ const formatArrow = (feature, geometry) => {
 
 const ArrowMarker = (api) => {
   return {
-    onAdd: (feature, roi) => {
+    onAdd: (feature) => {
       if (isArrow(feature)) {
         api.markupManager.create({ feature, value: formatArrow(feature) });
-        feature.setStyle(getStyleFunction(roi.properties));
         /** Refresh to get latest value of label property */
         feature.changed();
       }
@@ -135,14 +134,15 @@ const ArrowMarker = (api) => {
     },
     onDrawEnd: (feature) => {
       if (isArrow(feature)) {
-        feature.setStyle(getStyleFunction());
+        const styleFunction = getOpenLayersStyleFunction(state.style);
+        feature.setStyle(styleFunction);
       }
     },
     onInteractionsChange: (interactions) => {},
     getDefinition,
     isArrow,
     format: formatArrow,
-    style: getStyleFunction,
+    style: getOpenLayersStyleFunction,
   };
 };
 

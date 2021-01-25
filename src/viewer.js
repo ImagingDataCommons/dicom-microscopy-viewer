@@ -1388,7 +1388,7 @@ class VolumeImageViewer {
 
     this[_features].push(feature);
 
-    this[_annotationManager].onAdd(feature, item);
+    this[_annotationManager].onAdd(feature);
   }
 
   /** Update properties of regions of interest.

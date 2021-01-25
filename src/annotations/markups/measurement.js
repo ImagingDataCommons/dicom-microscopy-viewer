@@ -6,13 +6,17 @@ import Enums from "../../enums";
 import { defaultStyle } from "../markers/styles";
 import { getUnitsSuffix } from "../markers/utils";
 
-const getStyleFunction = (options) => {
-  return (feature, resolution) => {
-    const styles = [];
+const state = {
+  style: defaultStyle,
+};
 
-    if (isMeasurement(feature)) {
-      styles.push(defaultStyle);
+const getOpenLayersStyleFunction = (defaultStyle) => {
+  return (feature, resolution) => {
+    if (!isMeasurement(feature)) {
+      return;
     }
+
+    const styles = [defaultStyle];
 
     return styles;
   };
@@ -46,7 +50,8 @@ const rawMeasurement = (feature, geometry) => {
   return output;
 };
 
-const isMeasurement = (feature) => Enums.Markup.Measurement === feature.get("marker");
+const isMeasurement = (feature) =>
+  Enums.Markup.Measurement === feature.get("marker");
 
 const MeasurementMarkup = (api) => {
   return {
@@ -56,7 +61,7 @@ const MeasurementMarkup = (api) => {
         api.markupManager.remove(featureId);
       }
     },
-    onAdd: (feature, roi) => {
+    onAdd: (feature) => {
       if (isMeasurement(feature)) {
         const view = api.map.getView();
         const measurement = formatMeasurement(
@@ -69,7 +74,8 @@ const MeasurementMarkup = (api) => {
     },
     onDrawEnd: (feature) => {
       if (isMeasurement(feature)) {
-        feature.setStyle(getStyleFunction());
+        const styleFunction = getOpenLayersStyleFunction(state.style);
+        feature.setStyle(styleFunction);
       }
     },
     onUpdate: (feature) => {},
@@ -77,19 +83,19 @@ const MeasurementMarkup = (api) => {
       api.markupManager.onInteractionsChange(interactions);
     },
     getDefinition: (options) => {
-      const styleFunction = getStyleFunction(options);
+      state.style = options.style ? options.style : state.style;
 
       return {
         ...options,
         maxPoints: options.type === "LineString" ? 1 : undefined,
         minPoints: options.type === "LineString" ? 1 : undefined,
-        style: styleFunction,
+        style: getOpenLayersStyleFunction(state.style),
         marker: Enums.Markup.Measurement,
       };
     },
     isMeasurement,
     format: formatMeasurement,
-    style: getStyleFunction,
+    style: getOpenLayersStyleFunction,
   };
 };
 
