@@ -24,16 +24,19 @@ const longArrow = `
   </svg>
 `;
 
-const state = {
-  style: defaultStyle,
-};
-
-const getOpenLayersStyleFunction = (defaultStyle) => (feature, resolution) => {
+const getOpenLayersStyleFunction = (defaultStyle, style) => (
+  feature,
+  resolution
+) => {
   if (!isArrow(feature)) {
     return;
   }
 
   const styles = [defaultStyle];
+
+  if (style) {
+    styles.push(style);
+  }
 
   const addArrowStyle = (point, rotation, anchor, icon) => {
     styles.push(
@@ -87,18 +90,6 @@ const getOpenLayersStyleFunction = (defaultStyle) => (feature, resolution) => {
 export const isArrow = (feature) =>
   Enums.Marker.Arrow === feature.get("marker");
 
-const getDefinition = (options) => {
-  state.style = options.style ? options.style : state.style;
-
-  return {
-    ...options,
-    maxPoints: options.type === "LineString" ? 1 : undefined,
-    minPoints: options.type === "LineString" ? 1 : undefined,
-    style: getOpenLayersStyleFunction(state.style),
-    marker: Enums.Marker.Arrow,
-  };
-};
-
 /**
  * Format arrow output
  * @param {LineString} arrow geometry
@@ -111,6 +102,15 @@ const formatArrow = (feature, geometry) => {
 
 const ArrowMarker = (api) => {
   return {
+    getDefinition: (options) => {
+      return {
+        ...options,
+        maxPoints: options.type === "LineString" ? 1 : undefined,
+        minPoints: options.type === "LineString" ? 1 : undefined,
+        style: getOpenLayersStyleFunction(defaultStyle, options.style),
+        marker: Enums.Marker.Arrow,
+      };
+    },
     onAdd: (feature) => {
       if (isArrow(feature)) {
         api.markupManager.create({ feature, value: formatArrow(feature) });
@@ -134,12 +134,11 @@ const ArrowMarker = (api) => {
     },
     onDrawEnd: (feature) => {
       if (isArrow(feature)) {
-        const styleFunction = getOpenLayersStyleFunction(state.style);
+        const styleFunction = getOpenLayersStyleFunction(defaultStyle);
         feature.setStyle(styleFunction);
       }
     },
     onInteractionsChange: (interactions) => {},
-    getDefinition,
     isArrow,
     format: formatArrow,
     style: getOpenLayersStyleFunction,

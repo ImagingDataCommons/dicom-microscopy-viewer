@@ -21,7 +21,7 @@ class _AnnotationManager {
       map,
       source,
       geometries: [Markup.Measurement, Marker.Arrow],
-      unlinkGeometries: [Markup.FreeTextEvaluation],
+      unlinkableGeometries: [Markup.FreeTextEvaluation],
       undraggableGeometries: [Markup.FreeTextEvaluation],
       formatters: {
         [Marker.Arrow]: this[Marker.Arrow].format,

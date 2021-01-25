@@ -23,7 +23,7 @@ class _MarkupManager {
     map,
     source,
     geometries,
-    unlinkGeometries = [],
+    unlinkableGeometries = [],
     undraggableGeometries = [],
     formatters,
   } = {}) {
@@ -31,7 +31,7 @@ class _MarkupManager {
     this._listeners = new Map();
     this._links = new Collection([], { unique: true });
 
-    this._unlinkGeometries = unlinkGeometries;
+    this._unlinkableGeometries = unlinkableGeometries;
     this._undraggableGeometries = undraggableGeometries;
     this._geometries = geometries;
     this._formatters = formatters;
@@ -90,7 +90,7 @@ class _MarkupManager {
    * @return {boolean} the validation
    */
   isLinkable(feature) {
-    return !this._unlinkGeometries.includes(feature.get("marker"));
+    return !this._unlinkableGeometries.includes(feature.get("marker"));
   }
 
   /**

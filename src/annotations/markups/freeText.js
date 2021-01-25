@@ -10,16 +10,16 @@ import Enums from "../../enums";
 export const isFreeText = (feature) =>
   Enums.Markup.FreeTextEvaluation === feature.get("marker");
 
-const state = {
-  style: defaultStyle,
-};
-
-const getOpenLayersStyleFunction = (defaultStyle) => (feature, resolution) => {
+const getOpenLayersStyleFunction = (defaultStyle, style) => (feature, resolution) => {
   if (!isFreeText(feature)) {
     return;
   }
 
   const styles = [defaultStyle];
+
+  if (style) {
+    styles.push(style);
+  }
 
   styles.push(
     new Style({
@@ -43,16 +43,6 @@ const getOpenLayersStyleFunction = (defaultStyle) => (feature, resolution) => {
   return styles;
 };
 
-const getDefinition = (options) => {
-  state.style = options.style ? options.style : state.style;
-
-  return {
-    ...options,
-    style: getOpenLayersStyleFunction(options.style),
-    marker: Enums.Markup.FreeTextEvaluation,
-  };
-};
-
 /**
  * Format free text output
  * @param {Feature} feature feature
@@ -65,7 +55,15 @@ const formatFreeText = (feature, geometry) => {
 
 const FreeTextMarkup = (api) => {
   return {
+    getDefinition: (options) => {
+      return {
+        ...options,
+        style: getOpenLayersStyleFunction(defaultStyle, options.style),
+        marker: Enums.Markup.FreeTextEvaluation,
+      };
+    },
     onAdd: (feature) => {},
+    onRemove: (feature) => {},
     onUpdate: (feature) => {
       if (isFreeText(feature)) {
         /** Refresh to get latest value of label property */
@@ -74,13 +72,11 @@ const FreeTextMarkup = (api) => {
     },
     onDrawEnd: (feature) => {
       if (isFreeText(feature)) {
-        const styleFunction = getOpenLayersStyleFunction(state.style);
+        const styleFunction = getOpenLayersStyleFunction(defaultStyle);
         feature.setStyle(styleFunction);
       }
     },
-    onRemove: (feature) => {},
     onInteractionsChange: () => {},
-    getDefinition,
     isFreeText,
     format: formatFreeText,
     style: getOpenLayersStyleFunction,

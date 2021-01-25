@@ -6,17 +6,17 @@ import Enums from "../../enums";
 import { defaultStyle } from "../markers/styles";
 import { getUnitsSuffix } from "../markers/utils";
 
-const state = {
-  style: defaultStyle,
-};
-
-const getOpenLayersStyleFunction = (defaultStyle) => {
+const getOpenLayersStyleFunction = (defaultStyle, style) => {
   return (feature, resolution) => {
     if (!isMeasurement(feature)) {
       return;
     }
 
     const styles = [defaultStyle];
+
+    if (style) {
+      styles.push(style);
+    }
 
     return styles;
   };
@@ -55,11 +55,14 @@ const isMeasurement = (feature) =>
 
 const MeasurementMarkup = (api) => {
   return {
-    onRemove: (feature) => {
-      if (isMeasurement(feature)) {
-        const featureId = feature.getId();
-        api.markupManager.remove(featureId);
-      }
+    getDefinition: (options) => {
+      return {
+        ...options,
+        maxPoints: options.type === "LineString" ? 1 : undefined,
+        minPoints: options.type === "LineString" ? 1 : undefined,
+        style: getOpenLayersStyleFunction(defaultStyle, options.style),
+        marker: Enums.Markup.Measurement,
+      };
     },
     onAdd: (feature) => {
       if (isMeasurement(feature)) {
@@ -72,26 +75,21 @@ const MeasurementMarkup = (api) => {
         api.markupManager.create({ feature, value: measurement });
       }
     },
-    onDrawEnd: (feature) => {
+    onRemove: (feature) => {
       if (isMeasurement(feature)) {
-        const styleFunction = getOpenLayersStyleFunction(state.style);
-        feature.setStyle(styleFunction);
+        const featureId = feature.getId();
+        api.markupManager.remove(featureId);
       }
     },
     onUpdate: (feature) => {},
+    onDrawEnd: (feature) => {
+      if (isMeasurement(feature)) {
+        const styleFunction = getOpenLayersStyleFunction(defaultStyle);
+        feature.setStyle(styleFunction);
+      }
+    },
     onInteractionsChange: (interactions) => {
       api.markupManager.onInteractionsChange(interactions);
-    },
-    getDefinition: (options) => {
-      state.style = options.style ? options.style : state.style;
-
-      return {
-        ...options,
-        maxPoints: options.type === "LineString" ? 1 : undefined,
-        minPoints: options.type === "LineString" ? 1 : undefined,
-        style: getOpenLayersStyleFunction(state.style),
-        marker: Enums.Markup.Measurement,
-      };
     },
     isMeasurement,
     format: formatMeasurement,
