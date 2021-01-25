@@ -1,14 +1,13 @@
-import Style from 'ol/style/Style';
-import Point from 'ol/geom/Point';
-import Circle from 'ol/style/Circle';
-import LineString from 'ol/geom/LineString';
-import Icon from 'ol/style/Icon';
-import Fill from 'ol/style/Fill';
-import Stroke from 'ol/style/Stroke';
-import dcmjs from 'dcmjs';
+import Style from "ol/style/Style";
+import Point from "ol/geom/Point";
+import Circle from "ol/style/Circle";
+import LineString from "ol/geom/LineString";
+import Icon from "ol/style/Icon";
+import Fill from "ol/style/Fill";
+import Stroke from "ol/style/Stroke";
 
-import { Marker } from '../enums';
-import { defaultStyle } from '../styles';
+import Enums from "../enums";
+import { defaultStyle } from "./styles";
 
 const arrow = `
   <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -30,7 +29,7 @@ const getStyleFunction = (options) => {
     const geometry = feature.getGeometry();
     const styles = [];
 
-    if (options && 'style' in options) {
+    if (options && "style" in options) {
       styles.push(options.style);
     }
 
@@ -56,17 +55,17 @@ const getStyleFunction = (options) => {
         styles.push(
           new Style({
             image: new Circle({
-              fill: new Fill({ color: 'rgba(255,255,255,0.0)' }),
+              fill: new Fill({ color: "rgba(255,255,255,0.0)" }),
               stroke: new Stroke({
-                color: 'rgba(255,255,255,0.0)',
+                color: "rgba(255,255,255,0.0)",
                 width: 0,
               }),
               radius: 15,
-            })
+            }),
           })
         );
         const point = geometry.getCoordinates();
-        const anchor = [1, 0.5];
+        const anchor = [0, 0.5];
         addArrowStyle(point, 120, anchor, longArrow);
       }
 
@@ -86,18 +85,17 @@ const getStyleFunction = (options) => {
   };
 };
 
-export const isArrow = feature => Marker.Arrow === feature.get('marker');
+export const isArrow = (feature) => Enums.Marker.Arrow === feature.get("marker");
 
-const getDefinition = options => {
+const getDefinition = (options) => {
   const styleFunction = getStyleFunction(options);
 
-  /** Arrow Marker Definition */
   return {
     ...options,
-    maxPoints: options.type === 'LineString' ? 1 : undefined,
-    minPoints: options.type === 'LineString' ? 1 : undefined,
+    maxPoints: options.type === "LineString" ? 1 : undefined,
+    minPoints: options.type === "LineString" ? 1 : undefined,
     style: styleFunction,
-    marker: Marker.Arrow,
+    marker: Enums.Marker.Arrow,
   };
 };
 
@@ -108,54 +106,11 @@ const getDefinition = options => {
  */
 const formatArrow = (feature, geometry) => {
   const properties = feature.getProperties();
-  return properties.label || '';
+  return properties.label || "";
 };
 
-const getMeasurementsAndEvaluations = (feature, roi, api) => {
-  const evaluations = [
-    new dcmjs.sr.valueTypes.CodeContentItem({
-      name: new dcmjs.sr.coding.CodedConcept({
-        value: "marker",
-        meaning: "Marker Identification",
-        schemeDesignator: "dicom-microscopy-viewer"
-      }),
-      value: new dcmjs.sr.coding.CodedConcept({
-        value: Marker.Arrow,
-        meaning: "Marker Type",
-        schemeDesignator: "dicom-microscopy-viewer"
-      }),
-      relationshipType: 'HAS CONCEPT MOD'
-    }),
-    new dcmjs.sr.valueTypes.CodeContentItem({
-      name: new dcmjs.sr.coding.CodedConcept({
-        value: "label",
-        meaning: "Marker Label",
-        schemeDesignator: "dicom-microscopy-viewer"
-      }),
-      value: new dcmjs.sr.coding.CodedConcept({
-        value: feature.get('label') || '',
-        meaning: "Marker Label",
-        schemeDesignator: "dicom-microscopy-viewer"
-      }),
-      relationshipType: 'HAS CONCEPT MOD'
-    }),
-  ];
-
+const ArrowMarker = (api) => {
   return {
-    measurements: [],
-    evaluations
-  };
-};
-
-const ArrowMarker = api => {
-  return {
-    addMeasurementsAndEvaluations: (feature, roi) => {
-      if (isArrow(feature)) {
-        const { measurements, evaluations } = getMeasurementsAndEvaluations(feature, roi, api);
-        measurements.forEach(measurement => roi.addMeasurement(measurement));
-        evaluations.forEach(evaluation => roi.addEvaluation(evaluation));
-      }
-    },
     onAdd: (feature, roi) => {
       if (isArrow(feature)) {
         api.markerManager.create({ feature, value: formatArrow(feature) });
@@ -164,12 +119,15 @@ const ArrowMarker = api => {
         feature.changed();
       }
     },
-    onUpdate: feature => {
+    onUpdate: (feature) => {
       if (isArrow(feature)) {
-        api.markerManager.updateMarker({ feature, value: formatArrow(feature) });
+        api.markerManager.updateMarker({
+          feature,
+          value: formatArrow(feature),
+        });
       }
     },
-    onRemove: feature => {
+    onRemove: (feature) => {
       if (isArrow(feature)) {
         const featureId = feature.getId();
         api.markerManager.remove(featureId);
@@ -180,11 +138,11 @@ const ArrowMarker = api => {
         feature.setStyle(getStyleFunction());
       }
     },
-    onInteractionsChange: interactions => { },
+    onInteractionsChange: (interactions) => {},
     getDefinition,
     isArrow,
     format: formatArrow,
-    style: getStyleFunction
+    style: getStyleFunction,
   };
 };
 

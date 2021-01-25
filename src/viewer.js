@@ -1,46 +1,46 @@
-import 'ol/ol.css';
-import Collection from 'ol/Collection';
-import Draw, { createRegularPolygon } from 'ol/interaction/Draw';
+import "ol/ol.css";
+import Collection from "ol/Collection";
+import Draw, { createRegularPolygon } from "ol/interaction/Draw";
 import EVENT from "./events";
-import Feature from 'ol/Feature';
-import Fill from 'ol/style/Fill';
-import FullScreen from 'ol/control/FullScreen';
-import ImageLayer from 'ol/layer/Image';
-import Map from 'ol/Map';
-import Modify from 'ol/interaction/Modify';
-import MouseWheelZoom from 'ol/interaction/MouseWheelZoom';
-import OverviewMap from 'ol/control/OverviewMap';
-import Projection from 'ol/proj/Projection';
+import Feature from "ol/Feature";
+import Fill from "ol/style/Fill";
+import FullScreen from "ol/control/FullScreen";
+import ImageLayer from "ol/layer/Image";
+import Map from "ol/Map";
+import Modify from "ol/interaction/Modify";
+import MouseWheelZoom from "ol/interaction/MouseWheelZoom";
+import OverviewMap from "ol/control/OverviewMap";
+import Projection from "ol/proj/Projection";
 import publish from "./eventPublisher";
-import ScaleLine from 'ol/control/ScaleLine';
-import Select from 'ol/interaction/Select';
-import Snap from 'ol/interaction/Snap';
-import Translate from 'ol/interaction/Translate';
-import Style from 'ol/style/Style';
-import Stroke from 'ol/style/Stroke';
-import Image from 'ol/style/Image';
-import Static from 'ol/source/ImageStatic';
-import Overlay from 'ol/Overlay';
-import TileLayer from 'ol/layer/Tile';
-import TileImage from 'ol/source/TileImage';
-import TileGrid from 'ol/tilegrid/TileGrid';
-import VectorSource from 'ol/source/Vector';
-import VectorLayer from 'ol/layer/Vector';
-import View from 'ol/View';
-import DragPan from 'ol/interaction/DragPan';
+import ScaleLine from "ol/control/ScaleLine";
+import Select from "ol/interaction/Select";
+import Snap from "ol/interaction/Snap";
+import Translate from "ol/interaction/Translate";
+import Style from "ol/style/Style";
+import Stroke from "ol/style/Stroke";
+import Image from "ol/style/Image";
+import Static from "ol/source/ImageStatic";
+import Overlay from "ol/Overlay";
+import TileLayer from "ol/layer/Tile";
+import TileImage from "ol/source/TileImage";
+import TileGrid from "ol/tilegrid/TileGrid";
+import VectorSource from "ol/source/Vector";
+import VectorLayer from "ol/layer/Vector";
+import View from "ol/View";
+import DragPan from "ol/interaction/DragPan";
 
-import { default as PolygonGeometry } from 'ol/geom/Polygon';
-import { default as PointGeometry } from 'ol/geom/Point';
-import { default as LineStringGeometry } from 'ol/geom/LineString';
-import { default as CircleGeometry } from 'ol/geom/Circle';
+import { default as PolygonGeometry } from "ol/geom/Polygon";
+import { default as PointGeometry } from "ol/geom/Point";
+import { default as LineStringGeometry } from "ol/geom/LineString";
+import { default as CircleGeometry } from "ol/geom/Circle";
 import { default as VectorEventType } from "ol/source/VectorEventType";
 
-import { getCenter } from 'ol/extent';
+import { getCenter } from "ol/extent";
 
-import * as DICOMwebClient from 'dicomweb-client';
+import * as DICOMwebClient from "dicomweb-client";
 
-import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js';
-import { ROI } from './roi.js';
+import { VLWholeSlideMicroscopyImage, getFrameMapping } from "./metadata.js";
+import { ROI } from "./roi.js";
 import {
   computeRotation,
   generateUID,
@@ -48,15 +48,10 @@ import {
   applyTransform,
   buildInverseTransform,
   buildTransform,
-} from './utils.js';
-import {
-  Point,
-  Polyline,
-  Polygon,
-  Ellipse
-} from './scoord3d.js';
+} from "./utils.js";
+import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 
-import MarkersManager from './markers';
+import _MarkupManager from "./markups/_MarkupManager";
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -97,17 +92,16 @@ function _getPixelSpacing(metadata) {
  * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
  * @returns {number} Rotation in radians
  * @private
-*/
+ */
 function _getRotation(metadata) {
   // Angle with respect to the reference orientation
   const angle = computeRotation({
-    orientation: metadata.ImageOrientationSlide
+    orientation: metadata.ImageOrientationSlide,
   });
   // We want the slide oriented horizontally with the label on the right side
-  const correction = 90 * (Math.PI / 180)
-  return angle + correction
+  const correction = 90 * (Math.PI / 180);
+  return angle + correction;
 }
-
 
 /** Converts a vector graphic from an Openlayers Geometry into a DICOM SCOORD3D
  * representation.
@@ -118,38 +112,41 @@ function _getRotation(metadata) {
  * @private
  */
 function _geometry2Scoord3d(geometry, pyramid) {
-  console.info('map coordinates from pixel matrix to slide coordinate system')
+  console.info("map coordinates from pixel matrix to slide coordinate system");
   const frameOfReferenceUID = pyramid[pyramid.length - 1].FrameOfReferenceUID;
   const type = geometry.getType();
-  if (type === 'Point') {
+  if (type === "Point") {
     let coordinates = geometry.getCoordinates();
-    coordinates = _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid);
+    coordinates = _geometryCoordinates2scoord3dCoordinates(
+      coordinates,
+      pyramid
+    );
     return new Point({
       coordinates,
-      frameOfReferenceUID: frameOfReferenceUID
+      frameOfReferenceUID: frameOfReferenceUID,
     });
-  } else if (type === 'Polygon') {
+  } else if (type === "Polygon") {
     /*
      * The first linear ring of the array defines the outer-boundary (surface).
      * Each subsequent linear ring defines a hole in the surface.
      */
-    let coordinates = geometry.getCoordinates()[0].map(c => {
+    let coordinates = geometry.getCoordinates()[0].map((c) => {
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
     });
     return new Polygon({
       coordinates,
-      frameOfReferenceUID: frameOfReferenceUID
+      frameOfReferenceUID: frameOfReferenceUID,
     });
-  } else if (type === 'LineString') {
-    let coordinates = geometry.getCoordinates().map(c => {
+  } else if (type === "LineString") {
+    let coordinates = geometry.getCoordinates().map((c) => {
       const result = _geometryCoordinates2scoord3dCoordinates(c, pyramid);
       return result;
     });
     return new Polyline({
       coordinates,
-      frameOfReferenceUID: frameOfReferenceUID
+      frameOfReferenceUID: frameOfReferenceUID,
     });
-  } else if (type === 'Circle') {
+  } else if (type === "Circle") {
     const center = geometry.getCenter();
     const radius = geometry.getRadius();
     // Endpoints of major and  minor axis of the ellipse.
@@ -159,16 +156,16 @@ function _geometry2Scoord3d(geometry, pyramid) {
       [center[0], center[1] - radius, 0],
       [center[0], center[1] + radius, 0],
     ];
-    coordinates = coordinates.map(c => {
+    coordinates = coordinates.map((c) => {
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
-    })
+    });
     return new Ellipse({
       coordinates,
-      frameOfReferenceUID: frameOfReferenceUID
+      frameOfReferenceUID: frameOfReferenceUID,
     });
   } else {
     // TODO: Combine multiple points into MULTIPOINT.
-    console.error(`unknown geometry type "${type}"`)
+    console.error(`unknown geometry type "${type}"`);
   }
 }
 
@@ -181,24 +178,24 @@ function _geometry2Scoord3d(geometry, pyramid) {
  * @private
  */
 function _scoord3d2Geometry(scoord3d, pyramid) {
-  console.info('map coordinates from slide coordinate system to pixel matrix')
+  console.info("map coordinates from slide coordinate system to pixel matrix");
   const type = scoord3d.graphicType;
   const data = scoord3d.graphicData;
 
-  if (type === 'POINT') {
+  if (type === "POINT") {
     let coordinates = _scoord3dCoordinates2geometryCoordinates(data, pyramid);
     return new PointGeometry(coordinates);
-  } else if (type === 'POLYLINE') {
-    const coordinates = data.map(d => {
+  } else if (type === "POLYLINE") {
+    const coordinates = data.map((d) => {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     return new LineStringGeometry(coordinates);
-  } else if (type === 'POLYGON') {
-    const coordinates = data.map(d => {
+  } else if (type === "POLYGON") {
+    const coordinates = data.map((d) => {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     return new PolygonGeometry([coordinates]);
-  } else if (type === 'ELLIPSE') {
+  } else if (type === "ELLIPSE") {
     // TODO: ensure that the ellipse represents a circle, i.e. that
     // major and minor axis form a right angle and have the same length
     const majorAxisCoordinates = data.slice(0, 2);
@@ -211,30 +208,39 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
       [
         (point1[0] + point2[0]) / parseFloat(2),
         (point1[1] + point2[1]) / parseFloat(2),
-        0
+        0,
       ],
-      point2
+      point2,
     ];
-    coordinates = coordinates.map(d => {
+    coordinates = coordinates.map((d) => {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
     });
     // to flat coordinates
-    coordinates = [...coordinates[0].slice(0, 2), ...coordinates[1].slice(0, 2)];
+    coordinates = [
+      ...coordinates[0].slice(0, 2),
+      ...coordinates[1].slice(0, 2),
+    ];
 
     // flat coordinates in combination with opt_layout and no opt_radius are also accepted
     // and internaly it calculates the Radius
     return new CircleGeometry(coordinates, null, "XY");
   } else {
-    console.error(`unsupported graphic type "${type}"`)
+    console.error(`unsupported graphic type "${type}"`);
   }
 }
 
 function _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
-  return _coordinateFormatGeometry2Scoord3d([coordinates[0], coordinates[1], coordinates[2]], pyramid);
+  return _coordinateFormatGeometry2Scoord3d(
+    [coordinates[0], coordinates[1], coordinates[2]],
+    pyramid
+  );
 }
 
 function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
-  return _coordinateFormatScoord3d2Geometry([coordinates[0], coordinates[1], coordinates[2]], pyramid)
+  return _coordinateFormatScoord3d2Geometry(
+    [coordinates[0], coordinates[1], coordinates[2]],
+    pyramid
+  );
 }
 
 /** Translates coordinates of Total Pixel Matrix in pixel unit into coordinates
@@ -264,8 +270,8 @@ function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
     offset,
     orientation,
     spacing,
-  })
-  coordinates = coordinates.map(c => {
+  });
+  coordinates = coordinates.map((c) => {
     const pixelCoord = [c[0], -(c[1] + 1)];
     const slideCoord = applyTransform({ coordinate: pixelCoord, affine });
     return [slideCoord[0], slideCoord[1], 0];
@@ -300,20 +306,20 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
     Number(origin.YOffsetInSlideCoordinateSystem),
   ];
 
-  let outOfFrame = false
+  let outOfFrame = false;
   const affine = buildInverseTransform({
     offset,
     orientation,
     spacing,
-  })
-  coordinates = coordinates.map(c => {
+  });
+  coordinates = coordinates.map((c) => {
     if (c[0] > 25 || c[1] > 76) {
-      outOfFrame = true
+      outOfFrame = true;
     }
     const slideCoord = [c[0], c[1]];
     const pixelCoord = applyInverseTransform({
       coordinate: slideCoord,
-      affine
+      affine,
     });
     return [pixelCoord[0], -(pixelCoord[1] + 1), 0];
   });
@@ -322,8 +328,8 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   }
   if (outOfFrame) {
     console.warning(
-      'found coordinates outside slide coordinate system 25 x 76 mm'
-    )
+      "found coordinates outside slide coordinate system 25 x 76 mm"
+    );
   }
   return coordinates;
 }
@@ -337,7 +343,7 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
  * @returns {ROI} Region of interest
  * @private
  */
-function _getROIFromFeature(feature, pyramid, context) {
+function _getROIFromFeature(feature, pyramid) {
   if (feature !== undefined && feature !== null) {
     const geometry = feature.getGeometry();
     const scoord3d = _geometry2Scoord3d(geometry, pyramid);
@@ -347,7 +353,6 @@ function _getROIFromFeature(feature, pyramid, context) {
     delete properties[geometryName];
     const uid = feature.getId();
     const roi = new ROI({ scoord3d, properties, uid });
-    context.markersManager.addMeasurementsAndEvaluations(feature, roi);
     return roi;
   }
   return;
@@ -371,7 +376,7 @@ function _setFeatureStyle(feature, styleOptions) {
       return;
     }
 
-    if ('stroke' in styleOptions) {
+    if ("stroke" in styleOptions) {
       const strokeOptions = {
         color: styleOptions.stroke.color,
         width: styleOptions.stroke.width,
@@ -379,19 +384,19 @@ function _setFeatureStyle(feature, styleOptions) {
       const stroke = new Stroke(strokeOptions);
       style.setStroke(stroke);
     }
-    if ('fill' in styleOptions) {
+    if ("fill" in styleOptions) {
       const fillOptions = {
-        color: styleOptions.fill.color
+        color: styleOptions.fill.color,
       };
       const fill = new Fill(fillOptions);
       style.setFill(fill);
     }
-    if ('image' in styleOptions) {
+    if ("image" in styleOptions) {
       const imageOptions = {
         fill: styleOptions.image.fill,
         stroke: styleOptions.image.stroke,
         radius: styleOptions.image.radius,
-      }
+      };
       const image = new Image(imageOptions);
       style.setImage(image);
     }
@@ -399,20 +404,21 @@ function _setFeatureStyle(feature, styleOptions) {
   }
 }
 
-const _client = Symbol('client');
-const _controls = Symbol('controls');
-const _drawingLayer = Symbol('drawingLayer');
-const _drawingSource = Symbol('drawingSource');
-const _features = Symbol('features');
-const _imageLayer = Symbol('imageLayer');
-const _interactions = Symbol('interactions');
-const _map = Symbol('map');
-const _metadata = Symbol('metadata');
-const _pyramidMetadata = Symbol('pyramidMetadata');
-const _pyramidFrameMappings = Symbol('pyramidFrameMappings');
-const _pyramidBaseMetadata = Symbol('pyramidMetadataBase');
-const _segmentations = Symbol('segmentations');
-const _usewebgl = Symbol('usewebgl');
+const _client = Symbol("client");
+const _controls = Symbol("controls");
+const _drawingLayer = Symbol("drawingLayer");
+const _drawingSource = Symbol("drawingSource");
+const _features = Symbol("features");
+const _imageLayer = Symbol("imageLayer");
+const _interactions = Symbol("interactions");
+const _map = Symbol("map");
+const _metadata = Symbol("metadata");
+const _pyramidMetadata = Symbol("pyramidMetadata");
+const _pyramidFrameMappings = Symbol("pyramidFrameMappings");
+const _pyramidBaseMetadata = Symbol("pyramidMetadataBase");
+const _segmentations = Symbol("segmentations");
+const _usewebgl = Symbol("usewebgl");
+const _markupManager = Symbol("markupManager");
 
 /** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
@@ -421,7 +427,6 @@ const _usewebgl = Symbol('usewebgl');
  * @memberof viewer
  */
 class VolumeImageViewer {
-
   /**
    * Create a viewer instance for displaying VOLUME images.
    *
@@ -434,7 +439,7 @@ class VolumeImageViewer {
    * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used.
    */
   constructor(options) {
-    if ('useWebGL' in options) {
+    if ("useWebGL" in options) {
       this[_usewebgl] = options.useWebGL;
     } else {
       this[_usewebgl] = true;
@@ -442,15 +447,15 @@ class VolumeImageViewer {
 
     this[_client] = options.client;
 
-    if (!('retrieveRendered' in options)) {
+    if (!("retrieveRendered" in options)) {
       options.retrieveRendered = true;
     }
 
-    if (!('overview' in options)) {
+    if (!("overview" in options)) {
       options.overview = {};
     }
 
-    if (!('controls' in options)) {
+    if (!("controls" in options)) {
       options.controls = [];
     }
     options.controls = new Set(options.controls);
@@ -463,7 +468,7 @@ class VolumeImageViewer {
     this[_features] = new Collection([], { unique: true });
 
     // Add unique identifier to each created "Feature" instance
-    this[_features].on('add', (e) => {
+    this[_features].on("add", (e) => {
       // The ID may have already been set when drawn. However, features could
       // have also been added without a draw event.
       if (e.element.getId() === undefined) {
@@ -471,23 +476,25 @@ class VolumeImageViewer {
       }
     });
 
-    this[_features].on('remove', (e) => this.markersManager.onRemove(e.element));
+    this[_features].on("remove", (e) =>
+      this[_markupManager].onRemove(e.element)
+    );
 
     /*
      * To visualize images accross multiple scales, we first need to
      * determine the image pyramid structure, i.e. the size and resolution
      * images at the different pyramid levels.
-    */
+     */
     this[_metadata] = [];
-    options.metadata.forEach(m => {
+    options.metadata.forEach((m) => {
       const image = new VLWholeSlideMicroscopyImage({ metadata: m });
-      if (image.ImageType[2] === 'VOLUME') {
+      if (image.ImageType[2] === "VOLUME") {
         this[_metadata].push(image);
       }
     });
 
     if (this[_metadata].length === 0) {
-      throw new Error('No VOLUME image provided.')
+      throw new Error("No VOLUME image provided.");
     }
 
     // Sort instances and optionally concatenation parts if present.
@@ -495,7 +502,9 @@ class VolumeImageViewer {
       const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns;
       if (sizeDiff === 0) {
         if (a.ConcatenationFrameOffsetNumber !== undefined) {
-          return a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber;
+          return (
+            a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber
+          );
         }
         return sizeDiff;
       }
@@ -504,7 +513,7 @@ class VolumeImageViewer {
 
     this[_pyramidMetadata] = [];
     this[_pyramidFrameMappings] = [];
-    let frameMappings = this[_metadata].map(m => getFrameMapping(m));
+    let frameMappings = this[_metadata].map((m) => getFrameMapping(m));
     for (let i = 0; i < this[_metadata].length; i++) {
       const cols = this[_metadata][i].TotalPixelMatrixColumns;
       const rows = this[_metadata][i].TotalPixelMatrixRows;
@@ -512,13 +521,13 @@ class VolumeImageViewer {
       /*
        * Instances may be broken down into multiple concatentation parts.
        * Therefore, we have to re-assemble instance metadata.
-      */
+       */
       let alreadyExists = false;
       let index = null;
       for (let j = 0; j < this[_pyramidMetadata].length; j++) {
         if (
-          (this[_pyramidMetadata][j].TotalPixelMatrixColumns === cols) &&
-          (this[_pyramidMetadata][j].TotalPixelMatrixRows === rows)
+          this[_pyramidMetadata][j].TotalPixelMatrixColumns === cols &&
+          this[_pyramidMetadata][j].TotalPixelMatrixRows === rows
         ) {
           alreadyExists = true;
           index = j;
@@ -536,12 +545,14 @@ class VolumeImageViewer {
         if (!"SOPInstanceUIDOfConcatenationSource" in this[_metadata][i]) {
           throw new Error(
             'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
-            'for concatenation parts.'
+              "for concatenation parts."
           );
         }
-        const sopInstanceUID = this[_metadata][i].SOPInstanceUIDOfConcatenationSource;
+        const sopInstanceUID = this[_metadata][i]
+          .SOPInstanceUIDOfConcatenationSource;
         this[_pyramidMetadata][index].SOPInstanceUID = sopInstanceUID;
-        delete this[_pyramidMetadata][index].SOPInstanceUIDOfConcatenationSource;
+        delete this[_pyramidMetadata][index]
+          .SOPInstanceUIDOfConcatenationSource;
         delete this[_pyramidMetadata][index].ConcatenationUID;
         delete this[_pyramidMetadata][index].InConcatenationNumber;
         delete this[_pyramidMetadata][index].ConcatenationFrameOffsetNumber;
@@ -553,7 +564,7 @@ class VolumeImageViewer {
 
     const nLevels = this[_pyramidMetadata].length;
     if (nLevels === 0) {
-      console.error('empty pyramid - no levels found')
+      console.error("empty pyramid - no levels found");
     }
 
     this[_pyramidBaseMetadata] = this[_pyramidMetadata][nLevels - 1];
@@ -561,41 +572,39 @@ class VolumeImageViewer {
     /*
      * Collect relevant information from DICOM metadata for each pyramid
      * level to construct the Openlayers map.
-    */
+     */
     const tileSizes = [];
     const tileGridSizes = [];
     const resolutions = [];
     const origins = [];
     const offset = [0, -1];
     const basePixelSpacing = _getPixelSpacing(this[_pyramidBaseMetadata]);
-    const baseTotalPixelMatrixColumns = this[_pyramidBaseMetadata].TotalPixelMatrixColumns;
-    const baseTotalPixelMatrixRows = this[_pyramidBaseMetadata].TotalPixelMatrixRows;
+    const baseTotalPixelMatrixColumns = this[_pyramidBaseMetadata]
+      .TotalPixelMatrixColumns;
+    const baseTotalPixelMatrixRows = this[_pyramidBaseMetadata]
+      .TotalPixelMatrixRows;
     const baseColumns = this[_pyramidBaseMetadata].Columns;
     const baseRows = this[_pyramidBaseMetadata].Rows;
     const baseNColumns = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
     const baseNRows = Math.ceil(baseTotalPixelMatrixRows / baseRows);
 
-    for (let j = (nLevels - 1); j >= 0; j--) {
+    for (let j = nLevels - 1; j >= 0; j--) {
       const columns = this[_pyramidMetadata][j].Columns;
       const rows = this[_pyramidMetadata][j].Rows;
-      const totalPixelMatrixColumns = this[_pyramidMetadata][j].TotalPixelMatrixColumns;
-      const totalPixelMatrixRows = this[_pyramidMetadata][j].TotalPixelMatrixRows;
+      const totalPixelMatrixColumns = this[_pyramidMetadata][j]
+        .TotalPixelMatrixColumns;
+      const totalPixelMatrixRows = this[_pyramidMetadata][j]
+        .TotalPixelMatrixRows;
       const pixelSpacing = _getPixelSpacing(this[_pyramidMetadata][j]);
       const nColumns = Math.ceil(totalPixelMatrixColumns / columns);
       const nRows = Math.ceil(totalPixelMatrixRows / rows);
-      tileSizes.push([
-        columns,
-        rows,
-      ]);
-      tileGridSizes.push([
-        nColumns,
-        nRows,
-      ]);
+      tileSizes.push([columns, rows]);
+      tileGridSizes.push([nColumns, nRows]);
 
       /*
        * Compute the resolution at each pyramid level, since the zoom
        * factor may not be the same between adjacent pyramid levels.
-      */
+       */
       let zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns;
       resolutions.push(zoomFactor);
 
@@ -603,7 +612,7 @@ class VolumeImageViewer {
        * TODO: One may have to adjust the offset slightly due to the
        * difference between extent of the image at a given resolution level
        * and the actual number of tiles (frames).
-      */
+       */
       origins.push(offset);
     }
     resolutions.reverse();
@@ -635,31 +644,41 @@ class VolumeImageViewer {
       const path = pyramidFrameMappings[z][index];
       if (path === undefined) {
         console.warn("tile " + index + " not found at level " + z);
-        return (null);
+        return null;
       }
-      let url = options.client.wadoURL +
-        "/studies/" + pyramid[z].StudyInstanceUID +
-        "/series/" + pyramid[z].SeriesInstanceUID +
-        '/instances/' + path;
+      let url =
+        options.client.wadoURL +
+        "/studies/" +
+        pyramid[z].StudyInstanceUID +
+        "/series/" +
+        pyramid[z].SeriesInstanceUID +
+        "/instances/" +
+        path;
       if (options.retrieveRendered) {
-        url = url + '/rendered';
+        url = url + "/rendered";
       }
-      return (url);
-    }
+      return url;
+    };
 
     /*
      * Define custonm tile loader function, which is required because the
      * WADO-RS response message has content type "multipart/related".
-    */
+     */
     const tileLoadFunction = (tile, src) => {
       if (src !== null) {
-        const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
-        const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
-        const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
+        const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(
+          src
+        );
+        const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(
+          src
+        );
+        const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(
+          src
+        );
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
         const img = tile.getImage();
         if (options.retrieveRendered) {
-          const mediaType = 'image/png';
+          const mediaType = "image/png";
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
@@ -668,33 +687,39 @@ class VolumeImageViewer {
             mediaTypes: [{ mediaType }],
           };
           if (options.includeIccProfile) {
-            retrieveOptions['queryParams'] = {
-              iccprofile: 'yes'
-            }
-          };
-          options.client.retrieveInstanceFramesRendered(retrieveOptions).then((renderedFrame) => {
-            const blob = new Blob([renderedFrame], { type: mediaType });
-            img.src = window.URL.createObjectURL(blob);
-          });
+            retrieveOptions["queryParams"] = {
+              iccprofile: "yes",
+            };
+          }
+          options.client
+            .retrieveInstanceFramesRendered(retrieveOptions)
+            .then((renderedFrame) => {
+              const blob = new Blob([renderedFrame], { type: mediaType });
+              img.src = window.URL.createObjectURL(blob);
+            });
         } else {
           // TODO: support "image/jp2" and "image/jls"
-          const mediaType = 'image/jpeg';
+          const mediaType = "image/jpeg";
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
-            mediaTypes: [{ mediaType, transferSyntaxUID: '1.2.840.10008.1.2.4.50' }]
+            mediaTypes: [
+              { mediaType, transferSyntaxUID: "1.2.840.10008.1.2.4.50" },
+            ],
           };
-          options.client.retrieveInstanceFrames(retrieveOptions).then((rawFrames) => {
-            const blob = new Blob(rawFrames, { type: mediaType });
-            img.src = window.URL.createObjectURL(blob);
-          });
+          options.client
+            .retrieveInstanceFrames(retrieveOptions)
+            .then((rawFrames) => {
+              const blob = new Blob(rawFrames, { type: mediaType });
+              img.src = window.URL.createObjectURL(blob);
+            });
         }
       } else {
-        console.warn('could not load tile');
+        console.warn("could not load tile");
       }
-    }
+    };
 
     /** Frames may extend beyond the size of the total pixel matrix.
      * The excess pixels are empty, i.e. have only a padding value.
@@ -703,12 +728,12 @@ class VolumeImageViewer {
      * Note that the vertical axis is flipped in the used tile source,
      * i.e. values on the axis lie in the range [-n, -1], where n is the
      * number of rows in the total pixel matrix.
-    */
+     */
     const extent = [
-      0,                                // min X
-      -(baseTotalPixelMatrixRows + 1),  // min Y
-      baseTotalPixelMatrixColumns,      // max X
-      -1                                // max Y
+      0, // min X
+      -(baseTotalPixelMatrixRows + 1), // min Y
+      baseTotalPixelMatrixColumns, // max X
+      -1, // max Y
     ];
 
     const rotation = _getRotation(this[_pyramidBaseMetadata]);
@@ -718,8 +743,8 @@ class VolumeImageViewer {
      * with the default Mercator projection.
      */
     const projection = new Projection({
-      code: 'DICOM',
-      units: 'metric',
+      code: "DICOM",
+      units: "metric",
       extent: extent,
       getPointResolution: (pixelRes, point) => {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
@@ -727,7 +752,7 @@ class VolumeImageViewer {
          */
         const spacing = _getPixelSpacing(pyramid[nLevels - 1])[0] / 10 ** 3;
         return pixelRes * spacing;
-      }
+      },
     });
     /*
      * TODO: Register custom projection:
@@ -747,7 +772,7 @@ class VolumeImageViewer {
       origins: origins,
       resolutions: resolutions,
       sizes: tileGridSizes,
-      tileSizes: tileSizes
+      tileSizes: tileSizes,
     });
 
     /*
@@ -755,10 +780,10 @@ class VolumeImageViewer {
      * frames (load tiles) via DICOMweb WADO-RS.
      */
     const rasterSource = new TileImage({
-      crossOrigin: 'Anonymous',
+      crossOrigin: "Anonymous",
       tileGrid: tileGrid,
       projection: projection,
-      wrapX: false
+      wrapX: false,
     });
     rasterSource.setTileUrlFunction(tileUrlFunction);
     rasterSource.setTileLoadFunction(tileLoadFunction);
@@ -767,14 +792,14 @@ class VolumeImageViewer {
       extent: extent,
       source: rasterSource,
       preload: 0,
-      projection: projection
+      projection: projection,
     });
 
     this[_drawingSource] = new VectorSource({
       tileGrid: tileGrid,
       projection: projection,
       features: this[_features],
-      wrapX: false
+      wrapX: false,
     });
 
     this[_drawingLayer] = new VectorLayer({
@@ -790,7 +815,7 @@ class VolumeImageViewer {
       extent: extent,
       projection: projection,
       resolutions: resolutions,
-      rotation: rotation
+      rotation: rotation,
     });
 
     this[_interactions] = {
@@ -799,38 +824,43 @@ class VolumeImageViewer {
       translate: undefined,
       modify: undefined,
       snap: undefined,
-      dragPan: undefined
+      dragPan: undefined,
     };
 
     this[_controls] = {
       scale: new ScaleLine({
-        units: 'metric',
-        className: ''
-      })
-    }
+        units: "metric",
+        className: "",
+      }),
+    };
 
-    if (options.controls.has('fullscreen')) {
+    if (options.controls.has("fullscreen")) {
       this[_controls].fullscreen = new FullScreen();
     }
 
-    if (options.controls.has('overview')) {
+    if (options.controls.has("overview")) {
       const overviewImageLayer = new TileLayer({
         extent: extent,
         source: rasterSource,
         preload: 0,
-        projection: projection
+        projection: projection,
       });
 
       let viewOptions = { projection: projection, rotation: rotation };
-      if (resolutions && !options.overview.zoom) viewOptions.resolutions = resolutions;
+      if (resolutions && !options.overview.zoom)
+        viewOptions.resolutions = resolutions;
       if (options.overview.zoom) viewOptions.zoom = options.overview.zoom;
       const view = new View(viewOptions);
 
       this[_controls].overview = new OverviewMap({
         view,
         layers: [overviewImageLayer],
-        collapsed: options.overview.hasOwnProperty('collapsed') ? options.overview.collapsed : false,
-        collapsible: options.overview.hasOwnProperty('collapsible') ? options.overview.collapsible : false,
+        collapsed: options.overview.hasOwnProperty("collapsed")
+          ? options.overview.collapsed
+          : false,
+        collapsible: options.overview.hasOwnProperty("collapsible")
+          ? options.overview.collapsible
+          : false,
       });
     }
 
@@ -850,7 +880,7 @@ class VolumeImageViewer {
 
     this[_map].getView().fit(extent);
 
-    this.markersManager = new MarkersManager({
+    this[_markupManager] = new _MarkupManager({
       map: this[_map],
       source: this[_drawingSource],
       controls: this[_controls],
@@ -875,40 +905,44 @@ class VolumeImageViewer {
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render(options) {
-    if (!('container' in options)) {
-      console.error('container must be provided for rendering images')
+    if (!("container" in options)) {
+      console.error("container must be provided for rendering images");
     }
     this[_map].setTarget(options.container);
 
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")
-    let scaleElement = this[_controls]['scale'].element;
-    scaleElement.style.position = 'absolute';
-    scaleElement.style.right = '.5em';
-    scaleElement.style.bottom = '.5em';
-    scaleElement.style.left = 'auto';
-    scaleElement.style.padding = '2px';
-    scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)';
-    scaleElement.style.borderRadius = '4px';
-    scaleElement.style.margin = '1px';
+    let scaleElement = this[_controls]["scale"].element;
+    scaleElement.style.position = "absolute";
+    scaleElement.style.right = ".5em";
+    scaleElement.style.bottom = ".5em";
+    scaleElement.style.left = "auto";
+    scaleElement.style.padding = "2px";
+    scaleElement.style.backgroundColor = "rgba(255,255,255,.5)";
+    scaleElement.style.borderRadius = "4px";
+    scaleElement.style.margin = "1px";
 
-    let scaleInnerElement = this[_controls]['scale'].innerElement_;
-    scaleInnerElement.style.color = 'black';
-    scaleInnerElement.style.fontWeight = '600';
-    scaleInnerElement.style.fontSize = '10px';
-    scaleInnerElement.style.textAlign = 'center';
-    scaleInnerElement.style.borderWidth = '1.5px';
-    scaleInnerElement.style.borderStyle = 'solid';
-    scaleInnerElement.style.borderTop = 'none';
-    scaleInnerElement.style.borderRightColor = 'black';
-    scaleInnerElement.style.borderLeftColor = 'black';
-    scaleInnerElement.style.borderBottomColor = 'black';
-    scaleInnerElement.style.margin = '1px';
-    scaleInnerElement.style.willChange = 'contents,width';
+    let scaleInnerElement = this[_controls]["scale"].innerElement_;
+    scaleInnerElement.style.color = "black";
+    scaleInnerElement.style.fontWeight = "600";
+    scaleInnerElement.style.fontSize = "10px";
+    scaleInnerElement.style.textAlign = "center";
+    scaleInnerElement.style.borderWidth = "1.5px";
+    scaleInnerElement.style.borderStyle = "solid";
+    scaleInnerElement.style.borderTop = "none";
+    scaleInnerElement.style.borderRightColor = "black";
+    scaleInnerElement.style.borderLeftColor = "black";
+    scaleInnerElement.style.borderBottomColor = "black";
+    scaleInnerElement.style.margin = "1px";
+    scaleInnerElement.style.willChange = "contents,width";
 
     const container = this[_map].getTargetElement();
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      publish(container, EVENT.ROI_ADDED, _getROIFromFeature(e.feature, this[_pyramidMetadata], this));
+      publish(
+        container,
+        EVENT.ROI_ADDED,
+        _getROIFromFeature(e.feature, this[_pyramidMetadata])
+      );
     });
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
@@ -919,7 +953,7 @@ class VolumeImageViewer {
         // is an implmentation detail and is hidden from the user in the graphical
         // interface. However, we must update the last point in case the first
         // piont has been modified by the user.
-        if (type === 'Polygon') {
+        if (type === "Polygon") {
           // NOTE: Polyon in GeoJSON format contains an array of geometries,
           // where the first element represents the coordinates of the outer ring
           // and the second element represents the coordinates of the inner ring
@@ -928,18 +962,29 @@ class VolumeImageViewer {
           const coordinates = geometry.getCoordinates();
           const firstPoint = coordinates[0][0];
           const lastPoint = coordinates[0][coordinates[0].length - 1];
-          if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+          if (
+            firstPoint[0] !== lastPoint[0] ||
+            firstPoint[1] !== lastPoint[1]
+          ) {
             coordinates[0][coordinates[0].length - 1] = firstPoint;
             geometry.setCoordinates(coordinates, layout);
             e.feature.setGeometry(geometry);
           }
         }
       }
-      publish(container, EVENT.ROI_MODIFIED, _getROIFromFeature(e.feature, this[_pyramidMetadata], this));
+      publish(
+        container,
+        EVENT.ROI_MODIFIED,
+        _getROIFromFeature(e.feature, this[_pyramidMetadata])
+      );
     });
 
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(container, EVENT.ROI_REMOVED, _getROIFromFeature(e.feature, this[_pyramidMetadata], this));
+      publish(
+        container,
+        EVENT.ROI_REMOVED,
+        _getROIFromFeature(e.feature, this[_pyramidMetadata])
+      );
     });
   }
 
@@ -955,79 +1000,86 @@ class VolumeImageViewer {
 
     const customOptionsMapping = {
       point: {
-        type: 'Point',
-        geometryName: 'Point',
+        type: "Point",
+        geometryName: "Point",
         style: options.style,
       },
       circle: {
-        type: 'Circle',
-        geometryName: 'Circle',
+        type: "Circle",
+        geometryName: "Circle",
         style: options.style,
       },
       box: {
-        type: 'Circle',
-        geometryName: 'Box',
+        type: "Circle",
+        geometryName: "Box",
         geometryFunction: createRegularPolygon(4),
         style: options.style,
       },
       polygon: {
-        type: 'Polygon',
-        geometryName: 'Polygon',
+        type: "Polygon",
+        geometryName: "Polygon",
         freehand: false,
         style: options.style,
       },
       freehandpolygon: {
-        type: 'Polygon',
-        geometryName: 'FreeHandPolygon',
+        type: "Polygon",
+        geometryName: "FreeHandPolygon",
         freehand: true,
         style: options.style,
       },
       line: {
-        type: 'LineString',
-        geometryName: 'Line',
+        type: "LineString",
+        geometryName: "Line",
         freehand: false,
         style: options.style,
       },
       freehandline: {
-        type: 'LineString',
-        geometryName: 'FreeHandLine',
+        type: "LineString",
+        geometryName: "FreeHandLine",
         freehand: true,
         style: options.style,
       },
     };
 
-    if (!('geometryType' in options)) {
-      console.error('geometry type must be specified for drawing interaction')
+    if (!("geometryType" in options)) {
+      console.error("geometry type must be specified for drawing interaction");
     }
 
     if (!(options.geometryType in customOptionsMapping)) {
-      console.error(`unsupported geometry type "${options.geometryType}"`)
+      console.error(`unsupported geometry type "${options.geometryType}"`);
     }
 
     const defaultDrawOptions = { source: this[_drawingSource] };
     const selectedOption = customOptionsMapping[options.geometryType];
-    const customDrawOptions = this.markersManager.getMarkerOptions(options.marker, selectedOption);
+    const customDrawOptions = this[_markupManager].getMarkerOptions(
+      options.marker,
+      selectedOption
+    );
 
     const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
     this[_interactions].draw = new Draw(allDrawOptions);
     const container = this[_map].getTargetElement();
 
-    this[_interactions].draw.on('drawstart', (e) => {
-      if (allDrawOptions.marker && !e.feature.get('marker')) {
-        e.feature.set('marker', allDrawOptions.marker, true);
+    this[_interactions].draw.on("drawstart", (e) => {
+      if (allDrawOptions.marker && !e.feature.get("marker")) {
+        e.feature.set("marker", allDrawOptions.marker, true);
       }
       e.feature.setId(generateUID());
     });
 
     // attaching openlayers events handling
-    this[_interactions].draw.on('drawend', (e) => {
-      this.markersManager.onDrawEnd(e.feature);
-      publish(container, EVENT.ROI_DRAWN, _getROIFromFeature(e.feature, this[_pyramidMetadata], this));
+    this[_interactions].draw.on("drawend", (e) => {
+      this[_markupManager].onDrawEnd(e.feature);
+      publish(
+        container,
+        EVENT.ROI_DRAWN,
+        _getROIFromFeature(e.feature, this[_pyramidMetadata])
+      );
     });
 
     this[_map].addInteraction(this[_interactions].draw);
 
-    this.markersManager.onInteractionsChange(this[_interactions]);
+    this[_markupManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates draw interaction. */
@@ -1060,7 +1112,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].translate);
 
-    this.markersManager.onInteractionsChange(this[_interactions]);
+    this[_markupManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates translate interaction. */
@@ -1085,13 +1137,17 @@ class VolumeImageViewer {
 
     const container = this[_map].getTargetElement();
 
-    this[_interactions].select.on('select', (e) => {
-      publish(container, EVENT.ROI_SELECTED, _getROIFromFeature(e.selected[0], this[_pyramidMetadata], this));
+    this[_interactions].select.on("select", (e) => {
+      publish(
+        container,
+        EVENT.ROI_SELECTED,
+        _getROIFromFeature(e.selected[0], this[_pyramidMetadata])
+      );
     });
 
     this[_map].addInteraction(this[_interactions].select);
 
-    this.markersManager.onInteractionsChange(this[_interactions]);
+    this[_markupManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates select interaction. */
@@ -1114,7 +1170,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].dragPan);
 
-    this.markersManager.onInteractionsChange(this[_interactions]);
+    this[_markupManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivate dragpan interaction. */
@@ -1139,7 +1195,7 @@ class VolumeImageViewer {
 
     this[_map].addInteraction(this[_interactions].snap);
 
-    this.markersManager.onInteractionsChange(this[_interactions]);
+    this[_markupManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates snap interaction. */
@@ -1167,16 +1223,18 @@ class VolumeImageViewer {
     this.deactivateModifyInteraction();
     console.info('activate "modify" interaction');
     this[_interactions].modify = new Modify({
-      features: this[_features],  // TODO: or source, i.e. "drawings"???
-      insertVertexCondition: event => {
-        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate_);
-        return this.markersManager.insertVertexCondition(feature);
-      }
+      features: this[_features], // TODO: or source, i.e. "drawings"???
+      insertVertexCondition: (event) => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(
+          event.coordinate_
+        );
+        return this[_markupManager].insertVertexCondition(feature);
+      },
     });
 
     this[_map].addInteraction(this[_interactions].modify);
 
-    this.markersManager.onInteractionsChange(this[_interactions]);
+    this[_markupManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates modify interaction. */
@@ -1201,7 +1259,7 @@ class VolumeImageViewer {
    * @returns {ROI[]} Array of regions of interest.
    */
   getAllROIs() {
-    console.info('get all ROIs');
+    console.info("get all ROIs");
     let rois = [];
     this[_features].forEach((item) => {
       rois.push(this.getROI(item.getId()));
@@ -1225,7 +1283,7 @@ class VolumeImageViewer {
   getROI(uid) {
     console.info(`get ROI ${uid}`);
     const feature = this[_drawingSource].getFeatureById(uid);
-    return _getROIFromFeature(feature, this[_pyramidMetadata], this);
+    return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
   /** Adds a measurement to a region of interest.
@@ -1235,19 +1293,19 @@ class VolumeImageViewer {
    */
   addROIMeasurement(uid, item) {
     const meaning = item.ConceptNameCodeSequence[0].CodeMeaning;
-    console.info(`add measurement "${meaning}" to ROI ${uid}`)
-    this[_features].forEach(feature => {
+    console.info(`add measurement "${meaning}" to ROI ${uid}`);
+    this[_features].forEach((feature) => {
       const id = feature.getId();
       if (id === uid) {
         const properties = feature.getProperties();
-        if (!('measurements' in properties)) {
-          properties['measurements'] = [item];
+        if (!("measurements" in properties)) {
+          properties["measurements"] = [item];
         } else {
-          properties['measurements'].push(item);
+          properties["measurements"].push(item);
         }
         feature.setProperties(properties, true);
       }
-    })
+    });
   }
 
   /** Adds a qualitative evaluation to a region of interest.
@@ -1258,18 +1316,18 @@ class VolumeImageViewer {
   addROIEvaluation(uid, item) {
     const meaning = item.ConceptNameCodeSequence[0].CodeMeaning;
     console.info(`add qualitative evaluation "${meaning}" to ROI ${uid}`);
-    this[_features].forEach(feature => {
+    this[_features].forEach((feature) => {
       const id = feature.getId();
       if (id === uid) {
         const properties = feature.getProperties();
-        if (!('evaluations' in properties)) {
-          properties['evaluations'] = [item];
+        if (!("evaluations" in properties)) {
+          properties["evaluations"] = [item];
         } else {
-          properties['evaluations'].push(item);
+          properties["evaluations"].push(item);
         }
         feature.setProperties(properties, true);
       }
-    })
+    });
   }
 
   /** Pops the most recently annotated regions of interest.
@@ -1277,9 +1335,9 @@ class VolumeImageViewer {
    * @returns {ROI} Regions of interest.
    */
   popROI() {
-    console.info('pop ROI');
+    console.info("pop ROI");
     const feature = this[_features].pop();
-    return _getROIFromFeature(feature, this[_pyramidMetadata], this);
+    return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
   /**
@@ -1330,7 +1388,7 @@ class VolumeImageViewer {
 
     this[_features].push(feature);
 
-    this.markersManager.onAdd(feature, item);
+    this[_markupManager].onAdd(feature, item);
   }
 
   /** Update properties of regions of interest.
@@ -1346,7 +1404,7 @@ class VolumeImageViewer {
     const feature = this[_drawingSource].getFeatureById(uid);
     feature.setProperties(properties, true);
 
-    this.markersManager.onUpdate(feature);
+    this[_markupManager].onUpdate(feature);
   }
 
   /** Sets the style of a region of interest.
@@ -1361,12 +1419,12 @@ class VolumeImageViewer {
    *
    */
   setROIStyle(uid, styleOptions) {
-    this[_features].forEach(feature => {
+    this[_features].forEach((feature) => {
       const id = feature.getId();
       if (id === uid) {
         _setFeatureStyle(feature, styleOptions);
       }
-    })
+    });
   }
 
   /** Adds a new viewport overlay.
@@ -1391,7 +1449,7 @@ class VolumeImageViewer {
 
   /** Removes all annotated regions of interest. */
   removeAllROIs() {
-    console.info('remove all ROIs');
+    console.info("remove all ROIs");
     this[_features].clear();
   }
 
@@ -1399,7 +1457,7 @@ class VolumeImageViewer {
    *  visible on the viewport.
    */
   hideROIs() {
-    console.info('hide ROIs');
+    console.info("hide ROIs");
     this[_drawingLayer].setVisible(false);
   }
 
@@ -1407,7 +1465,7 @@ class VolumeImageViewer {
    *  on the viewport ontop of the images.
    */
   showROIs() {
-    console.info('show ROIs');
+    console.info("show ROIs");
     this[_drawingLayer].setVisible(true);
   }
 
@@ -1435,7 +1493,6 @@ class VolumeImageViewer {
  * @private
  */
 class _NonVolumeImageViewer {
-
   /** Creates a viewer instance for displaying non-VOLUME images.
    *
    * @param {object} options
@@ -1449,81 +1506,87 @@ class _NonVolumeImageViewer {
     this[_client] = options.client;
 
     this[_metadata] = new VLWholeSlideMicroscopyImage({
-      metadata: options.metadata
+      metadata: options.metadata,
     });
 
-    if (this[_metadata].ImageType[2] === 'VOLUME') {
-      throw new Error('Viewer cannot render images of type VOLUME.')
+    if (this[_metadata].ImageType[2] === "VOLUME") {
+      throw new Error("Viewer cannot render images of type VOLUME.");
     }
 
     const resizeFactor = options.resizeFactor ? options.resizeFactor : 1;
     const height = this[_metadata].TotalPixelMatrixRows * resizeFactor;
     const width = this[_metadata].TotalPixelMatrixColumns * resizeFactor;
     const extent = [
-      0,              // min X
-      -(height + 1),  // min Y
-      width,          // max X
-      -1              // max Y
+      0, // min X
+      -(height + 1), // min Y
+      width, // max X
+      -1, // max Y
     ];
 
     const imageLoadFunction = (image, src) => {
-      console.info('load image')
-      const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
-      const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
+      console.info("load image");
+      const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(
+        src
+      );
+      const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(
+        src
+      );
       const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
-      const mediaType = 'image/png';
+      const mediaType = "image/png";
       const queryParams = {
         viewport: [
           this[_metadata].TotalPixelMatrixRows,
-          this[_metadata].TotalPixelMatrixColumns
-        ].join(',')
+          this[_metadata].TotalPixelMatrixColumns,
+        ].join(","),
       };
       // We make this optional because a) not all archives currently support
       // this query parameter and b) because ICC Profiles can be large and
       // their inclusion can result in significant overhead.
       if (options.includeIccProfile) {
-        queryParams['iccprofile'] = 'yes';
+        queryParams["iccprofile"] = "yes";
       }
       const retrieveOptions = {
         studyInstanceUID: this[_metadata].StudyInstanceUID,
         seriesInstanceUID: this[_metadata].SeriesInstanceUID,
         sopInstanceUID: this[_metadata].SOPInstanceUID,
         mediaTypes: [{ mediaType }],
-        queryParams: queryParams
+        queryParams: queryParams,
       };
-      options.client.retrieveInstanceRendered(retrieveOptions).then((thumbnail) => {
-        const blob = new Blob([thumbnail], { type: mediaType });
-        image.getImage().src = window.URL.createObjectURL(blob);
-      });
-    }
+      options.client
+        .retrieveInstanceRendered(retrieveOptions)
+        .then((thumbnail) => {
+          const blob = new Blob([thumbnail], { type: mediaType });
+          image.getImage().src = window.URL.createObjectURL(blob);
+        });
+    };
 
     const projection = new Projection({
-      code: 'DICOM',
-      units: 'metric',
+      code: "DICOM",
+      units: "metric",
       extent: extent,
       getPointResolution: (pixelRes, point) => {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
          * has meter unit.
          */
         const mmSpacing = _getPixelSpacing(this[_metadata])[0];
-        const spacing = (mmSpacing / resizeFactor) / 10 ** 3;
+        const spacing = mmSpacing / resizeFactor / 10 ** 3;
         return pixelRes * spacing;
-      }
+      },
     });
 
     const rasterSource = new Static({
-      crossOrigin: 'Anonymous',
+      crossOrigin: "Anonymous",
       imageExtent: extent,
       projection: projection,
       imageLoadFunction: imageLoadFunction,
-      url: ''  // will be set by imageLoadFunction()
+      url: "", // will be set by imageLoadFunction()
     });
 
     this[_imageLayer] = new ImageLayer({ source: rasterSource });
 
     // The default rotation is 'horizontal' with the slide label on the right
     var rotation = _getRotation(this[_metadata]);
-    if (options.orientation === 'vertical') {
+    if (options.orientation === "vertical") {
       // Rotate counterclockwise by 90 degrees to have slide label at the top
       rotation -= 90 * (Math.PI / 180);
     }
@@ -1531,7 +1594,7 @@ class _NonVolumeImageViewer {
     const view = new View({
       center: getCenter(extent),
       rotation: rotation,
-      projection: projection
+      projection: projection,
     });
 
     // Creates the map with the defined layers and view and renders it.
@@ -1550,12 +1613,12 @@ class _NonVolumeImageViewer {
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render(options) {
-    if (!('container' in options)) {
-      console.error('container must be provided for rendering images')
+    if (!("container" in options)) {
+      console.error("container must be provided for rendering images");
     }
     this[_map].setTarget(options.container);
 
-    this[_map].getInteractions().forEach(interaction => {
+    this[_map].getInteractions().forEach((interaction) => {
       this[_map].removeInteraction(interaction);
     });
   }
@@ -1600,7 +1663,7 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
    */
   constructor(options) {
     if (options.orientation === undefined) {
-      options.orientation = 'horizontal';
+      options.orientation = "horizontal";
     }
     super(options);
   }
@@ -1624,7 +1687,7 @@ class LabelImageViewer extends _NonVolumeImageViewer {
    */
   constructor(options) {
     if (options.orientation === undefined) {
-      options.orientation = 'vertical';
+      options.orientation = "vertical";
     }
     super(options);
   }

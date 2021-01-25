@@ -1,22 +1,24 @@
-import DragPan from 'ol/interaction/DragPan';
-import Overlay from 'ol/Overlay';
-import VectorLayer from 'ol/layer/Vector';
-import 'ol/ol.css';
-import VectorSource from 'ol/source/Vector';
-import Style from 'ol/style/Style';
-import Stroke from 'ol/style/Stroke';
-import Collection from 'ol/Collection';
-import Feature from 'ol/Feature';
+import DragPan from "ol/interaction/DragPan";
+import Overlay from "ol/Overlay";
+import VectorLayer from "ol/layer/Vector";
+import "ol/ol.css";
+import VectorSource from "ol/source/Vector";
+import Style from "ol/style/Style";
+import Stroke from "ol/style/Stroke";
+import Collection from "ol/Collection";
+import Feature from "ol/Feature";
 
-import { getUnitsSuffix } from './utils';
-import { getShortestLineBetweenOverlayAndFeature } from './utils';
+import {
+  getUnitsSuffix,
+  getShortestLineBetweenOverlayAndFeature,
+} from "./utils";
 
 const MapEvents = {
-  POINTER_MOVE: 'pointermove',
-  POINTER_UP: 'pointerup'
+  POINTER_MOVE: "pointermove",
+  POINTER_UP: "pointerup",
 };
 
-class MarkerManager {
+class _MarkerManager {
   constructor({
     map,
     source,
@@ -36,7 +38,7 @@ class MarkerManager {
     this._map = map;
     this._source = source;
 
-    const styleTag = document.createElement('style');
+    const styleTag = document.createElement("style");
     styleTag.innerHTML = `
       .ol-tooltip {
         color: #9ccef9;
@@ -56,13 +58,15 @@ class MarkerManager {
 
     const linksVector = new VectorLayer({
       source: new VectorSource({ features: this._links }),
-      style: [new Style({
-        stroke: new Stroke({
-          color: '#9ccef9',
-          lineDash: [.3, 7],
-          width: 3
-        })
-      })]
+      style: [
+        new Style({
+          stroke: new Stroke({
+            color: "#9ccef9",
+            lineDash: [0.3, 7],
+            width: 3,
+          }),
+        }),
+      ],
     });
 
     const markersOverlay = new Overlay({ element: styleTag });
@@ -81,27 +85,27 @@ class MarkerManager {
 
   /**
    * Checks if given link can be created for a given marker.
-   * 
+   *
    * @param {Feature} feature The feature
    * @return {boolean} the validation
    */
-  isValidLink(feature) {
-    return !this._unlinkGeometries.includes(feature.get('marker'));
+  isLinkable(feature) {
+    return !this._unlinkGeometries.includes(feature.get("marker"));
   }
 
   /**
    * Checks if drag is allowed for a given marker.
-   * 
+   *
    * @param {Feature} feature The feature
    * @return {boolean} the validation
    */
-  isValidDrag(feature) {
-    return !this._undraggableGeometries.includes(feature.get('marker'));
+  isDraggable(feature) {
+    return !this._undraggableGeometries.includes(feature.get("marker"));
   }
 
   /**
    * Returns a marker
-   * 
+   *
    * @param {string} id The marker id
    * @return {object} The marker
    */
@@ -111,7 +115,7 @@ class MarkerManager {
 
   /**
    * Removes a marker
-   * 
+   *
    * @param {string} id The marker id
    * @return {string} The marker id
    */
@@ -119,7 +123,7 @@ class MarkerManager {
     const marker = this.get(id);
     if (!marker) return id;
     const links = this._links.getArray();
-    const link = links.find(feature => feature.getId() === id);
+    const link = links.find((feature) => feature.getId() === id);
     if (link) this._links.remove(link);
     this._map.removeOverlay(marker.overlay);
     this._markers.delete(id);
@@ -129,7 +133,7 @@ class MarkerManager {
 
   /**
    * Creates a new marker
-   * 
+   *
    * @param {object} options The options
    * @param {Feature} options.feature The feature to plug the measure marker
    * @param {Feature} options.value The inner content of element
@@ -137,35 +141,35 @@ class MarkerManager {
    */
   create({ feature, value }) {
     if (!this._isValidFeature(feature)) {
-      console.warn('Invalid feature marker:', feature.get('marker'));
+      console.warn("Invalid feature marker:", feature.get("marker"));
       return;
     }
 
     const id = feature.getId();
     if (!id) {
-      console.warn('Failed to create marker, feature with empty id');
+      console.warn("Failed to create marker, feature with empty id");
       return;
     }
 
     if (this._markers.has(id)) {
-      console.warn('Marker for feature already exists', id);
+      console.warn("Marker for feature already exists", id);
       return this._markers.get(id);
     }
 
     const marker = {
       id,
-      drawLink: feature => this._drawLink(feature, this._markers.get(id))
+      drawLink: (feature) => this._drawLink(feature, this._markers.get(id)),
     };
 
-    const element = document.createElement('div');
-    element.id = this.isValidDrag(feature) ? 'marker' : '';
-    element.className = 'ol-tooltip ol-tooltip-measure';
-    element.innerText = value ? value : '';
+    const element = document.createElement("div");
+    element.id = this.isDraggable(feature) ? "marker" : "";
+    element.className = "ol-tooltip ol-tooltip-measure";
+    element.innerText = value ? value : "";
 
     marker.element = element;
     marker.overlay = new Overlay({
-      className: 'marker-container',
-      positioning: 'center-center',
+      className: "marker-container",
+      positioning: "center-center",
       stopEvent: false,
       dragging: false,
       offset: [7, 7],
@@ -177,14 +181,14 @@ class MarkerManager {
     this._drawLink(feature, marker);
 
     let dragPan;
-    let dragProperty = 'dragging';
-    this._map.getInteractions().forEach(interaction => {
+    let dragProperty = "dragging";
+    this._map.getInteractions().forEach((interaction) => {
       if (interaction instanceof DragPan) {
         dragPan = interaction;
       }
     });
 
-    element.addEventListener('mousedown', () => {
+    element.addEventListener("mousedown", () => {
       const marker = this._markers.get(id);
       if (marker) {
         dragPan.setActive(false);
@@ -192,9 +196,13 @@ class MarkerManager {
       }
     });
 
-    this._map.on(MapEvents.POINTER_MOVE, event => {
+    this._map.on(MapEvents.POINTER_MOVE, (event) => {
       const marker = this._markers.get(id);
-      if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
+      if (
+        marker &&
+        marker.overlay.get(dragProperty) === true &&
+        this.isDraggable(feature)
+      ) {
         marker.overlay.setPosition(event.coordinate);
         marker.drawLink(feature);
       }
@@ -202,7 +210,11 @@ class MarkerManager {
 
     this._map.on(MapEvents.POINTER_UP, () => {
       const marker = this._markers.get(id);
-      if (marker && marker.overlay.get(dragProperty) === true && this.isValidDrag(feature)) {
+      if (
+        marker &&
+        marker.overlay.get(dragProperty) === true &&
+        this.isDraggable(feature)
+      ) {
         dragPan.setActive(true);
         marker.overlay.set(dragProperty, false);
       }
@@ -215,17 +227,17 @@ class MarkerManager {
   }
 
   /**
-   * Checks if feature has the correct marker 
-   * 
+   * Checks if feature has the correct marker
+   *
    * @param {Feature} feature The feature
    */
   _isValidFeature(feature) {
-    return this._geometries.includes(feature.get('marker'));
+    return this._geometries.includes(feature.get("marker"));
   }
 
   /**
    * Update marker content
-   * 
+   *
    * @param {Feature} feature The feature
    * @param {string} value The marker content
    * @param {string} coordinate The marker coordinate
@@ -234,13 +246,13 @@ class MarkerManager {
     const id = feature.getId();
 
     if (!id) {
-      console.warn('Failed attempt to update marker, feature with empty id');
+      console.warn("Failed attempt to update marker, feature with empty id");
       return;
     }
 
     const marker = this.get(id);
     if (!marker) {
-      console.warn('No marker found for given feature');
+      console.warn("No marker found for given feature");
       return;
     }
 
@@ -251,14 +263,15 @@ class MarkerManager {
 
   /**
    * Updates marker location on geometry change
-   * 
+   *
    * @param {object} event The event
    */
   _updateMarkerLocation(event) {
-    event.features.forEach(feature => {
+    event.features.forEach((feature) => {
       if (this._isValidFeature(feature)) {
         this._updateMarkerOnGeometryChange({
-          feature, coordinate: event.coordinate
+          feature,
+          coordinate: event.coordinate,
         });
       }
     });
@@ -266,7 +279,7 @@ class MarkerManager {
 
   /**
    * Get basic metadata of marker
-   * 
+   *
    * @param {Feature} feature The feature
    * @return {object} metadata
    */
@@ -277,14 +290,14 @@ class MarkerManager {
       return {
         id: marker.id,
         value: marker.element.innerText,
-        coordinate: marker.overlay.getPosition()
+        coordinate: marker.overlay.getPosition(),
       };
     }
   }
 
   /**
    * This event is responsible assign marker classes
-   * 
+   *
    * @param {object} event The event
    */
   _onDrawEnd(event) {
@@ -293,7 +306,7 @@ class MarkerManager {
       const featureId = feature.getId();
       const marker = this.get(featureId);
       if (marker) {
-        marker.element.className = 'ol-tooltip ol-tooltip-static';
+        marker.element.className = "ol-tooltip ol-tooltip-static";
         this._markers.set(featureId, marker);
       }
     }
@@ -301,20 +314,20 @@ class MarkerManager {
 
   /**
    * Returns the string format function for a given marker
-   * 
+   *
    * @param {object} feature The feature
    * @returns {function} format function
    */
   _getFormatter(feature) {
-    const marker = feature.get('marker');
+    const marker = feature.get("marker");
     const formatter = this._formatters[marker];
-    if (!formatter) return () => '';
+    if (!formatter) return () => "";
     return formatter;
-  };
+  }
 
   /**
    * Update marker location on geometry change
-   * 
+   *
    * @param {object} feature The feature
    * @param {object} coordinate The marker coordinate
    */
@@ -322,15 +335,23 @@ class MarkerManager {
     let markerCoordinate = coordinate;
     const featureId = feature.getId();
     const geometry = feature.getGeometry();
-    const listener = geometry.on('change', event => {
+    const listener = geometry.on("change", (event) => {
       const marker = this.get(featureId);
       if (marker) {
         let currentGeometry = event.target;
         const view = this._map.getView();
         const unitsSuffix = getUnitsSuffix(view);
-        let output = this._getFormatter(feature)(feature, currentGeometry, unitsSuffix);
+        let output = this._getFormatter(feature)(
+          feature,
+          currentGeometry,
+          unitsSuffix
+        );
         markerCoordinate = currentGeometry.getLastCoordinate();
-        this.updateMarker({ feature, value: output, coordinate: markerCoordinate });
+        this.updateMarker({
+          feature,
+          value: output,
+          coordinate: markerCoordinate,
+        });
         marker.drawLink(feature);
       }
     });
@@ -339,27 +360,39 @@ class MarkerManager {
 
   /**
    * Wire interaction events everytime new interactions is added or updated
-   * 
+   *
    * @param {object[]} interactions The map interactions
    */
   wireInteractionsEvents(interactions) {
     if (interactions.draw) {
-      this._listeners.set('drawstart', interactions.draw.on('drawstart', this._onDrawStart));
-      this._listeners.set('drawend', interactions.draw.on('drawend', this._onDrawEnd));
+      this._listeners.set(
+        "drawstart",
+        interactions.draw.on("drawstart", this._onDrawStart)
+      );
+      this._listeners.set(
+        "drawend",
+        interactions.draw.on("drawend", this._onDrawEnd)
+      );
     }
 
     if (interactions.translate) {
-      this._listeners.set('translatestart', interactions.translate.on('translatestart', this._onTranslateStart));
+      this._listeners.set(
+        "translatestart",
+        interactions.translate.on("translatestart", this._onTranslateStart)
+      );
     }
 
     if (interactions.modify) {
-      this._listeners.set('modifystart', interactions.modify.on('modifystart', this._onModifyStart));
+      this._listeners.set(
+        "modifystart",
+        interactions.modify.on("modifystart", this._onModifyStart)
+      );
     }
   }
 
   /**
    * Wire interaction events everytime new interactions is added or updated
-   * 
+   *
    * @param {object[]} interactions The map interactions
    */
   onInteractionsChange(interactions) {
@@ -369,29 +402,32 @@ class MarkerManager {
   /**
    * Create or update the marker on drawstart
    * and cache it
-   * 
+   *
    * @param {object} event The drawstart event
    */
   _onDrawStart(event) {
     const feature = event.feature;
     if (this._isValidFeature(feature)) {
       this.create({ feature });
-      this._updateMarkerOnGeometryChange({ feature, coordinate: event.coordinate });
+      this._updateMarkerOnGeometryChange({
+        feature,
+        coordinate: event.coordinate,
+      });
     }
   }
 
   /**
    * Update marker location on translatestart
-   * 
+   *
    * @param {object} event The translatestart event
    */
   _onTranslateStart(event) {
     this._updateMarkerLocation(event);
-  };
+  }
 
   /**
    * Update marker location on modifystart
-   * 
+   *
    * @param {object} event The modifystart event
    */
   _onModifyStart(event) {
@@ -400,16 +436,19 @@ class MarkerManager {
 
   /**
    * Draws a new link feature between marker and feature
-   * 
+   *
    * @param {object} feature The feature
    * @param {object} marker The marker
    */
   _drawLink(feature, marker) {
-    if (!this.isValidLink(feature)) return;
+    if (!this.isLinkable(feature)) return;
 
-    const line = getShortestLineBetweenOverlayAndFeature(feature, marker.overlay);
+    const line = getShortestLineBetweenOverlayAndFeature(
+      feature,
+      marker.overlay
+    );
 
-    const updated = this._links.getArray().some(feature => {
+    const updated = this._links.getArray().some((feature) => {
       if (feature.getId() === marker.id) {
         feature.setGeometry(line);
         return true;
@@ -417,11 +456,11 @@ class MarkerManager {
     });
 
     if (!updated) {
-      const feature = new Feature({ geometry: line, name: 'Line' });
+      const feature = new Feature({ geometry: line, name: "Line" });
       feature.setId(marker.id);
       this._links.push(feature);
     }
   }
 }
 
-export default MarkerManager;
+export default _MarkerManager;
