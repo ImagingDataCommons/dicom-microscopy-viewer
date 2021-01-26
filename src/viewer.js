@@ -55,6 +55,7 @@ import {
 } from './scoord3d.js';
 
 import * as DICOMwebClient from 'dicomweb-client';
+import blendImageFrames from './blendImageFrames.js';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -614,10 +615,10 @@ class VolumeImageViewer {
     }
 
     /*
-     * Define custonm tile loader function, which is required because the
+     * Define custom tile loader function, which is required because the
      * WADO-RS response message has content type "multipart/related".
     */
-    const tileLoadFunction = (tile, src) => {
+    const tileLoadFunction = async (tile, src) => {
       if (src !== null) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
@@ -638,11 +639,22 @@ class VolumeImageViewer {
               iccprofile: 'yes'
             }
           }
-          options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
-            (renderedFrame) => {
-              const blob = new Blob([renderedFrame], {type: mediaType});
-              img.src = window.URL.createObjectURL(blob);
-            }
+          const pixelData = await options.client.retrieveInstanceFramesRendered(retrieveOptions);
+
+          // todo: trigger redraw when frameData changes?
+          const frameData = [
+            {
+              pixelData,
+              contrastLimitsRange: [0, 255],
+              colorLUT: [[0, 0, 0, 0], [1, 1, 1, 1]],
+              opacity: 1,
+              visible: true
+            }, // ... (more than one frame)
+          ];
+
+          const blendedFrame = blendImageFrames(frameData)
+          const blob = new Blob([blendedFrame], {type: mediaType});
+          img.src = window.URL.createObjectURL(blob);
           );
         } else {
           // TODO: support "image/jp2" and "image/jls"
