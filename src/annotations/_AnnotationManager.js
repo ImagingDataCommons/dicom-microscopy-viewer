@@ -37,10 +37,10 @@ class _AnnotationManager {
     this[Markup.FreeTextEvaluation].onInteractionsChange(interactions);
   }
 
-  onAdd(feature) {
-    this[Marker.Arrow].onAdd(feature);
-    this[Markup.Measurement].onAdd(feature);
-    this[Markup.FreeTextEvaluation].onAdd(feature);
+  onAdd(feature, options) {
+    this[Marker.Arrow].onAdd(feature, options);
+    this[Markup.Measurement].onAdd(feature, options);
+    this[Markup.FreeTextEvaluation].onAdd(feature, options);
   }
 
   onRemove(feature) {

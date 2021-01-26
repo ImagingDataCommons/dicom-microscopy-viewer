@@ -6,20 +6,25 @@ import Enums from "../../enums";
 import { defaultStyle } from "../markers/styles";
 import { getUnitsSuffix } from "../markers/utils";
 
-const getOpenLayersStyleFunction = (defaultStyle, style) => {
-  return (feature, resolution) => {
-    if (!isMeasurement(feature)) {
-      return;
-    }
+const getOpenLayersStyleFunction = (defaultStyle, drawStyle, roiStyle) => (
+  feature,
+  resolution
+) => {
+  if (!isMeasurement(feature)) {
+    return;
+  }
 
-    const styles = [defaultStyle];
+  const styles = [defaultStyle];
 
-    if (style) {
-      styles.push(style);
-    }
+  if (drawStyle) {
+    styles.push(drawStyle);
+  }
 
-    return styles;
-  };
+  if (roiStyle) {
+    styles.push(roiStyle);
+  }
+
+  return styles;
 };
 
 /**
@@ -64,8 +69,14 @@ const MeasurementMarkup = (api) => {
         marker: Enums.Markup.Measurement,
       };
     },
-    onAdd: (feature) => {
+    onAdd: (feature, options) => {
       if (isMeasurement(feature)) {
+        const styleFunction = getOpenLayersStyleFunction(
+          defaultStyle,
+          null,
+          options.style
+        );
+        feature.setStyle(styleFunction);
         const view = api.map.getView();
         const measurement = formatMeasurement(
           feature,

@@ -1388,7 +1388,8 @@ class VolumeImageViewer {
 
     this[_features].push(feature);
 
-    this[_annotationManager].onAdd(feature);
+    const annotationOptions = { style: styleOptions };
+    this[_annotationManager].onAdd(feature, annotationOptions);
   }
 
   /** Update properties of regions of interest.

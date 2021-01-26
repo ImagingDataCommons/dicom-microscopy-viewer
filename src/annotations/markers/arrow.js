@@ -24,7 +24,7 @@ const longArrow = `
   </svg>
 `;
 
-const getOpenLayersStyleFunction = (defaultStyle, style) => (
+const getOpenLayersStyleFunction = (defaultStyle, drawStyle, roiStyle) => (
   feature,
   resolution
 ) => {
@@ -34,8 +34,12 @@ const getOpenLayersStyleFunction = (defaultStyle, style) => (
 
   const styles = [defaultStyle];
 
-  if (style) {
-    styles.push(style);
+  if (drawStyle) {
+    styles.push(drawStyle);
+  }
+
+  if (roiStyle) {
+    styles.push(roiStyle);
   }
 
   const addArrowStyle = (point, rotation, anchor, icon) => {
@@ -111,8 +115,14 @@ const ArrowMarker = (api) => {
         marker: Enums.Marker.Arrow,
       };
     },
-    onAdd: (feature) => {
+    onAdd: (feature, options) => {
       if (isArrow(feature)) {
+        const styleFunction = getOpenLayersStyleFunction(
+          defaultStyle,
+          null,
+          options.style
+        );
+        feature.setStyle(styleFunction);
         api.markupManager.create({ feature, value: formatArrow(feature) });
         /** Refresh to get latest value of label property */
         feature.changed();

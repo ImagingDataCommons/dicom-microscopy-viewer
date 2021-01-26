@@ -10,15 +10,22 @@ import Enums from "../../enums";
 export const isFreeText = (feature) =>
   Enums.Markup.FreeTextEvaluation === feature.get("marker");
 
-const getOpenLayersStyleFunction = (defaultStyle, style) => (feature, resolution) => {
+const getOpenLayersStyleFunction = (defaultStyle, drawStyle, roiStyle) => (
+  feature,
+  resolution
+) => {
   if (!isFreeText(feature)) {
     return;
   }
 
   const styles = [defaultStyle];
 
-  if (style) {
-    styles.push(style);
+  if (drawStyle) {
+    styles.push(drawStyle);
+  }
+
+  if (roiStyle) {
+    styles.push(roiStyle);
   }
 
   styles.push(
@@ -62,7 +69,16 @@ const FreeTextMarkup = (api) => {
         marker: Enums.Markup.FreeTextEvaluation,
       };
     },
-    onAdd: (feature) => {},
+    onAdd: (feature, options) => {
+      if (isFreeText(feature)) {
+        const styleFunction = getOpenLayersStyleFunction(
+          defaultStyle,
+          null,
+          options.style
+        );
+        feature.setStyle(styleFunction);
+      }
+    },
     onRemove: (feature) => {},
     onUpdate: (feature) => {
       if (isFreeText(feature)) {
