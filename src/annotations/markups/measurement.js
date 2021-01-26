@@ -3,37 +3,16 @@ import { fromCircle } from "ol/geom/Polygon";
 import Circle from "ol/geom/Circle";
 
 import Enums from "../../enums";
-import { defaultStyle } from "../markers/styles";
-import { getUnitsSuffix } from "../markers/utils";
-
-const getOpenLayersStyleFunction = (defaultStyle, drawStyle, roiStyle) => (
-  feature,
-  resolution
-) => {
-  if (!isMeasurement(feature)) {
-    return;
-  }
-
-  const styles = [defaultStyle];
-
-  if (drawStyle) {
-    styles.push(drawStyle);
-  }
-
-  if (roiStyle) {
-    styles.push(roiStyle);
-  }
-
-  return styles;
-};
+import { getUnitsSuffix } from "./utils";
 
 /**
  * Format measure output
  * @param {Feature} feature feature
  * @param {Geometry} geometry geometry
+ * @param {string} units units
  * @return {string} The formatted measure of this feature
  */
-const formatMeasurement = (feature, geometry, units) => {
+const format = (feature, geometry, units) => {
   let output =
     Math.round((rawMeasurement(feature, geometry) / 10) * 100) / 100 +
     " " +
@@ -56,34 +35,18 @@ const rawMeasurement = (feature, geometry) => {
 };
 
 const isMeasurement = (feature) =>
-  Enums.Markup.Measurement === feature.get("marker");
+  Enums.Markup.Measurement === feature.get("markup");
 
 const MeasurementMarkup = (api) => {
   return {
-    getDefinition: (options) => {
-      return {
-        ...options,
-        maxPoints: options.type === "LineString" ? 1 : undefined,
-        minPoints: options.type === "LineString" ? 1 : undefined,
-        style: getOpenLayersStyleFunction(defaultStyle, options.style),
-        marker: Enums.Markup.Measurement,
-      };
-    },
     onAdd: (feature, options) => {
       if (isMeasurement(feature)) {
-        const styleFunction = getOpenLayersStyleFunction(
-          defaultStyle,
-          null,
-          options.style
-        );
-        feature.setStyle(styleFunction);
         const view = api.map.getView();
-        const measurement = formatMeasurement(
+        api.markupManager.create({
           feature,
-          null,
-          getUnitsSuffix(view)
-        );
-        api.markupManager.create({ feature, value: measurement });
+          value: format(feature, null, getUnitsSuffix(view)),
+          style: options.style,
+        });
       }
     },
     onRemove: (feature) => {
@@ -93,18 +56,14 @@ const MeasurementMarkup = (api) => {
       }
     },
     onUpdate: (feature) => {},
-    onDrawEnd: (feature) => {
+    onDrawStart: ({ feature }) => {
       if (isMeasurement(feature)) {
-        const styleFunction = getOpenLayersStyleFunction(defaultStyle);
-        feature.setStyle(styleFunction);
+        api.markupManager.create({ feature });
       }
     },
-    onInteractionsChange: (interactions) => {
-      api.markupManager.onInteractionsChange(interactions);
-    },
+    onDrawEnd: (event) => {},
     isMeasurement,
-    format: formatMeasurement,
-    style: getOpenLayersStyleFunction,
+    format,
   };
 };
 

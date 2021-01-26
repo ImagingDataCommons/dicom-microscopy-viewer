@@ -20,21 +20,18 @@ class _AnnotationManager {
     this.props.markupManager = new _MarkupManager({
       map,
       source,
-      geometries: [Markup.Measurement, Marker.Arrow],
-      unlinkableGeometries: [Markup.FreeTextEvaluation],
-      undraggableGeometries: [Markup.FreeTextEvaluation],
       formatters: {
         [Marker.Arrow]: this[Marker.Arrow].format,
         [Markup.Measurement]: this[Markup.Measurement].format,
         [Markup.FreeTextEvaluation]: this[Markup.FreeTextEvaluation].format,
       },
+      onDrawStart: this.onDrawStart.bind(this),
+      onDrawEnd: this.onDrawEnd.bind(this),
     });
   }
 
   onInteractionsChange(interactions) {
-    this[Marker.Arrow].onInteractionsChange(interactions);
-    this[Markup.Measurement].onInteractionsChange(interactions);
-    this[Markup.FreeTextEvaluation].onInteractionsChange(interactions);
+    this.props.markupManager.onInteractionsChange(interactions);
   }
 
   onAdd(feature, options) {
@@ -55,26 +52,16 @@ class _AnnotationManager {
     this[Markup.FreeTextEvaluation].onUpdate(feature);
   }
 
-  onDrawEnd(feature) {
-    this[Marker.Arrow].onDrawEnd(feature);
-    this[Markup.Measurement].onDrawEnd(feature);
-    this[Markup.FreeTextEvaluation].onDrawEnd(feature);
+  onDrawStart(event) {
+    this[Marker.Arrow].onDrawStart(event);
+    this[Markup.Measurement].onDrawStart(event);
+    this[Markup.FreeTextEvaluation].onDrawStart(event);
   }
 
-  getDrawOptions(marker, options = {}) {
-    if (!this[marker]) {
-      console.warn(`Invalid marker for ${options.geometryName}`);
-      return options;
-    }
-
-    return this[marker].getDefinition(options);
-  }
-
-  insertVertexCondition(feature) {
-    return (
-      !this[Markup.Measurement].isMeasurement(feature) &&
-      !this[Marker.Arrow].isArrow(feature)
-    );
+  onDrawEnd(event) {
+    this[Marker.Arrow].onDrawEnd(event);
+    this[Markup.Measurement].onDrawEnd(event);
+    this[Markup.FreeTextEvaluation].onDrawEnd(event);
   }
 }
 

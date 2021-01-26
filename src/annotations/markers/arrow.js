@@ -7,7 +7,7 @@ import Fill from "ol/style/Fill";
 import Stroke from "ol/style/Stroke";
 
 import Enums from "../../enums";
-import { defaultStyle } from "./styles";
+import { defaultStyle } from "../styles";
 
 const arrow = `
   <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -99,22 +99,10 @@ export const isArrow = (feature) =>
  * @param {LineString} arrow geometry
  * @return {string} The formatted output
  */
-const formatArrow = (feature, geometry) => {
-  const properties = feature.getProperties();
-  return properties.label || "";
-};
+const format = (feature) => feature.get("label") || "";
 
 const ArrowMarker = (api) => {
   return {
-    getDefinition: (options) => {
-      return {
-        ...options,
-        maxPoints: options.type === "LineString" ? 1 : undefined,
-        minPoints: options.type === "LineString" ? 1 : undefined,
-        style: getOpenLayersStyleFunction(defaultStyle, options.style),
-        marker: Enums.Marker.Arrow,
-      };
-    },
     onAdd: (feature, options) => {
       if (isArrow(feature)) {
         const styleFunction = getOpenLayersStyleFunction(
@@ -123,35 +111,20 @@ const ArrowMarker = (api) => {
           options.style
         );
         feature.setStyle(styleFunction);
-        api.markupManager.create({ feature, value: formatArrow(feature) });
-        /** Refresh to get latest value of label property */
         feature.changed();
       }
     },
-    onUpdate: (feature) => {
-      if (isArrow(feature)) {
-        api.markupManager.updateMarker({
-          feature,
-          value: formatArrow(feature),
-        });
-      }
-    },
-    onRemove: (feature) => {
-      if (isArrow(feature)) {
-        const featureId = feature.getId();
-        api.markupManager.remove(featureId);
-      }
-    },
-    onDrawEnd: (feature) => {
+    onUpdate: (feature) => {},
+    onRemove: (feature) => {},
+    onDrawStart: ({ feature }) => {},
+    onDrawEnd: ({ feature }) => {
       if (isArrow(feature)) {
         const styleFunction = getOpenLayersStyleFunction(defaultStyle);
         feature.setStyle(styleFunction);
       }
     },
-    onInteractionsChange: (interactions) => {},
     isArrow,
-    format: formatArrow,
-    style: getOpenLayersStyleFunction,
+    format,
   };
 };
 

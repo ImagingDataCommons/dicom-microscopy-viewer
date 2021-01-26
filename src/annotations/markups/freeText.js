@@ -1,101 +1,55 @@
-import Style from "ol/style/Style";
-import Circle from "ol/style/Circle";
-import Fill from "ol/style/Fill";
-import Stroke from "ol/style/Stroke";
-import Text from "ol/style/Text";
-
-import { defaultStyle } from "../markers/styles";
 import Enums from "../../enums";
+import { defaultStyle } from "../styles";
 
 export const isFreeText = (feature) =>
-  Enums.Markup.FreeTextEvaluation === feature.get("marker");
-
-const getOpenLayersStyleFunction = (defaultStyle, drawStyle, roiStyle) => (
-  feature,
-  resolution
-) => {
-  if (!isFreeText(feature)) {
-    return;
-  }
-
-  const styles = [defaultStyle];
-
-  if (drawStyle) {
-    styles.push(drawStyle);
-  }
-
-  if (roiStyle) {
-    styles.push(roiStyle);
-  }
-
-  styles.push(
-    new Style({
-      text: new Text({
-        font: "14px sans-serif",
-        overflow: true,
-        fill: new Fill({ color: "#9ccef9" }),
-        text: feature.get("label"),
-      }),
-      image: new Circle({
-        fill: new Fill({ color: "rgba(255,255,255,0.0)" }),
-        stroke: new Stroke({
-          color: "rgba(255,255,255,0.0)",
-          width: 0,
-        }),
-        radius: 15,
-      }),
-    })
-  );
-
-  return styles;
-};
+  Enums.Markup.FreeTextEvaluation === feature.get("markup");
 
 /**
  * Format free text output
  * @param {Feature} feature feature
  * @return {string} The formatted output
  */
-const formatFreeText = (feature, geometry) => {
-  const properties = feature.getProperties();
-  return properties.label || "";
-};
+const format = (feature) => feature.get("label") || "";
 
 const FreeTextMarkup = (api) => {
   return {
-    getDefinition: (options) => {
-      return {
-        ...options,
-        style: getOpenLayersStyleFunction(defaultStyle, options.style),
-        marker: Enums.Markup.FreeTextEvaluation,
-      };
-    },
     onAdd: (feature, options) => {
       if (isFreeText(feature)) {
-        const styleFunction = getOpenLayersStyleFunction(
-          defaultStyle,
-          null,
-          options.style
-        );
-        feature.setStyle(styleFunction);
+        feature.setStyle(defaultStyle);
+        api.markupManager.create({
+          feature,
+          value: format(feature),
+          isLinkable: !!feature.get("marker"),
+          isDraggable: !!feature.get("marker"),
+          offset: !!feature.get("marker") ? [7, 7] : [1, 1],
+        });
       }
     },
-    onRemove: (feature) => {},
+    onRemove: (feature) => {
+      if (isFreeText(feature)) {
+        const featureId = feature.getId();
+        api.markupManager.remove(featureId);
+      }
+    },
     onUpdate: (feature) => {
       if (isFreeText(feature)) {
-        /** Refresh to get latest value of label property */
-        feature.changed();
+        api.markupManager.update({ feature, value: format(feature) });
       }
     },
-    onDrawEnd: (feature) => {
+    onDrawStart: ({ feature }) => {
       if (isFreeText(feature)) {
-        const styleFunction = getOpenLayersStyleFunction(defaultStyle);
-        feature.setStyle(styleFunction);
+        feature.setStyle(defaultStyle);
+        api.markupManager.create({
+          feature,
+          isLinkable: !!feature.get("marker"),
+          isDraggable: !!feature.get("marker"),
+          offset: !!feature.get("marker") ? [7, 7] : [1, 1],
+        });
       }
     },
-    onInteractionsChange: () => {},
+    onDrawEnd: (event) => {},
     isFreeText,
-    format: formatFreeText,
-    style: getOpenLayersStyleFunction,
+    format,
   };
 };
 

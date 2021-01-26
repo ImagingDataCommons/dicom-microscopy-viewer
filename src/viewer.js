@@ -998,7 +998,7 @@ class VolumeImageViewer {
     this.deactivateDrawInteraction();
     console.info('activate "draw" interaction');
 
-    const customOptionsMapping = {
+    const geometryOptionsMapping = {
       point: {
         type: "Point",
         geometryName: "Point",
@@ -1032,6 +1032,8 @@ class VolumeImageViewer {
         geometryName: "Line",
         freehand: false,
         style: options.style,
+        maxPoints: options.maxPoints,
+        minPoints: options.minPoints,
       },
       freehandline: {
         type: "LineString",
@@ -1045,35 +1047,37 @@ class VolumeImageViewer {
       console.error("geometry type must be specified for drawing interaction");
     }
 
-    if (!(options.geometryType in customOptionsMapping)) {
+    if (!(options.geometryType in geometryOptionsMapping)) {
       console.error(`unsupported geometry type "${options.geometryType}"`);
     }
 
-    const defaultDrawOptions = { source: this[_drawingSource] };
-    const selectedOption = customOptionsMapping[options.geometryType];
-    const customDrawOptions = this[_annotationManager].getDrawOptions(
-      options.marker,
-      selectedOption
+    const internalDrawOptions = { source: this[_drawingSource] };
+    const geometryDrawOptions = geometryOptionsMapping[options.geometryType];
+    const builtInDrawOptions = {
+      marker: options.marker,
+      markup: options.markup,
+      vertexEnabled: options.vertexEnabled,
+    };
+    const drawOptions = Object.assign(
+      internalDrawOptions,
+      geometryDrawOptions,
+      builtInDrawOptions
     );
 
-    const allDrawOptions = Object.assign(defaultDrawOptions, customDrawOptions);
-    this[_interactions].draw = new Draw(allDrawOptions);
+    this[_interactions].draw = new Draw(drawOptions);
     const container = this[_map].getTargetElement();
 
-    this[_interactions].draw.on("drawstart", (e) => {
-      if (allDrawOptions.marker && !e.feature.get("marker")) {
-        e.feature.set("marker", allDrawOptions.marker, true);
-      }
-      e.feature.setId(generateUID());
+    this[_interactions].draw.on("drawstart", ({ feature }) => {
+      feature.setProperties(builtInDrawOptions, true);
+      feature.setId(generateUID());
     });
 
     // attaching openlayers events handling
-    this[_interactions].draw.on("drawend", (e) => {
-      this[_annotationManager].onDrawEnd(e.feature);
+    this[_interactions].draw.on("drawend", ({ feature }) => {
       publish(
         container,
         EVENT.ROI_DRAWN,
-        _getROIFromFeature(e.feature, this[_pyramidMetadata])
+        _getROIFromFeature(feature, this[_pyramidMetadata])
       );
     });
 
@@ -1224,12 +1228,7 @@ class VolumeImageViewer {
     console.info('activate "modify" interaction');
     this[_interactions].modify = new Modify({
       features: this[_features], // TODO: or source, i.e. "drawings"???
-      insertVertexCondition: (event) => {
-        const feature = this[_drawingSource].getClosestFeatureToCoordinate(
-          event.coordinate_
-        );
-        return this[_annotationManager].insertVertexCondition(feature);
-      },
+      insertVertexCondition: ({ feature }) => feature.get("vertexEnabled"),
     });
 
     this[_map].addInteraction(this[_interactions].modify);
@@ -1341,7 +1340,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Override styles of given feature.
+   * Override styles of a given feature.
    *
    * @returns void
    */
@@ -1354,7 +1353,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Reset styles of given feature.
+   * Reset styles of a given feature.
    *
    * @returns void
    */
