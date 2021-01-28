@@ -18,7 +18,7 @@ import Snap from "ol/interaction/Snap";
 import Translate from "ol/interaction/Translate";
 import Style from "ol/style/Style";
 import Stroke from "ol/style/Stroke";
-import Image from "ol/style/Image";
+import Circle from "ol/style/Circle";
 import Static from "ol/source/ImageStatic";
 import Overlay from "ol/Overlay";
 import TileLayer from "ol/layer/Tile";
@@ -52,6 +52,7 @@ import {
 import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 
 import _AnnotationManager from "./annotations/_AnnotationManager";
+import Icon from "ol/style/Icon";
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -358,6 +359,59 @@ function _getROIFromFeature(feature, pyramid) {
   return;
 }
 
+/** Map style options to OpenLayers style.
+ *
+ * @param {object} styleOptions - Style options
+ * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+ * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
+ * @param {number} styleOptions.stroke.width - Width of the outline
+ * @param {object} styleOptions.fill - Style options for body the geometry
+ * @param {number[]} styleOptions.fill.color - RGBA color of the body
+ * @param {object} styleOptions.image - Style options for image
+ * @return {Style} OpenLayers style
+ */
+function _getOpenLayersStyle(styleOptions) {
+  const style = new Style();
+
+  if ("stroke" in styleOptions) {
+    const strokeOptions = {
+      color: styleOptions.stroke.color,
+      width: styleOptions.stroke.width,
+    };
+    const stroke = new Stroke(strokeOptions);
+    style.setStroke(stroke);
+  }
+
+  if ("fill" in styleOptions) {
+    const fillOptions = {
+      color: styleOptions.fill.color,
+    };
+    const fill = new Fill(fillOptions);
+    style.setFill(fill);
+  }
+
+  if ("image" in styleOptions) {
+    const { image } = styleOptions;
+
+    if (image.circle) {
+      const options = {
+        radius: image.circle.radius,
+        stroke: new Stroke(image.circle.stroke),
+        fill: new Fill(image.circle.fill),
+      };
+      const circle = new Circle(options);
+      style.setImage(circle);
+    }
+
+    if (image.icon) {
+      const icon = new Icon(image.icon);
+      style.setImage(icon);
+    }
+  }
+
+  return style;
+}
+
 /** Updates the style of a feature.
  *
  * @param {object} styleOptions - Style options
@@ -366,41 +420,15 @@ function _getROIFromFeature(feature, pyramid) {
  * @param {number} styleOptions.stroke.width - Width of the outline
  * @param {object} styleOptions.fill - Style options for body the geometry
  * @param {number[]} styleOptions.fill.color - RGBA color of the body
+ * @param {object} styleOptions.image - Style options for image
  */
 function _setFeatureStyle(feature, styleOptions) {
   if (styleOptions !== undefined) {
-    const style = new Style();
-
-    if (styleOptions instanceof Style) {
-      feature.setStyle(styleOptions);
-      return;
+    const style = _getOpenLayersStyle(styleOptions);
+    feature.set("styleOptions", styleOptions);
+    if (!feature.get("marker") && !feature.get("markup")) {
+      feature.setStyle(style);
     }
-
-    if ("stroke" in styleOptions) {
-      const strokeOptions = {
-        color: styleOptions.stroke.color,
-        width: styleOptions.stroke.width,
-      };
-      const stroke = new Stroke(strokeOptions);
-      style.setStroke(stroke);
-    }
-    if ("fill" in styleOptions) {
-      const fillOptions = {
-        color: styleOptions.fill.color,
-      };
-      const fill = new Fill(fillOptions);
-      style.setFill(fill);
-    }
-    if ("image" in styleOptions) {
-      const imageOptions = {
-        fill: styleOptions.image.fill,
-        stroke: styleOptions.image.stroke,
-        radius: styleOptions.image.radius,
-      };
-      const image = new Image(imageOptions);
-      style.setImage(image);
-    }
-    feature.setStyle(style);
   }
 }
 
@@ -991,8 +1019,18 @@ class VolumeImageViewer {
   /** Activates the draw interaction for graphic annotation of regions of interest.
    * @param {object} options - Drawing options.
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
-   * @param {object} options.strokeStyle - Style of the geometry stroke (keys: "color", "width")
-   * @param {object} options.fillStyle - Style of the geometry body (keys: "color")
+   * @param {string} options.marker - Marker
+   * @param {string} options.markup - Markup
+   * @param {number} options.maxPoints - Geometry max points
+   * @param {number} options.minPoints - Geometry min points
+   * @param {boolean} options.vertexEnabled - Enable vertex
+   * @param {object} options.styleOptions - Style options
+   * @param {object} options.styleOptions.stroke - Style options for the outline of the geometry
+   * @param {number[]} options.styleOptions.stroke.color - RGBA color of the outline
+   * @param {number} options.styleOptions.stroke.width - Width of the outline
+   * @param {object} options.styleOptions.fill - Style options for body the geometry
+   * @param {number[]} options.styleOptions.fill.color - RGBA color of the body
+   * @param {object} options.styleOptions.image - Style options for image
    */
   activateDrawInteraction(options = {}) {
     this.deactivateDrawInteraction();
@@ -1002,36 +1040,30 @@ class VolumeImageViewer {
       point: {
         type: "Point",
         geometryName: "Point",
-        style: options.style,
       },
       circle: {
         type: "Circle",
         geometryName: "Circle",
-        style: options.style,
       },
       box: {
         type: "Circle",
         geometryName: "Box",
         geometryFunction: createRegularPolygon(4),
-        style: options.style,
       },
       polygon: {
         type: "Polygon",
         geometryName: "Polygon",
         freehand: false,
-        style: options.style,
       },
       freehandpolygon: {
         type: "Polygon",
         geometryName: "FreeHandPolygon",
         freehand: true,
-        style: options.style,
       },
       line: {
         type: "LineString",
         geometryName: "Line",
         freehand: false,
-        style: options.style,
         maxPoints: options.maxPoints,
         minPoints: options.minPoints,
       },
@@ -1039,7 +1071,6 @@ class VolumeImageViewer {
         type: "LineString",
         geometryName: "FreeHandLine",
         freehand: true,
-        style: options.style,
       },
     };
 
@@ -1068,6 +1099,7 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement();
 
     this[_interactions].draw.on("drawstart", ({ feature }) => {
+      _setFeatureStyle(feature, options.styleOptions);
       feature.setProperties(builtInDrawOptions, true);
       feature.setId(generateUID());
     });
@@ -1228,7 +1260,8 @@ class VolumeImageViewer {
     console.info('activate "modify" interaction');
     this[_interactions].modify = new Modify({
       features: this[_features], // TODO: or source, i.e. "drawings"???
-      insertVertexCondition: ({ feature }) => feature.get("vertexEnabled"),
+      insertVertexCondition: ({ feature }) =>
+        feature && feature.get("vertexEnabled") === true,
     });
 
     this[_map].addInteraction(this[_interactions].modify);
@@ -1339,30 +1372,6 @@ class VolumeImageViewer {
     return _getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
-  /**
-   * Override styles of a given feature.
-   *
-   * @returns void
-   */
-  overrideStyle({ feature, style }) {
-    if (!this.originalStyles) this.originalStyles = {};
-    if (!this.originalStyles[feature.getId()]) {
-      this.originalStyles[feature.getId()] = feature.getStyle();
-    }
-    feature.setStyle(style);
-  }
-
-  /**
-   * Reset styles of a given feature.
-   *
-   * @returns void
-   */
-  resetStyle({ feature }) {
-    if (this.originalStyles[feature.getId()]) {
-      feature.setStyle(this.originalStyles[feature.getId()]);
-    }
-  }
-
   /** Adds a regions of interest.
    *
    * @param {ROI} item - Regions of interest.
@@ -1372,6 +1381,7 @@ class VolumeImageViewer {
    * @param {number} styleOptions.stroke.width - Width of the outline
    * @param {object} styleOptions.fill - Style options for body the geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
+   * @param {object} styleOptions.image - Style options for image
    *
    */
   addROI(item, styleOptions) {
@@ -1387,8 +1397,7 @@ class VolumeImageViewer {
 
     this[_features].push(feature);
 
-    const annotationOptions = { style: styleOptions };
-    this[_annotationManager].onAdd(feature, annotationOptions);
+    this[_annotationManager].onAdd(feature);
   }
 
   /** Update properties of regions of interest.
@@ -1416,6 +1425,7 @@ class VolumeImageViewer {
    * @param {number} styleOptions.stroke.width - Width of the outline
    * @param {object} styleOptions.fill - Style options for body the geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
+   * @param {object} styleOptions.image - Style options for image
    *
    */
   setROIStyle(uid, styleOptions) {

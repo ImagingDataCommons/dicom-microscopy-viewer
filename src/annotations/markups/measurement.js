@@ -29,7 +29,14 @@ const format = (feature, geometry, units) => {
 const rawMeasurement = (feature, geometry) => {
   let geom = feature ? feature.getGeometry() : geometry;
   if (geom instanceof Circle) geom = fromCircle(geom);
-  const value = getLength(geom) ? getLength(geom) : getArea(geom);
+  let value;
+  if (getLength(geom)) {
+    value = getLength(geom);
+    feature.set('length', value, true);
+  } else {
+    value = getArea(geom);
+    feature.set('area', value, true);
+  }
   let output = Math.round((value / 10) * 100) / 100;
   return output;
 };
@@ -39,13 +46,12 @@ const isMeasurement = (feature) =>
 
 const MeasurementMarkup = (api) => {
   return {
-    onAdd: (feature, options) => {
+    onAdd: (feature) => {
       if (isMeasurement(feature)) {
         const view = api.map.getView();
         api.markupManager.create({
           feature,
           value: format(feature, null, getUnitsSuffix(view)),
-          style: options.style,
         });
       }
     },

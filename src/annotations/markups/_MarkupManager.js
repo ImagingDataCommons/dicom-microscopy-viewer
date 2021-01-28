@@ -9,11 +9,11 @@ import Collection from "ol/Collection";
 import Feature from "ol/Feature";
 
 import Enums from "../../enums";
-
 import {
   getUnitsSuffix,
   getShortestLineBetweenOverlayAndFeature,
 } from "./utils";
+import defaultStyles from "../styles";
 
 const MapEvents = {
   POINTER_MOVE: "pointermove",
@@ -39,6 +39,7 @@ class _MarkupManager {
     onClick,
     onDrawStart,
     onDrawEnd,
+    onStyle,
   } = {}) {
     this._map = map;
     this._source = source;
@@ -47,20 +48,22 @@ class _MarkupManager {
     this.onDrawStart = onDrawStart;
     this.onDrawEnd = onDrawEnd;
     this.onClick = onClick;
+    this.onStyle = onStyle;
 
     this._markups = new Map();
     this._listeners = new Map();
     this._links = new Collection([], { unique: true });
 
-    const styleTag = document.createElement("style");
-    styleTag.innerHTML = `
+    const defaultColor = defaultStyles.stroke.color;
+    this._styleTag = document.createElement("style");
+    this._styleTag.innerHTML = `
       .ol-tooltip {
-        color: #9ccef9;
+        color: ${defaultColor};
         white-space: nowrap;
         font-size: 14px;
       }
       .ol-tooltip-measure { opacity: 1; }
-      .ol-tooltip-static { color: #9ccef9; }
+      .ol-tooltip-static { color: ${defaultColor}; }
       .ol-tooltip-measure:before,
       .ol-tooltip-static:before {
         content: '',
@@ -70,22 +73,21 @@ class _MarkupManager {
       .markup-container { display: block !important; }
     `;
 
-    const linksVector = new VectorLayer({
+    this._linkStroke = new Stroke({
+      color: defaultColor,
+      lineDash: [0.3, 7],
+      width: 3,
+    });
+    this._linksVector = new VectorLayer({
       source: new VectorSource({ features: this._links }),
-      style: [
-        new Style({
-          stroke: new Stroke({
-            color: "#9ccef9",
-            lineDash: [0.3, 7],
-            width: 3,
-          }),
-        }),
-      ],
+      style: new Style({
+        stroke: this._linkStroke,
+      }),
     });
 
-    const markupsOverlay = new Overlay({ element: styleTag });
-    this._map.addOverlay(markupsOverlay);
-    this._map.addLayer(linksVector);
+    this._markupsOverlay = new Overlay({ element: this._styleTag });
+    this._map.addOverlay(this._markupsOverlay);
+    this._map.addLayer(this._linksVector);
 
     this._onDrawStart = this._onDrawStart.bind(this);
     this._onDrawEnd = this._onDrawEnd.bind(this);
@@ -150,8 +152,7 @@ class _MarkupManager {
     value = "",
     isLinkable = true,
     isDraggable = true,
-    style = {},
-    offset = [7, 7]
+    offset = [7, 7],
   }) {
     const id = feature.getId();
     if (!id) {
@@ -163,6 +164,37 @@ class _MarkupManager {
       console.warn("Markup for feature already exists", id);
       return this.get(id);
     }
+
+    const styleTooltip = (feature) => {
+      const styleOptions = feature.get("styleOptions");
+      if (styleOptions && styleOptions.stroke) {
+        const { color } = styleOptions.stroke;
+        const tooltipColor = color || defaultStyles.stroke.color;
+        this._linkStroke.setColor(tooltipColor);
+        this._styleTag.innerHTML = `
+        .ol-tooltip {
+          color: ${tooltipColor};
+          white-space: nowrap;
+          font-size: 14px;
+        }
+        .ol-tooltip-measure { opacity: 1; }
+        .ol-tooltip-static { color: ${tooltipColor}; }
+        .ol-tooltip-measure:before,
+        .ol-tooltip-static:before {
+          content: '',
+        }
+
+        #markup { cursor: move; }
+        .markup-container { display: block !important; }
+      `;
+      }
+    };
+
+    feature.on("propertychange", ({ key, target: feature }) => {
+      if (key === "styleOptions") {
+        styleTooltip(feature);
+      }
+    });
 
     const markup = { id, isLinkable, isDraggable };
 
