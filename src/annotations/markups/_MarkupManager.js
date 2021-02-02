@@ -15,22 +15,6 @@ import {
 } from "./utils";
 import defaultStyles from "../styles";
 
-const MapEvents = {
-  POINTER_MOVE: "pointermove",
-  POINTER_UP: "pointerup",
-};
-
-const HTMLElementEvents = {
-  MOUSE_DOWN: "mousedown",
-};
-
-const OpenLayersEvents = {
-  DRAW_START: "drawstart",
-  DRAW_END: "drawend",
-  TRANSLATE_START: "translatestart",
-  MODIFY_START: "modifystart",
-};
-
 class _MarkupManager {
   constructor({
     map,
@@ -190,11 +174,14 @@ class _MarkupManager {
       }
     };
 
-    feature.on("propertychange", ({ key, target: feature }) => {
-      if (key === "styleOptions") {
-        styleTooltip(feature);
+    feature.on(
+      Enums.FeatureEvents.PROPERTY_CHANGE,
+      ({ key: property, target: feature }) => {
+        if (property === "styleOptions") {
+          styleTooltip(feature);
+        }
       }
-    });
+    );
 
     const markup = { id, isLinkable, isDraggable };
 
@@ -224,7 +211,7 @@ class _MarkupManager {
       }
     });
 
-    element.addEventListener(HTMLElementEvents.MOUSE_DOWN, () => {
+    element.addEventListener(Enums.HTMLElementEvents.MOUSE_DOWN, () => {
       const markup = this.get(id);
       if (markup) {
         dragPan.setActive(false);
@@ -232,7 +219,7 @@ class _MarkupManager {
       }
     });
 
-    this._map.on(MapEvents.POINTER_MOVE, (event) => {
+    this._map.on(Enums.MapEvents.POINTER_MOVE, (event) => {
       const markup = this.get(id);
       if (
         markup &&
@@ -244,7 +231,7 @@ class _MarkupManager {
       }
     });
 
-    this._map.on(MapEvents.POINTER_UP, () => {
+    this._map.on(Enums.MapEvents.POINTER_UP, () => {
       const markup = this.get(id);
       if (
         markup &&
@@ -307,7 +294,7 @@ class _MarkupManager {
   _updateLocation(event) {
     event.features.forEach((feature) => {
       if (this._isValidFeature(feature)) {
-        this._updateMarkupOnGeometryChange({
+        this._onFeatureGeometryChange({
           feature,
           coordinate: event.coordinate,
         });
@@ -370,30 +357,26 @@ class _MarkupManager {
    * @param {object} feature The feature
    * @param {object} coordinate The markup coordinate
    */
-  _updateMarkupOnGeometryChange({ feature, coordinate }) {
-    let markupCoordinate = coordinate;
+  _onFeatureGeometryChange({ feature, coordinate }) {
     const featureId = feature.getId();
     const geometry = feature.getGeometry();
-    const listener = geometry.on("change", (event) => {
-      const markup = this.get(featureId);
-      if (markup) {
-        let currentGeometry = event.target;
-        const view = this._map.getView();
-        const unitsSuffix = getUnitsSuffix(view);
-        let output = this._getFormatter(feature)(
-          feature,
-          currentGeometry,
-          unitsSuffix
-        );
-        markupCoordinate = currentGeometry.getLastCoordinate();
+
+    const view = this._map.getView();
+    const format = this._getFormatter(feature);
+    const unitsSuffix = getUnitsSuffix(view);
+
+    const listener = geometry.on(Enums.FeatureGeometryEvents.CHANGE, () => {
+      if (this.has(featureId)) {
+        const output = format(feature, unitsSuffix);
         this.update({
           feature,
           value: output,
-          coordinate: markupCoordinate,
+          coordinate: geometry.getLastCoordinate(),
         });
         this.drawLink(feature);
       }
     });
+
     this._listeners.set(featureId, listener);
   }
 
@@ -405,20 +388,23 @@ class _MarkupManager {
   bindInteractionEvents(interactions) {
     if (interactions.draw) {
       this._listeners.set(
-        OpenLayersEvents.DRAW_START,
-        interactions.draw.on(OpenLayersEvents.DRAW_START, this._onDrawStart)
+        Enums.InteractionEvents.DRAW_START,
+        interactions.draw.on(
+          Enums.InteractionEvents.DRAW_START,
+          this._onDrawStart
+        )
       );
       this._listeners.set(
-        OpenLayersEvents.DRAW_END,
-        interactions.draw.on(OpenLayersEvents.DRAW_END, this._onDrawEnd)
+        Enums.InteractionEvents.DRAW_END,
+        interactions.draw.on(Enums.InteractionEvents.DRAW_END, this._onDrawEnd)
       );
     }
 
     if (interactions.translate) {
       this._listeners.set(
-        OpenLayersEvents.TRANSLATE_START,
+        Enums.InteractionEvents.TRANSLATE_START,
         interactions.translate.on(
-          OpenLayersEvents.TRANSLATE_START,
+          Enums.InteractionEvents.TRANSLATE_START,
           this._onTranslateStart
         )
       );
@@ -426,9 +412,9 @@ class _MarkupManager {
 
     if (interactions.modify) {
       this._listeners.set(
-        OpenLayersEvents.MODIFY_START,
+        Enums.InteractionEvents.MODIFY_START,
         interactions.modify.on(
-          OpenLayersEvents.MODIFY_START,
+          Enums.InteractionEvents.MODIFY_START,
           this._onModifyStart
         )
       );
@@ -485,7 +471,7 @@ class _MarkupManager {
     this.onDrawStart(event);
     const feature = event.feature;
     if (this._isValidFeature(feature)) {
-      this._updateMarkupOnGeometryChange({
+      this._onFeatureGeometryChange({
         feature,
         coordinate: event.coordinate,
       });

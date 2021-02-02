@@ -223,7 +223,7 @@ function _scoord3d2Geometry(scoord3d, pyramid) {
     ];
 
     // flat coordinates in combination with opt_layout and no opt_radius are also accepted
-    // and internaly it calculates the Radius
+    // and internally it calculates the Radius
     return new CircleGeometry(coordinates, null, "XY");
   } else {
     console.error(`unsupported graphic type "${type}"`);
@@ -502,11 +502,13 @@ class VolumeImageViewer {
       if (e.element.getId() === undefined) {
         e.element.setId(generateUID());
       }
+
+      this[_annotationManager].onAdd(e.element);
     });
 
-    this[_features].on("remove", (e) =>
+    this[_features].on("remove", (e) => {
       this[_annotationManager].onRemove(e.element)
-    );
+    });
 
     /*
      * To visualize images accross multiple scales, we first need to
@@ -912,6 +914,7 @@ class VolumeImageViewer {
       map: this[_map],
       source: this[_drawingSource],
       controls: this[_controls],
+      getROI: this.getROI.bind(this)
     });
   }
 
@@ -978,11 +981,11 @@ class VolumeImageViewer {
         const geometry = e.feature.getGeometry();
         const type = geometry.getType();
         // The first and last point of a polygon must be identical. The last point
-        // is an implmentation detail and is hidden from the user in the graphical
+        // is an implementation detail and is hidden from the user in the graphical
         // interface. However, we must update the last point in case the first
-        // piont has been modified by the user.
+        // point has been modified by the user.
         if (type === "Polygon") {
-          // NOTE: Polyon in GeoJSON format contains an array of geometries,
+          // NOTE: Polygon in GeoJSON format contains an array of geometries,
           // where the first element represents the coordinates of the outer ring
           // and the second element represents the coordinates of the inner ring
           // (in our case the inner ring should not be present).
@@ -1396,8 +1399,6 @@ class VolumeImageViewer {
     _setFeatureStyle(feature, styleOptions);
 
     this[_features].push(feature);
-
-    this[_annotationManager].onAdd(feature);
   }
 
   /** Update properties of regions of interest.

@@ -29,17 +29,17 @@ const getArrowStyle = (point, rotation, anchor, color) => {
   });
 };
 
-const state = { isLocked: false };
+const isLocked = {};
 const bindStyleEvents = (feature) => {
   applyStyle(feature);
-  if (!state.isLocked) {
+  if (!isLocked[feature.getId()]) {
     const onGeometryChange = () => {
       if (isArrow(feature)) {
         applyStyle(feature);
       }
     };
     feature.getGeometry().on("change", onGeometryChange);
-    state.isLocked = true;
+    isLocked[feature.getId()] = true;
   }
 };
 
@@ -77,7 +77,7 @@ const ArrowMarker = (api) => {
       }
     },
     onUpdate: (feature) => {},
-    onRemove: (feature) => {},
+    onRemove: (feature) => isLocked[feature.getId()] = null,
     onDrawStart: ({ feature }) => {},
     onDrawEnd: ({ feature }) => {
       if (isArrow(feature)) {

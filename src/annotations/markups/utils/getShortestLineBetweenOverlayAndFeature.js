@@ -1,4 +1,7 @@
 import LineString from 'ol/geom/LineString';
+import Circle from 'ol/geom/Circle';
+import { fromCircle } from "ol/geom/Polygon";
+
 /**
  * Builds a new LineString instance with the shortest
  * distance between a given overlay and a feature.
@@ -11,7 +14,12 @@ const getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
   let result;
   let distanceSq = Infinity;
 
-  const featureGeometry = feature.getGeometry();
+  let featureGeometry = feature.getGeometry();
+
+  if (featureGeometry instanceof Circle) {
+    featureGeometry = fromCircle(featureGeometry);
+  }
+
   let geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
 
   (geometry.getCoordinates() || geometry.getExtent()).forEach(coordinates => {

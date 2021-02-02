@@ -1,6 +1,7 @@
 import { getLength, getArea } from "ol/sphere";
-import { fromCircle } from "ol/geom/Polygon";
+import Polygon, { fromCircle } from "ol/geom/Polygon";
 import Circle from "ol/geom/Circle";
+import LineString from "ol/geom/LineString";
 
 import Enums from "../../enums";
 import { getUnitsSuffix } from "./utils";
@@ -8,34 +9,33 @@ import { getUnitsSuffix } from "./utils";
 /**
  * Format measure output
  * @param {Feature} feature feature
- * @param {Geometry} geometry geometry
  * @param {string} units units
  * @return {string} The formatted measure of this feature
  */
-const format = (feature, geometry, units) => {
+const format = (feature, units) => {
   let output =
-    Math.round((rawMeasurement(feature, geometry) / 10) * 100) / 100 +
-    " " +
-    units;
+    Math.round((rawMeasurement(feature) / 10) * 100) / 100 + " " + units;
   return output;
 };
 
 /**
  * Get measurement from feature
  * @param {Feature} feature feature
- * @param {Geometry} geometry geometry
  * @return {string} The formatted measure of this feature
  */
-const rawMeasurement = (feature, geometry) => {
-  let geom = feature ? feature.getGeometry() : geometry;
-  if (geom instanceof Circle) geom = fromCircle(geom);
+const rawMeasurement = (feature) => {
   let value;
-  if (getLength(geom)) {
+  let geom = feature.getGeometry();
+  if (geom instanceof LineString) {
     value = getLength(geom);
-    feature.set('length', value, true);
-  } else {
+    feature.set("length", value);
+  } else if (geom instanceof Circle) {
+    geom = fromCircle(geom);
     value = getArea(geom);
-    feature.set('area', value, true);
+    feature.set("area", value);
+  } else if (geom instanceof Polygon) {
+    value = getArea(geom);
+    feature.set("area", value);
   }
   let output = Math.round((value / 10) * 100) / 100;
   return output;
@@ -49,9 +49,10 @@ const MeasurementMarkup = (api) => {
     onAdd: (feature) => {
       if (isMeasurement(feature)) {
         const view = api.map.getView();
+        const unitsSuffix = getUnitsSuffix(view);
         api.markupManager.create({
           feature,
-          value: format(feature, null, getUnitsSuffix(view)),
+          value: format(feature, unitsSuffix),
         });
       }
     },
@@ -67,7 +68,7 @@ const MeasurementMarkup = (api) => {
         api.markupManager.create({ feature });
       }
     },
-    onDrawEnd: (event) => {},
+    onDrawEnd: ({ feature }) => {},
     isMeasurement,
     format,
   };
