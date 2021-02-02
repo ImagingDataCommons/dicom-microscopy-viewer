@@ -9,6 +9,10 @@ import { getUnitsSuffix } from "./markups/utils";
 
 const { Marker, Markup, FeatureEvents } = Enums;
 
+const RelationshipTypes = {
+  HAS_OBS_CONTEXT: "HAS OBS CONTEXT",
+};
+
 class _AnnotationManager {
   constructor({ map, source, controls, getROI } = {}) {
     this.props = { map, source, controls, getROI };
@@ -102,7 +106,16 @@ class _AnnotationManager {
     const properties = feature.getProperties();
 
     if (properties.label) {
-      /** TODO... */
+      const evaluation = new dcmjs.sr.valueTypes.TextContentItem({
+        name: new dcmjs.sr.coding.CodedConcept({
+          value: "112039",
+          meaning: "Tracking Identifier",
+          schemeDesignator: "DCM",
+        }),
+        value: properties.label,
+        relationshipType: RelationshipTypes.HAS_OBS_CONTEXT,
+      });
+      this.addOrUpdateEvaluation(feature, evaluation, "Tracking Identifier");
     }
 
     if (properties.area) {
@@ -151,7 +164,13 @@ class _AnnotationManager {
     }
 
     if (evaluations && evaluations.length) {
-      /** TODO... */
+      return evaluations.some((evaluation) => {
+        const SUPPORTED_EVALUATIONS = ["Tracking Identifier"];
+        let codeMeaning = this.getContentItemCodeMeaning(evaluation);
+        if (SUPPORTED_EVALUATIONS.includes(codeMeaning)) {
+          feature.set("markup", "freetext");
+        }
+      });
     }
   }
 
@@ -160,8 +179,8 @@ class _AnnotationManager {
   }
 
   onAdd(feature) {
-    /** 
-     * Add properties to ROI feature before triggering 
+    /**
+     * Add properties to ROI feature before triggering
      * markup and markers callbacks to keep UI in sync with them.
      */
     this._addMeasurementsAndEvaluationsProperties(feature);

@@ -1412,7 +1412,7 @@ class VolumeImageViewer {
     console.info(`update ROI ${uid}`);
 
     const feature = this[_drawingSource].getFeatureById(uid);
-    feature.setProperties(properties, true);
+    feature.setProperties(properties);
 
     this[_annotationManager].onUpdate(feature);
   }
