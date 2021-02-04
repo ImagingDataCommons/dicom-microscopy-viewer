@@ -425,10 +425,14 @@ function _getOpenLayersStyle(styleOptions) {
 function _setFeatureStyle(feature, styleOptions) {
   if (styleOptions !== undefined) {
     const style = _getOpenLayersStyle(styleOptions);
+    feature.setStyle(style);
+
+    /** 
+     * styleOptions is used internally by internal styled components like markers.
+     * This allows them to take priority over styling since OpenLayers swaps the styles
+     * completely in case of a setStyle happens.
+     */
     feature.set("styleOptions", styleOptions);
-    if (!feature.get("marker") && !feature.get("markup")) {
-      feature.setStyle(style);
-    }
   }
 }
 

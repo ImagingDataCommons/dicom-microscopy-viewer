@@ -17,7 +17,7 @@ const format = (feature) => feature.get("label") || "";
 
 const applyStyle = (feature) => {
   if (hasMarker(feature)) return;
-  const hiddenPoint = new Style({
+  const style = new Style({
     image: new Circle({
       fill: new Fill({
         color: "rgba(255,255,255,0.0)",
@@ -29,7 +29,8 @@ const applyStyle = (feature) => {
       radius: 5,
     }),
   });
-  feature.setStyle(hiddenPoint);
+
+  feature.setStyle(style);
 };
 
 const hasMarker = (feature) => !!feature.get("marker");
@@ -47,6 +48,14 @@ const FreeTextMarkup = (api) => {
           offset: featureHasMarker ? [7, 7] : [1, 1],
         });
         applyStyle(feature);
+        feature.on(
+          Enums.FeatureEvents.PROPERTY_CHANGE,
+          ({ key: property, target: feature }) => {
+            if (property === "styleOptions") {
+              applyStyle(feature);
+            }
+          }
+        );
       }
     },
     onRemove: (feature) => {

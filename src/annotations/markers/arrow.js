@@ -38,8 +38,16 @@ const bindStyleEvents = (feature) => {
         applyStyle(feature);
       }
     };
-    feature.getGeometry().on("change", onGeometryChange);
+    feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, onGeometryChange);
     isLocked[feature.getId()] = true;
+    feature.on(
+      Enums.FeatureEvents.PROPERTY_CHANGE,
+      ({ key: property, target: feature }) => {
+        if (property === "styleOptions") {
+          applyStyle(feature);
+        }
+      }
+    );
   }
 };
 
