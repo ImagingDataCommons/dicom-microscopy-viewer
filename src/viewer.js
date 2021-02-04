@@ -55,7 +55,7 @@ import {
 } from './scoord3d.js';
 
 import * as DICOMwebClient from 'dicomweb-client';
-import blendImageFrames from './blendImageFrames.js';
+import { colorImageFrames } from './colorImageFrames.js';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -639,22 +639,11 @@ class VolumeImageViewer {
               iccprofile: 'yes'
             }
           }
-          const pixelData = await options.client.retrieveInstanceFramesRendered(retrieveOptions);
-
-          // todo: trigger redraw when frameData changes?
-          const frameData = [
-            {
-              pixelData,
-              contrastLimitsRange: [0, 255],
-              colorLUT: [[0, 0, 0, 0], [1, 1, 1, 1]],
-              opacity: 1,
-              visible: true
-            }, // ... (more than one frame)
-          ];
-
-          const blendedFrame = blendImageFrames(frameData)
-          const blob = new Blob([blendedFrame], {type: mediaType});
-          img.src = window.URL.createObjectURL(blob);
+          options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
+            (renderedFrame) => {
+              const blob = new Blob([renderedFrame], {type: mediaType});
+              img.src = window.URL.createObjectURL(blob);
+            }
           );
         } else {
           // TODO: support "image/jp2" and "image/jls"
@@ -670,7 +659,22 @@ class VolumeImageViewer {
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
-              const blob = new Blob(rawFrames, {type: mediaType});
+              let pixelData = new Uint8Array(rawFrames[0])
+
+              const frameData = {
+                pixelData,
+                contrastLimitsRange: [127, 256],
+                color: [255, 0, 0],
+                opacity: 1,
+                visible: true
+              };
+
+              // To Do: pass width and height to colorImageFrames
+              let coloredArray = colorImageFrames(frameData)
+
+              console.info("check", coloredArray, rawFrames[0])
+
+              const blob = new Blob([coloredArray], {type: mediaType});
               img.src = window.URL.createObjectURL(blob);
             }
           );
