@@ -440,9 +440,12 @@ function colorImageFrames(frameData) {
 
   // To Do: get width and height from the frameData.
   const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, windowWidth, windowCenter);
-
   context.drawImage(renderedCanvas, 0, 0);
-  return context.getImageData(0, 0, frameData.width, frameData.height).data;
+
+  return canvas.toDataURL('image/png');
+
+  /*context.drawImage(renderedCanvas, 0, 0);
+  return context.getImageData(0, 0, frameData.width, frameData.height).data;*/
 }
 
 export {

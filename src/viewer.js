@@ -619,53 +619,7 @@ class VolumeImageViewer {
      * WADO-RS response message has content type "multipart/related".
     */
     const tileLoadFunction = async (tile, src) => {
-      if (src !== null) {
-        const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
-        const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
-        const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
-        const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-        const img = tile.getImage();
-        if (options.retrieveRendered) {
-          const mediaType = 'image/png';
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            mediaTypes: [{ mediaType }],
-          };
-          if (options.includeIccProfile) {
-            retrieveOptions['queryParams'] = {
-              iccprofile: 'yes'
-            }
-          }
-          options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
-            (renderedFrame) => {
-              const blob = new Blob([renderedFrame], {type: mediaType});
-              img.src = window.URL.createObjectURL(blob);
-            }
-          );
-        } else {
-          // TODO: support "image/jp2" and "image/jls"
-          const mediaType = 'image/jpeg';
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            mediaTypes: [
-              { mediaType, transferSyntaxUID: '1.2.840.10008.1.2.4.50' }
-            ]
-          };
-          options.client.retrieveInstanceFrames(retrieveOptions).then(
-            (rawFrames) => {
-              const blob = new Blob(rawFrames, {type: mediaType});
-              img.src = window.URL.createObjectURL(blob);
-            }
-          );
-        }
-
-      /*console.log(tile);
+      console.log(tile);
       if (src !== null) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
@@ -712,27 +666,35 @@ class VolumeImageViewer {
           options.client.retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
               // todo: check PixelRepresentation for each tile? What if it is Uint16 vs Int16?
+              /*
+              only for oour hacky rgb -r channel example
+              PhotometricInterpretation: "YBR_FULL_422"
+              PixelRepresentation: 0
+              PlanarConfiguration: 0
+              */
               let pixelData = new Uint8Array(rawFrames[0])
 
               const z = tile.tileCoord[0];
               const columns = this[_pyramidMetadata][z].Columns;
               const rows = this[_pyramidMetadata][z].Rows;
               const samplesPerPixel = this[_pyramidMetadata][z].SamplesPerPixel;
+              debugger;
 
               const redPixelData = new Uint8Array(pixelData.length / 3);
 
               // Extract the red channel for our testing
               let j = 0;
-              for (let i=0; i+=3; i<pixelData.length - 3) {
-                redPixelData[j] = pixelData[i];
+              for (let i=0; i<pixelData.length - 3; i+=3) {
+                const cr = pixelData[i+2];
+                const y = pixelData[i];
+
+                redPixelData[j] = y + 1.402 * (cr - 128); // red
                 j++;
               }
 
-              debugger;
-
               const frameData = {
                 pixelData,
-                contrastLimitsRange: [127, 256],
+                contrastLimitsRange: [0, 256],
                 color: [255, 0, 0],
                 opacity: 1,
                 visible: true,
@@ -740,19 +702,19 @@ class VolumeImageViewer {
                 height: rows
               };
 
-              let coloredArray = colorImageFrames(frameData)
+              img.src = colorImageFrames(frameData)
 
-              console.info("check", coloredArray, rawFrames[0])
+              /*console.info("check", coloredArray, rawFrames[0])
 
-              const blob = new Blob([coloredArray], {type: mediaType});
+              const blob = new Blob([coloredArray], {type: 'image/jpeg'});
 
-              img.src = window.URL.createObjectURL(blob);
+              img.src = window.URL.createObjectURL(blob);*/
             }
           );
         }
       } else {
         console.warn('could not load tile');
-      }*/
+      }
     }
 
     /** Frames may extend beyond the size of the total pixel matrix.
