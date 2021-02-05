@@ -5,14 +5,14 @@ var texCoordBuffer;
 var positionBuffer;
 var isWebGLInitialized = false;
 
-const definitions = 
+const definitions =
   `precision mediump float;
   uniform sampler2D u_image;
   uniform float ww;
   uniform float wc;
   varying vec2 v_texCoord;`;
 
-const windowAndReturnRGBA = 
+const windowAndReturnRGBA =
   `// Apply window settings
     float center0 = wc - 0.5;
     float width0 = max(ww, 1.0);
@@ -79,12 +79,12 @@ const dataUtilities = {
       const numberOfChannels = 2;
       const data = new Uint8Array(width * height * numberOfChannels);
       let offset = 0;
-  
+
       for (let i = 0; i < pixelData.length; i++) {
         data[offset++] = pixelData[i];
         data[offset++] = pixelData[i] < 0 ? 0 : 1; // 0 For negative, 1 for positive
       }
-  
+
       return data;
     }
   },
@@ -94,15 +94,15 @@ const dataUtilities = {
       const numberOfChannels = 3;
       const data = new Uint8Array(width * height * numberOfChannels);
       let offset = 0;
-  
+
       for (let i = 0; i < pixelData.length; i++) {
         const val = Math.abs(pixelData[i]);
-  
+
         data[offset++] = val & 0xFF;
         data[offset++] = val >> 8;
         data[offset++] = pixelData[i] < 0 ? 0 : 1; // 0 For negative, 1 for positive
       }
-  
+
       return data;
     }
   },
@@ -118,14 +118,14 @@ const dataUtilities = {
       const numberOfChannels = 2;
       const data = new Uint8Array(width * height * numberOfChannels);
       let offset = 0;
-  
+
       for (let i = 0; i < pixelData.length; i++) {
         const val = pixelData[i];
-  
+
         data[offset++] = val & 0xFF;
         data[offset++] = val >> 8;
       }
-  
+
       return data;
     }
   }
@@ -429,7 +429,7 @@ function render (pixelData, width, height, color, windowCenter, windowWidth) {
 }
 
 initRenderer();
- 
+
 function colorImageFrames(frameData) {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -439,10 +439,10 @@ function colorImageFrames(frameData) {
   const windowWidth = range[1] - range[0]
 
   // To Do: get width and height from the frameData.
-  const renderedCanvas = render(frameData.pixelData, 512, 512, frameData.color, windowWidth, windowCenter);
+  const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, windowWidth, windowCenter);
 
   context.drawImage(renderedCanvas, 0, 0);
-  return context.getImageData(0, 0, 512, 512).data;
+  return context.getImageData(0, 0, frameData.width, frameData.height).data;
 }
 
 export {

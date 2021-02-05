@@ -659,29 +659,100 @@ class VolumeImageViewer {
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
+              const blob = new Blob(rawFrames, {type: mediaType});
+              img.src = window.URL.createObjectURL(blob);
+            }
+          );
+        }
+
+      /*console.log(tile);
+      if (src !== null) {
+        const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
+        const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
+        const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
+        const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
+        const img = tile.getImage();
+        if (options.retrieveRendered) {
+          const mediaType = 'image/png';
+          const retrieveOptions = {
+            studyInstanceUID,
+            seriesInstanceUID,
+            sopInstanceUID,
+            frameNumbers,
+            mediaTypes: [{ mediaType }],
+          };
+          if (options.includeIccProfile) {
+            retrieveOptions['queryParams'] = {
+              iccprofile: 'yes'
+            }
+          }
+          options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
+            (renderedFrame) => {
+              const blob = new Blob([renderedFrame], {type: mediaType});
+              img.src = window.URL.createObjectURL(blob);
+            }
+          );
+        } else {
+          // Figure out from the metadata if this is a color image dataset
+          // if it is, use jpeg mediatype and jpeg transfer syntax to just get jpegs
+          // Otherwise, get the data as an octet-stream and use that
+
+          // TODO: support "image/jp2" and "image/jls"
+          const mediaType = 'application/octet-stream';
+          const retrieveOptions = {
+            studyInstanceUID,
+            seriesInstanceUID,
+            sopInstanceUID,
+            frameNumbers,
+            mediaTypes: [
+              { mediaType, transferSyntaxUID: '1.2.840.10008.1.2.1' }
+              //{ mediaType, transferSyntaxUID: '1.2.840.10008.1.2.4.50' }
+            ]
+          };
+          options.client.retrieveInstanceFrames(retrieveOptions).then(
+            (rawFrames) => {
+              // todo: check PixelRepresentation for each tile? What if it is Uint16 vs Int16?
               let pixelData = new Uint8Array(rawFrames[0])
+
+              const z = tile.tileCoord[0];
+              const columns = this[_pyramidMetadata][z].Columns;
+              const rows = this[_pyramidMetadata][z].Rows;
+              const samplesPerPixel = this[_pyramidMetadata][z].SamplesPerPixel;
+
+              const redPixelData = new Uint8Array(pixelData.length / 3);
+
+              // Extract the red channel for our testing
+              let j = 0;
+              for (let i=0; i+=3; i<pixelData.length - 3) {
+                redPixelData[j] = pixelData[i];
+                j++;
+              }
+
+              debugger;
 
               const frameData = {
                 pixelData,
                 contrastLimitsRange: [127, 256],
                 color: [255, 0, 0],
                 opacity: 1,
-                visible: true
+                visible: true,
+                width: columns,
+                height: rows
               };
 
-              // To Do: pass width and height to colorImageFrames
               let coloredArray = colorImageFrames(frameData)
 
               console.info("check", coloredArray, rawFrames[0])
 
               const blob = new Blob([coloredArray], {type: mediaType});
+
               img.src = window.URL.createObjectURL(blob);
             }
           );
         }
       } else {
         console.warn('could not load tile');
-      }
+      }*/
     }
 
     /** Frames may extend beyond the size of the total pixel matrix.
