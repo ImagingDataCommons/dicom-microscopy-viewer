@@ -441,7 +441,7 @@ function colorImageFrames(frameData) {
   const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, windowWidth, windowCenter);
   context.drawImage(renderedCanvas, 0, 0);
 
-  consol.info("check2:", context.getImageData(0, 0, frameData.width, frameData.height).data)
+  console.info("check2:", context.getImageData(0, 0, frameData.width, frameData.height).data)
   return canvas.toDataURL('image/png');
 }
 

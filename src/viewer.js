@@ -676,7 +676,7 @@ class VolumeImageViewer {
             (rawFrames) => {
               if (samplesPerPixel === 1) { 
                 let pixelData = new Uint8Array(rawFrames[0])
-                consol.info("check1:", pixelData)
+                console.info("check1:", pixelData)
                 const frameData = {
                   pixelData,
                   contrastLimitsRange: [0, 256],
