@@ -651,64 +651,47 @@ class VolumeImageViewer {
           // if it is, use jpeg mediatype and jpeg transfer syntax to just get jpegs
           // Otherwise, get the data as an octet-stream and use that
 
+          const z = tile.tileCoord[0];
+          const columns = this[_pyramidMetadata][z].Columns;
+          const rows = this[_pyramidMetadata][z].Rows;
+          const samplesPerPixel = this[_pyramidMetadata][z].SamplesPerPixel;
+
           // TODO: support "image/jp2" and "image/jls"
-          const mediaType = 'application/octet-stream';
+          let mediaType = 'application/octet-stream';
+          let transferSyntaxUID = '1.2.840.10008.1.2.1';
+          if (samplesPerPixel !== 1) {
+            mediaType = 'image/jpeg';
+            transferSyntaxUID = '1.2.840.10008.1.2.4.50';
+          }
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
-              { mediaType, transferSyntaxUID: '1.2.840.10008.1.2.1' }
-              //{ mediaType, transferSyntaxUID: '1.2.840.10008.1.2.4.50' }
+              { mediaType, transferSyntaxUID }
             ]
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
-              // todo: check PixelRepresentation for each tile? What if it is Uint16 vs Int16?
-              /*
-              only for oour hacky rgb -r channel example
-              PhotometricInterpretation: "YBR_FULL_422"
-              PixelRepresentation: 0
-              PlanarConfiguration: 0
-              */
-              let pixelData = new Uint8Array(rawFrames[0])
-
-              const z = tile.tileCoord[0];
-              const columns = this[_pyramidMetadata][z].Columns;
-              const rows = this[_pyramidMetadata][z].Rows;
-              const samplesPerPixel = this[_pyramidMetadata][z].SamplesPerPixel;
-              debugger;
-
-              const redPixelData = new Uint8Array(pixelData.length / 3);
-
-              // Extract the red channel for our testing
-              let j = 0;
-              for (let i=0; i<pixelData.length - 3; i+=3) {
-                const cr = pixelData[i+2];
-                const y = pixelData[i];
-
-                redPixelData[j] = y + 1.402 * (cr - 128); // red
-                j++;
+              if (samplesPerPixel === 1) { 
+                let pixelData = new Uint8Array(rawFrames[0])
+                consol.info("check1:", pixelData)
+                const frameData = {
+                  pixelData,
+                  contrastLimitsRange: [0, 256],
+                  color: [255, 0, 0],
+                  opacity: 1,
+                  visible: true,
+                  width: columns,
+                  height: rows
+                };
+  
+                img.src = colorImageFrames(frameData)
+              } else {
+                const blob = new Blob(rawFrames, {type: mediaType});
+                img.src = window.URL.createObjectURL(blob);
               }
-
-              const frameData = {
-                pixelData,
-                contrastLimitsRange: [0, 256],
-                color: [255, 0, 0],
-                opacity: 1,
-                visible: true,
-                width: columns,
-                height: rows
-              };
-
-              img.src = colorImageFrames(frameData)
-
-              /*console.info("check", coloredArray, rawFrames[0])
-
-              const blob = new Blob([coloredArray], {type: 'image/jpeg'});
-
-              img.src = window.URL.createObjectURL(blob);*/
             }
           );
         }

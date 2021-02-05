@@ -438,14 +438,11 @@ function colorImageFrames(frameData) {
   const windowCenter = ( range[0] + range[1] ) * 0.5
   const windowWidth = range[1] - range[0]
 
-  // To Do: get width and height from the frameData.
   const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, windowWidth, windowCenter);
   context.drawImage(renderedCanvas, 0, 0);
 
+  consol.info("check2:", context.getImageData(0, 0, frameData.width, frameData.height).data)
   return canvas.toDataURL('image/png');
-
-  /*context.drawImage(renderedCanvas, 0, 0);
-  return context.getImageData(0, 0, frameData.width, frameData.height).data;*/
 }
 
 export {
