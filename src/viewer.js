@@ -705,7 +705,7 @@ class VolumeImageViewer {
                 const frameData = {
                   pixelData,
                   contrastLimitsRange: [0, 65536],
-                  color: [255, 0, 0],
+                  color: [1, 0, 0],
                   opacity: 1,
                   visible: true,
                   width: columns,

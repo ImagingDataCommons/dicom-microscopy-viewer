@@ -10,22 +10,22 @@ const definitions =
   uniform sampler2D u_image;
   uniform float ww;
   uniform float wc;
+  uniform vec3 color;
+  uniform float opacity;
   varying vec2 v_texCoord;`;
 
 const windowAndReturnRGBA =
   `// Apply window settings
     float center0 = wc - 0.5;
     float width0 = max(ww, 1.0);
-    intensity = (intensity - center0) / width0 + 0.5;
+    float intensity = (pixelValue - center0) / width0 + 0.5;
 
     // Clamp intensity
     intensity = clamp(intensity, 0.0, 1.0);
+    vec3 scaledColor = color * intensity;
   
-    // TODO: Apply colorLUT from 0-1 grayscale to RGB
-    // return as gl_FragColor = vec4(color.r, color.g, color.b, color.a);
-
     // RGBA output
-    gl_FragColor = vec4(intensity, intensity, intensity, 1.0);
+    gl_FragColor = vec4(scaledColor.r, scaledColor.g, scaledColor.b, opacity);
   `;
 
 function buildShader(intensityComputationString) {
@@ -35,7 +35,7 @@ function buildShader(intensityComputationString) {
 
   void main() {
     // Get texture
-    vec4 color = texture2D(u_image, v_texCoord);
+    vec4 packedPixelValue = texture2D(u_image, v_texCoord);
     
     // Calculate luminance from packed texture
     ${intensityComputationString}
@@ -48,15 +48,15 @@ function buildShader(intensityComputationString) {
 
 const shaders = {
   int8: buildShader(
-  `float intensity = color.r*256.;
-    if (color.a == 0.0)
-      intensity = -intensity;`),
+  `float pixelValue = packedPixelValue.r*256.;
+    if (pixelValue.a == 0.0)
+    pixelValue = -pixelValue;`),
   int16: buildShader(
-  `float intensity = color.r*256.0 + color.g*65536.0;
-    if (color.b == 0.0)
-      intensity = -intensity;`),
-  uint8: buildShader('float intensity = color.r*256.0;'),
-  uint16: buildShader('float intensity = color.r*256.0 + color.a*65536.0;'),
+  `float pixelValue = packedPixelValue.r*256.0 + packedPixelValue.g*65536.0;
+    if (pixelValue.b == 0.0)
+    pixelValue = -pixelValue;`),
+  uint8: buildShader('float pixelValue = packedPixelValue.r*256.0;'),
+  uint16: buildShader('float pixelValue = packedPixelValue.r*256.0 + packedPixelValue.a*65536.0;'),
 }
 
 const vertexShader = 'attribute vec2 a_position;' +
@@ -73,7 +73,7 @@ const vertexShader = 'attribute vec2 a_position;' +
 
 const dataUtilities = {
   int8: {
-    storedPixelDataToImageData: (pixelData, width, height) => {
+    storedPixelDataToPackedData: (pixelData, width, height) => {
       // Transfer image data to alpha channel of WebGL texture
       // Store data in Uint8Array
       const numberOfChannels = 2;
@@ -89,7 +89,7 @@ const dataUtilities = {
     }
   },
   int16: {
-    storedPixelDataToImageData: (pixelData, width, height) => {
+    storedPixelDataToPackedData: (pixelData, width, height) => {
       // Pack int16 into three uint8 channels (r, g, b)
       const numberOfChannels = 3;
       const data = new Uint8Array(width * height * numberOfChannels);
@@ -107,13 +107,13 @@ const dataUtilities = {
     }
   },
   uint8: {
-    storedPixelDataToImageData: (pixelData, width, height) => {
+    storedPixelDataToPackedData: (pixelData, width, height) => {
       // Transfer image data to alpha channel of WebGL texture
       return pixelData;
     }
   },
   uint16: {
-    storedPixelDataToImageData: (pixelData, width, height) => {
+    storedPixelDataToPackedData: (pixelData, width, height) => {
       // Pack uint16 into two uint8 channels (r and a)
       const numberOfChannels = 2;
       const data = new Uint8Array(width * height * numberOfChannels);
@@ -334,7 +334,7 @@ function generateTexture (pixelData, width, height) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
-  const imageData = dataUtilities[imageDataType].storedPixelDataToImageData(pixelData, width, height);
+  const imageData = dataUtilities[imageDataType].storedPixelDataToPackedData(pixelData, width, height);
 
   gl.texImage2D(gl.TEXTURE_2D, 0, format, width, height, 0, format, gl.UNSIGNED_BYTE, imageData);
 
@@ -393,6 +393,8 @@ function renderQuad (shader, parameters, texture, width, height) {
       gl.uniform1f(uniformLocation, value);
     } else if (type === '2f') {
       gl.uniform2f(uniformLocation, value[0], value[1]);
+    } else if (type === '3f') {
+      gl.uniform3f(uniformLocation, value[0], value[1], value[2]);
     }
   }
 
@@ -404,7 +406,7 @@ function renderQuad (shader, parameters, texture, width, height) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-function render (pixelData, width, height, color, windowCenter, windowWidth) {
+function render (pixelData, width, height, color, opacity, windowCenter, windowWidth) {
   // Resize the canvas
   renderCanvas.width = width;
   renderCanvas.height = height;
@@ -413,7 +415,6 @@ function render (pixelData, width, height, color, windowCenter, windowWidth) {
   const shader = getShaderProgram(pixelData);
   const texture = generateTexture(pixelData, width, height);
 
-  // To DO: add color parameter
   const parameters = {
     u_resolution: { type: '2f',
       value: [width, height] },
@@ -421,6 +422,10 @@ function render (pixelData, width, height, color, windowCenter, windowWidth) {
       value: windowCenter },
     ww: { type: 'f',
       value: windowWidth },
+    opacity: { type: 'f',
+      value: opacity },
+    color: { type: '3f',
+      value: color },      
   };
 
   renderQuad(shader, parameters, texture.texture, width, height);
@@ -435,7 +440,7 @@ function colorImageFrames(frameData) {
   const windowCenter = ( range[0] + range[1] ) * 0.5
   const windowWidth = range[1] - range[0]
 
-  const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, windowWidth, windowCenter);
+  const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, frameData.opacity, windowWidth, windowCenter);
   return renderedCanvas.toDataURL('image/png');
 }
 
