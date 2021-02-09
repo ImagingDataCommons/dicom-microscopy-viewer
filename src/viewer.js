@@ -385,7 +385,7 @@ const _controls = Symbol('controls');
 const _drawingLayer = Symbol('drawingLayer');
 const _drawingSource = Symbol('drawingSource');
 const _features = Symbol('features');
-const _imageLayer = Symbol('imageLayer');
+const _imageLayers = Symbol('imageLayer');
 const _interactions = Symbol('interactions');
 const _map = Symbol('map');
 const _metadata = Symbol('metadata');
@@ -446,20 +446,29 @@ class VolumeImageViewer {
         e.element.setId(generateUID());
       }
     });
-
-
+ 
+    let rotation = null;
+    let projection = null;
+    let tileGrid = null;
+    let extent = null;
+    const resolutions = [];
+    this[_metadata] = [];
+    this[_pyramidMetadata] = [];
+    this[_pyramidFrameMappings] = [];
+    this[_imageLayers] = [];
     options.layers.forEach(layer => {
-      const { metadata,
+      const { id,
+        metadata,
         contrastLimitsRange,
         color,
         opacity,
         visible } = layer
       /*
- * To visualize images accross multiple scales, we first need to
- * determine the image pyramid structure, i.e. the size and resolution
- * images at the different pyramid levels.
-*/
-      this[_metadata] = [];
+      * To visualize images accross multiple scales, we first need to
+      * determine the image pyramid structure, i.e. the size and resolution
+      * images at the different pyramid levels.
+      */
+      
       metadata.forEach(m => {
         const image = new VLWholeSlideMicroscopyImage({ metadata: m });
         if (image.ImageType[2] === 'VOLUME') {
@@ -480,8 +489,7 @@ class VolumeImageViewer {
         }
         return sizeDiff;
       });
-      this[_pyramidMetadata] = [];
-      this[_pyramidFrameMappings] = [];
+      
       let frameMappings = this[_metadata].map(m => getFrameMapping(m));
       for (let i = 0; i < this[_metadata].length; i++) {
         const cols = this[_metadata][i].TotalPixelMatrixColumns;
@@ -539,7 +547,6 @@ class VolumeImageViewer {
       */
       const tileSizes = [];
       const tileGridSizes = [];
-      const resolutions = [];
       const origins = [];
       const offset = [0, -1];
       const basePixelSpacing = _getPixelSpacing(this[_pyramidBaseMetadata]);
@@ -659,11 +666,11 @@ class VolumeImageViewer {
             // Otherwise, get the data as an octet-stream and use that
 
             const z = tile.tileCoord[0];
-            const columns = this[_pyramidMetadata][z].Columns;
-            const rows = this[_pyramidMetadata][z].Rows;
-            const samplesPerPixel = this[_pyramidMetadata][z].SamplesPerPixel; // number of colors for pixel
-            const BitsAllocated = this[_pyramidMetadata][z].BitsAllocated; // memory for pixel
-            const PixelRepresentation = this[_pyramidMetadata][z].PixelRepresentation; // 0 unsigned, 1 signed
+            const columns = pyramid[z].Columns;
+            const rows = pyramid[z].Rows;
+            const samplesPerPixel = pyramid[z].SamplesPerPixel; // number of colors for pixel
+            const BitsAllocated = pyramid[z].BitsAllocated; // memory for pixel
+            const PixelRepresentation = pyramid[z].PixelRepresentation; // 0 unsigned, 1 signed
 
             // TODO: support "image/jp2" and "image/jls"
             let mediaType = 'application/octet-stream';
@@ -684,7 +691,6 @@ class VolumeImageViewer {
             options.client.retrieveInstanceFrames(retrieveOptions).then(
               (rawFrames) => {
                 if (samplesPerPixel === 1) {
-                  console.info("check0", rawFrames[0])
 
                   let pixelData;
                   switch (BitsAllocated) {
@@ -707,7 +713,6 @@ class VolumeImageViewer {
                         'bit not supported'
                       );
                   }
-
 
                   const frameData = {
                     pixelData,
@@ -732,39 +737,46 @@ class VolumeImageViewer {
         }
       }
 
-      /** Frames may extend beyond the size of the total pixel matrix.
-       * The excess pixels are empty, i.e. have only a padding value.
-       * We set the extent to the size of the actual image without taken
-       * excess pixels into account.
-       * Note that the vertical axis is flipped in the used tile source,
-       * i.e. values on the axis lie in the range [-n, -1], where n is the
-       * number of rows in the total pixel matrix.
-       */
-      const extent = [
-        0,                                // min X
-        -(baseTotalPixelMatrixRows + 1),  // min Y
-        baseTotalPixelMatrixColumns,      // max X
-        -1                                // max Y
-      ];
+      if (extent === null) {
+        /** Frames may extend beyond the size of the total pixel matrix.
+         * The excess pixels are empty, i.e. have only a padding value.
+         * We set the extent to the size of the actual image without taken
+         * excess pixels into account.
+         * Note that the vertical axis is flipped in the used tile source,
+         * i.e. values on the axis lie in the range [-n, -1], where n is the
+         * number of rows in the total pixel matrix.
+         */
+         extent = [
+          0,                                // min X
+          -(baseTotalPixelMatrixRows + 1),  // min Y
+          baseTotalPixelMatrixColumns,      // max X
+          -1                                // max Y
+        ];
+      }
 
-      const rotation = _getRotation(this[_pyramidBaseMetadata]);
+      if (rotation === null) {
+        rotation = _getRotation(this[_pyramidBaseMetadata]);
+      }
 
-      /*
-       * Specify projection to prevent default automatic projection
-       * with the default Mercator projection.
-       */
-      const projection = new Projection({
-        code: 'DICOM',
-        units: 'metric',
-        extent: extent,
-        getPointResolution: (pixelRes, point) => {
-          /** DICOM Pixel Spacing has millimeter unit while the projection has
-           * has meter unit.
-           */
-          const spacing = _getPixelSpacing(pyramid[nLevels - 1])[0] / 10 ** 3;
-          return pixelRes * spacing;
-        }
-      });
+      if (projection === null) {
+        /*
+         * Specify projection to prevent default automatic projection
+         * with the default Mercator projection.
+         */
+        projection = new Projection({
+          code: 'DICOM',
+          units: 'metric',
+          extent: extent,
+          getPointResolution: (pixelRes, point) => {
+            /** DICOM Pixel Spacing has millimeter unit while the projection has
+             * has meter unit.
+             */
+            const spacing = _getPixelSpacing(pyramid[nLevels - 1])[0] / 10 ** 3;
+            return pixelRes * spacing;
+          }
+        });
+      }
+      
       /*
        * TODO: Register custom projection:
        *  - http://openlayers.org/en/latest/apidoc/ol.proj.html
@@ -778,13 +790,15 @@ class VolumeImageViewer {
        * have different sizes at each resolution level and a different zoom
        * factor between individual levels.
        */
-      const tileGrid = new TileGrid({
-        extent: extent,
-        origins: origins,
-        resolutions: resolutions,
-        sizes: tileGridSizes,
-        tileSizes: tileSizes
-      });
+      if (tileGrid === null) {
+        tileGrid = new TileGrid({
+          extent: extent,
+          origins: origins,
+          resolutions: resolutions,
+          sizes: tileGridSizes,
+          tileSizes: tileSizes
+        });
+      }
 
       /*
        * We use the existing TileImage source but customize it to retrieve
@@ -799,7 +813,7 @@ class VolumeImageViewer {
       rasterSource.setTileUrlFunction(tileUrlFunction);
       rasterSource.setTileLoadFunction(tileLoadFunction);
 
-      this[_imageLayer].push(new TileLayer({
+      this[_imageLayers].push(new TileLayer({
         extent: extent,
         source: rasterSource,
         preload: 0,
@@ -869,7 +883,7 @@ class VolumeImageViewer {
 
     /** Creates the map with the defined layers and view and renders it. */
     this[_map] = new Map({
-      layers: this[_imageLayer],//, this[_drawingLayer]],
+      layers: [this[_imageLayers][0], this[_imageLayers][1], this[_drawingLayer]],
       view: view,
       controls: [],
       keyboardEventTarget: document,
@@ -881,6 +895,20 @@ class VolumeImageViewer {
       this[_map].addControl(this[_controls][control]);
     }
     this[_map].getView().fit(extent);
+
+    this[_imageLayers][0].on('prerender', function (event) {
+      event.context.globalCompositeOperation = 'lighter';
+    });
+    this[_imageLayers][0].on('postrender', function (event) {
+      event.context.globalCompositeOperation = 'source-over';
+    });
+    
+    this[_imageLayers][1].on('prerender', function (event) {
+      event.context.globalCompositeOperation = 'lighter';
+    });
+    this[_imageLayers][1].on('postrender', function (event) {
+      event.context.globalCompositeOperation = 'source-over';
+    });
   }
 
   /** Resizes the viewer to fit the viewport. */
