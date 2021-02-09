@@ -431,18 +431,12 @@ function render (pixelData, width, height, color, windowCenter, windowWidth) {
 initRenderer();
 
 function colorImageFrames(frameData) {
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-
   const range = frameData.contrastLimitsRange
   const windowCenter = ( range[0] + range[1] ) * 0.5
   const windowWidth = range[1] - range[0]
 
   const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, windowWidth, windowCenter);
-  context.drawImage(renderedCanvas, 0, 0);
-
-  console.info("check2:", context.getImageData(0, 0, frameData.width, frameData.height).data)
-  return canvas.toDataURL('image/png');
+  return renderedCanvas.toDataURL('image/png');
 }
 
 export {

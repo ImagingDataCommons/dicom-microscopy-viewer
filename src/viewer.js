@@ -654,7 +654,9 @@ class VolumeImageViewer {
           const z = tile.tileCoord[0];
           const columns = this[_pyramidMetadata][z].Columns;
           const rows = this[_pyramidMetadata][z].Rows;
-          const samplesPerPixel = this[_pyramidMetadata][z].SamplesPerPixel;
+          const samplesPerPixel = this[_pyramidMetadata][z].SamplesPerPixel; // number of colors for pixel
+          const BitsAllocated = this[_pyramidMetadata][z].BitsAllocated; // memory for pixel
+          const PixelRepresentation = this[_pyramidMetadata][z].PixelRepresentation; // 0 unsigned, 1 signed
 
           // TODO: support "image/jp2" and "image/jls"
           let mediaType = 'application/octet-stream';
@@ -674,12 +676,35 @@ class VolumeImageViewer {
           };
           options.client.retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
-              if (samplesPerPixel === 1) { 
-                let pixelData = new Uint8Array(rawFrames[0])
-                console.info("check1:", pixelData)
+              if (samplesPerPixel === 1) {
+                console.info("check0", rawFrames[0])
+                
+                let pixelData;
+                switch (BitsAllocated) {
+                 case 8:
+                   if (PixelRepresentation === 1) {
+                    pixelData = new Int8Array(rawFrames[0])
+                   } else {
+                    pixelData = new Uint8Array(rawFrames[0])
+                   }
+                   break;
+                 case 16:
+                  if (PixelRepresentation === 1) {
+                    pixelData = new Int16Array(rawFrames[0]) 
+                  } else {
+                    pixelData = new Uint16Array(rawFrames[0])
+                  }
+                  break;
+                  default:
+                    throw new Error(
+                      'bit not supported'
+                    );  
+                }
+
+                
                 const frameData = {
                   pixelData,
-                  contrastLimitsRange: [0, 256],
+                  contrastLimitsRange: [0, 65536],
                   color: [255, 0, 0],
                   opacity: 1,
                   visible: true,
