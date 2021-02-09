@@ -27,39 +27,65 @@
     const url = 'http://localhost:8080/dcm4chee-arc/aets/DCM4CHEE/rs';
     const client = new DICOMwebClient.api.DICOMwebClient({url});
     const studyInstanceUID = '1.3.6.1.4.1.5962.99.1.2103930081.1286074986.1595536829665.3.0';
-    const seriesInstanceUID1 = '1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.1';
-    const seriesInstanceUID2 = '1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.5';
+    const seriesInstanceUID1 = '1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.5';
+    const seriesInstanceUID2 = '1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.4';
 
-    const searchInstanceOptions = {
-      studyInstanceUID,
-      seriesInstanceUID1
-    };
-    client.searchForInstances(searchInstanceOptions).then((instances) => {
-      const promises = []
-      for (let i = 0; i < instances.length; i++) {
-        const sopInstanceUID = instances[i]["00080018"]["Value"][0];
-        const retrieveInstanceOptions = {
-          studyInstanceUID,
-          seriesInstanceUID1,
-          sopInstanceUID,
-        };
-        const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-          const imageType = metadata[0]["00080008"]["Value"];
-          if (imageType[2] === "VOLUME") {
-            return(metadata[0]);
-          }
-        });
-        promises.push(promise);
-      }
-      return(Promise.all(promises));
-    }).then(metadata => {
-      metadata = metadata.filter(m => m);
+    const series = [
+      seriesInstanceUID1,
+      seriesInstanceUID2
+    ];
+
+    const seriesPromises = series.map(seriesInstanceUID => {
+      const searchInstanceOptions = {
+        studyInstanceUID,
+        seriesInstanceUID: seriesInstanceUID1
+      };
+
+      return client.searchForInstances(searchInstanceOptions).then((instances) => {
+        const promises = []
+        for (let i = 0; i < instances.length; i++) {
+          const sopInstanceUID = instances[i]["00080018"]["Value"][0];
+          const retrieveInstanceOptions = {
+            studyInstanceUID,
+            seriesInstanceUID: seriesInstanceUID1,
+            sopInstanceUID,
+          };
+          const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
+            const imageType = metadata[0]["00080008"]["Value"];
+            if (imageType[2] === "VOLUME") {
+              return(metadata[0]);
+            }
+          });
+          promises.push(promise);
+        }
+        return(Promise.all(promises));
+      }).then(metadata => {
+        return metadata.filter(m => m)
+      });
+    })
+
+    Promise.all(seriesPromises).then(seriesInstanceMetadata => {
+      const colors = [
+        [1.0, 0, 0],
+        [0, 1.0, 0],
+        [0, 0, 1.0]
+      ]
+      const layers = seriesInstanceMetadata.map((m, i) => {
+        return {
+          id: `layer-${i}`,
+          metadata: m,
+          color: colors[i],
+          opacity: 1.0,
+          contrastLimitsRange: [0, 65536],
+          visible: true
+        }
+      });
 
       // Note: We are using retrieveRendered: false because dcm4chee does not yet
       // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
       const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
         client,
-        metadata,
+        layers,
         retrieveRendered: false
       });
 

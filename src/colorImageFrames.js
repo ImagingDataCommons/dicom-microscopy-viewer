@@ -49,11 +49,11 @@ function buildShader(intensityComputationString) {
 const shaders = {
   int8: buildShader(
   `float pixelValue = packedPixelValue.r*256.;
-    if (pixelValue.a == 0.0)
+    if (packedPixelValue.a == 0.0)
     pixelValue = -pixelValue;`),
   int16: buildShader(
   `float pixelValue = packedPixelValue.r*256.0 + packedPixelValue.g*65536.0;
-    if (pixelValue.b == 0.0)
+    if (packedPixelValue.b == 0.0)
     pixelValue = -pixelValue;`),
   uint8: buildShader('float pixelValue = packedPixelValue.r*256.0;'),
   uint16: buildShader('float pixelValue = packedPixelValue.r*256.0 + packedPixelValue.a*65536.0;'),
@@ -425,7 +425,7 @@ function render (pixelData, width, height, color, opacity, windowCenter, windowW
     opacity: { type: 'f',
       value: opacity },
     color: { type: '3f',
-      value: color },      
+      value: color },
   };
 
   renderQuad(shader, parameters, texture.texture, width, height);
