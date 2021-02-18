@@ -436,9 +436,15 @@ function render (pixelData, width, height, color, opacity, windowCenter, windowW
 initRenderer();
 
 function colorImageFrames(frameData) {
-  const range = frameData.contrastLimitsRange
-  const windowCenter = ( range[0] + range[1] ) * 0.5
-  const windowWidth = range[1] - range[0]
+  let range = [...frameData.contrastLimitsRange];
+  const bits = frameData.BitsAllocated;
+  if (bits === 16) {
+    range[0] *= 256;
+    range[1] *= 256;
+  }
+
+  const windowCenter = ( range[0] + range[1] ) * 0.5;
+  const windowWidth = range[1] - range[0];
 
   const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, frameData.opacity, windowWidth, windowCenter);
   return renderedCanvas.toDataURL('image/png');
