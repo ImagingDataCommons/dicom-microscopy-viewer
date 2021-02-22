@@ -75,8 +75,6 @@ class _MarkupManager {
 
     this._onDrawStart = this._onDrawStart.bind(this);
     this._onDrawEnd = this._onDrawEnd.bind(this);
-    this._onTranslateStart = this._onTranslateStart.bind(this);
-    this._onModifyStart = this._onModifyStart.bind(this);
 
     this.bindInteractionEvents(this._map.getInteractions());
   }
@@ -109,13 +107,23 @@ class _MarkupManager {
    */
   remove(id) {
     const markup = this.get(id);
-    if (!markup) return id;
+    if (!markup) {
+      return id;
+    }
+
     const links = this._links.getArray();
     const link = links.find((feature) => feature.getId() === id);
-    if (link) this._links.remove(link);
+    if (link) {
+      this._links.remove(link);
+    }
+
     this._map.removeOverlay(markup.overlay);
     this._markups.delete(id);
-    if (this._listeners.get(id)) this._listeners.delete(id);
+
+    if (this._listeners.get(id)) {
+      this._listeners.delete(id);
+    }
+
     return id;
   }
 
@@ -127,7 +135,6 @@ class _MarkupManager {
    * @param {string} options.value The inner content of element
    * @param {boolean} options.isLinkable Create a link between feature and markup
    * @param {boolean} options.isDraggable Allow markup to be dragged
-   * @param {object} options.style Markup style
    * @param {array} offset Markup offset
    * @return {object} The markup object
    */
@@ -182,6 +189,24 @@ class _MarkupManager {
         }
       }
     );
+
+    const listener = feature
+      .getGeometry()
+      .on(Enums.FeatureGeometryEvents.CHANGE, ({ target: geometry }) => {
+        if (this.has(id)) {
+          const view = this._map.getView();
+          const unitsSuffix = getUnitsSuffix(view);
+          const format = this._getFormatter(feature);
+          const output = format(feature, unitsSuffix);
+          this.update({
+            feature,
+            value: output,
+            coordinate: geometry.getLastCoordinate(),
+          });
+          this.drawLink(feature);
+        }
+      });
+    this._listeners.set(id, listener);
 
     const markup = { id, isLinkable, isDraggable };
 
@@ -263,9 +288,10 @@ class _MarkupManager {
   /**
    * Update markup content
    *
-   * @param {Feature} feature The feature
-   * @param {string} value The markup content
-   * @param {string} coordinate The markup coordinate
+   * @param {object} markup The markup properties
+   * @param {Feature} markup.feature The markup feature
+   * @param {string} markup.value The markup content
+   * @param {string} markup.coordinate The markup coordinate
    */
   update({ feature, value, coordinate }) {
     const id = feature.getId();
@@ -282,24 +308,11 @@ class _MarkupManager {
     }
 
     markup.element.innerText = value;
-    if (coordinate) markup.overlay.setPosition(coordinate);
-    this._markups.set(id, markup);
-  }
+    if (coordinate) {
+      markup.overlay.setPosition(coordinate);
+    }
 
-  /**
-   * Updates markup location on geometry change
-   *
-   * @param {object} event The event
-   */
-  _updateLocation(event) {
-    event.features.forEach((feature) => {
-      if (this._isValidFeature(feature)) {
-        this._onFeatureGeometryChange({
-          feature,
-          coordinate: event.coordinate,
-        });
-      }
-    });
+    this._markups.set(id, markup);
   }
 
   /**
@@ -352,35 +365,6 @@ class _MarkupManager {
   }
 
   /**
-   * Update markup location on geometry change
-   *
-   * @param {object} feature The feature
-   * @param {object} coordinate The markup coordinate
-   */
-  _onFeatureGeometryChange({ feature, coordinate }) {
-    const featureId = feature.getId();
-    const geometry = feature.getGeometry();
-
-    const view = this._map.getView();
-    const format = this._getFormatter(feature);
-    const unitsSuffix = getUnitsSuffix(view);
-
-    const listener = geometry.on(Enums.FeatureGeometryEvents.CHANGE, () => {
-      if (this.has(featureId)) {
-        const output = format(feature, unitsSuffix);
-        this.update({
-          feature,
-          value: output,
-          coordinate: geometry.getLastCoordinate(),
-        });
-        this.drawLink(feature);
-      }
-    });
-
-    this._listeners.set(featureId, listener);
-  }
-
-  /**
    * Wire interaction events everytime new interactions is added or updated
    *
    * @param {object[]} interactions The map interactions
@@ -399,26 +383,6 @@ class _MarkupManager {
         interactions.draw.on(Enums.InteractionEvents.DRAW_END, this._onDrawEnd)
       );
     }
-
-    if (interactions.translate) {
-      this._listeners.set(
-        Enums.InteractionEvents.TRANSLATE_START,
-        interactions.translate.on(
-          Enums.InteractionEvents.TRANSLATE_START,
-          this._onTranslateStart
-        )
-      );
-    }
-
-    if (interactions.modify) {
-      this._listeners.set(
-        Enums.InteractionEvents.MODIFY_START,
-        interactions.modify.on(
-          Enums.InteractionEvents.MODIFY_START,
-          this._onModifyStart
-        )
-      );
-    }
   }
 
   /**
@@ -434,7 +398,6 @@ class _MarkupManager {
    * Draws a link between the feature and the markup
    *
    * @param {object} feature The feature
-   * @param {object} markup The markup
    */
   drawLink(feature) {
     const markup = this.get(feature.getId());
@@ -469,31 +432,6 @@ class _MarkupManager {
    */
   _onDrawStart(event) {
     this.onDrawStart(event);
-    const feature = event.feature;
-    if (this._isValidFeature(feature)) {
-      this._onFeatureGeometryChange({
-        feature,
-        coordinate: event.coordinate,
-      });
-    }
-  }
-
-  /**
-   * Update markup location on translatestart
-   *
-   * @param {object} event The translatestart event
-   */
-  _onTranslateStart(event) {
-    this._updateLocation(event);
-  }
-
-  /**
-   * Update markup location on modifystart
-   *
-   * @param {object} event The modifystart event
-   */
-  _onModifyStart(event) {
-    this._updateLocation(event);
   }
 }
 

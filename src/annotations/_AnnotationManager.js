@@ -42,8 +42,8 @@ class _AnnotationManager {
    *
    * @param {NumContentItem} contentItem The measurement or evaluation content item
    */
-  getContentItemCodeMeaning(measurement) {
-    const { ConceptNameCodeSequence } = measurement;
+  getContentItemCodeMeaning(contentItem) {
+    const { ConceptNameCodeSequence } = contentItem;
     return ConceptNameCodeSequence.length
       ? ConceptNameCodeSequence[0].CodeMeaning
       : ConceptNameCodeSequence.CodeMeaning;
@@ -53,6 +53,8 @@ class _AnnotationManager {
    * Add or update a ROI measurement.
    *
    * @param {Feature} feature The feature
+   * @param {NumContentItem} measurement The measurement content item
+   * @param {string} codeMeaning The code meaning
    */
   addOrUpdateMeasurement(feature, measurement, codeMeaning) {
     const measurements = feature.get("measurements") || [];
@@ -69,13 +71,14 @@ class _AnnotationManager {
     }
 
     feature.set("measurements", measurements);
-    console.debug("Current ROI Measurements", measurements);
   }
 
   /**
    * Add or update a ROI evaluation.
    *
    * @param {Feature} feature The feature
+   * @param {TextContentItem} evaluation The feature
+   * @param {string} codeMeaning The code meaning
    */
   addOrUpdateEvaluation(feature, evaluation, codeMeaning) {
     const evaluations = feature.get("evaluations") || [];
@@ -92,7 +95,6 @@ class _AnnotationManager {
     }
 
     feature.set("evaluations", evaluations);
-    console.debug("Current ROI Evaluations", evaluations);
   }
 
   /**
