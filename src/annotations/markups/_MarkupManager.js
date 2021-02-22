@@ -40,33 +40,10 @@ class _MarkupManager {
 
     const defaultColor = defaultStyles.stroke.color;
     this._styleTag = document.createElement("style");
-    this._styleTag.innerHTML = `
-      .ol-tooltip {
-        color: ${defaultColor};
-        white-space: nowrap;
-        font-size: 14px;
-      }
-      .ol-tooltip-measure { opacity: 1; }
-      .ol-tooltip-static { color: ${defaultColor}; }
-      .ol-tooltip-measure:before,
-      .ol-tooltip-static:before {
-        content: '',
-      }
+    this._styleTag.innerHTML = this._getTooltipStyles(defaultColor);
 
-      #markup { cursor: move; }
-      .markup-container { display: block !important; }
-    `;
-
-    this._linkStroke = new Stroke({
-      color: defaultColor,
-      lineDash: [0.3, 7],
-      width: 3,
-    });
     this._linksVector = new VectorLayer({
       source: new VectorSource({ features: this._links }),
-      style: new Style({
-        stroke: this._linkStroke,
-      }),
     });
 
     this._markupsOverlay = new Overlay({ element: this._styleTag });
@@ -156,40 +133,6 @@ class _MarkupManager {
       return this.get(id);
     }
 
-    const styleTooltip = (feature) => {
-      const styleOptions = feature.get("styleOptions");
-      if (styleOptions && styleOptions.stroke) {
-        const { color } = styleOptions.stroke;
-        const tooltipColor = color || defaultStyles.stroke.color;
-        this._linkStroke.setColor(tooltipColor);
-        this._styleTag.innerHTML = `
-        .ol-tooltip {
-          color: ${tooltipColor};
-          white-space: nowrap;
-          font-size: 14px;
-        }
-        .ol-tooltip-measure { opacity: 1; }
-        .ol-tooltip-static { color: ${tooltipColor}; }
-        .ol-tooltip-measure:before,
-        .ol-tooltip-static:before {
-          content: '',
-        }
-
-        #markup { cursor: move; }
-        .markup-container { display: block !important; }
-      `;
-      }
-    };
-
-    feature.on(
-      Enums.FeatureEvents.PROPERTY_CHANGE,
-      ({ key: property, target: feature }) => {
-        if (property === "styleOptions") {
-          styleTooltip(feature);
-        }
-      }
-    );
-
     const listener = feature
       .getGeometry()
       .on(Enums.FeatureGeometryEvents.CHANGE, ({ target: geometry }) => {
@@ -224,6 +167,35 @@ class _MarkupManager {
       offset,
       element: markup.element,
     });
+
+    const styleTooltip = (feature) => {
+      const styleOptions = feature.get("styleOptions");
+      if (styleOptions && styleOptions.stroke) {
+        const { color } = styleOptions.stroke;
+        const tooltipColor = color || defaultStyles.stroke.color;
+        const links = this._links.getArray();
+        const link = links.find((link) => link.getId() === feature.getId());
+        if (link) {
+          const styles = link.getStyle();
+          const stroke = styles.getStroke();
+          stroke.setColor(tooltipColor);
+          styles.setStroke(stroke);
+          link.setStyle(styles);
+        }
+        const styleTag = document.createElement("style");
+        styleTag.innerHTML = this._getTooltipStyles(tooltipColor);
+        this._markupsOverlay.setElement(styleTag);
+      }
+    };
+
+    feature.on(
+      Enums.FeatureEvents.PROPERTY_CHANGE,
+      ({ key: property, target: feature }) => {
+        if (property === "styleOptions") {
+          styleTooltip(feature);
+        }
+      }
+    );
 
     const featureCoordinate = feature.getGeometry().getLastCoordinate();
     markup.overlay.setPosition(featureCoordinate);
@@ -277,6 +249,30 @@ class _MarkupManager {
   }
 
   /**
+   * Returns tooltip styles
+   *
+   * @param {string} color
+   */
+  _getTooltipStyles(color) {
+    return `
+      .ol-tooltip {
+        color: ${color};
+        white-space: nowrap;
+        font-size: 14px;
+      }
+      .ol-tooltip-measure { opacity: 1; }
+      .ol-tooltip-static { color: ${color}; }
+      .ol-tooltip-measure:before,
+      .ol-tooltip-static:before {
+        content: '',
+      }
+
+      #markup { cursor: move; }
+      .markup-container { display: block !important; }
+    `;
+  }
+
+  /**
    * Checks if feature has the correct markup
    *
    * @param {Feature} feature The feature
@@ -307,7 +303,10 @@ class _MarkupManager {
       return;
     }
 
-    markup.element.innerText = value;
+    if (value) {
+      markup.element.innerText = value;
+    }
+
     if (coordinate) {
       markup.overlay.setPosition(coordinate);
     }
@@ -420,6 +419,15 @@ class _MarkupManager {
     if (!updated) {
       const feature = new Feature({ geometry: line, name: "Line" });
       feature.setId(markup.id);
+      feature.setStyle(
+        new Style({
+          stroke: new Stroke({
+            color: defaultStyles.stroke.color,
+            lineDash: [0.3, 7],
+            width: 3,
+          }),
+        })
+      );
       this._links.push(feature);
     }
   }

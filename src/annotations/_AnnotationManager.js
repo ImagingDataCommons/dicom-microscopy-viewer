@@ -9,10 +9,6 @@ import { getUnitsSuffix } from "./markups/utils";
 
 const { Marker, Markup, FeatureEvents } = Enums;
 
-const RelationshipTypes = {
-  HAS_OBS_CONTEXT: "HAS OBS CONTEXT",
-};
-
 class _AnnotationManager {
   constructor({ map, source, controls, getROI } = {}) {
     this.props = { map, source, controls, getROI };
@@ -115,7 +111,7 @@ class _AnnotationManager {
           schemeDesignator: "DCM",
         }),
         value: properties.label,
-        relationshipType: RelationshipTypes.HAS_OBS_CONTEXT,
+        relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT,
       });
       this.addOrUpdateEvaluation(feature, evaluation, "Tracking Identifier");
     }

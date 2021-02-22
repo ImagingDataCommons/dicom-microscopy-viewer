@@ -31,11 +31,16 @@ export const FeatureGeometryEvents = {
   CHANGE: 'change'
 };
 
+export const RelationshipTypes = {
+  HAS_OBS_CONTEXT: "HAS OBS CONTEXT",
+};
+
 export default {
   Marker,
   Markup,
   FeatureEvents,
   FeatureGeometryEvents,
+  RelationshipTypes,
   InteractionEvents,
   HTMLElementEvents,
   MapEvents
