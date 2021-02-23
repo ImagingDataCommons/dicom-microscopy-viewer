@@ -440,7 +440,13 @@ class VolumeImageViewer {
     // TO DO: convert to typescript (e.g. channel should be a typescript interface)
     // TO DO: improve the constructor perfomances. The loop to construct the channels array is slow.
     // TO DO: update examples (at the moment probably only the example blend will work)
-    // TO DO: use DICOM attributes for loading/saving the channel parameters (i.e. load/save the 'state' in DICOM)
+    // TO DO: use DICOM attributes for loading/saving the channel parameters (i.e. load/save the 'state' in DICOM), for example:
+      /*[x] Select area for display: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.10.4.html 
+        [x] Clipping pixel values: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.33.html#table_C.11.33.1-1 
+        [x] Select channels for display and specify the color of each channel: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html
+        [x] Blending of images: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html http://dicom.nema.org/medical/dicom/current/output/chtml/part04/sect_N.2.6.html
+      */
+  
     if ('useWebGL' in options) {
       this[_usewebgl] = options.useWebGL;
     } else {
