@@ -66,7 +66,7 @@
     }).then(instancesMetadata => {
       // Example of custom initialization of the channel visualization parameters (this is optional)
       const channelOne = {
-        id: `1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.35`, // TO DO: we should not use the series UID as ID but a combination of *optical path* and *focalPlane*
+        opticalPathIdentifier: `35`, //(["00480105"]["Value"][0]["00480106"]["Value"][0], https://dicom.innolitics.com/ciods/vl-whole-slide-microscopy-image/optical-path/00480105/00480106)
         color: [0,0.5,0.5],
         opacity: 1.0,
         contrastLimitsRange: [125, 256],
@@ -74,7 +74,7 @@
         addToMap: true
       }
       const channelTwo = {
-        id: `1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.1`, // TO DO: we should not use the series UID as ID but a combination of *optical path* and *focalPlane*
+        opticalPathIdentifier: `1`, 
         color: [0.5, 0.5, 0],
         opacity: 1.0,
         contrastLimitsRange: [175, 256],
@@ -82,7 +82,7 @@
         addToMap: true
       }
       const channelThree = {
-        id: `1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.15`, // TO DO: we should not use the series UID as ID but a combination of *optical path* and *focalPlane*
+        opticalPathIdentifier: `15`,
         color: [1, 0, 0],
         opacity: 1.0,
         contrastLimitsRange: [175, 256],
@@ -101,8 +101,8 @@
       });
 
       // API Example to modify the channel parameters
-      viewer.addChannelToMapByID(`1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.15`); // TO DO: we should not use the series UID as ID but a combination of *optical path* and *focalPlane*
-      viewer.setChannelConstrastLimitsRangeByID(`1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.15`, [150, 225]);
+      viewer.addChannelToMapByID(`15`); // ID is the opticalPathIdentifier
+      viewer.setChannelConstrastLimitsRangeByID(`15`, [150, 225]);
 
       var container = document.getElementById('root');
       viewer.render({container});

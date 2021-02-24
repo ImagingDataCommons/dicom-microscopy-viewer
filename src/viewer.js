@@ -444,7 +444,7 @@ class VolumeImageViewer {
    * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used.
    */
   constructor(options) {
-    // TO DO: the channel identifications now is simply associated to the series (1 channel per series). I should use the optical paths and focal planes DICOM attributes
+    // TO DO: implement API to select focal plane in the case of 3D channels (channels with a bandwith)
     // TO DO: convert to typescript (e.g. channel should be a typescript interface)
     // TO DO: use DICOM attributes for loading/saving the channel parameters (i.e. load/save the 'state' in DICOM), for example:
       /*[x] Select area for display: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.10.4.html 
@@ -485,10 +485,6 @@ class VolumeImageViewer {
     });
 
     // Order all the instances metadata array in channel objects
-    // TO DO: for the moment assume that there is a correspondence between channel and series 1:1 
-    // (this is not true, we should check the *optical path* attribute of the instance, 
-    // *focal plane* also indicates if the channel has a bandwidth, i.e. it is a 3D one)
-    // however I want to go on and check if everything is working at OpenLayer level before making this part fully functional
     this[_channels] = [];
     const colors = [
       [1,0,0],
@@ -503,17 +499,18 @@ class VolumeImageViewer {
       if (options.instancesMetadata[i] === undefined) {
         continue;
       }
-      const id = options.instancesMetadata[i]["0020000E"]["Value"][0]; // TO DO: we should not use the series UID as ID but a combination of *optical path* and *focalPlane* dicom attributes
-      let channel = this[_channels].find(channel => channel.id === id);
+      const opticalPathIdentifier = options.instancesMetadata[i]["00480105"]["Value"][0]["00480106"]["Value"][0];
+      // https://dicom.innolitics.com/ciods/vl-whole-slide-microscopy-image/optical-path/00480105/00480106
+      let channel = this[_channels].find(channel => channel.opticalPathIdentifier === opticalPathIdentifier);
       if (channel) {
         channel.metadata.push(options.instancesMetadata[i])        
       } else {
         const newChannel = {
-          id: `${id}`, 
+          opticalPathIdentifier: `${opticalPathIdentifier}`, 
           metadata: [options.instancesMetadata[i]],
         };
 
-        const channelInit = options.channelInit !== undefined ? options.channelInit.find(channelInit => channelInit.id === id) : undefined;
+        const channelInit = options.channelInit !== undefined ? options.channelInit.find(channelInit => channelInit.opticalPathIdentifier === opticalPathIdentifier) : undefined;
         if (channelInit) {
           newChannel.color = [...channelInit.color];
           newChannel.opacity = channelInit.opacity;
@@ -530,7 +527,6 @@ class VolumeImageViewer {
       }
     }
 
-    
     // For blending we have to make some assumptions 
     // 1) all channels should have the same origins, resolutions, grid sizes, tile sizes and pixel spacings (i.e. same TileGrid).
     //    These are arrays with number of element equal to nlevel (levels of the pyramid). All channels should have the same nlevel value.
@@ -1006,7 +1002,7 @@ class VolumeImageViewer {
     if (options.channelInit !== undefined) {
       options.channelInit.forEach((item) => {
         if (item.addToMap === true) {
-          const channel = this.getChannelByID(item.id);
+          const channel = this.getChannelByID(item.opticalPathIdentifier);
           if (channel) {
             layers.push(channel.imageLayer)
           }
@@ -1247,7 +1243,7 @@ class VolumeImageViewer {
       return null;
     }
 
-    return this[_channels].find(channel => channel.id === id);
+    return this[_channels].find(channel => channel.opticalPathIdentifier === id);
   }
 
   /** Gets the channel given an index
@@ -1264,7 +1260,7 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel metadata given an id
-   * @param {string} id of the channel
+   * @param {string} id of the channel (opticalPathIdentifier)
    * @type {metadata[]} array with all the instances metadata of the channel
    */
   getChannelMetadataByID(id) {
@@ -1273,7 +1269,7 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel color given an id
-   * @param {string} id of the channel
+   * @param {string} id of the channel (opticalPathIdentifier)
    * @type {number[]} array with the color array
    */
   getChannelColorByID(id) {
@@ -1282,7 +1278,7 @@ class VolumeImageViewer {
   }
 
   /** Sets the channel color given an id
-   * @param {string} id of the channel
+   * @param {string} id of the channel (opticalPathIdentifier)
    * @param {number[]} array with the color array
    */
   setChannelColorByID(id, color) {
@@ -1294,7 +1290,7 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel opacity given an id
-   * @param {string} id of the channel
+   * @param {string} id of the channel (opticalPathIdentifier)
    * @type {number} opacity value
    */
   getChannelOpacityByID(id) {
@@ -1303,7 +1299,7 @@ class VolumeImageViewer {
   }
 
   /** Sets the channel opacity given an id
-   * @param {string} id of the channel
+   * @param {string} id of the channel (opticalPathIdentifier)
    * @param {number} opacity value
    */
   setChannelOpacityByID(id, opacity) {
@@ -1315,7 +1311,7 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel constrast limits range given an id
-   * @param {string} id of the channel
+   * @param {string} id of the channel (opticalPathIdentifier)
    * @type {number[]} range (min and max) values of the color function
    */
   getChannelConstrastLimitsRangeByID(id) {
@@ -1324,7 +1320,7 @@ class VolumeImageViewer {
   }
 
   /** Sets the channel constrast limits range given an id
-   * @param {string} id of the channel
+   * @param {string} id of the channel (opticalPathIdentifier)
    * @param {number[]} array with the range (min and max) values of the color function
    */
   setChannelConstrastLimitsRangeByID(id, range) {
@@ -1336,7 +1332,7 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel visible given an id
-   * @param {string} id of the channel
+   * @param {string} id of the channel (opticalPathIdentifier)
    * @type {boolean} visible
    */
   getChannelVisibleByID(id) {
@@ -1345,7 +1341,7 @@ class VolumeImageViewer {
   }
 
   /** Sets the channel visible given an id
-   * @param {string} id of the channel
+   * @param {string} id of the channel (opticalPathIdentifier)
    * @param {boolean} visible
    */
   setChannelVisibleByID(id, visible) {
@@ -1361,6 +1357,9 @@ class VolumeImageViewer {
     channel.imageLayer.setVisible(channel.visible);
   }
 
+  /** Adds the channel to the OpenLayer Map given an id
+   * @param {string} id of the channel (opticalPathIdentifier)
+   */
   addChannelToMapByID(id) {
     const channel = this.getChannelByID(id)
     if (channel === null) {
@@ -1373,6 +1372,9 @@ class VolumeImageViewer {
     this[_map].addLayer(this[_drawingLayer])
   }
 
+  /** Removes the channel to the OpenLayer Map given an id
+   * @param {string} id of the channel (opticalPathIdentifier)
+   */
   removeChannelFromMapByID(id) {
     const channel = this.getChannelByID(id)
     if (channel === null) {
