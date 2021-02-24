@@ -32,7 +32,7 @@
       studyInstanceUID,
     };
 
-    const instancesPromise = client.searchForInstances(searchInstanceOptions).then((instances) => {
+    client.searchForInstances(searchInstanceOptions).then((instances) => {
       const promises = []
       for (let i = 0; i < instances.length; i++) {
         if (instances[i] === undefined ||
@@ -62,9 +62,8 @@
       }
 
       return(Promise.all(promises));
-    })
-
-    instancesPromise.then(instancesMetadata => {
+    }).then(instancesMetadata => {
+      // Example of custom initialization of the channel visualization parameters (this is optional)
       const channelOne = {
         id: `1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.35`, // TO DO: we should not use the series UID as ID but a combination of *optical path* and *focalPlane*
         color: [0,0.5,0.5],
@@ -81,7 +80,15 @@
         visible: true,
         addToMap: true
       }
-      const channelInit = [channelOne, channelTwo]
+      const channelThree = {
+        id: `1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.15`, // TO DO: we should not use the series UID as ID but a combination of *optical path* and *focalPlane*
+        color: [1, 0, 0],
+        opacity: 1.0,
+        contrastLimitsRange: [175, 256],
+        visible: true,
+        addToMap: false
+      }
+      const channelInit = [channelOne, channelTwo, channelThree]
 
       // Note: We are using retrieveRendered: false because dcm4chee does not yet
       // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
@@ -91,6 +98,10 @@
         channelInit,
         retrieveRendered: false
       });
+
+      // API Example to modify the channel parameters
+      viewer.addChannelToMapByID(`1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.15`); // TO DO: we should not use the series UID as ID but a combination of *optical path* and *focalPlane*
+      viewer.setChannelConstrastLimitsRangeByID(`1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.15`, [150, 225]);
 
       var container = document.getElementById('root');
       viewer.render({container});

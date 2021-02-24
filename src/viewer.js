@@ -507,14 +507,14 @@ class VolumeImageViewer {
           metadata: [options.instancesMetadata[i]],
         };
 
-        const channelInit = options.channelInit.find(channelInit => channelInit.id === id);
+        const channelInit = options.channelInit !== undefined ? options.channelInit.find(channelInit => channelInit.id === id) : undefined;
         if (channelInit) {
           newChannel.color = [...channelInit.color];
           newChannel.opacity = channelInit.opacity;
           newChannel.contrastLimitsRange = [...channelInit.contrastLimitsRange];
           newChannel.visible = channelInit.visible;
         } else {
-          newChannel.color = [...colors[i % 6]];
+          newChannel.color = [...colors[i % colors.length]];
           newChannel.opacity = 1.0;
           newChannel.contrastLimitsRange = [0, 256];
           newChannel.visible = true;
@@ -548,9 +548,6 @@ class VolumeImageViewer {
       */
      
       let channel = this[_channels][i];
-      if (i === 8 || i === 9) {
-        console.info (channel.id)
-      }
       channel.microscopyImages = [];
       channel.metadata.forEach(m => {
         const image = new VLWholeSlideMicroscopyImage({ metadata: m });
@@ -1082,14 +1079,18 @@ class VolumeImageViewer {
     }
 
     const layers = [];
-    options.channelInit.forEach((item) => {
-      if (item.addToMap === true) {
-        const channel = this.getChannelByID(item.id);
-        if (channel) {
-          layers.push(channel.imageLayer)
+    if (options.channelInit !== undefined) {
+      options.channelInit.forEach((item) => {
+        if (item.addToMap === true) {
+          const channel = this.getChannelByID(item.id);
+          if (channel) {
+            layers.push(channel.imageLayer)
+          }
         }
-      }
-    });
+      });
+    } else {
+      layers.push(this[_channels][0].imageLayer)  
+    }
 
     layers.push(this[_drawingLayer]);
 
@@ -1237,7 +1238,11 @@ class VolumeImageViewer {
     if (channel === null) {
       return;
     }
+
+    // NOTE: _drawingLayer has to be the last layer, otherwise the compistion will be broken
+    this[_map].removeLayer(this[_drawingLayer])
     this[_map].addLayer(channel.imageLayer)
+    this[_map].addLayer(this[_drawingLayer])
   }
 
   removeChannelFromMapByID(id) {

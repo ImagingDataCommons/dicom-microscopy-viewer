@@ -187,46 +187,52 @@
         seriesInstanceUID
       };
 
-      client.searchForInstances(searchInstanceOptions)
-        .then(instances => {
-          const promises = [];
-
-          for (let i = 0; i < instances.length; i++) {
-
-            const sopInstanceUID = instances[i]["00080018"]["Value"][0];
-
-            const retrieveInstanceOptions = {
-              studyInstanceUID,
-              seriesInstanceUID,
-              sopInstanceUID
-            };
-
-            const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions)
-              .then(metadata => {
-                const imageType = metadata[0]["00080008"]["Value"];
-                if (imageType[2] === "VOLUME") {
-                  return metadata[0];
-                }
-              });
-            promises.push(promise);
+      client.searchForInstances(searchInstanceOptions).then((instances) => {
+        const promises = []
+        for (let i = 0; i < instances.length; i++) {
+          if (instances[i] === undefined ||
+            instances[i]["0020000E"] === undefined ||
+            instances[i]["00080018"] === undefined) {
+            continue;
           }
-          return Promise.all(promises);
-        })
-        .then(metadata => {
-          metadata = metadata.filter(m => m);
-          const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
-            client,
-            metadata,
-            retrieveRendered:false
+          const seriesInstanceUID = instances[i]["0020000E"]["Value"][0];
+          const sopInstanceUID = instances[i]["00080018"]["Value"][0];
+          const retrieveInstanceOptions = {
+            studyInstanceUID,
+            seriesInstanceUID,
+            sopInstanceUID,
+          };
+  
+          const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
+            const imageType = metadata[0]["00080008"]
+            if (imageType !== undefined) {
+              const imageTypeValue = imageType["Value"];
+              if (imageTypeValue[2] === "VOLUME") {
+                return(metadata[0]);
+              }
+            }
           });
-
-          const container = document.getElementById("dicomImage");
-          viewer.render({ container });
-
-          viewer.activateDrawInteraction({ geometryType: "polygon" });
-          window.viewer = viewer;
-
+  
+          promises.push(promise);
+        }
+  
+        return(Promise.all(promises));
+      }).then(instancesMetadata => {
+        // Note: We are using retrieveRendered: false because dcm4chee does not yet
+        // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
+        const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
+          client,
+          instancesMetadata,
+          retrieveRendered: false
         });
+
+        const container = document.getElementById("dicomImage");
+        viewer.render({ container });
+
+        viewer.activateDrawInteraction({ geometryType: "polygon" });
+        window.viewer = viewer;
+
+      });
 
         window.dcmjs = dcmjs;
 
