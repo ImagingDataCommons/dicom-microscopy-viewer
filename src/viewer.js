@@ -28,6 +28,7 @@ import VectorSource from "ol/source/Vector";
 import VectorLayer from "ol/layer/Vector";
 import View from "ol/View";
 import DragPan from "ol/interaction/DragPan";
+import DragZoom from "ol/interaction/DragZoom";
 
 import { default as PolygonGeometry } from "ol/geom/Polygon";
 import { default as PointGeometry } from "ol/geom/Point";
@@ -53,6 +54,69 @@ import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 
 import _AnnotationManager from "./annotations/_AnnotationManager";
 import Icon from "ol/style/Icon";
+
+function _getInteractionBindingCondition(bindings) {
+  const BUTTONS = {
+    left: 1,
+    middle: 4,
+    right: 2,
+  };
+
+  const { mouseButtons, modifierKey } = bindings;
+
+  const _mouseButtonCondition = (event) => {
+    /** No mouse button condition set. */
+    if (!mouseButtons || !mouseButtons.length) {
+      return true;
+    }
+
+    const button = event.pointerEvent
+      ? event.pointerEvent.buttons
+      : event.originalEvent.buttons;
+
+    return mouseButtons.some((mb) => BUTTONS[mb] === button);
+  };
+
+  const _modifierKeyCondition = (event) => {
+    const pointerEvent = event.pointerEvent
+      ? event.pointerEvent
+      : event.originalEvent;
+
+    if (!modifierKey) {
+      /**
+       * No modifier key, don't pass if key pressed as other
+       * tool may be using this tool.
+       */
+      return (
+        !pointerEvent.altKey &&
+        !pointerEvent.metaKey &&
+        !pointerEvent.shiftKey &&
+        !pointerEvent.ctrlKey
+      );
+    }
+
+    switch (modifierKey) {
+      case "alt":
+        return pointerEvent.altKey === true || pointerEvent.metaKey === true;
+      case "shift":
+        return pointerEvent.shiftKey === true;
+      case "ctrl":
+        return pointerEvent.ctrlKey === true;
+      default:
+        /** Invalid modifier key set (ignore requirement as if key not pressed). */
+        return (
+          !pointerEvent.altKey &&
+          !pointerEvent.metaKey &&
+          !pointerEvent.shiftKey &&
+          !pointerEvent.ctrlKey
+        );
+    }
+  };
+
+  return (event) => {
+    return _mouseButtonCondition(event) && _modifierKeyCondition(event);
+  };
+}
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -427,7 +491,7 @@ function _setFeatureStyle(feature, styleOptions) {
     const style = _getOpenLayersStyle(styleOptions);
     feature.setStyle(style);
 
-    /** 
+    /**
      * styleOptions is used internally by internal styled components like markers.
      * This allows them to take priority over styling since OpenLayers swaps the styles
      * completely in case of a setStyle happens.
@@ -511,7 +575,7 @@ class VolumeImageViewer {
     });
 
     this[_features].on("remove", (e) => {
-      this[_annotationManager].onRemove(e.element)
+      this[_annotationManager].onRemove(e.element);
     });
 
     /*
@@ -918,7 +982,7 @@ class VolumeImageViewer {
       map: this[_map],
       source: this[_drawingSource],
       controls: this[_controls],
-      getROI: this.getROI.bind(this)
+      getROI: this.getROI.bind(this),
     });
   }
 
@@ -1102,6 +1166,20 @@ class VolumeImageViewer {
       builtInDrawOptions
     );
 
+    /**
+     * This used to define which mouse buttons will fire the action.
+     *
+     * bindings: {
+     *   mouseButtons can be 'left', 'right' and/or 'middle'. if absent, the action is bound to all mouse buttons.
+     *   mouseButtons: ['left', 'right'],
+     *   modifierKey can be 'shift', 'ctrl' or 'alt'. If not present, the action is bound to no modifier key.
+     *   modifierKey: 'ctrl' // The modifier
+     * },
+     */
+    if (options.bindings) {
+      drawOptions.condition = _getInteractionBindingCondition(options.bindings);
+    }
+
     this[_interactions].draw = new Draw(drawOptions);
     const container = this[_map].getTargetElement();
 
@@ -1148,10 +1226,20 @@ class VolumeImageViewer {
    */
   activateTranslateInteraction(options = {}) {
     this.deactivateTranslateInteraction();
+
     console.info('activate "translate" interaction');
-    this[_interactions].translate = new Translate({
-      layers: [this[_drawingLayer]],
-    });
+
+    const translateOptions = { layers: [this[_drawingLayer]] };
+
+    /**
+     * Get conditional mouse bindings
+     * See "options.binding" comment in activateDrawInteraction() definition.
+     */
+    if (options.bindings) {
+      translateOptions.condition = _getInteractionBindingCondition(options.bindings);
+    }
+
+    this[_interactions].translate = new Translate(translateOptions);
 
     this[_map].addInteraction(this[_interactions].translate);
 
@@ -1167,16 +1255,61 @@ class VolumeImageViewer {
     }
   }
 
+  /* Activates dragZoom interaction.
+   *
+   * @param {object} options - DragZoom options.
+   */
+  activateDragZoomInteraction(options = {}) {
+    this.deactivateDragZoomInteraction();
+
+    console.info('activate "dragZoom" interaction');
+
+    const dragZoomOptions = { layers: [this[_drawingLayer]] };
+
+    /**
+     * Get conditional mouse bindings
+     * See "options.binding" comment in activateDrawInteraction() definition.
+     */
+    if (options.bindings) {
+      dragZoomOptions.condition = _getInteractionBindingCondition(options.bindings);
+    }
+
+    this[_interactions].dragZoom = new DragZoom(dragZoomOptions);
+
+    this[_map].addInteraction(this[_interactions].dragZoom);
+
+    this[_annotationManager].onInteractionsChange(this[_interactions]);
+  }
+
+  /** Deactivates dragZoom interaction. */
+  deactivateDragZoomInteraction() {
+    console.info('deactivate "dragZoom" interaction');
+    if (this[_interactions].dragZoom) {
+      this[_map].removeInteraction(this[_interactions].dragZoom);
+      this[_interactions].dragZoom = undefined;
+    }
+  }
+
   /* Activates select interaction.
    *
    * @param {object} options - Selection options.
    */
   activateSelectInteraction(options = {}) {
     this.deactivateSelectInteraction();
+
     console.info('activate "select" interaction');
-    this[_interactions].select = new Select({
-      layers: [this[_drawingLayer]],
-    });
+
+    const selectOptions = { layers: [this[_drawingLayer]] };
+
+    /**
+     * Get conditional mouse bindings
+     * See "options.binding" comment in activateDrawInteraction() definition.
+     */
+    if (options.bindings) {
+      selectOptions.condition = _getInteractionBindingCondition(options.bindings);
+    }
+
+    this[_interactions].select = new Select(selectOptions);
 
     const container = this[_map].getTargetElement();
 
@@ -1208,8 +1341,22 @@ class VolumeImageViewer {
    */
   activateDragPanInteraction(options = {}) {
     this.deactivateDragPanInteraction();
+
     console.info('activate "drag pan" interaction');
-    this[_interactions].dragPan = new DragPan({ features: this[_features] });
+
+    const dragPanOptions = {
+      features: this[_features],
+    };
+
+    /**
+     * Get conditional mouse bindings
+     * See "options.binding" comment in activateDrawInteraction() definition.
+     */
+    if (options.bindings) {
+      dragPanOptions.condition = _getInteractionBindingCondition(options.bindings);
+    }
+
+    this[_interactions].dragPan = new DragPan(dragPanOptions);
 
     this[_map].addInteraction(this[_interactions].dragPan);
 
@@ -1219,7 +1366,7 @@ class VolumeImageViewer {
   /** Deactivate dragpan interaction. */
   deactivateDragPanInteraction() {
     console.info('deactivate "drag pan" interaction');
-    if (this[_interactions].modify) {
+    if (this[_interactions].dragPan) {
       this[_map].removeInteraction(this[_interactions].dragPan);
       this[_interactions].dragPan = undefined;
     }
@@ -1264,12 +1411,24 @@ class VolumeImageViewer {
    */
   activateModifyInteraction(options = {}) {
     this.deactivateModifyInteraction();
+
     console.info('activate "modify" interaction');
-    this[_interactions].modify = new Modify({
-      features: this[_features], // TODO: or source, i.e. "drawings"???
+
+    const modifyOptions = {
+      features: this[_features], // TODO: or source, i.e. 'drawings'???
       insertVertexCondition: ({ feature }) =>
         feature && feature.get("vertexEnabled") === true,
-    });
+    };
+
+    /**
+     * Get conditional mouse bindings
+     * See "options.binding" comment in activateDrawInteraction() definition.
+     */
+    if (options.bindings) {
+      modifyOptions.condition = _getInteractionBindingCondition(options.bindings);
+    }
+
+    this[_interactions].modify = new Modify(modifyOptions);
 
     this[_map].addInteraction(this[_interactions].modify);
 
