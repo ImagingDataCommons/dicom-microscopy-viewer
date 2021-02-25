@@ -755,7 +755,7 @@ class VolumeImageViewer {
           const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
           const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
           const img = tile.getImage();
-        
+
           const z = tile.tileCoord[0];
           const columns = channel.pyramidMetadata[z].Columns;
           const rows = channel.pyramidMetadata[z].Rows;
@@ -1242,8 +1242,13 @@ class VolumeImageViewer {
     if (this[_channels].length === 0) {
       return null;
     }
+    const channel = this[_channels].find(channel => channel.opticalPathIdentifier === id);
+    if (channel === undefined) {
+      console.warn("Channel with opticalPathIdentifier " + id + " not found");
+      return null;
+    }
 
-    return this[_channels].find(channel => channel.opticalPathIdentifier === id);
+    return channel;
   }
 
   /** Gets the channel given an index
@@ -1253,6 +1258,7 @@ class VolumeImageViewer {
   getChannelByIndex(index) {
     if (this[_channels].length === 0 || 
       index < 0 || index > this[_channels].length) {
+      console.warn("Channel with index " + id + " not found")  
       return null;
     }
 

@@ -10,6 +10,8 @@ const definitions =
   uniform sampler2D u_image;
   uniform float ww;
   uniform float wc;
+  uniform float minT;
+  uniform float maxT;
   uniform vec3 color;
   uniform float opacity;
   varying vec2 v_texCoord;`;
@@ -18,7 +20,10 @@ const windowAndReturnRGBA =
   `// Apply window settings
     float center0 = wc - 0.5;
     float width0 = max(ww, 1.0);
-    float intensity = (pixelValue - center0) / width0 + 0.5;
+    float intensity = 0.;
+    if (pixelValue > minT && pixelValue < maxT) {
+      intensity = (pixelValue - center0) / width0 + 0.5;
+    }
 
     // Clamp intensity
     intensity = clamp(intensity, 0.0, 1.0);
@@ -406,7 +411,7 @@ function renderQuad (shader, parameters, texture, width, height) {
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
-function render (pixelData, width, height, color, opacity, windowCenter, windowWidth) {
+function render (pixelData, width, height, color, opacity, contrastLimitsRange, bitsAllocated) {
   // Resize the canvas
   renderCanvas.width = width;
   renderCanvas.height = height;
@@ -415,6 +420,18 @@ function render (pixelData, width, height, color, opacity, windowCenter, windowW
   const shader = getShaderProgram(pixelData);
   const texture = generateTexture(pixelData, width, height);
 
+  const range = [...contrastLimitsRange];
+  if (bitsAllocated === 16) {
+    // 8 bit [0,256]
+    // 16 bit [0,65536+256]
+    const convertFactor = (65793.) / 256.;
+    range[0] *= convertFactor;
+    range[1] *= convertFactor;
+  }
+
+  const windowCenter = ( range[0] + range[1] ) * 0.5;
+  const windowWidth = range[1] - range[0];
+
   const parameters = {
     u_resolution: { type: '2f',
       value: [width, height] },
@@ -422,6 +439,10 @@ function render (pixelData, width, height, color, opacity, windowCenter, windowW
       value: windowCenter },
     ww: { type: 'f',
       value: windowWidth },
+    minT: { type: 'f',
+      value: range[0] },
+    maxT: { type: 'f',
+      value: range[1] },
     opacity: { type: 'f',
       value: opacity },
     color: { type: '3f',
@@ -436,17 +457,7 @@ function render (pixelData, width, height, color, opacity, windowCenter, windowW
 initRenderer();
 
 function colorImageFrames(frameData) {
-  let range = [...frameData.contrastLimitsRange];
-  const bits = frameData.BitsAllocated;
-  if (bits === 16) {
-    range[0] *= 256;
-    range[1] *= 256;
-  }
-
-  const windowCenter = ( range[0] + range[1] ) * 0.5;
-  const windowWidth = range[1] - range[0];
-
-  const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, frameData.opacity, windowWidth, windowCenter);
+  const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, frameData.opacity, frameData.contrastLimitsRange, frameData.BitsAllocated);
   return renderedCanvas.toDataURL('image/png');
 }
 
