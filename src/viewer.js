@@ -823,7 +823,7 @@ class VolumeImageViewer {
                     width: columns,
                     height: rows
                   };
-                 img.src = colorImageFrames(frameData)
+                 img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality)
                 }
               );
             } else {
@@ -889,7 +889,7 @@ class VolumeImageViewer {
                     width: columns,
                     height: rows
                   };
-                 img.src = colorImageFrames(frameData)
+                 img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality)
                 } else {
                   const blob = new Blob(rawFrames, {type: mediaType});
                   img.src = window.URL.createObjectURL(blob);

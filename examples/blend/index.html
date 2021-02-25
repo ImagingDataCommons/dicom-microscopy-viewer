@@ -91,12 +91,14 @@
       }
       const channelInit = [channelOne, channelTwo, channelThree];
 
+      const blendingImageQuality = 0.8 // value between 0 and 1;
       // Note: We are using retrieveRendered: false because dcm4chee does not yet
       // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
       const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
         client,
         instancesMetadata,
         channelInit,
+        blendingImageQuality,
         retrieveRendered: false
       });
 
@@ -105,7 +107,7 @@
 
       // API Example to modify the channel parameters
       viewer.addChannelToMapByID(`15`); // ID is the opticalPathIdentifier
-      viewer.setChannelConstrastLimitsRangeByID(`15`, [0, 150]);
+      //viewer.setChannelConstrastLimitsRangeByID(`15`, [0, 150]);
     });
 
     </script>

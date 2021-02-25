@@ -456,9 +456,9 @@ function render (pixelData, width, height, color, opacity, contrastLimitsRange, 
 
 initRenderer();
 
-function colorImageFrames(frameData) {
+function colorImageFrames(frameData, mediaType, quality) {
   const renderedCanvas = render(frameData.pixelData, frameData.width, frameData.height, frameData.color, frameData.opacity, frameData.contrastLimitsRange, frameData.BitsAllocated);
-  return renderedCanvas.toDataURL('image/png');
+  return renderedCanvas.toDataURL(mediaType, quality);
 }
 
 export {
