@@ -906,19 +906,19 @@ class VolumeImageViewer {
        * We use the existing TileImage source but customize it to retrieve
        * frames (load tiles) via DICOMweb WADO-RS.
       */
-      const rasterSource = new TileImage({
+      channel.rasterSource = new TileImage({
         crossOrigin: 'Anonymous',
         tileGrid: this[_tileGrid],
         projection: this[_projection],
         wrapX: false
       });
-      rasterSource.setTileUrlFunction(tileUrlFunction);
-      rasterSource.setTileLoadFunction(tileLoadFunction);
+      channel.rasterSource.setTileUrlFunction(tileUrlFunction);
+      channel.rasterSource.setTileLoadFunction(tileLoadFunction);
   
       // Create OpenLayer renderer object
       channel.imageLayer = new TileLayer({
         extent: this[_tileGrid].getExtent(),
-        source: rasterSource,
+        source: channel.rasterSource,
         preload: 0,
         projection: this[_projection]
       });
@@ -1292,7 +1292,10 @@ class VolumeImageViewer {
     if (channel === null) {
       return;
     }
-    channel.color = [...color]; 
+    channel.color = [...color];
+
+    // need to rerun offscren render to color the layers already loaded
+    channel.rasterSource.clear()
   }
 
   /** Gets the channel opacity given an id
@@ -1313,7 +1316,10 @@ class VolumeImageViewer {
     if (channel === null) {
       return;
     }
-    channel.opacity = opacity; 
+    channel.opacity = opacity;
+
+    // need to rerun offscren render to color the layers already loaded
+    channel.rasterSource.clear()
   }
 
   /** Gets the channel constrast limits range given an id
@@ -1335,6 +1341,9 @@ class VolumeImageViewer {
       return;
     }
     channel.contrastLimitsRange = [...range]; 
+
+    // need to rerun offscren render to color the layers already loaded
+    channel.rasterSource.clear()
   }
 
   /** Gets the channel visible given an id
