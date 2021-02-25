@@ -1283,7 +1283,12 @@ class VolumeImageViewer {
    */
   getChannelColorByID(id) {
     const channel = this.getChannelByID(id)
-    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+    if (channel === null) {
+      return null;
+    }
+
+    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
       return null;
     }
 
@@ -1296,9 +1301,15 @@ class VolumeImageViewer {
    */
   setChannelColorByID(id, color) {
     const channel = this.getChannelByID(id)
-    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+    if (channel === null) {
       return;
     }
+
+    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
+      return;
+    }
+
     channel.color = [...color];
 
     // need to rerun offscren render to color the layers already loaded
@@ -1311,7 +1322,12 @@ class VolumeImageViewer {
    */
   getChannelOpacityByID(id) {
     const channel = this.getChannelByID(id)
-    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+    if (channel === null) {
+      return null;
+    }
+
+    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
       return null;
     }
 
@@ -1324,9 +1340,15 @@ class VolumeImageViewer {
    */
   setChannelOpacityByID(id, opacity) {
     const channel = this.getChannelByID(id)
-    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+    if (channel === null) {
       return;
     }
+
+    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
+      return;
+    }
+
     channel.opacity = opacity;
 
     // need to rerun offscren render to color the layers already loaded
@@ -1339,7 +1361,12 @@ class VolumeImageViewer {
    */
   getChannelConstrastLimitsRangeByID(id) {
     const channel = this.getChannelByID(id)
-    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+    if (channel === null) {
+      return null;
+    }
+
+    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
       return null;
     }
 
@@ -1352,9 +1379,15 @@ class VolumeImageViewer {
    */
   setChannelConstrastLimitsRangeByID(id, range) {
     const channel = this.getChannelByID(id)
-    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+    if (channel === null) {
       return;
     }
+
+    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
+      return;
+    }
+
     channel.contrastLimitsRange = [...range]; 
 
     // need to rerun offscren render to color the layers already loaded
