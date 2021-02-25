@@ -56,7 +56,7 @@ import {
 
 import * as DICOMwebClient from 'dicomweb-client';
 import { colorImageFrames } from './colorImageFrames.js';
-import { forEach } from 'mathjs';
+import { forEach, null } from 'mathjs';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -452,6 +452,7 @@ class VolumeImageViewer {
         [x] Select channels for display and specify the color of each channel: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html
         [x] Blending of images: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html http://dicom.nema.org/medical/dicom/current/output/chtml/part04/sect_N.2.6.html
       */
+    // NOTE: channel coloring is allowed only for monochorme channels (i.e SamplesPerPixel === 1).
   
     if ('useWebGL' in options) {
       this[_usewebgl] = options.useWebGL;
@@ -769,6 +770,7 @@ class VolumeImageViewer {
             // Figure out from the metadata if this is a color image dataset
             // if it is, use png mediatype and png transfer syntax to just get pngs
             // Otherwise, get the data as an octet-stream and use that
+            // TO DO: should we get always png and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
   
             let mediaType = 'application/octet-stream';
             let transferSyntaxUID = '1.2.840.10008.1.2.1';
@@ -823,7 +825,7 @@ class VolumeImageViewer {
                     width: columns,
                     height: rows
                   };
-                 img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality)
+                  img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality)
                 }
               );
             } else {
@@ -840,6 +842,7 @@ class VolumeImageViewer {
             // Figure out from the metadata if this is a color image dataset
             // if it is, use jpeg mediatype and jpeg transfer syntax to just get jpegs
             // Otherwise, get the data as an octet-stream and use that
+            // TO DO: should we get always jpeg and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
             
             let mediaType = 'application/octet-stream';
             let transferSyntaxUID = '1.2.840.10008.1.2.1';
@@ -859,7 +862,7 @@ class VolumeImageViewer {
             options.client.retrieveInstanceFrames(retrieveOptions).then(
               (rawFrames) => {
                 if (samplesPerPixel === 1) {
-                 let pixelData;
+                  let pixelData;
                   switch (BitsAllocated) {
                     case 8:
                       if (PixelRepresentation === 1) {
@@ -880,7 +883,7 @@ class VolumeImageViewer {
                         'bit not supported'
                       );
                   }
-                 const frameData = {
+                  const frameData = {
                     pixelData,
                     contrastLimitsRange,
                     BitsAllocated,
@@ -889,7 +892,7 @@ class VolumeImageViewer {
                     width: columns,
                     height: rows
                   };
-                 img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality)
+                  img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality)
                 } else {
                   const blob = new Blob(rawFrames, {type: mediaType});
                   img.src = window.URL.createObjectURL(blob);
@@ -1280,7 +1283,11 @@ class VolumeImageViewer {
    */
   getChannelColorByID(id) {
     const channel = this.getChannelByID(id)
-    return channel ? channel.color : null;
+    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+      return null;
+    }
+
+    return channel.color;
   }
 
   /** Sets the channel color given an id
@@ -1289,7 +1296,7 @@ class VolumeImageViewer {
    */
   setChannelColorByID(id, color) {
     const channel = this.getChannelByID(id)
-    if (channel === null) {
+    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
       return;
     }
     channel.color = [...color];
@@ -1304,7 +1311,11 @@ class VolumeImageViewer {
    */
   getChannelOpacityByID(id) {
     const channel = this.getChannelByID(id)
-    return channel ? channel.opacity : null;
+    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+      return null;
+    }
+
+    return channel.opacity;
   }
 
   /** Sets the channel opacity given an id
@@ -1313,7 +1324,7 @@ class VolumeImageViewer {
    */
   setChannelOpacityByID(id, opacity) {
     const channel = this.getChannelByID(id)
-    if (channel === null) {
+    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
       return;
     }
     channel.opacity = opacity;
@@ -1328,7 +1339,11 @@ class VolumeImageViewer {
    */
   getChannelConstrastLimitsRangeByID(id) {
     const channel = this.getChannelByID(id)
-    return channel ? channel.contrastLimitsRange : null;
+    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
+      return null;
+    }
+
+    return channel.contrastLimitsRange;
   }
 
   /** Sets the channel constrast limits range given an id
@@ -1337,7 +1352,7 @@ class VolumeImageViewer {
    */
   setChannelConstrastLimitsRangeByID(id, range) {
     const channel = this.getChannelByID(id)
-    if (channel === null) {
+    if (channel === null || channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
       return;
     }
     channel.contrastLimitsRange = [...range]; 
