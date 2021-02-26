@@ -56,7 +56,6 @@ import {
 
 import * as DICOMwebClient from 'dicomweb-client';
 import { colorImageFrames } from './colorImageFrames.js';
-import { forEach, null } from 'mathjs';
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -744,28 +743,36 @@ class VolumeImageViewer {
         }
         return (url);
       }
-     /*
+      /*
        * Define custom tile loader function, which is required because the
        * WADO-RS response message has content type "multipart/related".
       */
       const tileLoadFunction = async (tile, src) => {
-        console.log(tile);
+        const img = tile.getImage();
+        
+        const z = tile.tileCoord[0];
+        const columns = channel.pyramidMetadata[z].Columns;
+        const rows = channel.pyramidMetadata[z].Rows;
+        const samplesPerPixel = channel.pyramidMetadata[z].SamplesPerPixel; // number of colors for pixel
+        const BitsAllocated = channel.pyramidMetadata[z].BitsAllocated; // memory for pixel
+        const PixelRepresentation = channel.pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
+
+        const { contrastLimitsRange, color, opacity, rasterSource } = channel;
+        
+        /*const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        context.fillStyle = 'rgb(0,0,0)';
+        context.fillRect(0, 0, columns, rows);
+        img.src = canvas.toDataURL('image/jpeg', 0.001);*/
+        //tile.setState(2);
+        //rasterSource.changed();
+
         if (src !== null) {
           const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
           const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
           const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
           const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-          const img = tile.getImage();
-
-          const z = tile.tileCoord[0];
-          const columns = channel.pyramidMetadata[z].Columns;
-          const rows = channel.pyramidMetadata[z].Rows;
-          const samplesPerPixel = channel.pyramidMetadata[z].SamplesPerPixel; // number of colors for pixel
-          const BitsAllocated = channel.pyramidMetadata[z].BitsAllocated; // memory for pixel
-          const PixelRepresentation = channel.pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
-
-          const { contrastLimitsRange, color, opacity } = channel;
-  
+        
           if (options.retrieveRendered) {
             // Figure out from the metadata if this is a color image dataset
             // if it is, use png mediatype and png transfer syntax to just get pngs
@@ -825,7 +832,8 @@ class VolumeImageViewer {
                     width: columns,
                     height: rows
                   };
-                  img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality)
+                  img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality);
+                  rasterSource.changed();
                 }
               );
             } else {
@@ -833,6 +841,7 @@ class VolumeImageViewer {
                 (renderedFrame) => {
                   const blob = new Blob([renderedFrame], {type: mediaType});
                   img.src = window.URL.createObjectURL(blob);
+                  rasterSource.changed();
                 }
               );
             }
@@ -843,7 +852,6 @@ class VolumeImageViewer {
             // if it is, use jpeg mediatype and jpeg transfer syntax to just get jpegs
             // Otherwise, get the data as an octet-stream and use that
             // TO DO: should we get always jpeg and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
-            
             let mediaType = 'application/octet-stream';
             let transferSyntaxUID = '1.2.840.10008.1.2.1';
             if (samplesPerPixel !== 1) {
@@ -892,10 +900,12 @@ class VolumeImageViewer {
                     width: columns,
                     height: rows
                   };
-                  img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality)
+                  img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality);
+                  rasterSource.changed();
                 } else {
                   const blob = new Blob(rawFrames, {type: mediaType});
                   img.src = window.URL.createObjectURL(blob);
+                  rasterSource.changed();
                 }
               }
             );
@@ -919,20 +929,20 @@ class VolumeImageViewer {
       channel.rasterSource.setTileLoadFunction(tileLoadFunction);
   
       // Create OpenLayer renderer object
-      channel.imageLayer = new TileLayer({
+      channel.tileLayer = new TileLayer({
         extent: this[_tileGrid].getExtent(),
         source: channel.rasterSource,
         preload: 0,
         projection: this[_projection]
       });
 
-      channel.imageLayer.setVisible(channel.visible);
+      channel.tileLayer.setVisible(channel.visible);
 
       // Set the composition type for the OpenLayer renderer object
-      channel.imageLayer.on('prerender', function (event) {
+      channel.tileLayer.on('prerender', function (event) {
         event.context.globalCompositeOperation = 'lighter';
       });
-      channel.imageLayer.on('postrender', function (event) {
+      channel.tileLayer.on('postrender', function (event) {
         event.context.globalCompositeOperation = 'source-over';
       });
     });
@@ -980,7 +990,7 @@ class VolumeImageViewer {
       this[_controls].fullscreen = new FullScreen();
     }
     if (options.controls.has('overview')) {
-      const overviewImageLayer = new TileLayer({
+      const overviewTileLayer = new TileLayer({
         extent: this[_tileGrid].getExtent(),
         source: rasterSource,
         preload: 0,
@@ -995,7 +1005,7 @@ class VolumeImageViewer {
 
       this[_controls].overview = new OverviewMap({
         view: overviewView,
-        layers: [overviewImageLayer],
+        layers: [overviewTileLayer],
         collapsed: false,
         collapsible: false,
       });
@@ -1007,12 +1017,12 @@ class VolumeImageViewer {
         if (item.addToMap === true) {
           const channel = this.getChannelByID(item.opticalPathIdentifier);
           if (channel) {
-            layers.push(channel.imageLayer)
+            layers.push(channel.tileLayer)
           }
         }
       });
     } else {
-      layers.push(this[_channels][0].imageLayer)  
+      layers.push(this[_channels][0].tileLayer)  
     }
 
     layers.push(this[_drawingLayer]);
@@ -1414,10 +1424,10 @@ class VolumeImageViewer {
     }
     channel.visible = visible;
     
-    if (channel.imageLayer === null) { 
+    if (channel.tileLayer === null) { 
       return;
     }
-    channel.imageLayer.setVisible(channel.visible);
+    channel.tileLayer.setVisible(channel.visible);
   }
 
   /** Adds the channel to the OpenLayer Map given an id
@@ -1431,7 +1441,7 @@ class VolumeImageViewer {
 
     // NOTE: _drawingLayer has to be the last layer, otherwise the compistion will be broken
     this[_map].removeLayer(this[_drawingLayer])
-    this[_map].addLayer(channel.imageLayer)
+    this[_map].addLayer(channel.tileLayer)
     this[_map].addLayer(this[_drawingLayer])
   }
 
@@ -1443,7 +1453,7 @@ class VolumeImageViewer {
     if (channel === null) {
       return;
     }
-    this[_map].removeLayer(channel.imageLayer)
+    this[_map].removeLayer(channel.tileLayer)
   }
 
   /** Resizes the viewer to fit the viewport. */

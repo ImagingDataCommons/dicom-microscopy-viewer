@@ -67,25 +67,25 @@
       // Example of custom initialization of the channel visualization parameters (this is optional)
       const channelOne = {
         opticalPathIdentifier: `35`, //(["00480105"]["Value"][0]["00480106"]["Value"][0], https://dicom.innolitics.com/ciods/vl-whole-slide-microscopy-image/optical-path/00480105/00480106)
-        color: [0,0.5,0.5],
+        color: [0.,0.5,0.5],
         opacity: 1.0,
-        contrastLimitsRange: [125, 256],
+        contrastLimitsRange: [125., 256.],
         visible: true,
         addToMap: true
       }
       const channelTwo = {
         opticalPathIdentifier: `1`, 
-        color: [0.5, 0.5, 0],
-        opacity: 1,
-        contrastLimitsRange: [0, 256],
+        color: [0.5, 0.5, 0.],
+        opacity: 1.0,
+        contrastLimitsRange: [0., 256.],
         visible: true,
         addToMap: true
       }
       const channelThree = {
         opticalPathIdentifier: `15`,
-        color: [1, 0, 0],
+        color: [1, 0., 0.],
         opacity: 1.0,
-        contrastLimitsRange: [0, 256],
+        contrastLimitsRange: [0., 256.],
         visible: true,
         addToMap: false
       }
