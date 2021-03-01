@@ -44,6 +44,7 @@ import {
   applyTransform,
   buildInverseTransform,
   buildTransform,
+  arraysEqual,
 } from './utils.js';
 import {
   Point,
@@ -380,24 +381,6 @@ function _setFeatureStyle(feature, styleOptions) {
   }
 }
 
-/** checks if arrays are equal. The arrays can have dimensionality either 1 or 2.
- * @param {number[]} array a
- * @param {number[]} array b
- */
-function _arraysEqual(a, b) {
-  if (a === b) return true;
-  if (a == null || b == null) return false;
-  if (a.length !== b.length) return false;
-
-  for (let i = 0; i < a.length; ++i) {
-    if (a[i].length !== b[i].length) return false;
-    for (let j = 0; j < a[i].length; ++j){
-      if (a[i][j] !== b[i][j]) return false;
-    }
-  }
-  return true;
-}
-
 const _client = Symbol('client');
 const _controls = Symbol('controls');
 const _drawingLayer = Symbol('drawingLayer');
@@ -706,32 +689,32 @@ class VolumeImageViewer {
         -1                                // max Y
       ];
       const referenceExtent = this[_tileGrid].getExtent();
-      if (_arraysEqual(channelExtent, referenceExtent) === false) {
+      if (arraysEqual(channelExtent, referenceExtent) === false) {
         throw new Error(
           'Channels have different extent'
         );
       }
-      if (_arraysEqual(channelOrigins, this[_referenceOrigins]) === false) {
+      if (arraysEqual(channelOrigins, this[_referenceOrigins]) === false) {
         throw new Error(
           'Channels have different origins'
         );
       }
-      if (_arraysEqual(channelResolutions, this[_referenceResolutions]) === false) {
+      if (arraysEqual(channelResolutions, this[_referenceResolutions]) === false) {
         throw new Error(
           'Channels have different resolutions'
         );
       }
-      if (_arraysEqual(channelGridSizes, this[_referenceGridSizes]) === false) {
+      if (arraysEqual(channelGridSizes, this[_referenceGridSizes]) === false) {
         throw new Error(
           'Channels have different grid sizes'
         );
       }
-      if (_arraysEqual(channelTileSizes, this[_referenceTileSizes]) === false) {
+      if (arraysEqual(channelTileSizes, this[_referenceTileSizes]) === false) {
         throw new Error(
           'Channels have different tile sizes'
         );
       }
-      if (_arraysEqual(channelPixelSpacings, this[_referencePixelSpacings]) === false) {
+      if (arraysEqual(channelPixelSpacings, this[_referencePixelSpacings]) === false) {
         throw new Error(
           'Channels have different pixel spacings'
         );

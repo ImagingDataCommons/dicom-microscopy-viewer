@@ -339,6 +339,24 @@ function mapSlideCoordToPixelCoord(options) {
   return applyInverseTransform({ coordinate: point, affine: affine })
 }
 
+/** checks if arrays are equal. The arrays can have dimensionality either 1 or 2.
+ * @param {number[]} array a
+ * @param {number[]} array b
+ */
+function arraysEqual(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; ++i) {
+    if (a[i].length !== b[i].length) return false;
+    for (let j = 0; j < a[i].length; ++j){
+      if (a[i][j] !== b[i][j]) return false;
+    }
+  }
+  return true;
+}
+
 export {
   applyInverseTransform,
   applyTransform,
@@ -347,5 +365,7 @@ export {
   computeRotation,
   generateUID,
   mapPixelCoordToSlideCoord,
-  mapSlideCoordToPixelCoord
+  mapSlideCoordToPixelCoord,
+  arraysEqual
 };
+
