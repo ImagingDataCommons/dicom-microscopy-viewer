@@ -767,7 +767,7 @@ class VolumeImageViewer {
         const BitsAllocated = channel.pyramidMetadata[z].BitsAllocated; // memory for pixel
         const PixelRepresentation = channel.pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
 
-        const { contrastLimitsRange, color, opacity, rasterSource } = channel;
+        const { contrastLimitsRange, color, opacity } = channel;
 
         if (src !== null) {
           const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
