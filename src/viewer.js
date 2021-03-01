@@ -517,11 +517,13 @@ class VolumeImageViewer {
               newChannel.opacity = channelInit.opacity;
               newChannel.contrastLimitsRange = [...channelInit.contrastLimitsRange];
               newChannel.visible = channelInit.visible;
+              newChannel.addToMap = channelInit.addToMap;
             } else {
               newChannel.color = [...colors[i % colors.length]];
               newChannel.opacity = 1.0;
               newChannel.contrastLimitsRange = [0, 256];
               newChannel.visible = true;
+              newChannel.addToMap = false;
             }
     
             this[_channels].push(newChannel)
@@ -1443,6 +1445,7 @@ class VolumeImageViewer {
       return;
     }
 
+    channel.addToMap = true;
     // NOTE: _drawingLayer has to be the last layer, otherwise the compistion will be broken
     this[_map].removeLayer(this[_drawingLayer])
     this[_map].addLayer(channel.tileLayer)
@@ -1457,6 +1460,7 @@ class VolumeImageViewer {
     if (channel === null) {
       return;
     }
+    channel.addToMap = false;
     this[_map].removeLayer(channel.tileLayer)
   }
 
