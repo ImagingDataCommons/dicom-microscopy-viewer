@@ -499,31 +499,48 @@ class VolumeImageViewer {
       if (options.instancesMetadata[i] === undefined) {
         continue;
       }
-      const opticalPathIdentifier = options.instancesMetadata[i]["00480105"]["Value"][0]["00480106"]["Value"][0];
-      // https://dicom.innolitics.com/ciods/vl-whole-slide-microscopy-image/optical-path/00480105/00480106
-      let channel = this[_channels].find(channel => channel.opticalPathIdentifier === opticalPathIdentifier);
-      if (channel) {
-        channel.metadata.push(options.instancesMetadata[i])        
-      } else {
-        const newChannel = {
-          opticalPathIdentifier: `${opticalPathIdentifier}`, 
-          metadata: [options.instancesMetadata[i]],
-        };
-
-        const channelInit = options.channelInit !== undefined ? options.channelInit.find(channelInit => channelInit.opticalPathIdentifier === opticalPathIdentifier) : undefined;
-        if (channelInit) {
-          newChannel.color = [...channelInit.color];
-          newChannel.opacity = channelInit.opacity;
-          newChannel.contrastLimitsRange = [...channelInit.contrastLimitsRange];
-          newChannel.visible = channelInit.visible;
+      const dimensionOrganizationType = options.instancesMetadata[i]["00209311"]["Value"][0];
+      if (dimensionOrganizationType === '3D' || dimensionOrganizationType === '3D_TEMPORAL') {
+        // 3D data
+        // TO DO: get some example data.
+        continue;
+      } else if (dimensionOrganizationType === 'TILED_FULL') {
+        const totalPixelMatrixFocalPlanes = options.instancesMetadata[i]["00480303"]["Value"][0];
+        if (totalPixelMatrixFocalPlanes !== 1) {
+          continue;
         } else {
-          newChannel.color = [...colors[i % colors.length]];
-          newChannel.opacity = 1.0;
-          newChannel.contrastLimitsRange = [0, 256];
-          newChannel.visible = true;
+          const opticalPathIdentifier = options.instancesMetadata[i]["00480105"]["Value"][0]["00480106"]["Value"][0];
+          let channel = this[_channels].find(channel => channel.opticalPathIdentifier === opticalPathIdentifier);
+          if (channel) {
+            channel.metadata.push(options.instancesMetadata[i])        
+          } else {
+            const newChannel = {
+              opticalPathIdentifier: `${opticalPathIdentifier}`, 
+              metadata: [options.instancesMetadata[i]],
+            };
+    
+            const channelInit = options.channelInit !== undefined ? options.channelInit.find(channelInit => channelInit.opticalPathIdentifier === opticalPathIdentifier) : undefined;
+            if (channelInit) {
+              newChannel.color = [...channelInit.color];
+              newChannel.opacity = channelInit.opacity;
+              newChannel.contrastLimitsRange = [...channelInit.contrastLimitsRange];
+              newChannel.visible = channelInit.visible;
+            } else {
+              newChannel.color = [...colors[i % colors.length]];
+              newChannel.opacity = 1.0;
+              newChannel.contrastLimitsRange = [0, 256];
+              newChannel.visible = true;
+            }
+    
+            this[_channels].push(newChannel)
+          }
         }
-
-        this[_channels].push(newChannel)
+      } else if (dimensionOrganizationType === 'TILED_SPARSE') {
+        // the spatial location of each tile is explicitly encoded using information 
+        // in the Per-Frame Functional Group Sequence, and the recipient shall not 
+        // make any assumption about the spatial position or optical path or order of the encoded frames.
+        // TO DO: get some example data.
+        continue;
       }
     }
 
@@ -758,14 +775,6 @@ class VolumeImageViewer {
         const PixelRepresentation = channel.pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
 
         const { contrastLimitsRange, color, opacity, rasterSource } = channel;
-        
-        /*const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        context.fillStyle = 'rgb(0,0,0)';
-        context.fillRect(0, 0, columns, rows);
-        img.src = canvas.toDataURL('image/jpeg', 0.001);*/
-        //tile.setState(2);
-        //rasterSource.changed();
 
         if (src !== null) {
           const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
@@ -833,7 +842,6 @@ class VolumeImageViewer {
                     height: rows
                   };
                   img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality);
-                  rasterSource.changed();
                 }
               );
             } else {
@@ -841,7 +849,6 @@ class VolumeImageViewer {
                 (renderedFrame) => {
                   const blob = new Blob([renderedFrame], {type: mediaType});
                   img.src = window.URL.createObjectURL(blob);
-                  rasterSource.changed();
                 }
               );
             }
@@ -901,11 +908,9 @@ class VolumeImageViewer {
                     height: rows
                   };
                   img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality);
-                  rasterSource.changed();
                 } else {
                   const blob = new Blob(rawFrames, {type: mediaType});
                   img.src = window.URL.createObjectURL(blob);
-                  rasterSource.changed();
                 }
               }
             );
