@@ -499,13 +499,22 @@ class VolumeImageViewer {
       if (options.instancesMetadata[i] === undefined) {
         continue;
       }
-      const dimensionOrganizationType = options.instancesMetadata[i]["00209311"]["Value"][0];
+      let dimensionOrganizationType = 'TILED_FULL';
+      // if dimensionOrganizationType metadata in undefined, assuming TILED_FULL
+      if (options.instancesMetadata[i]["00209311"] !== undefined) {
+        dimensionOrganizationType = options.instancesMetadata[i]["00209311"]["Value"][0];
+      }
       if (dimensionOrganizationType === '3D' || dimensionOrganizationType === '3D_TEMPORAL') {
         // 3D data
         // TO DO: get some example data.
+        console.warn('Volume Image Viewer does hot hanlde 3D data yet.')
         continue;
       } else if (dimensionOrganizationType === 'TILED_FULL') {
-        const totalPixelMatrixFocalPlanes = options.instancesMetadata[i]["00480303"]["Value"][0];
+        let totalPixelMatrixFocalPlanes = 1 ;
+        // if totalPixelMatrixFocalPlanes metadata in undefined, assuming 1
+        if (options.instancesMetadata[i]["00480303"] !== undefined) {
+          totalPixelMatrixFocalPlanes = options.instancesMetadata[i]["00480303"]["Value"][0];
+        }
         if (totalPixelMatrixFocalPlanes !== 1) {
           continue;
         } else {
@@ -540,7 +549,8 @@ class VolumeImageViewer {
         // in the Per-Frame Functional Group Sequence, and the recipient shall not 
         // make any assumption about the spatial position or optical path or order of the encoded frames.
         // TO DO: get some example data.
-        continue;
+        console.warn('Volume Image Viewer does hot hanlde TILED_SPARSE data yet.')
+        continue;  
       }
     }
 
@@ -766,7 +776,7 @@ class VolumeImageViewer {
       */
       const tileLoadFunction = async (tile, src) => {
         const img = tile.getImage();
-        
+
         const z = tile.tileCoord[0];
         const columns = channel.pyramidMetadata[z].Columns;
         const rows = channel.pyramidMetadata[z].Rows;
@@ -787,6 +797,7 @@ class VolumeImageViewer {
             // if it is, use png mediatype and png transfer syntax to just get pngs
             // Otherwise, get the data as an octet-stream and use that
             // TO DO: should we get always png and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
+            // https://github.com/cornerstonejs/codecs
   
             let mediaType = 'application/octet-stream';
             let transferSyntaxUID = '1.2.840.10008.1.2.1';
@@ -859,6 +870,7 @@ class VolumeImageViewer {
             // if it is, use jpeg mediatype and jpeg transfer syntax to just get jpegs
             // Otherwise, get the data as an octet-stream and use that
             // TO DO: should we get always jpeg and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
+            // https://github.com/cornerstonejs/codecs
             let mediaType = 'application/octet-stream';
             let transferSyntaxUID = '1.2.840.10008.1.2.1';
             if (samplesPerPixel !== 1) {
@@ -906,7 +918,7 @@ class VolumeImageViewer {
                     opacity,
                     width: columns,
                     height: rows
-                  };
+                  }; 
                   img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality);
                 } else {
                   const blob = new Blob(rawFrames, {type: mediaType});
@@ -930,6 +942,7 @@ class VolumeImageViewer {
         projection: this[_projection],
         wrapX: false
       });
+
       channel.rasterSource.setTileUrlFunction(tileUrlFunction);
       channel.rasterSource.setTileLoadFunction(tileLoadFunction);
   
@@ -947,6 +960,7 @@ class VolumeImageViewer {
       channel.tileLayer.on('prerender', function (event) {
         event.context.globalCompositeOperation = 'lighter';
       });
+      
       channel.tileLayer.on('postrender', function (event) {
         event.context.globalCompositeOperation = 'source-over';
       });
@@ -991,13 +1005,31 @@ class VolumeImageViewer {
         className: ''
       })
     }
+
+    const layers = [];
+    if (options.channelInit !== undefined) {
+      options.channelInit.forEach((item) => {
+        if (item.addToMap === true) {
+          const channel = this.getChannelByID(item.opticalPathIdentifier);
+          if (channel) {
+            layers.push(channel.tileLayer)
+          }
+        }
+      });
+    } else {
+      layers.push(this[_channels][0].tileLayer)  
+    }
+
+    layers.push(this[_drawingLayer]);
+
     if (options.controls.has('fullscreen')) {
       this[_controls].fullscreen = new FullScreen();
     }
+
     if (options.controls.has('overview')) {
       const overviewTileLayer = new TileLayer({
         extent: this[_tileGrid].getExtent(),
-        source: rasterSource,
+        source: this[_channels][0].rasterSource,
         preload: 0,
         projection: this[_projection]
       });
@@ -1015,22 +1047,6 @@ class VolumeImageViewer {
         collapsible: false,
       });
     }
-
-    const layers = [];
-    if (options.channelInit !== undefined) {
-      options.channelInit.forEach((item) => {
-        if (item.addToMap === true) {
-          const channel = this.getChannelByID(item.opticalPathIdentifier);
-          if (channel) {
-            layers.push(channel.tileLayer)
-          }
-        }
-      });
-    } else {
-      layers.push(this[_channels][0].tileLayer)  
-    }
-
-    layers.push(this[_drawingLayer]);
 
     /** Creates the map with the defined layers and view and renders it. */
     this[_map] = new Map({
