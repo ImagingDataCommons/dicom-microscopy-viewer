@@ -1,4 +1,5 @@
 import 'ol/ol.css';
+import CanvasTileLayerRenderer from 'ol/renderer/canvas/TileLayer.js';
 import Collection from 'ol/Collection';
 import Draw, { createRegularPolygon, createBox } from 'ol/interaction/Draw';
 import EVENT from "./events";
@@ -54,6 +55,33 @@ import {
   Ellipsoid,
   Ellipse
 } from './scoord3d.js';
+
+// override drawTileImage method
+import {getUid} from 'ol/util.js';
+CanvasTileLayerRenderer.prototype.drawTileImage = function drawTileImage (tile, frameState, x, y, w, h, gutter, transition, opacity) {
+  var image = this.getTileImage(tile);
+  if (!image) {
+    return;
+  }
+  var uid = getUid(this);
+  var tileAlpha = transition ? tile.getAlpha(uid, frameState.time) : 1;
+  var alpha = opacity * tileAlpha;
+  var alphaChanged = alpha !== this.context.globalAlpha;
+  if (alphaChanged) {
+    this.context.save();
+    this.context.globalAlpha = alpha;
+  }
+  this.context.drawImage(image, gutter, gutter, image.width - 2 * gutter, image.height - 2 * gutter, x, y, w, h);
+  if (alphaChanged) {
+    this.context.restore();
+  }
+  if (tileAlpha !== 1) {
+    frameState.animate = true;
+  }
+  if (transition) {
+    tile.endTransition(uid);
+  }
+};
 
 import * as DICOMwebClient from 'dicomweb-client';
 import { colorImageFrames } from './colorImageFrames.js';
