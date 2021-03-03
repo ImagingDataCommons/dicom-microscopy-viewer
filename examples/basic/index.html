@@ -39,7 +39,6 @@
           instances[i]["00080018"] === undefined) {
           continue;
         }
-        const seriesInstanceUID = instances[i]["0020000E"]["Value"][0];
         const sopInstanceUID = instances[i]["00080018"]["Value"][0];
         const retrieveInstanceOptions = {
           studyInstanceUID,
