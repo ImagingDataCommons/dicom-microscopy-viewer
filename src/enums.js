@@ -1,10 +1,16 @@
+export const InternalProperties = {
+  StyleOptions: 'styleOptions',
+  Markup: 'markup',
+  Marker: 'marker'
+};
+
 export const Marker = {
   Arrow: "arrow",
 };
 
 export const Markup = {
   Measurement: "measurement",
-  FreeTextEvaluation: "freetext",
+  TextEvaluation: "text",
 };
 
 export const FeatureEvents = {
@@ -43,5 +49,6 @@ export default {
   RelationshipTypes,
   InteractionEvents,
   HTMLElementEvents,
+  InternalProperties,
   MapEvents
 };

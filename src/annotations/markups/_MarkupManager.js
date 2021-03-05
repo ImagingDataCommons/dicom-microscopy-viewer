@@ -16,21 +16,11 @@ import {
 import defaultStyles from "../styles";
 
 class _MarkupManager {
-  constructor({
-    map,
-    source,
-    formatters,
-    onClick,
-    onDrawStart,
-    onDrawEnd,
-    onStyle,
-  } = {}) {
+  constructor({ map, source, formatters, onClick, onStyle } = {}) {
     this._map = map;
     this._source = source;
     this._formatters = formatters;
 
-    this.onDrawStart = onDrawStart;
-    this.onDrawEnd = onDrawEnd;
     this.onClick = onClick;
     this.onStyle = onStyle;
 
@@ -49,11 +39,6 @@ class _MarkupManager {
     this._markupsOverlay = new Overlay({ element: this._styleTag });
     this._map.addOverlay(this._markupsOverlay);
     this._map.addLayer(this._linksVector);
-
-    this._onDrawStart = this._onDrawStart.bind(this);
-    this._onDrawEnd = this._onDrawEnd.bind(this);
-
-    this.bindInteractionEvents(this._map.getInteractions());
   }
 
   /**
@@ -154,7 +139,7 @@ class _MarkupManager {
     const markup = { id, isLinkable, isDraggable };
 
     const element = document.createElement("div");
-    element.id = markup.isDraggable ? "markup" : "";
+    element.id = markup.isDraggable ? Enums.InternalProperties.Markup : "";
     element.className = "ol-tooltip ol-tooltip-measure";
     element.innerText = value;
 
@@ -168,31 +153,11 @@ class _MarkupManager {
       element: markup.element,
     });
 
-    const styleTooltip = (feature) => {
-      const styleOptions = feature.get("styleOptions");
-      if (styleOptions && styleOptions.stroke) {
-        const { color } = styleOptions.stroke;
-        const tooltipColor = color || defaultStyles.stroke.color;
-        const links = this._links.getArray();
-        const link = links.find((link) => link.getId() === feature.getId());
-        if (link) {
-          const styles = link.getStyle();
-          const stroke = styles.getStroke();
-          stroke.setColor(tooltipColor);
-          styles.setStroke(stroke);
-          link.setStyle(styles);
-        }
-        const styleTag = document.createElement("style");
-        styleTag.innerHTML = this._getTooltipStyles(tooltipColor);
-        this._markupsOverlay.setElement(styleTag);
-      }
-    };
-
     feature.on(
       Enums.FeatureEvents.PROPERTY_CHANGE,
       ({ key: property, target: feature }) => {
-        if (property === "styleOptions") {
-          styleTooltip(feature);
+        if (property === Enums.InternalProperties.StyleOptions) {
+          this.styleTooltip(feature);
         }
       }
     );
@@ -248,6 +213,26 @@ class _MarkupManager {
     return markup;
   }
 
+  styleTooltip(feature) {
+    const styleOptions = feature.get(Enums.InternalProperties.StyleOptions);
+    if (styleOptions && styleOptions.stroke) {
+      const { color } = styleOptions.stroke;
+      const tooltipColor = color || defaultStyles.stroke.color;
+      const links = this._links.getArray();
+      const link = links.find((link) => link.getId() === feature.getId());
+      if (link) {
+        const styles = link.getStyle();
+        const stroke = styles.getStroke();
+        stroke.setColor(tooltipColor);
+        styles.setStroke(stroke);
+        link.setStyle(styles);
+      }
+      const styleTag = document.createElement("style");
+      styleTag.innerHTML = this._getTooltipStyles(tooltipColor);
+      this._markupsOverlay.setElement(styleTag);
+    }
+  }
+
   /**
    * Returns tooltip styles
    *
@@ -278,7 +263,9 @@ class _MarkupManager {
    * @param {Feature} feature The feature
    */
   _isValidFeature(feature) {
-    return Object.values(Enums.Markup).includes(feature.get("markup"));
+    return Object.values(Enums.Markup).includes(
+      feature.get(Enums.InternalProperties.Markup)
+    );
   }
 
   /**
@@ -333,12 +320,11 @@ class _MarkupManager {
   }
 
   /**
-   * This event is responsible assign markup classes
+   * This event is responsible assign markup classes on drawEnd event
    *
    * @param {object} event The event
    */
-  _onDrawEnd(event) {
-    this.onDrawEnd(event);
+  onDrawEnd(event) {
     const feature = event.feature;
     if (this._isValidFeature(feature)) {
       const featureId = feature.getId();
@@ -357,40 +343,10 @@ class _MarkupManager {
    * @returns {function} format function
    */
   _getFormatter(feature) {
-    const markup = feature.get("markup");
+    const markup = feature.get(Enums.InternalProperties.Markup);
     const formatter = this._formatters[markup];
     if (!formatter) return () => "";
     return formatter;
-  }
-
-  /**
-   * Wire interaction events everytime new interactions is added or updated
-   *
-   * @param {object[]} interactions The map interactions
-   */
-  bindInteractionEvents(interactions) {
-    if (interactions.draw) {
-      this._listeners.set(
-        Enums.InteractionEvents.DRAW_START,
-        interactions.draw.on(
-          Enums.InteractionEvents.DRAW_START,
-          this._onDrawStart
-        )
-      );
-      this._listeners.set(
-        Enums.InteractionEvents.DRAW_END,
-        interactions.draw.on(Enums.InteractionEvents.DRAW_END, this._onDrawEnd)
-      );
-    }
-  }
-
-  /**
-   * Wire interaction events everytime new interactions is added or updated
-   *
-   * @param {object[]} interactions The map interactions
-   */
-  onInteractionsChange(interactions) {
-    this.bindInteractionEvents(interactions);
   }
 
   /**
@@ -430,16 +386,6 @@ class _MarkupManager {
       );
       this._links.push(feature);
     }
-  }
-
-  /**
-   * Update the markup on drawstart
-   * and caches it
-   *
-   * @param {object} event The drawstart event
-   */
-  _onDrawStart(event) {
-    this.onDrawStart(event);
   }
 }
 

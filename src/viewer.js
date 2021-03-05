@@ -30,7 +30,8 @@ import View from "ol/View";
 import DragPan from "ol/interaction/DragPan";
 import DragZoom from "ol/interaction/DragZoom";
 
-import { default as PolygonGeometry } from "ol/geom/Polygon";
+import { getLength, getArea } from "ol/sphere";
+import { default as PolygonGeometry, fromCircle } from "ol/geom/Polygon";
 import { default as PointGeometry } from "ol/geom/Point";
 import { default as LineStringGeometry } from "ol/geom/LineString";
 import { default as CircleGeometry } from "ol/geom/Circle";
@@ -51,7 +52,7 @@ import {
   buildTransform,
 } from "./utils.js";
 import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
-
+import Enums from "./enums";
 import _AnnotationManager from "./annotations/_AnnotationManager";
 import Icon from "ol/style/Icon";
 
@@ -476,6 +477,27 @@ function _getOpenLayersStyle(styleOptions) {
   return style;
 }
 
+/** Updates feature measurement properties
+ *
+ * @param {object} feature - Feature
+ * @returns {void}
+ */
+const _updateMeasurementProperties = (feature) => {
+  let value = 0;
+  const geometry = feature.getGeometry();
+  if (geometry instanceof LineStringGeometry) {
+    value = getLength(geometry);
+    feature.set("length", value);
+  } else if (geometry instanceof CircleGeometry) {
+    geometry = fromCircle(geometry);
+    value = getArea(geometry);
+    feature.set("area", value);
+  } else if (geometry instanceof PolygonGeometry) {
+    value = getArea(geometry);
+    feature.set("area", value);
+  }
+};
+
 /** Updates the style of a feature.
  *
  * @param {object} styleOptions - Style options
@@ -496,7 +518,7 @@ function _setFeatureStyle(feature, styleOptions) {
      * This allows them to take priority over styling since OpenLayers swaps the styles
      * completely in case of a setStyle happens.
      */
-    feature.set("styleOptions", styleOptions);
+    feature.set(Enums.InternalProperties.StyleOptions, styleOptions);
   }
 }
 
@@ -515,6 +537,7 @@ const _pyramidBaseMetadata = Symbol("pyramidMetadataBase");
 const _segmentations = Symbol("segmentations");
 const _usewebgl = Symbol("usewebgl");
 const _annotationManager = Symbol("annotationManager");
+const _defaultStyleOptions = Symbol("defaultStyleOptions");
 
 /** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
@@ -529,6 +552,7 @@ class VolumeImageViewer {
    * @param {object} options
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
    * @param {Object[]} options.metadata - An array of DICOM JSON metadata objects, one for each VL Whole Slide Microscopy Image instance.
+   * @param {object} options.styleOptions - Default style options for annotations
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport.
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
@@ -542,6 +566,10 @@ class VolumeImageViewer {
     }
 
     this[_client] = options.client;
+
+    if (options.styleOptions) {
+      this[_defaultStyleOptions] = options.styleOptions;
+    }
 
     if (!("retrieveRendered" in options)) {
       options.retrieveRendered = true;
@@ -1156,8 +1184,10 @@ class VolumeImageViewer {
     const internalDrawOptions = { source: this[_drawingSource] };
     const geometryDrawOptions = geometryOptionsMapping[options.geometryType];
     const builtInDrawOptions = {
-      marker: options.marker,
-      markup: options.markup,
+      [Enums.InternalProperties.Marker]:
+        options[Enums.InternalProperties.Marker],
+      [Enums.InternalProperties.Markup]:
+        options[Enums.InternalProperties.Markup],
       vertexEnabled: options.vertexEnabled,
     };
     const drawOptions = Object.assign(
@@ -1183,24 +1213,36 @@ class VolumeImageViewer {
     this[_interactions].draw = new Draw(drawOptions);
     const container = this[_map].getTargetElement();
 
-    this[_interactions].draw.on("drawstart", ({ feature }) => {
-      _setFeatureStyle(feature, options.styleOptions);
-      feature.setProperties(builtInDrawOptions, true);
-      feature.setId(generateUID());
+    this[_interactions].draw.on(Enums.InteractionEvents.DRAW_START, (event) => {
+      /** 1. Generate feature properties */
+      event.feature.setProperties(builtInDrawOptions, true);
+      event.feature.setId(generateUID());
+
+      /** 2. Intercepting events */
+      this[_annotationManager].onDrawStart(event);
+
+      /** 3. Lastly, trigger a style change */
+      _setFeatureStyle(
+        event.feature,
+        options[Enums.InternalProperties.StyleOptions]
+      );
+
+      /** Update feature measurement properties on feature change */
+      event.feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
+        _updateMeasurementProperties(event.feature);
+      });
     });
 
-    // attaching openlayers events handling
-    this[_interactions].draw.on("drawend", ({ feature }) => {
+    this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
+      this[_annotationManager].onDrawEnd(event);
       publish(
         container,
         EVENT.ROI_DRAWN,
-        _getROIFromFeature(feature, this[_pyramidMetadata])
+        _getROIFromFeature(event.feature, this[_pyramidMetadata])
       );
     });
 
     this[_map].addInteraction(this[_interactions].draw);
-
-    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates draw interaction. */
@@ -1236,14 +1278,14 @@ class VolumeImageViewer {
      * See "options.binding" comment in activateDrawInteraction() definition.
      */
     if (options.bindings) {
-      translateOptions.condition = _getInteractionBindingCondition(options.bindings);
+      translateOptions.condition = _getInteractionBindingCondition(
+        options.bindings
+      );
     }
 
     this[_interactions].translate = new Translate(translateOptions);
 
     this[_map].addInteraction(this[_interactions].translate);
-
-    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates translate interaction. */
@@ -1271,14 +1313,14 @@ class VolumeImageViewer {
      * See "options.binding" comment in activateDrawInteraction() definition.
      */
     if (options.bindings) {
-      dragZoomOptions.condition = _getInteractionBindingCondition(options.bindings);
+      dragZoomOptions.condition = _getInteractionBindingCondition(
+        options.bindings
+      );
     }
 
     this[_interactions].dragZoom = new DragZoom(dragZoomOptions);
 
     this[_map].addInteraction(this[_interactions].dragZoom);
-
-    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates dragZoom interaction. */
@@ -1306,7 +1348,9 @@ class VolumeImageViewer {
      * See "options.binding" comment in activateDrawInteraction() definition.
      */
     if (options.bindings) {
-      selectOptions.condition = _getInteractionBindingCondition(options.bindings);
+      selectOptions.condition = _getInteractionBindingCondition(
+        options.bindings
+      );
     }
 
     this[_interactions].select = new Select(selectOptions);
@@ -1322,8 +1366,6 @@ class VolumeImageViewer {
     });
 
     this[_map].addInteraction(this[_interactions].select);
-
-    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates select interaction. */
@@ -1353,14 +1395,14 @@ class VolumeImageViewer {
      * See "options.binding" comment in activateDrawInteraction() definition.
      */
     if (options.bindings) {
-      dragPanOptions.condition = _getInteractionBindingCondition(options.bindings);
+      dragPanOptions.condition = _getInteractionBindingCondition(
+        options.bindings
+      );
     }
 
     this[_interactions].dragPan = new DragPan(dragPanOptions);
 
     this[_map].addInteraction(this[_interactions].dragPan);
-
-    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivate dragpan interaction. */
@@ -1384,8 +1426,6 @@ class VolumeImageViewer {
     });
 
     this[_map].addInteraction(this[_interactions].snap);
-
-    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates snap interaction. */
@@ -1425,14 +1465,14 @@ class VolumeImageViewer {
      * See "options.binding" comment in activateDrawInteraction() definition.
      */
     if (options.bindings) {
-      modifyOptions.condition = _getInteractionBindingCondition(options.bindings);
+      modifyOptions.condition = _getInteractionBindingCondition(
+        options.bindings
+      );
     }
 
     this[_interactions].modify = new Modify(modifyOptions);
 
     this[_map].addInteraction(this[_interactions].modify);
-
-    this[_annotationManager].onInteractionsChange(this[_interactions]);
   }
 
   /** Deactivates modify interaction. */
@@ -1559,9 +1599,10 @@ class VolumeImageViewer {
     feature.setProperties(item.properties, true);
     feature.setId(item.uid);
 
-    _setFeatureStyle(feature, styleOptions);
-
+    _updateMeasurementProperties(feature);
     this[_features].push(feature);
+
+    _setFeatureStyle(feature, styleOptions);
   }
 
   /** Update properties of regions of interest.

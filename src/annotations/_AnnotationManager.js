@@ -1,40 +1,55 @@
 import dcmjs from "dcmjs";
 
 import _MarkupManager from "./markups/_MarkupManager";
-import MeasurementMarkup from "./markups/measurement";
-import ArrowMarker from "./markers/arrow";
-import FreeTextMarkup from "./markups/freeText";
+
+/** Enums */
 import Enums from "../enums";
+
+/** Utils */
 import { getUnitsSuffix } from "./markups/utils";
+
+/** Markers */
+import ArrowMarker, { format as arrowFormat } from "./markers/arrow";
+
+/** Markups */
+import MeasurementMarkup, {
+  format as measurementFormat,
+} from "./markups/measurement";
+import TextEvaluationMarkup, { format as textFormat } from "./markups/text";
 
 const { Marker, Markup, FeatureEvents } = Enums;
 
 class _AnnotationManager {
   constructor({ map, source, controls, getROI } = {}) {
-    this.props = { map, source, controls, getROI };
-
-    /** Markups */
-    this[Markup.Measurement] = MeasurementMarkup(this.props);
-    this[Markup.FreeTextEvaluation] = FreeTextMarkup(this.props);
-
-    /** Markers */
-    this[Marker.Arrow] = ArrowMarker(this.props);
-
-    this.props.markupManager = new _MarkupManager({
+    const markupManager = new _MarkupManager({
       map,
       source,
       formatters: {
-        [Marker.Arrow]: this[Marker.Arrow].format,
-        [Markup.Measurement]: this[Markup.Measurement].format,
-        [Markup.FreeTextEvaluation]: this[Markup.FreeTextEvaluation].format,
+        [Marker.Arrow]: arrowFormat,
+        [Markup.Measurement]: measurementFormat,
+        [Markup.TextEvaluation]: textFormat,
       },
-      onDrawStart: this.onDrawStart.bind(this),
-      onDrawEnd: this.onDrawEnd.bind(this),
     });
+
+    this.props = {
+      map,
+      source,
+      controls,
+      getROI,
+      markupManager,
+    };
+
+    /** Markups */
+    this[Markup.Measurement] = MeasurementMarkup(this.props);
+    this[Markup.TextEvaluation] = TextEvaluationMarkup(this.props);
+
+    /** Markers */
+    this[Marker.Arrow] = ArrowMarker(this.props);
   }
 
   /**
-   * Gets the code meaning of a given measurement or evaluation content item.
+   * Gets the code meaning of a given measurement
+   * or evaluation content item
    *
    * @param {NumContentItem} contentItem The measurement or evaluation content item
    */
@@ -46,7 +61,7 @@ class _AnnotationManager {
   }
 
   /**
-   * Add or update a ROI measurement.
+   * Add or update a ROI measurement
    *
    * @param {Feature} feature The feature
    * @param {NumContentItem} measurement The measurement content item
@@ -70,7 +85,7 @@ class _AnnotationManager {
   }
 
   /**
-   * Add or update a ROI evaluation.
+   * Add or update a ROI evaluation
    *
    * @param {Feature} feature The feature
    * @param {TextContentItem} evaluation The feature
@@ -94,7 +109,8 @@ class _AnnotationManager {
   }
 
   /**
-   * Add or update ROI measurements and evaluations based on markup related properties.
+   * Add or update ROI measurements and evaluations
+   * based on markup related properties
    *
    * @param {Feature} feature The feature
    */
@@ -144,7 +160,8 @@ class _AnnotationManager {
   }
 
   /**
-   * Add markup properties based on ROI measurements and evaluations.
+   * Add markup properties based on ROI
+   * measurements and evaluations
    *
    * @param {Feature} feature The feature
    */
@@ -156,7 +173,10 @@ class _AnnotationManager {
         const SUPPORTED_MEASUREMENTS = ["Area", "Length"];
         let codeMeaning = this.getContentItemCodeMeaning(measurement);
         if (SUPPORTED_MEASUREMENTS.includes(codeMeaning)) {
-          feature.set("markup", "measurement");
+          feature.set(
+            Enums.InternalProperties.Markup,
+            Enums.Markup.Measurement
+          );
         }
       });
     }
@@ -166,29 +186,28 @@ class _AnnotationManager {
         const SUPPORTED_EVALUATIONS = ["Tracking Identifier"];
         let codeMeaning = this.getContentItemCodeMeaning(evaluation);
         if (SUPPORTED_EVALUATIONS.includes(codeMeaning)) {
-          feature.set("markup", "freetext");
+          feature.set(
+            Enums.InternalProperties.Markup,
+            Enums.Markup.TextEvaluation
+          );
         }
       });
     }
   }
 
-  onInteractionsChange(interactions) {
-    this.props.markupManager.onInteractionsChange(interactions);
-  }
-
   onAdd(feature) {
     /**
      * Add properties to ROI feature before triggering
-     * markup and markers callbacks to keep UI in sync with them.
+     * markup and markers callbacks to keep UI in sync with them
      */
     this._addMeasurementsAndEvaluationsProperties(feature);
 
     this[Marker.Arrow].onAdd(feature);
     this[Markup.Measurement].onAdd(feature);
-    this[Markup.FreeTextEvaluation].onAdd(feature);
+    this[Markup.TextEvaluation].onAdd(feature);
 
     /**
-     * Generate and update ROI measurements and evaluations.
+     * Generate and update ROI measurements and evaluations
      */
     this._updateMeasurementsAndEvaluations(feature);
     feature.on(FeatureEvents.PROPERTY_CHANGE, () =>
@@ -199,25 +218,26 @@ class _AnnotationManager {
   onRemove(feature) {
     this[Marker.Arrow].onRemove(feature);
     this[Markup.Measurement].onRemove(feature);
-    this[Markup.FreeTextEvaluation].onRemove(feature);
+    this[Markup.TextEvaluation].onRemove(feature);
   }
 
   onUpdate(feature) {
     this[Marker.Arrow].onUpdate(feature);
     this[Markup.Measurement].onUpdate(feature);
-    this[Markup.FreeTextEvaluation].onUpdate(feature);
+    this[Markup.TextEvaluation].onUpdate(feature);
   }
 
   onDrawStart(event) {
     this[Marker.Arrow].onDrawStart(event);
     this[Markup.Measurement].onDrawStart(event);
-    this[Markup.FreeTextEvaluation].onDrawStart(event);
+    this[Markup.TextEvaluation].onDrawStart(event);
   }
 
   onDrawEnd(event) {
     this[Marker.Arrow].onDrawEnd(event);
     this[Markup.Measurement].onDrawEnd(event);
-    this[Markup.FreeTextEvaluation].onDrawEnd(event);
+    this[Markup.TextEvaluation].onDrawEnd(event);
+    this.props.markupManager.onDrawEnd(event);
   }
 }
 

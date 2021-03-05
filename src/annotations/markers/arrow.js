@@ -29,35 +29,13 @@ const getArrowStyle = (point, rotation, anchor, color) => {
   });
 };
 
-const isLocked = {};
-const bindStyleEvents = (feature) => {
-  applyStyle(feature);
-  if (!isLocked[feature.getId()]) {
-    const onGeometryChange = () => {
-      if (isArrow(feature)) {
-        applyStyle(feature);
-      }
-    };
-    feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, onGeometryChange);
-    isLocked[feature.getId()] = true;
-    feature.on(
-      Enums.FeatureEvents.PROPERTY_CHANGE,
-      ({ key: property, target: feature }) => {
-        if (property === "styleOptions") {
-          applyStyle(feature);
-        }
-      }
-    );
-  }
-};
-
 const applyStyle = (feature) => {
   const geometry = feature.getGeometry();
   if (geometry instanceof Point) {
     const anchor = [0, 0.5];
     const rotation = 120;
     const point = geometry.getCoordinates();
-    const styleOptions = feature.get("styleOptions");
+    const styleOptions = feature.get(Enums.InternalProperties.StyleOptions);
     const color =
       styleOptions && styleOptions.stroke && styleOptions.stroke.color
         ? styleOptions.stroke.color
@@ -68,32 +46,51 @@ const applyStyle = (feature) => {
 };
 
 export const isArrow = (feature) =>
-  Enums.Marker.Arrow === feature.get("marker");
+  Enums.Marker.Arrow === feature.get(Enums.InternalProperties.Marker);
 
 /**
  * Format arrow output
  * @param {LineString} arrow geometry
  * @return {string} The formatted output
  */
-const format = (feature) => feature.get("label") || "";
+export const format = (feature) => feature.get("label") || "";
 
-const ArrowMarker = (api) => {
+/**
+ * Arrow marker definition
+ * 
+ * @param {object} dependencies Shared dependencies
+ * @param {object} dependencies.markupManager MarkupManager shared instance 
+ */
+const ArrowMarker = ({ markupManager }) => {
   return {
     onAdd: (feature) => {
       if (isArrow(feature)) {
-        bindStyleEvents(feature);
+        applyStyle(feature);
+
+        /** Keep arrow style after external style changes */
+        feature.on(
+          Enums.FeatureEvents.PROPERTY_CHANGE,
+          ({ key: property, target: feature }) => {
+            if (property === Enums.InternalProperties.StyleOptions) {
+              applyStyle(feature);
+            }
+          }
+        );
+
+        /** Update marker position on feature geometry change */
+        feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
+          applyStyle(feature);
+        });
       }
     },
     onUpdate: (feature) => {},
-    onRemove: (feature) => isLocked[feature.getId()] = null,
+    onRemove: (feature) => {},
     onDrawStart: ({ feature }) => {},
     onDrawEnd: ({ feature }) => {
       if (isArrow(feature)) {
-        bindStyleEvents(feature);
+        applyStyle(feature);
       }
     },
-    isArrow,
-    format,
   };
 };
 
