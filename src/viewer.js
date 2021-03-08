@@ -485,7 +485,11 @@ function _getOpenLayersStyle(styleOptions) {
  * Add ROI properties to feature in a safe way 
  * 
  * @param {object} feature The feature instance that represents the ROI
- * @param {object} properties Valid ROI properties
+ * @param {object} properties Valid ROI properties 
+ * @param {object} properties.measurements - ROI measurements
+ * @param {object} properties.evaluations - ROI evaluations
+ * @param {object} properties.label - ROI label
+ * @param {object} properties.marker - ROI marker (this is used while we don't have presentation states)
  * @param {boolean} opt_silent Opt silent update
  */
 function _addROIPropertiesToFeature(feature, properties, opt_silent) {
