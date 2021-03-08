@@ -1,5 +1,8 @@
 import { cross, inv, multiply } from "mathjs";
 import { getPointResolution } from "ol/proj";
+import dcmjs from "dcmjs";
+
+import Enums from "./enums";
 
 /** Generates a UUID-derived DICOM UID with root `2.25`.
  *
@@ -329,12 +332,12 @@ function mapSlideCoordToPixelCoord(options) {
 }
 
 /**
- * Get units suffix
+ * Get view unit suffix
  *
  * @param {object} view Map view
  * @returns {string} unit suffix
  */
-function getUnitsSuffix(view) {
+function getUnitSuffix(view) {
   const UnitsEnum = { METERS: "m" };
   const DEFAULT_DPI = 25.4 / 0.28;
 
@@ -372,6 +375,62 @@ function getUnitsSuffix(view) {
 
   return suffix;
 }
+
+/**
+ * Get a num content item instance given value, code, meaning and units
+ *
+ * @param {number} value the measurement value
+ * @param {string} nameCodedConceptValue the coded concept value
+ * @param {string} nameCodedConceptMeaning the value coded concept meaning
+ * @param {string} unitCodedConceptValue the unit coded concept value
+ * @param {string} unitCodedConceptMeaning the unit coded concept meaning
+ * @returns {object} num content item instance
+ */
+const getMeasurementContentItem = (
+  value,
+  nameCodedConceptValue,
+  nameCodedConceptMeaning,
+  unitCodedConceptValue,
+  unitCodedConceptMeaning
+) => {
+  return new dcmjs.sr.valueTypes.NumContentItem({
+    name: new dcmjs.sr.coding.CodedConcept({
+      value: nameCodedConceptValue,
+      meaning: nameCodedConceptMeaning,
+      schemeDesignator: "DCM",
+    }),
+    value,
+    unit: new dcmjs.sr.coding.CodedConcept({
+      value: unitCodedConceptValue,
+      meaning: unitCodedConceptMeaning,
+      schemeDesignator: "DCM",
+    }),
+  });
+};
+
+/**
+ * Get a text content item instance given value, code and meaning
+ *
+ * @param {string} text the text
+ * @param {string} nameCodedConceptValue the text coded concept value
+ * @param {string} textCodedConceptMeaning the text coded concept meaning
+ * @returns {object} text content item instance
+ */
+const getTextEvaluationContentItem = (
+  text,
+  nameCodedConceptValue,
+  nameCodedConceptMeaning
+) => {
+  return new dcmjs.sr.valueTypes.TextContentItem({
+    name: new dcmjs.sr.coding.CodedConcept({
+      value: nameCodedConceptValue,
+      meaning: nameCodedConceptMeaning,
+      schemeDesignator: "DCM",
+    }),
+    value: text,
+    relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT,
+  });
+};
 
 /**
  * Get name coded concept from content item
@@ -425,7 +484,7 @@ const isContentItemsEqual = (contentItem1, contentItem2) => {
 };
 
 export {
-  getUnitsSuffix,
+  getUnitSuffix,
   applyInverseTransform,
   applyTransform,
   buildInverseTransform,
@@ -437,4 +496,6 @@ export {
   isContentItemsEqual,
   isCodedConceptEqual,
   getContentItemNameCodedConcept,
+  getMeasurementContentItem,
+  getTextEvaluationContentItem,
 };

@@ -10,7 +10,7 @@ import Feature from "ol/Feature";
 
 import Enums from "../../enums";
 import { getShortestLineBetweenOverlayAndFeature } from "./utils";
-import { getUnitsSuffix } from "../../utils";
+import { getUnitSuffix } from "../../utils";
 import defaultStyles from "../styles";
 
 class _MarkupManager {
@@ -160,9 +160,9 @@ class _MarkupManager {
       ({ target: geometry }) => {
         if (this.has(id)) {
           const view = this._map.getView();
-          const unitsSuffix = getUnitsSuffix(view);
+          const unitSuffix = getUnitSuffix(view);
           const format = this._getFormatter(feature);
-          const output = format(feature, unitsSuffix);
+          const output = format(feature, unitSuffix);
           this.update({
             feature,
             value: output,

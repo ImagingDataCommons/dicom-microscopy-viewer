@@ -1,5 +1,5 @@
 import Enums from "../../enums";
-import { getUnitsSuffix } from "../../utils";
+import { getUnitSuffix } from "../../utils";
 
 /**
  * Format measure output
@@ -31,10 +31,10 @@ const MeasurementMarkup = ({ map, markupManager }) => {
     onAdd: (feature) => {
       if (isMeasurement(feature)) {
         const view = map.getView();
-        const unitsSuffix = getUnitsSuffix(view);
+        const unitSuffix = getUnitSuffix(view);
         markupManager.create({
           feature,
-          value: format(feature, unitsSuffix),
+          value: format(feature, unitSuffix),
         });
       }
     },

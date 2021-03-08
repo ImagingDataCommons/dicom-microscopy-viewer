@@ -40,7 +40,6 @@ import { default as VectorEventType } from "ol/source/VectorEventType";
 import { getCenter } from "ol/extent";
 
 import * as DICOMwebClient from "dicomweb-client";
-import dcmjs from "dcmjs";
 
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from "./metadata.js";
 import { ROI } from "./roi.js";
@@ -51,9 +50,9 @@ import {
   applyTransform,
   buildInverseTransform,
   buildTransform,
-  getUnitsSuffix,
+  getUnitSuffix,
   isContentItemsEqual,
-  getContentItemNameCodedConcept,
+  getMeasurementContentItem,
 } from "./utils.js";
 import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 import Enums from "./enums";
@@ -489,15 +488,6 @@ function _getOpenLayersStyle(styleOptions) {
  */
 const _updateMeasurementProperties = (map, feature) => {
   let value = 0;
-  let code = "";
-  let meaning = "";
-  const view = map.getView();
-  const unitsSuffix = getUnitsSuffix(view);
-
-  const CodeMeaningMap = {
-    Length: "410668003",
-    Area: "42798000",
-  };
 
   /**
    * Open Layers side-effect: Geometry will be updated inside formCircle call
@@ -505,38 +495,69 @@ const _updateMeasurementProperties = (map, feature) => {
    */
   let geometry = feature.getGeometry().clone();
   if (geometry instanceof LineStringGeometry) {
-    meaning = "Length";
-    code = CodeMeaningMap[meaning];
     value = getLength(geometry);
     feature.set(Enums.FeatureMeasurement.Length, value);
   } else if (geometry instanceof CircleGeometry) {
-    meaning = "Area";
-    code = CodeMeaningMap[meaning];
     geometry = fromCircle(geometry);
     value = getArea(geometry);
     feature.set(Enums.FeatureMeasurement.Area, value);
   } else if (geometry instanceof PolygonGeometry) {
-    meaning = "Area";
-    code = CodeMeaningMap[meaning];
     value = getArea(geometry);
     feature.set(Enums.FeatureMeasurement.Area, value);
   }
 
-  if (
-    feature.get(Enums.InternalProperties.Markup) !== Enums.Markup.Measurement
-  ) {
-    return;
+  _updateFeatureMeasurements(map, feature);
+};
+
+/**
+ * Generate feature measurements based on its measurement properties
+ *
+ * @param {object} feature
+ * @returns {void}
+ */
+function _updateFeatureMeasurements(map, feature) {
+  const properties = feature.getProperties();
+  const area = properties[Enums.FeatureMeasurement.Area];
+  const length = properties[Enums.FeatureMeasurement.Length];
+
+  if (!area && !length) return;
+
+  const unitSuffixToMeaningMap = {
+    μm: "micrometer",
+    mm: "millimeter",
+    m: "meters",
+    km: "kilometers",
+  };
+
+  let newMeasurement;
+  const view = map.getView();
+  const unitSuffix = getUnitSuffix(view);
+  const unitCodedConceptValue = unitSuffix;
+  const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix];
+
+  if (area) {
+    const nameCodedConceptValue = "Area";
+    const nameCodedConceptMeaning = "42798000";
+    newMeasurement = getMeasurementContentItem(
+      area,
+      nameCodedConceptValue,
+      nameCodedConceptMeaning,
+      unitCodedConceptValue,
+      unitCodedConceptMeaning
+    );
   }
 
-  const newMeasurement = new dcmjs.sr.valueTypes.NumContentItem({
-    name: new dcmjs.sr.coding.CodedConcept({
-      value: code,
-      meaning,
-      schemeDesignator: "DCM",
-    }),
-    value,
-    unit: unitsSuffix,
-  });
+  if (length) {
+    const nameCodedConceptValue = "Length";
+    const nameCodedConceptMeaning = "410668003";
+    newMeasurement = getMeasurementContentItem(
+      length,
+      nameCodedConceptValue,
+      nameCodedConceptMeaning,
+      unitCodedConceptValue,
+      unitCodedConceptMeaning
+    );
+  }
 
   const measurements = feature.get("measurements") || [];
   const index = measurements.findIndex((measurement) => {
@@ -550,7 +571,8 @@ const _updateMeasurementProperties = (map, feature) => {
   }
 
   feature.set("measurements", measurements);
-};
+  console.debug(`Measurements of feature (${feature.getId()}):`, measurements);
+}
 
 /** Updates the style of a feature.
  *

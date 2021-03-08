@@ -6,7 +6,7 @@ import _MarkupManager from "./markups/_MarkupManager";
 import Enums from "../enums";
 
 /** Utils */
-import { isContentItemsEqual, getContentItemNameCodedConcept } from "../utils";
+import { isContentItemsEqual, getTextEvaluationContentItem } from "../utils";
 
 /** Markers */
 import ArrowMarker, { format as arrowFormat } from "./markers/arrow";
@@ -72,15 +72,13 @@ class _AnnotationManager {
     const properties = feature.getProperties();
     if (!properties.label) return;
 
-    const newEvaluation = new dcmjs.sr.valueTypes.TextContentItem({
-      name: new dcmjs.sr.coding.CodedConcept({
-        value: "112039",
-        meaning: "Tracking Identifier",
-        schemeDesignator: "DCM",
-      }),
-      value: properties.label,
-      relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT,
-    });
+    const nameCodedConceptValue = "112039";
+    const nameCodedConceptMeaning = "Tracking Identifier";
+    const newEvaluation = getTextEvaluationContentItem(
+      properties.label,
+      nameCodedConceptValue,
+      nameCodedConceptMeaning
+    );
 
     const index = evaluations.findIndex((evaluation) => {
       return isContentItemsEqual(evaluation, newEvaluation);
@@ -93,6 +91,7 @@ class _AnnotationManager {
     }
 
     feature.set("evaluations", evaluations);
+    console.debug(`Evaluations of feature (${feature.getId()}):`, evaluations);
   }
 
   /**
