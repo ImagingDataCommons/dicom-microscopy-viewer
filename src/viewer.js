@@ -40,6 +40,7 @@ import { default as VectorEventType } from "ol/source/VectorEventType";
 import { getCenter } from "ol/extent";
 
 import * as DICOMwebClient from "dicomweb-client";
+import dcmjs from "dcmjs";
 
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from "./metadata.js";
 import { ROI } from "./roi.js";
@@ -50,6 +51,8 @@ import {
   applyTransform,
   buildInverseTransform,
   buildTransform,
+  getUnitsSuffix,
+  isContentItemsEqual,
 } from "./utils.js";
 import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 import Enums from "./enums";
@@ -479,23 +482,65 @@ function _getOpenLayersStyle(styleOptions) {
 
 /** Updates feature measurement properties
  *
+ * @param {object} map - Map
  * @param {object} feature - Feature
  * @returns {void}
  */
-const _updateMeasurementProperties = (feature) => {
+const _updateMeasurementProperties = (map, feature) => {
   let value = 0;
+  let code = "";
+  let meaning = "";
+  const view = map.getView();
+  const unitsSuffix = getUnitsSuffix(view);
+
+  const CodeMeaningMap = {
+    Length: "410668003",
+    Area: "42798000",
+  };
+
   const geometry = feature.getGeometry();
   if (geometry instanceof LineStringGeometry) {
+    meaning = "Length";
+    code = CodeMeaningMap[meaning];
     value = getLength(geometry);
     feature.set("length", value);
   } else if (geometry instanceof CircleGeometry) {
+    meaning = "Area";
+    code = CodeMeaningMap[meaning];
     geometry = fromCircle(geometry);
     value = getArea(geometry);
     feature.set("area", value);
   } else if (geometry instanceof PolygonGeometry) {
+    meaning = "Area";
+    code = CodeMeaningMap[meaning];
     value = getArea(geometry);
     feature.set("area", value);
   }
+
+  const newMeasurement = new dcmjs.sr.valueTypes.NumContentItem({
+    name: new dcmjs.sr.coding.CodedConcept({
+      value: code,
+      meaning,
+      schemeDesignator: "DCM",
+    }),
+    value,
+    unit: unitsSuffix,
+  });
+
+  const measurements = feature.get("measurements") || [];
+  const index = measurements.findIndex((measurement) => {
+    return measurement.equals
+      ? measurement.equals(newMeasurement)
+      : isContentItemsEqual(measurement, newMeasurement);
+  });
+
+  if (index > -1) {
+    measurements[index] = newMeasurement;
+  } else {
+    measurements.push(newMeasurement);
+  }
+
+  feature.set("measurements", measurements);
 };
 
 /** Updates the style of a feature.
@@ -645,7 +690,7 @@ class VolumeImageViewer {
       const rows = this[_metadata][i].TotalPixelMatrixRows;
       const numberOfFrames = this[_metadata][i].NumberOfFrames;
       /*
-       * Instances may be broken down into multiple concatentation parts.
+       * Instances may be broken down into multiple concatenation parts.
        * Therefore, we have to re-assemble instance metadata.
        */
       let alreadyExists = false;
@@ -660,7 +705,7 @@ class VolumeImageViewer {
         }
       }
       if (alreadyExists) {
-        // Update with information obtained from current concatentation part.
+        // Update with information obtained from current concatenation part.
         Object.assign(this[_pyramidFrameMappings][index], frameMappings[i]);
         this[_pyramidMetadata][index].NumberOfFrames += numberOfFrames;
         if ("PerFrameFunctionalGroupsSequence" in this[_metadata][index]) {
@@ -751,7 +796,7 @@ class VolumeImageViewer {
     const pyramidFrameMappings = this[_pyramidFrameMappings];
 
     /*
-     * Define custom tile URL function to retrive frames via DICOMweb WADO-RS.
+     * Define custom tile URL function to retrieve frames via DICOMweb WADO-RS.
      */
     const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
       /*
@@ -787,7 +832,7 @@ class VolumeImageViewer {
     };
 
     /*
-     * Define custonm tile loader function, which is required because the
+     * Define custom tile loader function, which is required because the
      * WADO-RS response message has content type "multipart/related".
      */
     const tileLoadFunction = (tile, src) => {
@@ -944,15 +989,6 @@ class VolumeImageViewer {
       rotation: rotation,
     });
 
-    this[_interactions] = {
-      draw: undefined,
-      select: undefined,
-      translate: undefined,
-      modify: undefined,
-      snap: undefined,
-      dragPan: undefined,
-    };
-
     this[_controls] = {
       scale: new ScaleLine({
         units: "metric",
@@ -997,6 +1033,20 @@ class VolumeImageViewer {
       controls: [],
       keyboardEventTarget: document,
     });
+
+    /**
+     * OpenLayer's map has default interactions defined that needs to be set here
+     * to avoid duplications of interactions
+     */
+    const defaultInteractions = this[_map].getInteractions().getArray();
+    this[_interactions] = {
+      draw: undefined,
+      select: undefined,
+      translate: undefined,
+      modify: undefined,
+      snap: undefined,
+      dragPan: defaultInteractions.find(i => i instanceof DragPan),
+    };
 
     this[_map].addInteraction(new MouseWheelZoom());
 
@@ -1213,24 +1263,28 @@ class VolumeImageViewer {
     this[_interactions].draw = new Draw(drawOptions);
     const container = this[_map].getTargetElement();
 
+    let eventsLocker = {};
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_START, (event) => {
-      /** 1. Generate feature properties */
       event.feature.setProperties(builtInDrawOptions, true);
       event.feature.setId(generateUID());
 
-      /** 2. Intercepting events */
       this[_annotationManager].onDrawStart(event);
 
-      /** 3. Lastly, trigger a style change */
+      /** Style updates should come after annotation manager's hooks */
       _setFeatureStyle(
         event.feature,
         options[Enums.InternalProperties.StyleOptions]
       );
 
-      /** Update feature measurement properties on feature change */
-      event.feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-        _updateMeasurementProperties(event.feature);
-      });
+      if (!eventsLocker[Enums.FeatureGeometryEvents.CHANGE]) {
+        eventsLocker[Enums.FeatureGeometryEvents.CHANGE] = true;
+        /** Update feature measurement properties on feature change */
+        event.feature
+          .getGeometry()
+          .on(Enums.FeatureGeometryEvents.CHANGE, () => {
+            _updateMeasurementProperties(this[_map], event.feature);
+          });
+      }
     });
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
@@ -1599,7 +1653,12 @@ class VolumeImageViewer {
     feature.setProperties(item.properties, true);
     feature.setId(item.uid);
 
-    _updateMeasurementProperties(feature);
+    /** Update feature measurement properties on feature change */
+    _updateMeasurementProperties(this[_map], feature);
+    feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
+      _updateMeasurementProperties(this[_map], feature);
+    });
+
     this[_features].push(feature);
 
     _setFeatureStyle(feature, styleOptions);

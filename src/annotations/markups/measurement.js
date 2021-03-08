@@ -1,5 +1,5 @@
 import Enums from "../../enums";
-import { getUnitsSuffix } from "./utils";
+import { getUnitsSuffix } from "../../utils";
 
 /**
  * Format measure output

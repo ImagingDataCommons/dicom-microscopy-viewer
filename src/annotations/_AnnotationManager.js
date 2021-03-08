@@ -6,7 +6,7 @@ import _MarkupManager from "./markups/_MarkupManager";
 import Enums from "../enums";
 
 /** Utils */
-import { getUnitsSuffix } from "./markups/utils";
+import { isContentItemsEqual } from "../utils";
 
 /** Markers */
 import ArrowMarker, { format as arrowFormat } from "./markers/arrow";
@@ -61,62 +61,36 @@ class _AnnotationManager {
   }
 
   /**
-   * Add or update a ROI measurement
-   *
-   * @param {Feature} feature The feature
-   * @param {NumContentItem} measurement The measurement content item
-   * @param {string} codeMeaning The code meaning
-   */
-  addOrUpdateMeasurement(feature, measurement, codeMeaning) {
-    const measurements = feature.get("measurements") || [];
-
-    const index = measurements.findIndex((measurement) => {
-      const meaning = this.getContentItemCodeMeaning(measurement);
-      return meaning === codeMeaning;
-    });
-
-    if (index > -1) {
-      measurements[index] = measurement;
-    } else {
-      measurements.push(measurement);
-    }
-
-    feature.set("measurements", measurements);
-  }
-
-  /**
    * Add or update a ROI evaluation
    *
    * @param {Feature} feature The feature
-   * @param {TextContentItem} evaluation The feature
-   * @param {string} codeMeaning The code meaning
+   * @param {TextContentItem} newEvaluation The evaluation
    */
-  addOrUpdateEvaluation(feature, evaluation, codeMeaning) {
+  addOrUpdateEvaluation(feature, newEvaluation) {
     const evaluations = feature.get("evaluations") || [];
 
     const index = evaluations.findIndex((evaluation) => {
-      const meaning = this.getContentItemCodeMeaning(evaluation);
-      return meaning === codeMeaning;
+      return evaluation.equals
+        ? evaluation.equals(newEvaluation)
+        : isContentItemsEqual(evaluation, newEvaluation);
     });
 
     if (index > -1) {
-      evaluations[index] = evaluation;
+      evaluations[index] = newEvaluation;
     } else {
-      evaluations.push(evaluation);
+      evaluations.push(newEvaluation);
     }
 
     feature.set("evaluations", evaluations);
   }
 
   /**
-   * Add or update ROI measurements and evaluations
+   * Add or update ROI evaluations
    * based on markup related properties
    *
    * @param {Feature} feature The feature
    */
-  _updateMeasurementsAndEvaluations(feature) {
-    const view = this.props.map.getView();
-    const unitsSuffix = getUnitsSuffix(view);
+  _updateEvaluations(feature) {
     const properties = feature.getProperties();
 
     if (properties.label) {
@@ -129,33 +103,7 @@ class _AnnotationManager {
         value: properties.label,
         relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT,
       });
-      this.addOrUpdateEvaluation(feature, evaluation, "Tracking Identifier");
-    }
-
-    if (properties.area) {
-      const measurement = new dcmjs.sr.valueTypes.NumContentItem({
-        name: new dcmjs.sr.coding.CodedConcept({
-          value: "42798000",
-          meaning: "Area",
-          schemeDesignator: "DCM",
-        }),
-        value: properties.area,
-        unit: unitsSuffix,
-      });
-      this.addOrUpdateMeasurement(feature, measurement, "Area");
-    }
-
-    if (properties.length) {
-      const measurement = new dcmjs.sr.valueTypes.NumContentItem({
-        name: new dcmjs.sr.coding.CodedConcept({
-          value: "410668003",
-          meaning: "Length",
-          schemeDesignator: "DCM",
-        }),
-        value: properties.length,
-        unit: unitsSuffix,
-      });
-      this.addOrUpdateMeasurement(feature, measurement, "Length");
+      this.addOrUpdateEvaluation(feature, evaluation);
     }
   }
 
@@ -209,9 +157,9 @@ class _AnnotationManager {
     /**
      * Generate and update ROI measurements and evaluations
      */
-    this._updateMeasurementsAndEvaluations(feature);
+    this._updateEvaluations(feature);
     feature.on(FeatureEvents.PROPERTY_CHANGE, () =>
-      this._updateMeasurementsAndEvaluations(feature)
+      this._updateEvaluations(feature)
     );
   }
 

@@ -1,5 +1,5 @@
-import { cross, inv, multiply } from 'mathjs'
-
+import { cross, inv, multiply } from "mathjs";
+import { getPointResolution } from "ol/proj";
 
 /** Generates a UUID-derived DICOM UID with root `2.25`.
  *
@@ -19,13 +19,12 @@ function generateUID() {
    * of the sixteen octets (octet 0).
    */
   // FIXME: This is not a valid UUID!
-  let uid = '2.25.' + Math.floor(1 + Math.random() * 9);
+  let uid = "2.25." + Math.floor(1 + Math.random() * 9);
   while (uid.length < 44) {
     uid += Math.floor(1 + Math.random() * 10);
   }
   return uid;
 }
-
 
 /** Creates a rotation matrix.
  *
@@ -34,19 +33,18 @@ function generateUID() {
  * @returns {number[][]} 2x2 rotation matrix
  */
 function createRotationMatrix(options) {
-  if (!('orientation' in options) ) {
-      throw new Error('Option "orientation" is required.');
+  if (!("orientation" in options)) {
+    throw new Error('Option "orientation" is required.');
   }
-  const orientation = options.orientation
-  const row_direction = orientation.slice(0, 3)
-  const column_direction = orientation.slice(3, 6)
+  const orientation = options.orientation;
+  const row_direction = orientation.slice(0, 3);
+  const column_direction = orientation.slice(3, 6);
   return [
     [row_direction[0], column_direction[0]],
     [row_direction[1], column_direction[1]],
     [row_direction[2], column_direction[3]],
   ];
 }
-
 
 /** Computes the rotation of the image with respect to the frame of reference.
  *
@@ -56,19 +54,18 @@ function createRotationMatrix(options) {
  * @returns {number} Angle
  */
 function computeRotation(options) {
-  const rot = createRotationMatrix({ orientation: options.orientation })
-  const angle = Math.atan2(-rot[0][1], rot[0][0])
-  var inDegrees = false
-  if ('inDegrees' in options) {
-    inDegrees = true
+  const rot = createRotationMatrix({ orientation: options.orientation });
+  const angle = Math.atan2(-rot[0][1], rot[0][0]);
+  var inDegrees = false;
+  if ("inDegrees" in options) {
+    inDegrees = true;
   }
   if (inDegrees) {
-    return angle / (Math.PI / 180)
+    return angle / (Math.PI / 180);
   } else {
-    return angle
+    return angle;
   }
 }
-
 
 /** Builds an affine transformation matrix to map coordinates in the Total
  * Pixel Matrix into the slide coordinate system.
@@ -81,10 +78,10 @@ function computeRotation(options) {
  */
 function buildTransform(options) {
   // X and Y Offset in Slide Coordinate System
-  if (!('offset' in options) ) {
+  if (!("offset" in options)) {
     throw new Error('Option "offset" is required.');
   }
-  if (!(Array.isArray(options.offset))) {
+  if (!Array.isArray(options.offset)) {
     throw new Error('Option "offset" must be an array.');
   }
   if (options.offset.length !== 2) {
@@ -92,10 +89,10 @@ function buildTransform(options) {
   }
 
   // Image Orientation Slide with direction cosines for Row and Column direction
-  if (!('orientation' in options) ) {
+  if (!("orientation" in options)) {
     throw new Error('Option "orientation" is required.');
   }
-  if (!(Array.isArray(options.orientation))) {
+  if (!Array.isArray(options.orientation)) {
     throw new Error('Option "orientation" must be an array.');
   }
   if (options.orientation.length !== 6) {
@@ -103,10 +100,10 @@ function buildTransform(options) {
   }
 
   // Pixel Spacing along the Row and Column direction
-  if (!('spacing' in options) ) {
+  if (!("spacing" in options)) {
     throw new Error('Option "spacing" is required.');
   }
-  if (!(Array.isArray(options.spacing))) {
+  if (!Array.isArray(options.spacing)) {
     throw new Error('Option "spacing" must be an array.');
   }
   if (options.spacing.length !== 2) {
@@ -119,7 +116,7 @@ function buildTransform(options) {
   return [
     [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
     [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
-    [0, 0, 1]
+    [0, 0, 1],
   ];
 }
 
@@ -132,26 +129,26 @@ function buildTransform(options) {
  * @returns {number[]} (X, Y) position in the slide coordinate system
  */
 function applyTransform(options) {
-  if (!('coordinate' in options) ) {
+  if (!("coordinate" in options)) {
     throw new Error('Option "coordinate" is required.');
   }
-  if (!(Array.isArray(options.coordinate))) {
+  if (!Array.isArray(options.coordinate)) {
     throw new Error('Option "coordinate" must be an array.');
   }
   if (options.coordinate.length !== 2) {
     throw new Error('Option "coordinate" must be an array with 2 elements.');
   }
 
-  if (!('affine' in options) ) {
+  if (!("affine" in options)) {
     throw new Error('Option "affine" is required.');
   }
-  if (!(Array.isArray(options.affine))) {
+  if (!Array.isArray(options.affine)) {
     throw new Error('Option "affine" must be an array.');
   }
   if (options.affine.length !== 3) {
     throw new Error('Option "affine" must be a 3x3 array.');
   }
-  if (!(Array.isArray(options.affine[0]))) {
+  if (!Array.isArray(options.affine[0])) {
     throw new Error('Option "affine" must be a 3x3 array.');
   }
   if (options.affine[0].length !== 3 || options.affine[1].length !== 3) {
@@ -159,12 +156,8 @@ function applyTransform(options) {
   }
 
   const coordinate = options.coordinate;
-  const affine = options.affine
-  const imageCoordinate = [
-    [coordinate[0]],
-    [coordinate[1]],
-    [1]
-  ];
+  const affine = options.affine;
+  const imageCoordinate = [[coordinate[0]], [coordinate[1]], [1]];
 
   const slideCoordinate = multiply(affine, imageCoordinate);
 
@@ -183,10 +176,10 @@ function applyTransform(options) {
  */
 function buildInverseTransform(options) {
   // X and Y Offset in Slide Coordinate System
-  if (!('offset' in options) ) {
+  if (!("offset" in options)) {
     throw new Error('Option "offset" is required.');
   }
-  if (!(Array.isArray(options.offset))) {
+  if (!Array.isArray(options.offset)) {
     throw new Error('Option "offset" must be an array.');
   }
   if (options.offset.length !== 2) {
@@ -194,10 +187,10 @@ function buildInverseTransform(options) {
   }
 
   // Image Orientation Slide with direction cosines for Row and Column direction
-  if (!('orientation' in options) ) {
+  if (!("orientation" in options)) {
     throw new Error('Option "orientation" is required.');
   }
-  if (!(Array.isArray(options.orientation))) {
+  if (!Array.isArray(options.orientation)) {
     throw new Error('Option "orientation" must be an array.');
   }
   if (options.orientation.length !== 6) {
@@ -205,10 +198,10 @@ function buildInverseTransform(options) {
   }
 
   // Pixel Spacing along the Row and Column direction
-  if (!('spacing' in options) ) {
+  if (!("spacing" in options)) {
     throw new Error('Option "spacing" is required.');
   }
-  if (!(Array.isArray(options.spacing))) {
+  if (!Array.isArray(options.spacing)) {
     throw new Error('Option "spacing" must be an array.');
   }
   if (options.spacing.length !== 2) {
@@ -221,7 +214,7 @@ function buildInverseTransform(options) {
   const m = [
     [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
     [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
-    [0, 0, 1]
+    [0, 0, 1],
   ];
   return inv(m);
 }
@@ -235,26 +228,26 @@ function buildInverseTransform(options) {
  * @returns {number[]} (Row, Column) position in the Total Pixel Matrix
  */
 function applyInverseTransform(options) {
-  if (!('coordinate' in options) ) {
+  if (!("coordinate" in options)) {
     throw new Error('Option "coordinate" is required.');
   }
-  if (!(Array.isArray(options.coordinate))) {
+  if (!Array.isArray(options.coordinate)) {
     throw new Error('Option "coordinate" must be an array.');
   }
   if (options.coordinate.length !== 2) {
     throw new Error('Option "coordinate" must be an array with 2 elements.');
   }
 
-  if (!('affine' in options) ) {
+  if (!("affine" in options)) {
     throw new Error('Option "affine" is required.');
   }
-  if (!(Array.isArray(options.affine))) {
+  if (!Array.isArray(options.affine)) {
     throw new Error('Option "affine" must be an array.');
   }
   if (options.affine.length !== 3) {
     throw new Error('Option "affine" must be a 3x3 array.');
   }
-  if (!(Array.isArray(options.affine[0]))) {
+  if (!Array.isArray(options.affine[0])) {
     throw new Error('Option "affine" must be a 3x3 array.');
   }
   if (options.affine[0].length !== 3 || options.affine[1].length !== 3) {
@@ -264,11 +257,7 @@ function applyInverseTransform(options) {
   const coordinate = options.coordinate;
   const affine = options.affine;
 
-  const slideCoordinate = [
-    [coordinate[0]],
-    [coordinate[1]],
-    [1]
-  ];
+  const slideCoordinate = [[coordinate[0]], [coordinate[1]], [1]];
 
   const pixelCoordinate = multiply(affine, slideCoordinate);
 
@@ -289,10 +278,10 @@ function applyInverseTransform(options) {
  * @memberof utils
  */
 function mapPixelCoordToSlideCoord(options) {
-  if (!('point' in options) ) {
+  if (!("point" in options)) {
     throw new Error('Option "point" is required.');
   }
-  if (!(Array.isArray(options.point))) {
+  if (!Array.isArray(options.point)) {
     throw new Error('Option "point" must be an array.');
   }
   if (options.point.length !== 2) {
@@ -320,10 +309,10 @@ function mapPixelCoordToSlideCoord(options) {
  * @memberof utils
  */
 function mapSlideCoordToPixelCoord(options) {
-  if (!('point' in options) ) {
+  if (!("point" in options)) {
     throw new Error('Option "point" is required.');
   }
-  if (!(Array.isArray(options.point))) {
+  if (!Array.isArray(options.point)) {
     throw new Error('Option "point" must be an array.');
   }
   if (options.point.length !== 2) {
@@ -333,13 +322,78 @@ function mapSlideCoordToPixelCoord(options) {
   const affine = buildInverseTransform({
     orientation: options.orientation,
     offset: options.offset,
-    spacing: options.spacing
-  })
+    spacing: options.spacing,
+  });
 
-  return applyInverseTransform({ coordinate: point, affine: affine })
+  return applyInverseTransform({ coordinate: point, affine: affine });
 }
 
+/**
+ * Get units suffix
+ *
+ * @param {object} view Map view
+ * @returns {string} unit suffix
+ */
+function getUnitsSuffix(view) {
+  const UnitsEnum = { METERS: "m" };
+  const DEFAULT_DPI = 25.4 / 0.28;
+
+  const center = view.getCenter();
+  const projection = view.getProjection();
+  const resolution = view.getResolution();
+
+  const pointResolutionUnits = UnitsEnum.METERS;
+
+  let pointResolution = getPointResolution(
+    projection,
+    resolution,
+    center,
+    pointResolutionUnits
+  );
+
+  const DEFAULT_MIN_WIDTH = 65;
+  const minWidth = (DEFAULT_MIN_WIDTH * DEFAULT_DPI) / DEFAULT_DPI;
+
+  let nominalCount = minWidth * pointResolution;
+  let suffix = "";
+
+  if (nominalCount < 0.001) {
+    suffix = "μm";
+    pointResolution *= 1000000;
+  } else if (nominalCount < 1) {
+    suffix = "mm";
+    pointResolution *= 1000;
+  } else if (nominalCount < 1000) {
+    suffix = "m";
+  } else {
+    suffix = "km";
+    pointResolution /= 1000;
+  }
+
+  return suffix;
+}
+
+/**
+ *
+ * @param {object} contentItem1
+ * @param {object} contentItem2
+ * @returns {boolean} true if content items equal
+ */
+const isContentItemsEqual = (contentItem1, contentItem2) => {
+  if (
+    contentItem2.value === contentItem1.value &&
+    contentItem2.schemeDesignator === contentItem1.schemeDesignator
+  ) {
+    if (contentItem2.schemeVersion && contentItem1.schemeVersion) {
+      return contentItem2.schemeVersion === contentItem1.schemeVersion;
+    }
+    return true;
+  }
+  return false;
+};
+
 export {
+  getUnitsSuffix,
   applyInverseTransform,
   applyTransform,
   buildInverseTransform,
@@ -347,5 +401,6 @@ export {
   computeRotation,
   generateUID,
   mapPixelCoordToSlideCoord,
-  mapSlideCoordToPixelCoord
+  mapSlideCoordToPixelCoord,
+  isContentItemsEqual,
 };

@@ -9,10 +9,8 @@ import Collection from "ol/Collection";
 import Feature from "ol/Feature";
 
 import Enums from "../../enums";
-import {
-  getUnitsSuffix,
-  getShortestLineBetweenOverlayAndFeature,
-} from "./utils";
+import { getShortestLineBetweenOverlayAndFeature } from "./utils";
+import { getUnitsSuffix } from "../../utils";
 import defaultStyles from "../styles";
 
 class _MarkupManager {
@@ -118,24 +116,6 @@ class _MarkupManager {
       return this.get(id);
     }
 
-    const listener = feature
-      .getGeometry()
-      .on(Enums.FeatureGeometryEvents.CHANGE, ({ target: geometry }) => {
-        if (this.has(id)) {
-          const view = this._map.getView();
-          const unitsSuffix = getUnitsSuffix(view);
-          const format = this._getFormatter(feature);
-          const output = format(feature, unitsSuffix);
-          this.update({
-            feature,
-            value: output,
-            coordinate: geometry.getLastCoordinate(),
-          });
-          this.drawLink(feature);
-        }
-      });
-    this._listeners.set(id, listener);
-
     const markup = { id, isLinkable, isDraggable };
 
     const element = document.createElement("div");
@@ -153,17 +133,55 @@ class _MarkupManager {
       element: markup.element,
     });
 
+    const featureCoordinate = feature.getGeometry().getLastCoordinate();
+    markup.overlay.setPosition(featureCoordinate);
+
+    this._map.addOverlay(markup.overlay);
+    this._markups.set(id, markup);
+
+    this._drawLink(feature);
+    this._wireInternalEvents(feature);
+
+    return markup;
+  }
+
+  /**
+   * Wire internal events to markup feature
+   * 
+   * @param {object} feature 
+   * @returns {void}
+   */
+  _wireInternalEvents(feature) {
+    const id = feature.getId();
+    const markup = this.get(id);
+    const geometry = feature.getGeometry();
+    const listener = geometry.on(
+      Enums.FeatureGeometryEvents.CHANGE,
+      ({ target: geometry }) => {
+        if (this.has(id)) {
+          const view = this._map.getView();
+          const unitsSuffix = getUnitsSuffix(view);
+          const format = this._getFormatter(feature);
+          const output = format(feature, unitsSuffix);
+          this.update({
+            feature,
+            value: output,
+            coordinate: geometry.getLastCoordinate(),
+          });
+          this._drawLink(feature);
+        }
+      }
+    );
+    this._listeners.set(id, listener);
+
     feature.on(
       Enums.FeatureEvents.PROPERTY_CHANGE,
       ({ key: property, target: feature }) => {
         if (property === Enums.InternalProperties.StyleOptions) {
-          this.styleTooltip(feature);
+          this._styleTooltip(feature);
         }
       }
     );
-
-    const featureCoordinate = feature.getGeometry().getLastCoordinate();
-    markup.overlay.setPosition(featureCoordinate);
 
     let dragPan;
     let dragProperty = "dragging";
@@ -173,7 +191,7 @@ class _MarkupManager {
       }
     });
 
-    element.addEventListener(Enums.HTMLElementEvents.MOUSE_DOWN, () => {
+    markup.element.addEventListener(Enums.HTMLElementEvents.MOUSE_DOWN, () => {
       const markup = this.get(id);
       if (markup) {
         dragPan.setActive(false);
@@ -189,7 +207,7 @@ class _MarkupManager {
         markup.isDraggable
       ) {
         markup.overlay.setPosition(event.coordinate);
-        this.drawLink(feature);
+        this._drawLink(feature);
       }
     });
 
@@ -204,16 +222,15 @@ class _MarkupManager {
         markup.overlay.set(dragProperty, false);
       }
     });
-
-    this._map.addOverlay(markup.overlay);
-    this._markups.set(id, markup);
-
-    this.drawLink(feature);
-
-    return markup;
   }
 
-  styleTooltip(feature) {
+  /**
+   * Updates the feature's markup tooltip style
+   * 
+   * @param {object} feature 
+   * @returns {void}
+   */
+  _styleTooltip(feature) {
     const styleOptions = feature.get(Enums.InternalProperties.StyleOptions);
     if (styleOptions && styleOptions.stroke) {
       const { color } = styleOptions.stroke;
@@ -354,7 +371,7 @@ class _MarkupManager {
    *
    * @param {object} feature The feature
    */
-  drawLink(feature) {
+  _drawLink(feature) {
     const markup = this.get(feature.getId());
     if (!markup.isLinkable) {
       return;

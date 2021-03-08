@@ -5,7 +5,7 @@ import Circle from "ol/style/Circle";
 
 import Enums from "../../enums";
 
-export const isTextEvaluation = (feature) =>
+export const isTextEvaluation = (feature) => 
   Enums.Markup.TextEvaluation === feature.get(Enums.InternalProperties.Markup);
 
 /**

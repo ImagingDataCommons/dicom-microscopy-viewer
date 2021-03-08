@@ -100,12 +100,7 @@ class ROI {
    *
    * @params {Object} item - NUM content item representing a measurement
    */
-  addMeasurement(item, index) {
-    if (index) {
-      this[_properties]['measurements'][index] = item;
-      return;
-    }
-
+  addMeasurement(item) {
     this[_properties]['measurements'].push(item);
   }
 
