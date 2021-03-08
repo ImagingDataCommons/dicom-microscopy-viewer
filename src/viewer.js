@@ -482,6 +482,21 @@ function _getOpenLayersStyle(styleOptions) {
 }
 
 /**
+ * Add ROI properties to feature in a safe way 
+ * 
+ * @param {object} feature The feature instance that represents the ROI
+ * @param {object} properties Valid ROI properties
+ * @param {boolean} opt_silent Opt silent update
+ */
+function _addROIPropertiesToFeature(feature, properties, opt_silent) {
+  const { label, measurements, evaluations, marker } = properties;
+  if (label) feature.set("label", label, opt_silent);
+  if (measurements) feature.set("measurements", measurements, opt_silent);
+  if (evaluations) feature.set("evaluations", evaluations, opt_silent);
+  if (marker) feature.set("marker", marker, opt_silent);
+}
+
+/**
  * Wire measurements and qualitative events to generate content items
  * based on feature properties and geometry changes
  *
@@ -1715,7 +1730,12 @@ class VolumeImageViewer {
 
   /** Adds a regions of interest.
    *
-   * @param {ROI} item - Regions of interest.
+   * @param {ROI} roi - Regions of interest
+   * @param {object} roi.properties - ROI properties
+   * @param {object} roi.properties.measurements - ROI measurements
+   * @param {object} roi.properties.evaluations - ROI evaluations
+   * @param {object} roi.properties.label - ROI label
+   * @param {object} roi.properties.marker - ROI marker (this is used while we don't have presentation states)
    * @param {object} styleOptions - Style options
    * @param {object} styleOptions.stroke - Style options for the outline of the geometry
    * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
@@ -1725,14 +1745,14 @@ class VolumeImageViewer {
    * @param {object} styleOptions.image - Style options for image
    *
    */
-  addROI(item, styleOptions) {
-    console.info(`add ROI ${item.uid}`);
-    const geometry = _scoord3d2Geometry(item.scoord3d, this[_pyramidMetadata]);
+  addROI(roi, styleOptions) {
+    console.info(`add ROI ${roi.uid}`);
+    const geometry = _scoord3d2Geometry(roi.scoord3d, this[_pyramidMetadata]);
     const featureOptions = { geometry };
 
     const feature = new Feature(featureOptions);
-    feature.setProperties(item.properties, true);
-    feature.setId(item.uid);
+    _addROIPropertiesToFeature(feature, roi.properties, true);
+    feature.setId(roi.uid);
 
     _wireMeasurementsAndQualitativeEvaluationsEvents(this[_map], feature);
 
@@ -1757,11 +1777,7 @@ class VolumeImageViewer {
 
     const feature = this[_drawingSource].getFeatureById(uid);
 
-    const { label, measurements, evaluations, marker } = properties;
-    if (label) feature.set("label", label);
-    if (measurements) feature.set("measurements", measurements);
-    if (evaluations) feature.set("evaluations", evaluations);
-    if (marker) feature.set("marker", marker);
+    _addROIPropertiesToFeature(feature, properties);
 
     this[_annotationManager].onUpdate(feature);
   }
