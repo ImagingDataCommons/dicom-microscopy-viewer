@@ -484,7 +484,7 @@ function _getOpenLayersStyle(styleOptions) {
 /**
  * Wire measurements and qualitative events to generate content items
  * based on feature properties and geometry changes
- * 
+ *
  * @param {object} map The map instance
  * @param {object} feature The feature instance
  * @returns {void}
@@ -1746,13 +1746,22 @@ class VolumeImageViewer {
    * @param {object} roi - ROI to be updated
    * @param {string} roi.uid - Unique identifier of the region of interest
    * @param {object} roi.properties - ROI properties
+   * @param {object} roi.properties.measurements - ROI measurements
+   * @param {object} roi.properties.evaluations - ROI evaluations
+   * @param {object} roi.properties.label - ROI label
+   * @param {object} roi.properties.marker - ROI marker (this is used while we don't have presentation states)
    */
-  updateROI({ uid, properties }) {
+  updateROI({ uid, properties = {} }) {
     if (!uid) return;
     console.info(`update ROI ${uid}`);
 
     const feature = this[_drawingSource].getFeatureById(uid);
-    feature.setProperties(properties);
+
+    const { label, measurements, evaluations, marker } = properties;
+    if (label) feature.set("label", label);
+    if (measurements) feature.set("measurements", measurements);
+    if (evaluations) feature.set("evaluations", evaluations);
+    if (marker) feature.set("marker", marker);
 
     this[_annotationManager].onUpdate(feature);
   }

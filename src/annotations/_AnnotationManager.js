@@ -12,6 +12,9 @@ import MeasurementMarkup, {
 } from "./markups/measurement";
 import TextEvaluationMarkup, { format as textFormat } from "./markups/text";
 
+/** Utils */
+import { getContentItemNameMeaning } from "../utils";
+
 const { Marker, Markup } = Enums;
 
 class _AnnotationManager {
@@ -39,19 +42,6 @@ class _AnnotationManager {
   }
 
   /**
-   * Gets the code meaning of a given measurement
-   * or evaluation content item
-   *
-   * @param {NumContentItem} contentItem The measurement or evaluation content item
-   */
-  getContentItemCodeMeaning(contentItem) {
-    const { ConceptNameCodeSequence } = contentItem;
-    return ConceptNameCodeSequence.length
-      ? ConceptNameCodeSequence[0].CodeMeaning
-      : ConceptNameCodeSequence.CodeMeaning;
-  }
-
-  /**
    * Add markup properties based on ROI
    * measurements and evaluations
    *
@@ -63,7 +53,7 @@ class _AnnotationManager {
     if (measurements && measurements.length) {
       return measurements.some((measurement) => {
         const SUPPORTED_MEASUREMENTS = ["Area", "Length"];
-        const codeMeaning = this.getContentItemCodeMeaning(measurement);
+        const codeMeaning = getContentItemNameMeaning(measurement);
         if (SUPPORTED_MEASUREMENTS.includes(codeMeaning)) {
           feature.set(
             Enums.InternalProperties.Markup,
@@ -76,7 +66,7 @@ class _AnnotationManager {
     if (evaluations && evaluations.length) {
       return evaluations.some((evaluation) => {
         const SUPPORTED_EVALUATIONS = ["Tracking Identifier"];
-        const codeMeaning = this.getContentItemCodeMeaning(evaluation);
+        const codeMeaning = getContentItemNameMeaning(evaluation);
         if (SUPPORTED_EVALUATIONS.includes(codeMeaning)) {
           feature.set(
             Enums.InternalProperties.Markup,

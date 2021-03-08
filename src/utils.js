@@ -444,6 +444,18 @@ const getContentItemNameCodedConcept = (contentItem) =>
     : contentItem.ConceptNameCodeSequence;
 
 /**
+ * Gets the code meaning of the name coded concept of a content item
+ *
+ * @param {object} contentItem The content item
+ */
+const getContentItemNameMeaning = (contentItem) => {
+  const { ConceptNameCodeSequence } = contentItem;
+  return ConceptNameCodeSequence.length
+    ? ConceptNameCodeSequence[0].CodeMeaning
+    : ConceptNameCodeSequence.CodeMeaning;
+};
+
+/**
  *
  * @param {object} codedConcept1
  * @param {object} codedConcept2
@@ -498,4 +510,5 @@ export {
   getContentItemNameCodedConcept,
   getMeasurementContentItem,
   getTextEvaluationContentItem,
+  getContentItemNameMeaning,
 };
