@@ -53,6 +53,7 @@ import {
   buildTransform,
   getUnitsSuffix,
   isContentItemsEqual,
+  getContentItemNameCodedConcept,
 } from "./utils.js";
 import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 import Enums from "./enums";
@@ -498,7 +499,11 @@ const _updateMeasurementProperties = (map, feature) => {
     Area: "42798000",
   };
 
-  let geometry = feature.getGeometry();
+  /**
+   * Open Layers side-effect: Geometry will be updated inside formCircle call
+   * which causes errors if const variables is used
+   */
+  let geometry = feature.getGeometry().clone();
   if (geometry instanceof LineStringGeometry) {
     meaning = "Length";
     code = CodeMeaningMap[meaning];
@@ -517,6 +522,12 @@ const _updateMeasurementProperties = (map, feature) => {
     feature.set(Enums.FeatureMeasurement.Area, value);
   }
 
+  if (
+    feature.get(Enums.InternalProperties.Markup) !== Enums.Markup.Measurement
+  ) {
+    return;
+  }
+
   const newMeasurement = new dcmjs.sr.valueTypes.NumContentItem({
     name: new dcmjs.sr.coding.CodedConcept({
       value: code,
@@ -529,9 +540,7 @@ const _updateMeasurementProperties = (map, feature) => {
 
   const measurements = feature.get("measurements") || [];
   const index = measurements.findIndex((measurement) => {
-    return measurement.equals
-      ? measurement.equals(newMeasurement)
-      : isContentItemsEqual(measurement, newMeasurement);
+    return isContentItemsEqual(measurement, newMeasurement);
   });
 
   if (index > -1) {
@@ -1035,10 +1044,10 @@ class VolumeImageViewer {
     });
 
     /**
-     * OpenLayer's map has default active interactions 
+     * OpenLayer's map has default active interactions
      * https://openlayers.org/en/latest/apidoc/module-ol_interaction.html#.defaults
-     * 
-     * We need to define them here to avoid duplications 
+     *
+     * We need to define them here to avoid duplications
      * of interactions that could cause bugs in the application
      */
     const defaultInteractions = this[_map].getInteractions().getArray();
@@ -1048,7 +1057,7 @@ class VolumeImageViewer {
       translate: undefined,
       modify: undefined,
       snap: undefined,
-      dragPan: defaultInteractions.find(i => i instanceof DragPan),
+      dragPan: defaultInteractions.find((i) => i instanceof DragPan),
     };
 
     this[_map].addInteraction(new MouseWheelZoom());
@@ -1266,7 +1275,6 @@ class VolumeImageViewer {
     this[_interactions].draw = new Draw(drawOptions);
     const container = this[_map].getTargetElement();
 
-    let eventsLocker = {};
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_START, (event) => {
       event.feature.setProperties(builtInDrawOptions, true);
       event.feature.setId(generateUID());
@@ -1279,15 +1287,10 @@ class VolumeImageViewer {
         options[Enums.InternalProperties.StyleOptions]
       );
 
-      if (!eventsLocker[Enums.FeatureGeometryEvents.CHANGE]) {
-        eventsLocker[Enums.FeatureGeometryEvents.CHANGE] = true;
-        /** Update feature measurement properties on feature change */
-        event.feature
-          .getGeometry()
-          .on(Enums.FeatureGeometryEvents.CHANGE, () => {
-            _updateMeasurementProperties(this[_map], event.feature);
-          });
-      }
+      /** Update feature measurement properties on feature change */
+      event.feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
+        _updateMeasurementProperties(this[_map], event.feature);
+      });
     });
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {

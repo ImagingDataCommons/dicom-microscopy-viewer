@@ -374,22 +374,54 @@ function getUnitsSuffix(view) {
 }
 
 /**
+ * Get name coded concept from content item
  *
- * @param {object} contentItem1
- * @param {object} contentItem2
- * @returns {boolean} true if content items equal
+ * @param {object} contentItem
+ * @returns {object} The concept name coded concept
  */
-const isContentItemsEqual = (contentItem1, contentItem2) => {
+const getContentItemNameCodedConcept = (contentItem) =>
+  contentItem.ConceptNameCodeSequence.length
+    ? contentItem.ConceptNameCodeSequence[0]
+    : contentItem.ConceptNameCodeSequence;
+
+/**
+ *
+ * @param {object} codedConcept1
+ * @param {object} codedConcept2
+ * @returns {boolean} true if content items equal and false otherwise
+ */
+const isCodedConceptEqual = (codedConcept1, codedConcept2) => {
   if (
-    contentItem2.value === contentItem1.value &&
-    contentItem2.schemeDesignator === contentItem1.schemeDesignator
+    codedConcept2.value === codedConcept1.value &&
+    codedConcept2.schemeDesignator === codedConcept1.schemeDesignator
   ) {
-    if (contentItem2.schemeVersion && contentItem1.schemeVersion) {
-      return contentItem2.schemeVersion === contentItem1.schemeVersion;
+    if (codedConcept2.schemeVersion && codedConcept1.schemeVersion) {
+      return codedConcept2.schemeVersion === codedConcept1.schemeVersion;
     }
     return true;
   }
   return false;
+};
+
+/**
+ *
+ * @param {object} contentItem1
+ * @param {object} contentItem2
+ * @returns {boolean} true if content items equal and false otherwise
+ */
+const isContentItemsEqual = (contentItem1, contentItem2) => {
+  const contentItem1NameCodedConcept = getContentItemNameCodedConcept(
+    contentItem1
+  );
+  const contentItem2NameCodedConcept = getContentItemNameCodedConcept(
+    contentItem2
+  );
+  return contentItem1NameCodedConcept.equals
+    ? contentItem1NameCodedConcept.equals(contentItem2NameCodedConcept)
+    : isCodedConceptEqual(
+        contentItem1NameCodedConcept,
+        contentItem2NameCodedConcept
+      );
 };
 
 export {
@@ -403,4 +435,6 @@ export {
   mapPixelCoordToSlideCoord,
   mapSlideCoordToPixelCoord,
   isContentItemsEqual,
+  isCodedConceptEqual,
+  getContentItemNameCodedConcept,
 };

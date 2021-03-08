@@ -6,7 +6,7 @@ import _MarkupManager from "./markups/_MarkupManager";
 import Enums from "../enums";
 
 /** Utils */
-import { isContentItemsEqual } from "../utils";
+import { isContentItemsEqual, getContentItemNameCodedConcept } from "../utils";
 
 /** Markers */
 import ArrowMarker, { format as arrowFormat } from "./markers/arrow";
@@ -66,13 +66,24 @@ class _AnnotationManager {
    * @param {Feature} feature The feature
    * @param {TextContentItem} newEvaluation The evaluation
    */
-  addOrUpdateEvaluation(feature, newEvaluation) {
+  addOrUpdateEvaluation(feature) {
     const evaluations = feature.get("evaluations") || [];
 
+    const properties = feature.getProperties();
+    if (!properties.label) return;
+
+    const newEvaluation = new dcmjs.sr.valueTypes.TextContentItem({
+      name: new dcmjs.sr.coding.CodedConcept({
+        value: "112039",
+        meaning: "Tracking Identifier",
+        schemeDesignator: "DCM",
+      }),
+      value: properties.label,
+      relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT,
+    });
+
     const index = evaluations.findIndex((evaluation) => {
-      return evaluation.equals
-        ? evaluation.equals(newEvaluation)
-        : isContentItemsEqual(evaluation, newEvaluation);
+      return isContentItemsEqual(evaluation, newEvaluation);
     });
 
     if (index > -1) {
@@ -82,29 +93,6 @@ class _AnnotationManager {
     }
 
     feature.set("evaluations", evaluations);
-  }
-
-  /**
-   * Add or update ROI evaluations
-   * based on markup related properties
-   *
-   * @param {Feature} feature The feature
-   */
-  _updateEvaluations(feature) {
-    const properties = feature.getProperties();
-
-    if (properties.label) {
-      const evaluation = new dcmjs.sr.valueTypes.TextContentItem({
-        name: new dcmjs.sr.coding.CodedConcept({
-          value: "112039",
-          meaning: "Tracking Identifier",
-          schemeDesignator: "DCM",
-        }),
-        value: properties.label,
-        relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT,
-      });
-      this.addOrUpdateEvaluation(feature, evaluation);
-    }
   }
 
   /**
@@ -146,7 +134,7 @@ class _AnnotationManager {
   onAdd(feature) {
     /**
      * Add properties to ROI feature before triggering
-     * markup and markers callbacks to keep UI in sync with them
+     * markup and markers callbacks to keep UI in sync
      */
     this._addMeasurementsAndEvaluationsProperties(feature);
 
@@ -155,11 +143,11 @@ class _AnnotationManager {
     this[Markup.TextEvaluation].onAdd(feature);
 
     /**
-     * Generate and update ROI measurements and evaluations
+     * Generate and update ROI evaluations
      */
-    this._updateEvaluations(feature);
+    this.addOrUpdateEvaluation(feature);
     feature.on(FeatureEvents.PROPERTY_CHANGE, () =>
-      this._updateEvaluations(feature)
+      this.addOrUpdateEvaluation(feature)
     );
   }
 

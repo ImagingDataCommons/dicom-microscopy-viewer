@@ -17,7 +17,7 @@ const getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
   let featureGeometry = feature.getGeometry();
 
   if (featureGeometry instanceof Circle) {
-    featureGeometry = fromCircle(featureGeometry);
+    featureGeometry = fromCircle(featureGeometry).clone();
   }
 
   let geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
