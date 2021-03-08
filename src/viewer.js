@@ -498,23 +498,23 @@ const _updateMeasurementProperties = (map, feature) => {
     Area: "42798000",
   };
 
-  const geometry = feature.getGeometry();
+  let geometry = feature.getGeometry();
   if (geometry instanceof LineStringGeometry) {
     meaning = "Length";
     code = CodeMeaningMap[meaning];
     value = getLength(geometry);
-    feature.set("length", value);
+    feature.set(Enums.FeatureMeasurement.Length, value);
   } else if (geometry instanceof CircleGeometry) {
     meaning = "Area";
     code = CodeMeaningMap[meaning];
     geometry = fromCircle(geometry);
     value = getArea(geometry);
-    feature.set("area", value);
+    feature.set(Enums.FeatureMeasurement.Area, value);
   } else if (geometry instanceof PolygonGeometry) {
     meaning = "Area";
     code = CodeMeaningMap[meaning];
     value = getArea(geometry);
-    feature.set("area", value);
+    feature.set(Enums.FeatureMeasurement.Area, value);
   }
 
   const newMeasurement = new dcmjs.sr.valueTypes.NumContentItem({

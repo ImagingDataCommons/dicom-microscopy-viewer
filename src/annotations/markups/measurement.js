@@ -8,7 +8,9 @@ import { getUnitsSuffix } from "../../utils";
  * @return {string} The formatted measure of this feature
  */
 export const format = (feature, units) => {
-  let value = feature.get("length") || feature.get("area");
+  let value =
+    feature.get(Enums.FeatureMeasurement.Length) ||
+    feature.get(Enums.FeatureMeasurement.Area);
   let rawValue = Math.round((value / 10) * 100) / 100;
   let output = Math.round((rawValue / 10) * 100) / 100 + " " + units;
   return output;
