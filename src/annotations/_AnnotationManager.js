@@ -1,12 +1,7 @@
-import dcmjs from "dcmjs";
-
 import _MarkupManager from "./markups/_MarkupManager";
 
 /** Enums */
 import Enums from "../enums";
-
-/** Utils */
-import { isContentItemsEqual, getTextEvaluationContentItem } from "../utils";
 
 /** Markers */
 import ArrowMarker, { format as arrowFormat } from "./markers/arrow";
@@ -17,13 +12,12 @@ import MeasurementMarkup, {
 } from "./markups/measurement";
 import TextEvaluationMarkup, { format as textFormat } from "./markups/text";
 
-const { Marker, Markup, FeatureEvents } = Enums;
+const { Marker, Markup } = Enums;
 
 class _AnnotationManager {
-  constructor({ map, source, controls, getROI } = {}) {
+  constructor({ map } = {}) {
     const markupManager = new _MarkupManager({
       map,
-      source,
       formatters: {
         [Marker.Arrow]: arrowFormat,
         [Markup.Measurement]: measurementFormat,
@@ -33,9 +27,6 @@ class _AnnotationManager {
 
     this.props = {
       map,
-      source,
-      controls,
-      getROI,
       markupManager,
     };
 
@@ -61,40 +52,6 @@ class _AnnotationManager {
   }
 
   /**
-   * Add or update a ROI evaluation
-   *
-   * @param {Feature} feature The feature
-   * @param {TextContentItem} newEvaluation The evaluation
-   */
-  addOrUpdateEvaluation(feature) {
-    const evaluations = feature.get("evaluations") || [];
-
-    const properties = feature.getProperties();
-    if (!properties.label) return;
-
-    const nameCodedConceptValue = "112039";
-    const nameCodedConceptMeaning = "Tracking Identifier";
-    const newEvaluation = getTextEvaluationContentItem(
-      properties.label,
-      nameCodedConceptValue,
-      nameCodedConceptMeaning
-    );
-
-    const index = evaluations.findIndex((evaluation) => {
-      return isContentItemsEqual(evaluation, newEvaluation);
-    });
-
-    if (index > -1) {
-      evaluations[index] = newEvaluation;
-    } else {
-      evaluations.push(newEvaluation);
-    }
-
-    feature.set("evaluations", evaluations);
-    console.debug(`Evaluations of feature (${feature.getId()}):`, evaluations);
-  }
-
-  /**
    * Add markup properties based on ROI
    * measurements and evaluations
    *
@@ -106,7 +63,7 @@ class _AnnotationManager {
     if (measurements && measurements.length) {
       return measurements.some((measurement) => {
         const SUPPORTED_MEASUREMENTS = ["Area", "Length"];
-        let codeMeaning = this.getContentItemCodeMeaning(measurement);
+        const codeMeaning = this.getContentItemCodeMeaning(measurement);
         if (SUPPORTED_MEASUREMENTS.includes(codeMeaning)) {
           feature.set(
             Enums.InternalProperties.Markup,
@@ -119,7 +76,7 @@ class _AnnotationManager {
     if (evaluations && evaluations.length) {
       return evaluations.some((evaluation) => {
         const SUPPORTED_EVALUATIONS = ["Tracking Identifier"];
-        let codeMeaning = this.getContentItemCodeMeaning(evaluation);
+        const codeMeaning = this.getContentItemCodeMeaning(evaluation);
         if (SUPPORTED_EVALUATIONS.includes(codeMeaning)) {
           feature.set(
             Enums.InternalProperties.Markup,
@@ -140,14 +97,6 @@ class _AnnotationManager {
     this[Marker.Arrow].onAdd(feature);
     this[Markup.Measurement].onAdd(feature);
     this[Markup.TextEvaluation].onAdd(feature);
-
-    /**
-     * Generate and update ROI evaluations
-     */
-    this.addOrUpdateEvaluation(feature);
-    feature.on(FeatureEvents.PROPERTY_CHANGE, () =>
-      this.addOrUpdateEvaluation(feature)
-    );
   }
 
   onRemove(feature) {

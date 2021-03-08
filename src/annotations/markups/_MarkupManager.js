@@ -14,9 +14,8 @@ import { getUnitSuffix } from "../../utils";
 import defaultStyles from "../styles";
 
 class _MarkupManager {
-  constructor({ map, source, formatters, onClick, onStyle } = {}) {
+  constructor({ map, formatters, onClick, onStyle } = {}) {
     this._map = map;
-    this._source = source;
     this._formatters = formatters;
 
     this.onClick = onClick;

@@ -53,6 +53,7 @@ import {
   getUnitSuffix,
   isContentItemsEqual,
   getMeasurementContentItem,
+  getTextEvaluationContentItem,
 } from "./utils.js";
 import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 import Enums from "./enums";
@@ -480,45 +481,103 @@ function _getOpenLayersStyle(styleOptions) {
   return style;
 }
 
-/** Updates feature measurement properties
- *
- * @param {object} map - Map
- * @param {object} feature - Feature
+/**
+ * Wire measurements and qualitative events to generate content items
+ * based on feature properties and geometry changes
+ * 
+ * @param {object} map The map instance
+ * @param {object} feature The feature instance
  * @returns {void}
  */
-const _updateMeasurementProperties = (map, feature) => {
-  let value = 0;
+function _wireMeasurementsAndQualitativeEvaluationsEvents(map, feature) {
+  /**
+   * Update feature measurement properties first and then measurements
+   */
+  _updateFeatureMeasurementProperties(map, feature);
+  _updateFeatureMeasurements(map, feature);
+  feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
+    _updateFeatureMeasurementProperties(map, feature);
+    _updateFeatureMeasurements(map, feature);
+  });
 
   /**
-   * Open Layers side-effect: Geometry will be updated inside formCircle call
-   * which causes errors if const variables is used
+   * Update feature evaluations
+   */
+  _updateFeatureEvaluations(feature);
+  feature.on(Enums.FeatureEvents.PROPERTY_CHANGE, () =>
+    _updateFeatureEvaluations(feature)
+  );
+}
+
+/**
+ * Update feature evaluations from its properties
+ *
+ * @param {Feature} feature The feature
+ * @returns {void}
+ */
+function _updateFeatureEvaluations(feature) {
+  const label = feature.get("label");
+  const evaluations = feature.get("evaluations") || [];
+
+  if (!label) return;
+
+  const nameCodedConceptValue = "112039";
+  const nameCodedConceptMeaning = "Tracking Identifier";
+  const evaluation = getTextEvaluationContentItem(
+    label,
+    nameCodedConceptValue,
+    nameCodedConceptMeaning
+  );
+
+  const index = evaluations.findIndex((e) =>
+    isContentItemsEqual(e, evaluation)
+  );
+
+  if (index > -1) {
+    evaluations[index] = evaluation;
+  } else {
+    evaluations.push(evaluation);
+  }
+
+  feature.set("evaluations", evaluations);
+  console.debug(`Evaluations of feature (${feature.getId()}):`, evaluations);
+}
+
+/**
+ * Updates feature measurement properties
+ *
+ * @param {object} map The map instance
+ * @param {object} feature The feature instance
+ * @returns {void}
+ */
+const _updateFeatureMeasurementProperties = (map, feature) => {
+  /**
+   * Open Layers side-effect: Geometry will be changed
+   * inside the formCircle call which causes errors
+   * if const variable is used for geometry
    */
   let geometry = feature.getGeometry().clone();
   if (geometry instanceof LineStringGeometry) {
-    value = getLength(geometry);
-    feature.set(Enums.FeatureMeasurement.Length, value);
+    feature.set(Enums.FeatureMeasurement.Length, getLength(geometry));
   } else if (geometry instanceof CircleGeometry) {
     geometry = fromCircle(geometry);
-    value = getArea(geometry);
-    feature.set(Enums.FeatureMeasurement.Area, value);
+    feature.set(Enums.FeatureMeasurement.Area, getArea(geometry));
   } else if (geometry instanceof PolygonGeometry) {
-    value = getArea(geometry);
-    feature.set(Enums.FeatureMeasurement.Area, value);
+    feature.set(Enums.FeatureMeasurement.Area, getArea(geometry));
   }
-
-  _updateFeatureMeasurements(map, feature);
 };
 
 /**
- * Generate feature measurements based on its measurement properties
+ * Generate feature measurements from its measurement properties
  *
- * @param {object} feature
+ * @param {object} map The map instance
+ * @param {object} feature The feature instance
  * @returns {void}
  */
 function _updateFeatureMeasurements(map, feature) {
-  const properties = feature.getProperties();
-  const area = properties[Enums.FeatureMeasurement.Area];
-  const length = properties[Enums.FeatureMeasurement.Length];
+  const measurements = feature.get("measurements") || [];
+  const area = feature.get(Enums.FeatureMeasurement.Area);
+  const length = feature.get(Enums.FeatureMeasurement.Length);
 
   if (!area && !length) return;
 
@@ -529,7 +588,7 @@ function _updateFeatureMeasurements(map, feature) {
     km: "kilometers",
   };
 
-  let newMeasurement;
+  let measurement;
   const view = map.getView();
   const unitSuffix = getUnitSuffix(view);
   const unitCodedConceptValue = unitSuffix;
@@ -538,7 +597,7 @@ function _updateFeatureMeasurements(map, feature) {
   if (area) {
     const nameCodedConceptValue = "Area";
     const nameCodedConceptMeaning = "42798000";
-    newMeasurement = getMeasurementContentItem(
+    measurement = getMeasurementContentItem(
       area,
       nameCodedConceptValue,
       nameCodedConceptMeaning,
@@ -550,7 +609,7 @@ function _updateFeatureMeasurements(map, feature) {
   if (length) {
     const nameCodedConceptValue = "Length";
     const nameCodedConceptMeaning = "410668003";
-    newMeasurement = getMeasurementContentItem(
+    measurement = getMeasurementContentItem(
       length,
       nameCodedConceptValue,
       nameCodedConceptMeaning,
@@ -559,15 +618,14 @@ function _updateFeatureMeasurements(map, feature) {
     );
   }
 
-  const measurements = feature.get("measurements") || [];
-  const index = measurements.findIndex((measurement) => {
-    return isContentItemsEqual(measurement, newMeasurement);
-  });
+  const index = measurements.findIndex((m) =>
+    isContentItemsEqual(m, measurement)
+  );
 
   if (index > -1) {
-    measurements[index] = newMeasurement;
+    measurements[index] = measurement;
   } else {
-    measurements.push(newMeasurement);
+    measurements.push(measurement);
   }
 
   feature.set("measurements", measurements);
@@ -1090,12 +1148,7 @@ class VolumeImageViewer {
 
     this[_map].getView().fit(extent);
 
-    this[_annotationManager] = new _AnnotationManager({
-      map: this[_map],
-      source: this[_drawingSource],
-      controls: this[_controls],
-      getROI: this.getROI.bind(this),
-    });
+    this[_annotationManager] = new _AnnotationManager({ map: this[_map] });
   }
 
   /** Resizes the viewer to fit the viewport. */
@@ -1309,10 +1362,10 @@ class VolumeImageViewer {
         options[Enums.InternalProperties.StyleOptions]
       );
 
-      /** Update feature measurement properties on feature change */
-      event.feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-        _updateMeasurementProperties(this[_map], event.feature);
-      });
+      _wireMeasurementsAndQualitativeEvaluationsEvents(
+        this[_map],
+        event.feature
+      );
     });
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
@@ -1681,11 +1734,7 @@ class VolumeImageViewer {
     feature.setProperties(item.properties, true);
     feature.setId(item.uid);
 
-    /** Update feature measurement properties on feature change */
-    _updateMeasurementProperties(this[_map], feature);
-    feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-      _updateMeasurementProperties(this[_map], feature);
-    });
+    _wireMeasurementsAndQualitativeEvaluationsEvents(this[_map], feature);
 
     this[_features].push(feature);
 
