@@ -1035,8 +1035,11 @@ class VolumeImageViewer {
     });
 
     /**
-     * OpenLayer's map has default interactions defined that needs to be set here
-     * to avoid duplications of interactions
+     * OpenLayer's map has default active interactions 
+     * https://openlayers.org/en/latest/apidoc/module-ol_interaction.html#.defaults
+     * 
+     * We need to define them here to avoid duplications 
+     * of interactions that could cause bugs in the application
      */
     const defaultInteractions = this[_map].getInteractions().getArray();
     this[_interactions] = {
