@@ -90,4 +90,6 @@ describe("_MarkupManager", () => {
     expect(map.on.mock.calls[0][0]).toBe(Enums.MapEvents.POINTER_MOVE);
     expect(map.on.mock.calls[1][0]).toBe(Enums.MapEvents.POINTER_UP);
   });
+
+  it("removes a markup", () => {});
 });
