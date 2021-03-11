@@ -482,10 +482,10 @@ function _getOpenLayersStyle(styleOptions) {
 }
 
 /**
- * Add ROI properties to feature in a safe way 
- * 
+ * Add ROI properties to feature in a safe way
+ *
  * @param {object} feature The feature instance that represents the ROI
- * @param {object} properties Valid ROI properties 
+ * @param {object} properties Valid ROI properties
  * @param {object} properties.measurements - ROI measurements
  * @param {object} properties.evaluations - ROI evaluations
  * @param {object} properties.label - ROI label
@@ -493,11 +493,23 @@ function _getOpenLayersStyle(styleOptions) {
  * @param {boolean} opt_silent Opt silent update
  */
 function _addROIPropertiesToFeature(feature, properties, opt_silent) {
-  const { label, measurements, evaluations, marker } = properties;
-  if (label) feature.set("label", label, opt_silent);
-  if (measurements) feature.set("measurements", measurements, opt_silent);
-  if (evaluations) feature.set("evaluations", evaluations, opt_silent);
-  if (marker) feature.set("marker", marker, opt_silent);
+  const { Label, Measurements, Evaluations, Marker } = Enums.InternalProperties;
+
+  if (properties[Label]) {
+    feature.set(Label, properties[Label], opt_silent);
+  }
+
+  if (properties[Measurements]) {
+    feature.set(Measurements, properties[Measurements], opt_silent);
+  }
+
+  if (properties[Evaluations]) {
+    feature.set(Evaluations, properties[Evaluations], opt_silent);
+  }
+
+  if (properties[Marker]) {
+    feature.set(Marker, properties[Marker], opt_silent);
+  }
 }
 
 /**
@@ -535,8 +547,8 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents(map, feature) {
  * @returns {void}
  */
 function _updateFeatureEvaluations(feature) {
-  const label = feature.get("label");
-  const evaluations = feature.get("evaluations") || [];
+  const label = feature.get(Enums.InternalProperties.Label);
+  const evaluations = feature.get(Enums.InternalProperties.Evaluations) || [];
 
   if (!label) return;
 
@@ -558,7 +570,7 @@ function _updateFeatureEvaluations(feature) {
     evaluations.push(evaluation);
   }
 
-  feature.set("evaluations", evaluations);
+  feature.set(Enums.InternalProperties.Evaluations, evaluations);
   console.debug(`Evaluations of feature (${feature.getId()}):`, evaluations);
 }
 
@@ -594,7 +606,7 @@ const _updateFeatureMeasurementProperties = (map, feature) => {
  * @returns {void}
  */
 function _updateFeatureMeasurements(map, feature) {
-  const measurements = feature.get("measurements") || [];
+  const measurements = feature.get(Enums.InternalProperties.Measurements) || [];
   const area = feature.get(Enums.FeatureMeasurement.Area);
   const length = feature.get(Enums.FeatureMeasurement.Length);
 
@@ -647,7 +659,7 @@ function _updateFeatureMeasurements(map, feature) {
     measurements.push(measurement);
   }
 
-  feature.set("measurements", measurements);
+  feature.set(Enums.InternalProperties.Measurements, measurements);
   console.debug(`Measurements of feature (${feature.getId()}):`, measurements);
 }
 
@@ -1345,6 +1357,7 @@ class VolumeImageViewer {
       [Enums.InternalProperties.Markup]:
         options[Enums.InternalProperties.Markup],
       vertexEnabled: options.vertexEnabled,
+      [Enums.InternalProperties.Label]: options[Enums.InternalProperties.Label],
     };
     const drawOptions = Object.assign(
       internalDrawOptions,
@@ -1690,10 +1703,10 @@ class VolumeImageViewer {
       const id = feature.getId();
       if (id === uid) {
         const properties = feature.getProperties();
-        if (!("measurements" in properties)) {
-          properties["measurements"] = [item];
+        if (!(Enums.InternalProperties.Measurements in properties)) {
+          properties[Enums.InternalProperties.Measurements] = [item];
         } else {
-          properties["measurements"].push(item);
+          properties[Enums.InternalProperties.Measurements].push(item);
         }
         feature.setProperties(properties, true);
       }
@@ -1712,10 +1725,10 @@ class VolumeImageViewer {
       const id = feature.getId();
       if (id === uid) {
         const properties = feature.getProperties();
-        if (!("evaluations" in properties)) {
-          properties["evaluations"] = [item];
+        if (!(Enums.InternalProperties.Evaluations in properties)) {
+          properties[Enums.InternalProperties.Evaluations] = [item];
         } else {
-          properties["evaluations"].push(item);
+          properties[Enums.InternalProperties.Evaluations].push(item);
         }
         feature.setProperties(properties, true);
       }

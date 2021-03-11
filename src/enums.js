@@ -1,7 +1,10 @@
 export const InternalProperties = {
-  StyleOptions: 'styleOptions',
-  Markup: 'markup',
-  Marker: 'marker'
+  StyleOptions: "styleOptions",
+  Markup: "markup",
+  Marker: "marker",
+  Label: "label",
+  Measurements: "measurements",
+  Evaluations: "evaluations",
 };
 
 export const Marker = {
@@ -39,7 +42,7 @@ export const InteractionEvents = {
 };
 
 export const FeatureGeometryEvents = {
-  CHANGE: 'change'
+  CHANGE: "change",
 };
 
 export const RelationshipTypes = {
@@ -56,5 +59,5 @@ export default {
   HTMLElementEvents,
   InternalProperties,
   MapEvents,
-  FeatureMeasurement
+  FeatureMeasurement,
 };

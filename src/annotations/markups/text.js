@@ -5,7 +5,7 @@ import Circle from "ol/style/Circle";
 
 import Enums from "../../enums";
 
-export const isTextEvaluation = (feature) => 
+export const isTextEvaluation = (feature) =>
   Enums.Markup.TextEvaluation === feature.get(Enums.InternalProperties.Markup);
 
 /**
@@ -13,7 +13,8 @@ export const isTextEvaluation = (feature) =>
  * @param {Feature} feature feature
  * @return {string} The formatted output
  */
-export const format = (feature) => feature.get("label") || "";
+export const format = (feature) =>
+  feature.get(Enums.InternalProperties.Label) || "";
 
 const applyStyle = (feature) => {
   if (hasMarker(feature)) return;

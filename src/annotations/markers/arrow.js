@@ -53,7 +53,7 @@ export const isArrow = (feature) =>
  * @param {LineString} arrow geometry
  * @return {string} The formatted output
  */
-export const format = (feature) => feature.get("label") || "";
+export const format = (feature) => feature.get(Enums.InternalProperties.Label) || "";
 
 /**
  * Arrow marker definition
