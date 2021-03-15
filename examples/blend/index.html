@@ -24,7 +24,38 @@
     <script src="../../build/dicom-microscopy-viewer.js"></script>
     <script>
 
-    const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
+
+    var colorPicker;
+    var channelToggle;
+    window.addEventListener("load", startup, false);
+
+    function startup() {
+      colorPicker = document.querySelector("#colorpicker");
+      colorPicker.addEventListener("change", updateChannelColor, false);
+      colorPicker.select();
+
+      channelToggle = document.querySelector("#toggleChannel");
+      channelToggle.addEventListener("change", updateChannelToggle, false);
+    }
+
+    function updateChannelColor(event) {  
+      let hexColor = event.target.value
+      let rgbColor = [parseInt(hexColor.substr(1, 2), 16) / 255.,
+			  parseInt(hexColor.substr(3, 2), 16) / 255.,
+			  parseInt(hexColor.substr(5, 2), 16) / 255.];
+      viewer.setChannelColorByID(`15`, rgbColor)
+    }
+    
+    function updateChannelToggle() {
+      if(channelToggle.checked) {
+        viewer.addChannelToOpenLayerMapByID(`15`);
+      } else {
+        viewer.removeChannelFromOpenLayerMapByID(`15`);
+      }
+    }
+
+    //*const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
+    const url = 'http://localhost:8080/dcm4chee-arc/aets/DCM4CHEE/rs';
     const client = new DICOMwebClient.api.DICOMwebClient({url});
     const studyInstanceUID = '1.3.6.1.4.1.5962.99.1.2103930081.1286074986.1595536829665.3.0';
     const seriesInstanceUIDOne = '1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.1';
@@ -40,11 +71,6 @@
     client.searchForInstances(searchInstanceOptions).then((instances) => {
       const promises = []
       for (let i = 0; i < instances.length; i++) {
-        if (instances[i] === undefined ||
-          instances[i]["0020000E"] === undefined ||
-          instances[i]["00080018"] === undefined) {
-          continue;
-        }
         const seriesInstanceUID = instances[i]["0020000E"]["Value"][0];
         if (seriesInstanceUIDs.length !== 0 && seriesInstanceUIDs.findIndex(uid => uid === seriesInstanceUID) === -1) {
           continue;
@@ -57,15 +83,11 @@
         };
 
         const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-          const imageType = metadata[0]["00080008"]
-          if (imageType !== undefined) {
-            const imageTypeValue = imageType["Value"];
-            if (imageTypeValue[2] === "VOLUME") {
-              return(metadata[0]);
-            }
+          const image = DICOMMicroscopyViewer.metadata.formatMetadata(metadata[0]);
+          if (image.ImageType[2] === "VOLUME") {
+            return(metadata[0]);
           }
         });
-
         promises.push(promise);
       }
 
@@ -94,28 +116,23 @@
         opacity: 1.0,
         contrastLimitsRange: [0., 256.],
         visible: true,
-        addToMap: false
+        addToMap: true
       }
       const channelInit = [channelOne, channelTwo, channelThree];
 
       const blendingImageQuality = 0.8 // value between 0 and 1;
-      // Note: We are using retrieveRendered: false because dcm4chee does not yet
-      // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
+
       const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
         client,
         instancesMetadata,
         channelInit,
         blendingImageQuality,
-        retrieveRendered: false
+        retrieveRendered: true
       });
 
-      var container = document.getElementById('root');
-      viewer.render({container});
-
-      // API Example to modify the channel parameters
-      viewer.addChannelToMapByID(`15`); // ID is the opticalPathIdentifier
-      
-      //setTimeout(() => {  viewer.setChannelConstrastLimitsRangeByID(`15`, [0, 15]); }, 3000);
+      const container = document.getElementById("dicomImage");
+      viewer.render({ container });
+      window.viewer = viewer;
     });
 
     </script>
@@ -130,7 +147,48 @@
         </p>
         <a href="../">Go back to the Examples page</a>
       </div>
-      <div id="root" style="height:1000px; width:1000px"></div>
+      <div id="root" style="height:10px; width:10px"></div>
     </div>
+
+    <div class="bs-example" data-example-id="simple-thumbnails">
+      <div class="row">
+        <div class="col-xs-3 col-md-6">
+          <div class="alert alert-warning text-center" role="alert">Toggle KERATIN Channel</div>
+          <input type="checkbox" checked id="toggleChannel" style="margin:auto; width:100%; height:40px"/>
+        </div>
+        <div class="col-xs-3 col-md-6" >
+          <div class="alert alert-warning text-center" role="alert">Select Color</div>
+          <input type="color" id="colorpicker" value="#ff0000" style="margin:auto; width:100%; height:40px">
+          <br/>
+        </div>  
+          
+        <div class="col-xs-12 col-md-12">
+          <div
+            style="width:100%;height:550px;position:relative;display:inline-block;"
+            oncontextmenu="return false"
+            class="cornerstone-enabled-image"
+            unselectable="on"
+            onselectstart="return false;"
+            onmousedown="return false;"
+          >
+            <div
+              id="dicomImage"
+              style="width:100%;height:750px;top:0px;left:0px; position:absolute; border: 1px solid black;"
+            ></div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <style>
+  .scrollable {
+    height: 600px;
+    overflow-y: scroll;
+  }
+  #rois li {
+    list-style-type: none;
+  }
+  </style>
   </body>
 </html>

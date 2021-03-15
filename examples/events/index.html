@@ -194,11 +194,6 @@
       client.searchForInstances(searchInstanceOptions).then((instances) => {
         const promises = []
         for (let i = 0; i < instances.length; i++) {
-          if (instances[i] === undefined ||
-            instances[i]["0020000E"] === undefined ||
-            instances[i]["00080018"] === undefined) {
-            continue;
-          }
           const seriesInstanceUID = instances[i]["0020000E"]["Value"][0];
           const sopInstanceUID = instances[i]["00080018"]["Value"][0];
           const retrieveInstanceOptions = {
@@ -208,12 +203,9 @@
           };
   
           const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-            const imageType = metadata[0]["00080008"]
-            if (imageType !== undefined) {
-              const imageTypeValue = imageType["Value"];
-              if (imageTypeValue[2] === "VOLUME") {
-                return(metadata[0]);
-              }
+            const image = DICOMMicroscopyViewer.metadata.formatMetadata(metadata[0]);
+            if (image.ImageType[2] === "VOLUME") {
+              return(metadata[0]);
             }
           });
   

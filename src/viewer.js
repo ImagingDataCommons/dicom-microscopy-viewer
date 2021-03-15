@@ -1021,12 +1021,9 @@ class VolumeImageViewer {
 
     const layers = [];
     if (options.channelInit !== undefined) {
-      options.channelInit.forEach((item) => {
-        if (item.addToMap === true) {
-          const channel = this.getChannelByID(item.opticalPathIdentifier);
-          if (channel) {
-            layers.push(channel.tileLayer)
-          }
+      this[_channels].forEach((channel) => {
+        if (channel.addToMap === true) {
+          layers.push(channel.tileLayer)
         }
       });
     } else {
@@ -1357,7 +1354,8 @@ class VolumeImageViewer {
     channel.color = [...color];
 
     // need to rerun offscren render to color the layers already loaded
-    channel.rasterSource.clear()
+    channel.rasterSource.refresh()
+    // TO DO: this will redonwload the tiles, we should just recolor all the tiles already cached
   }
 
   /** Gets the channel opacity given an id
@@ -1396,7 +1394,8 @@ class VolumeImageViewer {
     channel.opacity = opacity;
 
     // need to rerun offscren render to color the layers already loaded
-    channel.rasterSource.clear()
+    channel.rasterSource.refresh()
+    // TO DO: this will redonwload the tiles, we should just recolor all the tiles already cached
   }
 
   /** Gets the channel constrast limits range given an id
@@ -1435,7 +1434,8 @@ class VolumeImageViewer {
     channel.contrastLimitsRange = [...range]; 
 
     // need to rerun offscren render to color the layers already loaded
-    channel.rasterSource.clear()
+    channel.rasterSource.refresh()
+    // TO DO: this will redonwload the tiles, we should just recolor all the tiles already cached
   }
 
   /** Gets the channel visible given an id
@@ -1464,12 +1464,24 @@ class VolumeImageViewer {
     channel.tileLayer.setVisible(channel.visible);
   }
 
+  _isChannelInOpenLayerMap(channel) {
+    if (channel === null) {
+      return false;
+    }
+
+    return this[_map].getLayers().getArray().find(layer => layer === channel.tileLayer) ? true : false;
+  }
+
   /** Adds the channel to the OpenLayer Map given an id
    * @param {string} id of the channel (opticalPathIdentifier)
    */
-  addChannelToMapByID(id) {
+  addChannelToOpenLayerMapByID(id) {
     const channel = this.getChannelByID(id)
     if (channel === null) {
+      return;
+    }
+
+    if (this._isChannelInOpenLayerMap(channel)) {
       return;
     }
 
@@ -1483,11 +1495,16 @@ class VolumeImageViewer {
   /** Removes the channel to the OpenLayer Map given an id
    * @param {string} id of the channel (opticalPathIdentifier)
    */
-  removeChannelFromMapByID(id) {
+  removeChannelFromOpenLayerMapByID(id) {
     const channel = this.getChannelByID(id)
     if (channel === null) {
       return;
     }
+
+    if (!this._isChannelInOpenLayerMap(channel)) {
+      return;
+    }
+
     channel.addToMap = false;
     this[_map].removeLayer(channel.tileLayer)
   }
