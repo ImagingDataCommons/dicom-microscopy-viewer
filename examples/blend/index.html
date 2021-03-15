@@ -40,17 +40,17 @@
 
     function updateChannelColor(event) {  
       let hexColor = event.target.value
-      let rgbColor = [parseInt(hexColor.substr(1, 2), 16) / 255.,
+      let color = [parseInt(hexColor.substr(1, 2), 16) / 255.,
 			  parseInt(hexColor.substr(3, 2), 16) / 255.,
 			  parseInt(hexColor.substr(5, 2), 16) / 255.];
-      viewer.setChannelColorByID(`15`, rgbColor)
+      viewer.setChannelBlendingInformation(`15`, color)
     }
     
     function updateChannelToggle() {
       if(channelToggle.checked) {
-        viewer.addChannelToOpenLayerMapByID(`15`);
+        viewer.addChannelToOpenLayerMapByOpticalPathID(`15`);
       } else {
-        viewer.removeChannelFromOpenLayerMapByID(`15`);
+        viewer.removeChannelFromOpenLayerMapByOpticalPathID(`15`);
       }
     }
 
@@ -93,39 +93,38 @@
 
       return(Promise.all(promises));
     }).then(instancesMetadata => {
+
       // Example of custom initialization of the channel visualization parameters (this is optional)
-      const channelOne = {
-        opticalPathIdentifier: `35`, //(["00480105"]["Value"][0]["00480106"]["Value"][0], https://dicom.innolitics.com/ciods/vl-whole-slide-microscopy-image/optical-path/00480105/00480106)
-        color: [0.,0.5,0.5],
-        opacity: 1.0,
-        contrastLimitsRange: [125., 256.],
-        visible: true,
-        addToMap: true
-      }
-      const channelTwo = {
-        opticalPathIdentifier: `1`, 
-        color: [0.5, 0.5, 0.],
-        opacity: 1.0,
-        contrastLimitsRange: [0., 256.],
-        visible: true,
-        addToMap: true
-      }
-      const channelThree = {
-        opticalPathIdentifier: `15`,
-        color: [1, 0., 0.],
-        opacity: 1.0,
-        contrastLimitsRange: [0., 256.],
-        visible: true,
-        addToMap: true
-      }
-      const channelInit = [channelOne, channelTwo, channelThree];
-
+      const BIOne = new DICOMMicroscopyViewer.metadata.BlendingInformation(
+        opticalPathIdentifier = `35`, 
+        color = [0.,0.5,0.5],
+        opacity = 1.0,
+        contrastLimitsRange = [125., 256.],
+        visible = true,
+        addToMap = true
+      );
+      const BITwo = new DICOMMicroscopyViewer.metadata.BlendingInformation(
+        opticalPathIdentifier = `1`, 
+        color = [0.5, 0.5, 0.],
+        opacity = 1.0,
+        contrastLimitsRange = [0., 256.],
+        visible = true,
+        addToMap = true
+      );
+      const BIThree = new DICOMMicroscopyViewer.metadata.BlendingInformation(
+        opticalPathIdentifier = `15`,
+        color = [1, 0., 0.],
+        opacity = 1.0,
+        contrastLimitsRange = [0., 256.],
+        visible = true,
+        addToMap = true
+      );
+      const blendingInformations = [BIOne, BITwo, BIThree];
       const blendingImageQuality = 0.8 // value between 0 and 1;
-
       const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
         client,
         instancesMetadata,
-        channelInit,
+        blendingInformations,
         blendingImageQuality,
         retrieveRendered: true
       });

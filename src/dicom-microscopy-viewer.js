@@ -27,6 +27,9 @@ import {
   OverviewImageViewer,
   VolumeImageViewer
 } from './viewer.js';
+import {
+  BlendingInformation,
+} from './channel.js';
 
 
 /** Namespace for the viewer.
@@ -56,6 +59,7 @@ const metadata = {
   formatMetadata,
   VLWholeSlideMicroscopyImage,
   Comprehensive3DSR,
+  BlendingInformation,
 };
 
 /** Namespace for 3-dimensional spatial coordinates (SCOORD3D).

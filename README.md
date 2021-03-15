@@ -73,8 +73,8 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
       sopInstanceUID,
     };
     const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-      const imageType = metadata[0]["00080008"]["Value"];
-      if (imageType[2] === "VOLUME") {
+      const image = DICOMMicroscopyViewer.metadata.formatMetadata(metadata[0]);
+      if (image.ImageType[2] === "VOLUME") {
         return(metadata[0]);
       }
     });
@@ -82,7 +82,6 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
   }
   return(Promise.all(promises));
 }).then(metadata => {
-  metadata = metadata.filter(m => m);
   const viewer = new DICOMMicroscopyViewer.viewer.VolumeViewer({
     client,
     metadata

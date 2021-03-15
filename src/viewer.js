@@ -45,7 +45,6 @@ import {
   applyTransform,
   buildInverseTransform,
   buildTransform,
-  arraysEqual,
 } from './utils.js';
 import {
   Point,
@@ -55,6 +54,13 @@ import {
   Ellipsoid,
   Ellipse
 } from './scoord3d.js';
+import {
+  Channel,
+  BlendingInformation,
+} from './channel.js'
+import {
+  formatMetadata,
+} from './metadata.js'
 
 // override drawTileImage method
 import {getUid} from 'ol/util.js';
@@ -84,7 +90,7 @@ CanvasTileLayerRenderer.prototype.drawTileImage = function drawTileImage (tile, 
 };
 
 import * as DICOMwebClient from 'dicomweb-client';
-import { colorImageFrames } from './colorImageFrames.js';
+
 
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
@@ -425,6 +431,7 @@ const _channels = Symbol('channels');
 const _rotation = Symbol('rotation');
 const _projection = Symbol('projection');
 const _tileGrid = Symbol('tileGrid');
+const _referenceExtents = Symbol('referenceExtents');
 const _referenceOrigins = Symbol('referenceOrigins');
 const _referenceResolutions = Symbol('referenceResolutions');
 const _referenceGridSizes = Symbol('referenceGridSizes');
@@ -438,7 +445,6 @@ const _referencePixelSpacings = Symbol('referencePixelSpacings');
  * @memberof viewer
  */
 class VolumeImageViewer {
-
   /**
    * Create a viewer instance for displaying VOLUME images.
    *
@@ -447,23 +453,13 @@ class VolumeImageViewer {
    * @param {object[]} options.instancesMetadata - An array of DICOM JSON metadata objects, 
    *        the array is full dicom metadata (all the instances) and the Library has to take care of determining which
    *        instances represent channels (optical paths) or focal planes and internally build a lookup table upon Library object construction
-   * @param {object[]} options.channelInit - An array containing channels with the standard visualization parameters already setup by an external APPs 
+   * @param {object[]} options.blendingInformations - An array containing blending information for the channels with the standard visualization parameters already setup by an external APPs 
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport.
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
    * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used.
    */
   constructor(options) {
-    // TO DO: implement API to select focal plane in the case of 3D channels (channels with a bandwith)
-    // TO DO: convert to typescript (e.g. channel should be a typescript interface)
-    // TO DO: use DICOM attributes for loading/saving the channel parameters (i.e. load/save the 'state' in DICOM), for example:
-      /*[x] Select area for display: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.10.4.html 
-        [x] Clipping pixel values: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.33.html#table_C.11.33.1-1 
-        [x] Select channels for display and specify the color of each channel: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html
-        [x] Blending of images: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html http://dicom.nema.org/medical/dicom/current/output/chtml/part04/sect_N.2.6.html
-      */
-    // NOTE: channel coloring is allowed only for monochorme channels (i.e SamplesPerPixel === 1).
-  
     if ('useWebGL' in options) {
       this[_usewebgl] = options.useWebGL;
     } else {
@@ -498,66 +494,57 @@ class VolumeImageViewer {
     // Order all the instances metadata array in channel objects
     this[_channels] = [];
     const colors = [
+      [0, 0.5, 0.5],
+      [0.5, 0.5, 0],
       [1,0,0],
+      [0.5, 0, 0.5],
       [0,1,0],
       [0,0,1],
-      [0.5, 0.5, 0],
-      [0.5, 0, 0.5],
-      [0, 0.5, 0.5],
-    ] // TO DO: add more/better colors
+      [1,1,1],
+    ]
 
+    // Metadata Tiles types checks for each instance
     for (let i = 0; i < options.instancesMetadata.length; ++i) {
-      if (options.instancesMetadata[i] === undefined) {
-        continue;
-      }
-      let dimensionOrganizationType = 'TILED_FULL';
-      // if dimensionOrganizationType metadata in undefined, assuming TILED_FULL
-      if (options.instancesMetadata[i]["00209311"] !== undefined) {
-        dimensionOrganizationType = options.instancesMetadata[i]["00209311"]["Value"][0];
-      }
-      if (dimensionOrganizationType === '3D' || dimensionOrganizationType === '3D_TEMPORAL') {
+      let instanceMetadata = formatMetadata(options.instancesMetadata[i]);
+      if (instanceMetadata.DimensionOrganizationType === '3D' || instanceMetadata.DimensionOrganizationType === '3D_TEMPORAL') {
         // 3D data
         // TO DO: get some example data.
         console.warn('Volume Image Viewer does hot hanlde 3D data yet.')
         continue;
-      } else if (dimensionOrganizationType === 'TILED_FULL') {
-        let totalPixelMatrixFocalPlanes = 1 ;
-        // if totalPixelMatrixFocalPlanes metadata in undefined, assuming 1
-        if (options.instancesMetadata[i]["00480303"] !== undefined) {
-          totalPixelMatrixFocalPlanes = options.instancesMetadata[i]["00480303"]["Value"][0];
-        }
-        if (totalPixelMatrixFocalPlanes !== 1) {
+      } else if (instanceMetadata.DimensionOrganizationType === 'TILED_FULL') {
+        if (instanceMetadata.TotalPixelMatrixFocalPlanes !== 1) {
           continue;
         } else {
-          const opticalPathIdentifier = options.instancesMetadata[i]["00480105"]["Value"][0]["00480106"]["Value"][0];
-          let channel = this[_channels].find(channel => channel.opticalPathIdentifier === opticalPathIdentifier);
+          const instaceOpticalPathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier;
+          let channel = this[_channels].find(channel => channel.blendingInformation.opticalPathIdentifier === instaceOpticalPathIdentifier);
           if (channel) {
-            channel.metadata.push(options.instancesMetadata[i])        
+            channel.addMetadata(options.instancesMetadata[i])        
           } else {
-            const newChannel = {
-              opticalPathIdentifier: `${opticalPathIdentifier}`, 
-              metadata: [options.instancesMetadata[i]],
-            };
-    
-            const channelInit = options.channelInit !== undefined ? options.channelInit.find(channelInit => channelInit.opticalPathIdentifier === opticalPathIdentifier) : undefined;
-            if (channelInit) {
-              newChannel.color = [...channelInit.color];
-              newChannel.opacity = channelInit.opacity;
-              newChannel.contrastLimitsRange = [...channelInit.contrastLimitsRange];
-              newChannel.visible = channelInit.visible;
-              newChannel.addToMap = channelInit.addToMap;
+            const blendingInformation = options.blendingInformations !== undefined ? 
+              options.blendingInformations.find(blendingInformation => 
+                blendingInformation.opticalPathIdentifier === instaceOpticalPathIdentifier) :
+                 undefined;
+            if (blendingInformation) {
+              const newChannel = new Channel(blendingInformation);
+              newChannel.addMetadata(options.instancesMetadata[i]);
+              this[_channels].push(newChannel)
             } else {
-              newChannel.color = [...colors[i % colors.length]];
-              newChannel.opacity = 1.0;
-              newChannel.contrastLimitsRange = [0, 256];
-              newChannel.visible = true;
-              newChannel.addToMap = false;
+              const newBI = new BlendingInformation(
+                opticalPathIdentifier = `${instaceOpticalPathIdentifier}`, 
+                color = [...colors[i % colors.length]],
+                opacity = 1.0,
+                contrastLimitsRange = [0, 256],
+                visible = true,
+                addToMap = false
+              );
+
+              const newChannel = new Channel(newBI);
+              newChannel.addMetadata(options.instancesMetadata[i]);
+              this[_channels].push(newChannel)
             }
-    
-            this[_channels].push(newChannel)
           }
         }
-      } else if (dimensionOrganizationType === 'TILED_SPARSE') {
+      } else if (instanceMetadata.DimensionOrganizationType === 'TILED_SPARSE') {
         // the spatial location of each tile is explicitly encoded using information 
         // in the Per-Frame Functional Group Sequence, and the recipient shall not 
         // make any assumption about the spatial position or optical path or order of the encoded frames.
@@ -577,406 +564,16 @@ class VolumeImageViewer {
 
     // For each channel we build up the OpenLayer objects. 
     this[_channels].forEach((channel) => {  
-      /*
-      * To visualize images accross multiple scales, we first need to
-      * determine the image pyramid structure, i.e. the size and resolution
-      * images at the different pyramid levels.
-      */
-      channel.microscopyImages = [];
-      channel.metadata.forEach(m => {
-        const image = new VLWholeSlideMicroscopyImage({ metadata: m });
-        if (image.ImageType[2] === 'VOLUME') {
-          channel.microscopyImages.push(image);
-        }
-      });
-      if (channel.microscopyImages.length === 0) {
-        throw new Error('No VOLUME image provided.')
-      }
-      // Sort instances and optionally concatenation parts if present.
-      channel.microscopyImages.sort((a, b) => {
-        const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns;
-        if (sizeDiff === 0) {
-          if (a.ConcatenationFrameOffsetNumber !== undefined) {
-            return a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber;
-          }
-          return sizeDiff;
-        }
-        return sizeDiff;
-      });
-
-      channel.pyramidMetadata = [];
-      channel.pyramidFrameMappings = [];
-      let frameMappings = channel.microscopyImages.map(m => getFrameMapping(m));
-      for (let i = 0; i < channel.microscopyImages.length; i++) {
-        const cols = channel.microscopyImages[i].TotalPixelMatrixColumns;
-        const rows = channel.microscopyImages[i].TotalPixelMatrixRows;
-        const numberOfFrames = channel.microscopyImages[i].NumberOfFrames;
-        /*
-         * Instances may be broken down into multiple concatentation parts.
-         * Therefore, we have to re-assemble instance metadata.
-        */
-        let alreadyExists = false;
-        let index = null;
-        for (let j = 0; j < channel.pyramidMetadata.length; j++) {
-          if (
-            (channel.pyramidMetadata[j].TotalPixelMatrixColumns === cols) &&
-            (channel.pyramidMetadata[j].TotalPixelMatrixRows === rows)
-          ) {
-            alreadyExists = true;
-            index = j;
-          }
-        }
-        if (alreadyExists) {
-          // Update with information obtained from current concatentation part.
-          Object.assign(channel.pyramidFrameMappings[index], frameMappings[i]);
-          channel.pyramidMetadata[index].NumberOfFrames += numberOfFrames;
-          if ("PerFrameFunctionalGroupsSequence" in channel.microscopyImages[index]) {
-            channel.pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
-              ...channel.microscopyImages[i].PerFrameFunctionalGroupsSequence
-            );
-          }
-          if (!"SOPInstanceUIDOfConcatenationSource" in channel.microscopyImages[i]) {
-            throw new Error(
-              'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
-              'for concatenation parts.'
-            );
-          }
-          const sopInstanceUID = channel.microscopyImages[i].SOPInstanceUIDOfConcatenationSource;
-          channel.pyramidMetadata[index].SOPInstanceUID = sopInstanceUID;
-          delete channel.pyramidMetadata[index].SOPInstanceUIDOfConcatenationSource;
-          delete channel.pyramidMetadata[index].ConcatenationUID;
-          delete channel.pyramidMetadata[index].InConcatenationNumber;
-          delete channel.pyramidMetadata[index].ConcatenationFrameOffsetNumber;
-        } else {
-          channel.pyramidMetadata.push(channel.microscopyImages[i]);
-          channel.pyramidFrameMappings.push(frameMappings[i]);
-        }
-      }
-      const nLevels = channel.pyramidMetadata.length;
-      if (nLevels === 0) {
-        console.error('empty pyramid - no levels found')
-      }
-      channel.pyramidBaseMetadata = channel.pyramidMetadata[nLevels - 1];
-
-      /*
-       * Collect relevant information from DICOM metadata for each pyramid
-       * level to construct the Openlayers map.
-      */
-      const channelTileSizes = [];
-      const channelGridSizes = [];
-      const channelResolutions = [];
-      const channelOrigins = [];
-      const channelPixelSpacings = [];
-      const offset = [0, -1];
-      const basePixelSpacing = _getPixelSpacing(channel.pyramidBaseMetadata);
-      const baseTotalPixelMatrixColumns = channel.pyramidBaseMetadata.TotalPixelMatrixColumns;
-      const baseTotalPixelMatrixRows = channel.pyramidBaseMetadata.TotalPixelMatrixRows;
-      const baseColumns = channel.pyramidBaseMetadata.Columns;
-      const baseRows = channel.pyramidBaseMetadata.Rows;
-      const baseNColumns = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
-      const baseNRows = Math.ceil(baseTotalPixelMatrixRows / baseRows);
-      for (let j = (nLevels - 1); j >= 0; j--) {
-        const columns = channel.pyramidMetadata[j].Columns;
-        const rows = channel.pyramidMetadata[j].Rows;
-        const totalPixelMatrixColumns = channel.pyramidMetadata[j].TotalPixelMatrixColumns;
-        const totalPixelMatrixRows = channel.pyramidMetadata[j].TotalPixelMatrixRows;
-        const pixelSpacing = _getPixelSpacing(channel.pyramidMetadata[j]);
-        const nColumns = Math.ceil(totalPixelMatrixColumns / columns);
-        const nRows = Math.ceil(totalPixelMatrixRows / rows);
-        channelTileSizes.push([
-          columns,
-          rows,
-        ]);
-        channelGridSizes.push([
-          nColumns,
-          nRows,
-        ]);
-        channelPixelSpacings.push(pixelSpacing);
-       /*
-         * Compute the resolution at each pyramid level, since the zoom
-         * factor may not be the same between adjacent pyramid levels.
-        */
-        let zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns;
-        channelResolutions.push(zoomFactor);
-       /*
-         * TODO: One may have to adjust the offset slightly due to the
-         * difference between extent of the image at a given resolution level
-         * and the actual number of tiles (frames).
-        */
-       channelOrigins.push(offset);
-      }
-      channelResolutions.reverse();
-      channelTileSizes.reverse();
-      channelGridSizes.reverse();
-      channelOrigins.reverse();
-      channelPixelSpacings.reverse();
-
-      // Check that all the channels have the same pyramid parameters
-      const channelExtent = [
-        0,                                // min X
-        -(baseTotalPixelMatrixRows + 1),  // min Y
-        baseTotalPixelMatrixColumns,      // max X
-        -1                                // max Y
-      ];
-      const referenceExtent = this[_tileGrid].getExtent();
-      if (arraysEqual(channelExtent, referenceExtent) === false) {
-        throw new Error(
-          'Channels have different extent'
-        );
-      }
-      if (arraysEqual(channelOrigins, this[_referenceOrigins]) === false) {
-        throw new Error(
-          'Channels have different origins'
-        );
-      }
-      if (arraysEqual(channelResolutions, this[_referenceResolutions]) === false) {
-        throw new Error(
-          'Channels have different resolutions'
-        );
-      }
-      if (arraysEqual(channelGridSizes, this[_referenceGridSizes]) === false) {
-        throw new Error(
-          'Channels have different grid sizes'
-        );
-      }
-      if (arraysEqual(channelTileSizes, this[_referenceTileSizes]) === false) {
-        throw new Error(
-          'Channels have different tile sizes'
-        );
-      }
-      if (arraysEqual(channelPixelSpacings, this[_referencePixelSpacings]) === false) {
-        throw new Error(
-          'Channels have different pixel spacings'
-        );
-      }
-
-      /*
-       * Define custom tile URL function to retrive frames via DICOMweb WADO-RS.
-       */
-      const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
-        /*
-         * Variables x and y correspond to the X and Y axes of the slide
-         * coordinate system. Since we want to view the slide horizontally
-         * with the label on the right side, the x axis of the slide
-         * coordinate system is the vertical axis of the viewport and the
-         * y axis of the slide coordinate system the horizontal axis of the
-         * viewport. Note that this is in contrast to the nomenclature used
-         * by Openlayers.
-         */
-
-        const z = tileCoord[0];
-        const y = tileCoord[1] + 1;
-        const x = tileCoord[2] + 1;
-        const index = x + "-" + y;
-
-        const path = channel.pyramidFrameMappings[z][index];
-        if (path === undefined) {
-          console.warn("tile " + index + " not found at level " + z);
-          return (null);
-        }
-        let url = options.client.wadoURL +
-          "/studies/" + channel.pyramidMetadata[z].StudyInstanceUID +
-          "/series/" + channel.pyramidMetadata[z].SeriesInstanceUID +
-          '/instances/' + path;
-        if (options.retrieveRendered) {
-          url = url + '/rendered';
-        }
-        return (url);
-      }
-      /*
-       * Define custom tile loader function, which is required because the
-       * WADO-RS response message has content type "multipart/related".
-      */
-      const tileLoadFunction = async (tile, src) => {
-        const img = tile.getImage();
-
-        const z = tile.tileCoord[0];
-        const columns = channel.pyramidMetadata[z].Columns;
-        const rows = channel.pyramidMetadata[z].Rows;
-        const samplesPerPixel = channel.pyramidMetadata[z].SamplesPerPixel; // number of colors for pixel
-        const BitsAllocated = channel.pyramidMetadata[z].BitsAllocated; // memory for pixel
-        const PixelRepresentation = channel.pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
-
-        const { contrastLimitsRange, color, opacity } = channel;
-
-        if (src !== null) {
-          const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
-          const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
-          const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
-          const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-        
-          if (options.retrieveRendered) {
-            // Figure out from the metadata if this is a color image dataset
-            // if it is, use png mediatype and png transfer syntax to just get pngs
-            // Otherwise, get the data as an octet-stream and use that
-            // TO DO: should we get always png and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
-            // https://github.com/cornerstonejs/codecs
-  
-            let mediaType = 'application/octet-stream';
-            let transferSyntaxUID = '1.2.840.10008.1.2.1';
-            if (samplesPerPixel !== 1) {
-              mediaType = 'image/png';
-              transferSyntaxUID = '';
-            }
-            const retrieveOptions = {
-              studyInstanceUID,
-              seriesInstanceUID,
-              sopInstanceUID,
-              frameNumbers,
-              mediaTypes: [
-                { mediaType, transferSyntaxUID }
-              ]
-            };
-            if (options.includeIccProfile) {
-              retrieveOptions['queryParams'] = {
-                iccprofile: 'yes'
-              }
-            }
-            if (samplesPerPixel === 1) {
-              options.client.retrieveInstanceFrames(retrieveOptions).then(
-                (rawFrames) => {
-                  let pixelData;
-                  switch (BitsAllocated) {
-                    case 8:
-                      if (PixelRepresentation === 1) {
-                        pixelData = new Int8Array(rawFrames[0])
-                      } else {
-                        pixelData = new Uint8Array(rawFrames[0])
-                      }
-                      break;
-                    case 16:
-                      if (PixelRepresentation === 1) {
-                        pixelData = new Int16Array(rawFrames[0])
-                      } else {
-                        pixelData = new Uint16Array(rawFrames[0])
-                      }
-                      break;
-                    default:
-                      throw new Error(
-                        'bit not supported'
-                      );
-                  }
-                  const frameData = {
-                    pixelData,
-                    contrastLimitsRange,
-                    BitsAllocated,
-                    color,
-                    opacity,
-                    width: columns,
-                    height: rows
-                  };
-                  img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality);
-                }
-              );
-            } else {
-              options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
-                (renderedFrame) => {
-                  const blob = new Blob([renderedFrame], {type: mediaType});
-                  img.src = window.URL.createObjectURL(blob);
-                }
-              );
-            }
-          } else {
-            // TODO: support "image/jp2" and "image/jls"
-  
-            // Figure out from the metadata if this is a color image dataset
-            // if it is, use jpeg mediatype and jpeg transfer syntax to just get jpegs
-            // Otherwise, get the data as an octet-stream and use that
-            // TO DO: should we get always jpeg and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
-            // https://github.com/cornerstonejs/codecs
-            let mediaType = 'application/octet-stream';
-            let transferSyntaxUID = '1.2.840.10008.1.2.1';
-            if (samplesPerPixel !== 1) {
-              mediaType = 'image/jpeg';
-              transferSyntaxUID = '1.2.840.10008.1.2.4.50';
-            }
-            const retrieveOptions = {
-              studyInstanceUID,
-              seriesInstanceUID,
-              sopInstanceUID,
-              frameNumbers,
-              mediaTypes: [
-                { mediaType, transferSyntaxUID }
-              ]
-            };
-            options.client.retrieveInstanceFrames(retrieveOptions).then(
-              (rawFrames) => {
-                if (samplesPerPixel === 1) {
-                  let pixelData;
-                  switch (BitsAllocated) {
-                    case 8:
-                      if (PixelRepresentation === 1) {
-                        pixelData = new Int8Array(rawFrames[0])
-                      } else {
-                        pixelData = new Uint8Array(rawFrames[0])
-                      }
-                      break;
-                    case 16:
-                      if (PixelRepresentation === 1) {
-                        pixelData = new Int16Array(rawFrames[0])
-                      } else {
-                        pixelData = new Uint16Array(rawFrames[0])
-                      }
-                      break;
-                    default:
-                      throw new Error(
-                        'bit not supported'
-                      );
-                  }
-                  const frameData = {
-                    pixelData,
-                    contrastLimitsRange,
-                    BitsAllocated,
-                    color,
-                    opacity,
-                    width: columns,
-                    height: rows
-                  }; 
-                  img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality);
-                } else {
-                  const blob = new Blob(rawFrames, {type: mediaType});
-                  img.src = window.URL.createObjectURL(blob);
-                }
-              }
-            );
-          }
-        } else {
-          console.warn('could not load tile');
-        }
-      }
-      
-      /*
-       * We use the existing TileImage source but customize it to retrieve
-       * frames (load tiles) via DICOMweb WADO-RS.
-      */
-      channel.rasterSource = new TileImage({
-        crossOrigin: 'Anonymous',
-        tileGrid: this[_tileGrid],
-        projection: this[_projection],
-        wrapX: false
-      });
-
-      channel.rasterSource.setTileUrlFunction(tileUrlFunction);
-      channel.rasterSource.setTileLoadFunction(tileLoadFunction);
-  
-      // Create OpenLayer renderer object
-      channel.tileLayer = new TileLayer({
-        extent: this[_tileGrid].getExtent(),
-        source: channel.rasterSource,
-        preload: 0,
-        projection: this[_projection]
-      });
-
-      channel.tileLayer.setVisible(channel.visible);
-
-      // Set the composition type for the OpenLayer renderer object
-      channel.tileLayer.on('prerender', function (event) {
-        event.context.globalCompositeOperation = 'lighter';
-      });
-      
-      channel.tileLayer.on('postrender', function (event) {
-        event.context.globalCompositeOperation = 'source-over';
-      });
+      channel.initChannel(
+      this[_referenceExtents],
+      this[_referenceOrigins],
+      this[_referenceResolutions],
+      this[_referenceGridSizes],
+      this[_referenceTileSizes],
+      this[_referencePixelSpacings],
+      this[_projection],
+      this[_tileGrid],
+      options);
     });
 
     if (this[_channels].length === 0) {
@@ -991,7 +588,7 @@ class VolumeImageViewer {
     });
 
     this[_drawingLayer] = new VectorLayer({
-      extent: this[_tileGrid].getExtent(),
+      extent: this[_referenceExtents],
       source: this[_drawingSource],
       projection: this[_projection],
       updateWhileAnimating: true,
@@ -999,8 +596,8 @@ class VolumeImageViewer {
     });
 
     const view = new View({
-      center: getCenter(this[_tileGrid].getExtent()),
-      extent: this[_tileGrid].getExtent(),
+      center: getCenter(this[_referenceExtents]),
+      extent: this[_referenceExtents],
       projection: this[_projection],
       resolutions: this[_tileGrid].getResolutions(),
       rotation: this[_rotation]
@@ -1020,9 +617,9 @@ class VolumeImageViewer {
     }
 
     const layers = [];
-    if (options.channelInit !== undefined) {
+    if (options.blendingInformations !== undefined) {
       this[_channels].forEach((channel) => {
-        if (channel.addToMap === true) {
+        if (channel.blendingInformation.addToMap === true) {
           layers.push(channel.tileLayer)
         }
       });
@@ -1038,7 +635,7 @@ class VolumeImageViewer {
 
     if (options.controls.has('overview')) {
       const overviewTileLayer = new TileLayer({
-        extent: this[_tileGrid].getExtent(),
+        extent: this[_referenceExtents],
         source: this[_channels][0].rasterSource,
         preload: 0,
         projection: this[_projection]
@@ -1071,7 +668,7 @@ class VolumeImageViewer {
     for (let control in this[_controls]) {
       this[_map].addControl(this[_controls][control]);
     }
-    this[_map].getView().fit(this[_tileGrid].getExtent());
+    this[_map].getView().fit(this[_referenceExtents]);
   }
 
   /** init unique Open Layer objects
@@ -1082,155 +679,21 @@ class VolumeImageViewer {
     }
 
     let channel = this[_channels][0];
-    channel.microscopyImages = [];
-    channel.metadata.forEach(m => {
-      const image = new VLWholeSlideMicroscopyImage({ metadata: m });
-      if (image.ImageType[2] === 'VOLUME') {
-        channel.microscopyImages.push(image);
-      }
-    });
-    if (channel.microscopyImages.length === 0) {
-      throw new Error('No VOLUME image provided.')
-    }
-    // Sort instances and optionally concatenation parts if present.
-    channel.microscopyImages.sort((a, b) => {
-      const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns;
-      if (sizeDiff === 0) {
-        if (a.ConcatenationFrameOffsetNumber !== undefined) {
-          return a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber;
-        }
-        return sizeDiff;
-      }
-      return sizeDiff;
-    });
 
-    channel.pyramidMetadata = [];
-    channel.pyramidFrameMappings = [];
-    let frameMappings = channel.microscopyImages.map(m => getFrameMapping(m));
-    for (let i = 0; i < channel.microscopyImages.length; i++) {
-      const cols = channel.microscopyImages[i].TotalPixelMatrixColumns;
-      const rows = channel.microscopyImages[i].TotalPixelMatrixRows;
-      const numberOfFrames = channel.microscopyImages[i].NumberOfFrames;
-      /*
-       * Instances may be broken down into multiple concatentation parts.
-       * Therefore, we have to re-assemble instance metadata.
-      */
-      let alreadyExists = false;
-      let index = null;
-      for (let j = 0; j < channel.pyramidMetadata.length; j++) {
-        if (
-          (channel.pyramidMetadata[j].TotalPixelMatrixColumns === cols) &&
-          (channel.pyramidMetadata[j].TotalPixelMatrixRows === rows)
-        ) {
-          alreadyExists = true;
-          index = j;
-        }
-      }
-      if (alreadyExists) {
-        // Update with information obtained from current concatentation part.
-        Object.assign(channel.pyramidFrameMappings[index], frameMappings[i]);
-        channel.pyramidMetadata[index].NumberOfFrames += numberOfFrames;
-        if ("PerFrameFunctionalGroupsSequence" in channel.microscopyImages[index]) {
-          channel.pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
-            ...channel.microscopyImages[i].PerFrameFunctionalGroupsSequence
-          );
-        }
-        if (!"SOPInstanceUIDOfConcatenationSource" in channel.microscopyImages[i]) {
-          throw new Error(
-            'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
-            'for concatenation parts.'
-          );
-        }
-        const sopInstanceUID = channel.microscopyImages[i].SOPInstanceUIDOfConcatenationSource;
-        channel.pyramidMetadata[index].SOPInstanceUID = sopInstanceUID;
-        delete channel.pyramidMetadata[index].SOPInstanceUIDOfConcatenationSource;
-        delete channel.pyramidMetadata[index].ConcatenationUID;
-        delete channel.pyramidMetadata[index].InConcatenationNumber;
-        delete channel.pyramidMetadata[index].ConcatenationFrameOffsetNumber;
-      } else {
-        channel.pyramidMetadata.push(channel.microscopyImages[i]);
-        channel.pyramidFrameMappings.push(frameMappings[i]);
-      }
-    }
-    const nLevels = channel.pyramidMetadata.length;
-    if (nLevels === 0) {
-      console.error('empty pyramid - no levels found')
-    }
-    channel.pyramidBaseMetadata = channel.pyramidMetadata[nLevels - 1];
+    let geometryArrays = Channel.deriveChannelGeometry(channel);
 
-    /*
-     * Collect relevant information from DICOM metadata for each pyramid
-     * level to construct the Openlayers map.
-    */
-    const channelTileSizes = [];
-    const channelGridSizes = [];
-    const channelResolutions = [];
-    const channelOrigins = [];
-    const channelPixelSpacings = [];
-    const offset = [0, -1];
-    const basePixelSpacing = _getPixelSpacing(channel.pyramidBaseMetadata);
-    const baseTotalPixelMatrixColumns = channel.pyramidBaseMetadata.TotalPixelMatrixColumns;
-    const baseTotalPixelMatrixRows = channel.pyramidBaseMetadata.TotalPixelMatrixRows;
-    const baseColumns = channel.pyramidBaseMetadata.Columns;
-    const baseRows = channel.pyramidBaseMetadata.Rows;
-    const baseNColumns = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
-    const baseNRows = Math.ceil(baseTotalPixelMatrixRows / baseRows);
-    for (let j = (nLevels - 1); j >= 0; j--) {
-      const columns = channel.pyramidMetadata[j].Columns;
-      const rows = channel.pyramidMetadata[j].Rows;
-      const totalPixelMatrixColumns = channel.pyramidMetadata[j].TotalPixelMatrixColumns;
-      const totalPixelMatrixRows = channel.pyramidMetadata[j].TotalPixelMatrixRows;
-      const pixelSpacing = _getPixelSpacing(channel.pyramidMetadata[j]);
-      const nColumns = Math.ceil(totalPixelMatrixColumns / columns);
-      const nRows = Math.ceil(totalPixelMatrixRows / rows);
-      channelTileSizes.push([
-        columns,
-        rows,
-      ]);
-      channelGridSizes.push([
-        nColumns,
-        nRows,
-      ]);
-      channelPixelSpacings.push(pixelSpacing);
-      /*
-      * Compute the resolution at each pyramid level, since the zoom
-      * factor may not be the same between adjacent pyramid levels.
-      */
-      let zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns;
-      channelResolutions.push(zoomFactor);
-      /*
-      * TODO: One may have to adjust the offset slightly due to the
-      * difference between extent of the image at a given resolution level
-      * and the actual number of tiles (frames).
-      */
-      channelOrigins.push(offset);
-    }
-    channelResolutions.reverse();
-    channelTileSizes.reverse();
-    channelGridSizes.reverse();
-    channelOrigins.reverse();
-    channelPixelSpacings.reverse();
+    this[_referenceExtents] = [...geometryArrays[0]];
+    this[_referenceOrigins] = [...geometryArrays[1]];
+    this[_referenceResolutions] = [...geometryArrays[2]];
+    this[_referenceGridSizes] = [...geometryArrays[3]];
+    this[_referenceTileSizes] = [...geometryArrays[4]];
+    this[_referencePixelSpacings] = [...geometryArrays[5]];
+    
 
     // We assume the first channel as the reference one for all the pyramid parameters.
     // All the other channels have to have the same parameters.
     this[_pyramidMetadata] = channel.pyramidBaseMetadata;
     this[_metadata] = [...channel.microscopyImages];
-
-    /** Frames may extend beyond the size of the total pixel matrix.
-      * The excess pixels are empty, i.e. have only a padding value.
-      * We set the extent to the size of the actual image without taken
-      * excess pixels into account.
-      * Note that the vertical axis is flipped in the used tile source,
-      * i.e. values on the axis lie in the range [-n, -1], where n is the
-      * number of rows in the total pixel matrix.
-      */
-    const extent = [
-      0,                                // min X
-      -(baseTotalPixelMatrixRows + 1),  // min Y
-      baseTotalPixelMatrixColumns,      // max X
-      -1                                // max Y
-    ];
-
     this[_rotation] = _getRotation(channel.pyramidBaseMetadata);
 
     /*
@@ -1240,12 +703,12 @@ class VolumeImageViewer {
     this[_projection] = new Projection({
       code: 'DICOM',
       units: 'metric',
-      extent: extent,
+      extent: this[_referenceExtents],
       getPointResolution: (pixelRes, point) => {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
           * has meter unit.
           */
-        const spacing = _getPixelSpacing(channel.pyramidMetadata[nLevels - 1])[0] / 10 ** 3;
+        const spacing = _getPixelSpacing(channel.pyramidMetadata[channel.pyramidMetadata.length - 1])[0] / 10 ** 3;
         return pixelRes * spacing;
       }
     });
@@ -1264,31 +727,25 @@ class VolumeImageViewer {
     */
 
     this[_tileGrid] = new TileGrid({
-      extent: extent,
-      origins: channelOrigins,
-      resolutions: channelResolutions,
-      sizes: channelGridSizes,
-      tileSizes: channelTileSizes
+      extent: this[_referenceExtents],
+      origins: this[_referenceOrigins],
+      resolutions: this[_referenceResolutions],
+      sizes: this[_referenceGridSizes],
+      tileSizes: this[_referenceTileSizes]
     });
-
-    this[_referenceOrigins] = [...channelOrigins];
-    this[_referenceResolutions] = [...channelResolutions];
-    this[_referenceGridSizes] = [...channelGridSizes];
-    this[_referenceTileSizes] = [...channelTileSizes];
-    this[_referencePixelSpacings] = [...channelPixelSpacings];
   }
 
-  /** Gets the channel given an id
-   * @param {string} id of the channel
+  /** Gets the channel given an id 
+   * @param {string} OpticalPath of the channel
    * @type {channel}
    */
-  getChannelByID(id) {
+   getChannelByOpticalPathID(opticalPathID) {
     if (this[_channels].length === 0) {
       return null;
     }
-    const channel = this[_channels].find(channel => channel.opticalPathIdentifier === id);
+    const channel = this[_channels].find(channel => channel.blendingInformation.opticalPathIdentifier === opticalPathID);
     if (channel === undefined) {
-      console.warn("Channel with opticalPathIdentifier " + id + " not found");
+      console.warn("Channel with opticalPathIdentifier " + opticalPathID + " not found");
       return null;
     }
 
@@ -1313,179 +770,67 @@ class VolumeImageViewer {
    * @param {string} id of the channel (opticalPathIdentifier)
    * @type {metadata[]} array with all the instances metadata of the channel
    */
-  getChannelMetadataByID(id) {
-    const channel = this.getChannelByID(id)
+  getChannelMetadataByOpticalPathID(opticalPathID) {
+    const channel = this.getChannelByOpticalPathID(opticalPathID)
     return channel ? channel.metadata : null;
   }
 
-  /** Gets the channel color given an id
+  /** Sets the channel visualization/presentation parameters given an id
    * @param {string} id of the channel (opticalPathIdentifier)
-   * @type {number[]} array with the color array
-   */
-  getChannelColorByID(id) {
-    const channel = this.getChannelByID(id)
-    if (channel === null) {
-      return null;
-    }
-
-    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
-      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
-      return null;
-    }
-
-    return channel.color;
-  }
-
-  /** Sets the channel color given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
-   * @param {number[]} array with the color array
-   */
-  setChannelColorByID(id, color) {
-    const channel = this.getChannelByID(id)
-    if (channel === null) {
-      return;
-    }
-
-    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
-      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
-      return;
-    }
-
-    channel.color = [...color];
-
-    // need to rerun offscren render to color the layers already loaded
-    channel.rasterSource.refresh()
-    // TO DO: this will redonwload the tiles, we should just recolor all the tiles already cached
-  }
-
-  /** Gets the channel opacity given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
-   * @type {number} opacity value
-   */
-  getChannelOpacityByID(id) {
-    const channel = this.getChannelByID(id)
-    if (channel === null) {
-      return null;
-    }
-
-    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
-      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
-      return null;
-    }
-
-    return channel.opacity;
-  }
-
-  /** Sets the channel opacity given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
-   * @param {number} opacity value
-   */
-  setChannelOpacityByID(id, opacity) {
-    const channel = this.getChannelByID(id)
-    if (channel === null) {
-      return;
-    }
-
-    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
-      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
-      return;
-    }
-
-    channel.opacity = opacity;
-
-    // need to rerun offscren render to color the layers already loaded
-    channel.rasterSource.refresh()
-    // TO DO: this will redonwload the tiles, we should just recolor all the tiles already cached
-  }
-
-  /** Gets the channel constrast limits range given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
-   * @type {number[]} range (min and max) values of the color function
-   */
-  getChannelConstrastLimitsRangeByID(id) {
-    const channel = this.getChannelByID(id)
-    if (channel === null) {
-      return null;
-    }
-
-    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
-      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
-      return null;
-    }
-
-    return channel.contrastLimitsRange;
-  }
-
-  /** Sets the channel constrast limits range given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
-   * @param {number[]} array with the range (min and max) values of the color function
-   */
-  setChannelConstrastLimitsRangeByID(id, range) {
-    const channel = this.getChannelByID(id)
-    if (channel === null) {
-      return;
-    }
-
-    if (channel.pyramidBaseMetadata.SamplesPerPixel !== 1) {
-      console.warn("Channel with id: ", id, "is not a monochorme channel. Channel coloring is not available");
-      return;
-    }
-
-    channel.contrastLimitsRange = [...range]; 
-
-    // need to rerun offscren render to color the layers already loaded
-    channel.rasterSource.refresh()
-    // TO DO: this will redonwload the tiles, we should just recolor all the tiles already cached
-  }
-
-  /** Gets the channel visible given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
-   * @type {boolean} visible
-   */
-  getChannelVisibleByID(id) {
-    const channel = this.getChannelByID(id)
-    return channel ? channel.visible : null;
-  }
-
-  /** Sets the channel visible given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
+   * @param {number[]} color
+   * @param {number} opacity
+   * @param {number[]} contrastLimitsRange
    * @param {boolean} visible
    */
-  setChannelVisibleByID(id, visible) {
-    const channel = this.getChannelByID(id)
+  setChannelBlendingInformation(
+    opticalPathID, 
+    color,
+    opacity,
+    contrastLimitsRange,
+    visible) {
+
+    const channel = this.getChannelByOpticalPathID(opticalPathID)
     if (channel === null) {
-      return;
+      return null;
     }
-    channel.visible = visible;
-    
-    if (channel.tileLayer === null) { 
-      return;
-    }
-    channel.tileLayer.setVisible(channel.visible);
+
+    channel.setPresentationState(
+      color,
+      opacity,
+      contrastLimitsRange,
+      visible);
   }
 
-  _isChannelInOpenLayerMap(channel) {
+  /** Gets the channel visualization/presentation parameters given an id
+   * @param {string} opticalPathID of the channel
+   * @param {number[]} color
+   * @param {number} opacity
+   * @param {number[]} contrastLimitsRange
+   * @param {boolean} visible
+   */
+  getChannelBlendingInformation(opticalPathID) {
+    const channel = this.getChannelByOpticalPathID(opticalPathID)
     if (channel === null) {
-      return false;
+      return null;
     }
 
-    return this[_map].getLayers().getArray().find(layer => layer === channel.tileLayer) ? true : false;
+    return channel.getPresentationState();
   }
 
   /** Adds the channel to the OpenLayer Map given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
+   * @param {string} opticalPathID of the channel
    */
-  addChannelToOpenLayerMapByID(id) {
-    const channel = this.getChannelByID(id)
+  addChannelToOpenLayerMapByOpticalPathID(opticalPathID) {
+    const channel = this.getChannelByOpticalPathID(opticalPathID)
     if (channel === null) {
       return;
     }
 
-    if (this._isChannelInOpenLayerMap(channel)) {
+    if (this.isChannelInOpenLayerMap(channel)) {
       return;
     }
 
-    channel.addToMap = true;
+    channel.blendingInformation.addToMap = true;
     // NOTE: _drawingLayer has to be the last layer, otherwise the compistion will be broken
     this[_map].removeLayer(this[_drawingLayer])
     this[_map].addLayer(channel.tileLayer)
@@ -1493,20 +838,32 @@ class VolumeImageViewer {
   }
 
   /** Removes the channel to the OpenLayer Map given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
+   * @param {string} opticalPathID of the channel
    */
-  removeChannelFromOpenLayerMapByID(id) {
-    const channel = this.getChannelByID(id)
+  removeChannelFromOpenLayerMapByOpticalPathID(opticalPathID) {
+    const channel = this.getChannelByOpticalPathID(opticalPathID)
     if (channel === null) {
       return;
     }
 
-    if (!this._isChannelInOpenLayerMap(channel)) {
+    if (!this.isChannelInOpenLayerMap(channel)) {
       return;
     }
 
-    channel.addToMap = false;
+    channel.blendingInformation.addToMap = false;
     this[_map].removeLayer(channel.tileLayer)
+  }
+
+  /** Returns if the channel is being rendered
+   * @param {object} channel
+   * @type {boolean} visible
+   */
+  isChannelInOpenLayerMap(channel) {
+    if (channel === null) {
+      return false;
+    }
+
+    return this[_map].getLayers().getArray().find(layer => layer === channel.tileLayer) ? true : false;
   }
 
   /** Resizes the viewer to fit the viewport. */
