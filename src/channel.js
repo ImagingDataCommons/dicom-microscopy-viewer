@@ -73,7 +73,7 @@ class Channel {
  *        [x] Blending of images: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html http://dicom.nema.org/medical/dicom/current/output/chtml/part04/sect_N.2.6.html
  * TO DO: for coloring monochrome channels we download the uncompressed binaries data. 
  *        For a large N of channels, this could be a substantial bottleneck. 
- *        Check performance downloading binary (octet-stream) vs downloading compressed (png/jpeg) + decoding. 
+ *        Check performance downloading binary (octet-stream) vs downloading compressed (jpeg) + decoding. 
  *        https://github.com/cornerstonejs/codecs 
  * NOTE: channel coloring is allowed only for monochorme channels (i.e SamplesPerPixel === 1).
  */

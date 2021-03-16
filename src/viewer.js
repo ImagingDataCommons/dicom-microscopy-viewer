@@ -426,7 +426,7 @@ class VolumeImageViewer {
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
    * @param {object[]} options.metadata - An array of DICOM JSON metadata objects, 
    *        the array is full dicom metadata (all the instances) and the Library has to take care of determining which
-   *        instances represent channels (optical paths) or focal planes and internally build a lookup table upon Library object construction
+   *        instances represent channels (optical paths) and internally build a lookup table upon Library object construction
    * @param {object[]} options.blendingInformations - An array containing blending information for the channels with the standard visualization parameters already setup by an external APPs 
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport.
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
