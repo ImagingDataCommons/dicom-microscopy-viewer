@@ -891,7 +891,7 @@ class VolumeImageViewer {
    * @param {string} id of the channel (opticalPathIdentifier)
    * @type {metadata[]} array with all the instances metadata of the channel
    */
-  getChannelMetadataByOpticalPathID(opticalPathID) {
+   getOpticalPathMetadata(opticalPathID) {
     const channel = this.getOpticalPath(opticalPathID)
     return channel ? channel.metadata : null;
   }
@@ -903,7 +903,7 @@ class VolumeImageViewer {
    * @param {number[]} thresholdValues
    * @param {boolean} visible
    */
-  setChannelBlendingInformation(
+  setOpticalPathBlendingInformation(
     opticalPathID, 
     color,
     opacity,
@@ -915,7 +915,7 @@ class VolumeImageViewer {
       return null;
     }
 
-    if (channel.setPresentationState(
+    if (channel.setBlendingInformation(
         color,
         opacity,
         thresholdValues,
@@ -932,13 +932,13 @@ class VolumeImageViewer {
    * @param {number[]} thresholdValues
    * @param {boolean} visible
    */
-  getChannelBlendingInformation(opticalPathID) {
+  getOpticalPathBlendingInformation(opticalPathID) {
     const channel = this.getOpticalPath(opticalPathID)
     if (channel === null) {
       return null;
     }
 
-    return channel.getPresentationState();
+    return channel.getBlendingInformation();
   }
 
   /** Adds the channel to the OpenLayer Map given an id

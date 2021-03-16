@@ -474,7 +474,7 @@ class Channel {
   /** Gets the channel visualization/presentation parameters
    * @returns {object} BlendingInformation
    */
-  getPresentationState() {
+  getBlendingInformation() {
     return this.blendingInformation;
   }
 
@@ -485,7 +485,7 @@ class Channel {
    * @param {boolean} visible
    * @returns {boolean} force OpenLayer to rerender the view
    */
-  setPresentationState(
+  setBlendingInformation(
     color,
     opacity,
     thresholdValues,

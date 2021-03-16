@@ -43,7 +43,7 @@
       let color = [parseInt(hexColor.substr(1, 2), 16) / 255.,
 			  parseInt(hexColor.substr(3, 2), 16) / 255.,
 			  parseInt(hexColor.substr(5, 2), 16) / 255.];
-      viewer.setChannelBlendingInformation(`15`, color)
+      viewer.setOpticalPathBlendingInformation(`15`, color)
     }
     
     function updateChannelToggle() {
