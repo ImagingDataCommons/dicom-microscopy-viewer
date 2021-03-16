@@ -560,7 +560,6 @@ class VolumeImageViewer {
       RGBimage.metadata.push(options.metadata[i]);
     }
 
-    console.info(RGBimage);
     // For blending we have to make some assumptions 
     // 1) all channels should have the same origins, resolutions, grid sizes, tile sizes and pixel spacings (i.e. same TileGrid).
     //    These are arrays with number of element equal to nlevel (levels of the pyramid). All channels should have the same nlevel value.
@@ -587,121 +586,8 @@ class VolumeImageViewer {
       this[_renderingEngine]);
     });
 
-    // build up the OpenLayer objects for the RGBimage 
-    if (RGBimage.OpticalPathIdentifier !== '') {
-      /*
-       * Define custom tile URL function to retrive frames via DICOMweb WADO-RS.
-       */
-      const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
-        /*
-         * Variables x and y correspond to the X and Y axes of the slide
-         * coordinate system. Since we want to view the slide horizontally
-         * with the label on the right side, the x axis of the slide
-         * coordinate system is the vertical axis of the viewport and the
-         * y axis of the slide coordinate system the horizontal axis of the
-         * viewport. Note that this is in contrast to the nomenclature used
-         * by Openlayers.
-         */
-    
-        const z = tileCoord[0];
-        const y = tileCoord[1] + 1;
-        const x = tileCoord[2] + 1;
-        const index = x + "-" + y;
-    
-        const path = RGBimage.pyramidFrameMappings[z][index];
-        if (path === undefined) {
-          console.warn("tile " + index + " not found at level " + z);
-          return (null);
-        }
-        let url = options.client.wadoURL +
-          "/studies/" + RGBimage.pyramidMetadata[z].StudyInstanceUID +
-          "/series/" + RGBimage.pyramidMetadata[z].SeriesInstanceUID +
-          '/instances/' + path;
-        if (options.retrieveRendered) {
-          url = url + '/rendered';
-        }
-        return (url);
-      }
-
-      /*
-       * Define custom tile loader function, which is required because the
-       * WADO-RS response message has content type "multipart/related".
-      */
-      const tileLoadFunction = async (tile, src) => {
-        const img = tile.getImage();
-        if (src !== null) {
-          const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
-          const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
-          const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
-          const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-      
-          if (options.retrieveRendered) {  
-            const mediaType = 'image/png';
-            let transferSyntaxUID = '';
-            const retrieveOptions = {
-              studyInstanceUID,
-              seriesInstanceUID,
-              sopInstanceUID,
-              frameNumbers,
-              mediaTypes: [
-                { mediaType, transferSyntaxUID }
-              ]
-            };
-            if (options.includeIccProfile) {
-              retrieveOptions['queryParams'] = {
-                iccprofile: 'yes'
-              }
-            }
-
-            options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
-              (renderedFrame) => {
-                const blob = new Blob([renderedFrame], {type: mediaType});
-                img.src = window.URL.createObjectURL(blob);
-              }
-            );
-          } else {
-            let mediaType = 'image/jpeg';
-            let transferSyntaxUID = '1.2.840.10008.1.2.4.50';
-            const retrieveOptions = {
-              studyInstanceUID,
-              seriesInstanceUID,
-              sopInstanceUID,
-              frameNumbers,
-              mediaTypes: [
-                { mediaType, transferSyntaxUID }
-              ]
-            };
-            options.client.retrieveInstanceFrames(retrieveOptions).then(
-              (rawFrames) => {
-                const blob = new Blob(rawFrames, {type: mediaType});
-                img.src = window.URL.createObjectURL(blob);
-              }
-            );
-          }
-        } else {
-          console.warn('could not load tile');
-        }
-      }
-
-      RGBimage.rasterSource = new TileImage({
-        crossOrigin: 'Anonymous',
-        tileGrid: this[_tileGrid],
-        projection: this[_projection],
-        wrapX: false,
-        transition: 0,
-      });
-    
-      RGBimage.rasterSource.setTileUrlFunction(tileUrlFunction);
-      RGBimage.rasterSource.setTileLoadFunction(tileLoadFunction);
-    
-      // Create OpenLayer renderer object
-      RGBimage.tileLayer = new TileLayer({
-        extent: this[_tileGrid].getExtent(),
-        source: RGBimage.rasterSource,
-        preload: Infinity,
-        projection: this[_projection]
-      });
-     }
+    // build up the OpenLayer objects for the RGBimage
+    this._initRGBimage(RGBimage);
 
     this[_drawingSource] = new VectorSource({
       tileGrid: this[_tileGrid],
@@ -819,7 +705,6 @@ class VolumeImageViewer {
     this[_referenceTileSizes] = [...geometryArrays[4]];
     this[_referencePixelSpacings] = [...geometryArrays[5]];
     
-
     // We assume the first channel as the reference one for all the pyramid parameters.
     // All the other channels have to have the same parameters.
     this[_pyramidMetadata] = image.pyramidBaseMetadata;
@@ -862,6 +747,126 @@ class VolumeImageViewer {
       resolutions: this[_referenceResolutions],
       sizes: this[_referenceGridSizes],
       tileSizes: this[_referenceTileSizes]
+    });
+  }
+
+  /** init unique Open Layer objects
+   */
+  _initRGBimage(RGBimage) {
+    if (RGBimage.OpticalPathIdentifier === '') {
+      return;
+    }
+    /*
+     * Define custom tile URL function to retrive frames via DICOMweb WADO-RS.
+     */
+    const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
+      /*
+       * Variables x and y correspond to the X and Y axes of the slide
+       * coordinate system. Since we want to view the slide horizontally
+       * with the label on the right side, the x axis of the slide
+       * coordinate system is the vertical axis of the viewport and the
+       * y axis of the slide coordinate system the horizontal axis of the
+       * viewport. Note that this is in contrast to the nomenclature used
+       * by Openlayers.
+       */
+
+      const z = tileCoord[0];
+      const y = tileCoord[1] + 1;
+      const x = tileCoord[2] + 1;
+      const index = x + "-" + y;
+
+      const path = RGBimage.pyramidFrameMappings[z][index];
+      if (path === undefined) {
+        console.warn("tile " + index + " not found at level " + z);
+        return (null);
+      }
+      let url = options.client.wadoURL +
+        "/studies/" + RGBimage.pyramidMetadata[z].StudyInstanceUID +
+        "/series/" + RGBimage.pyramidMetadata[z].SeriesInstanceUID +
+        '/instances/' + path;
+      if (options.retrieveRendered) {
+        url = url + '/rendered';
+      }
+      return (url);
+    }
+
+    /*
+     * Define custom tile loader function, which is required because the
+     * WADO-RS response message has content type "multipart/related".
+     */
+    const tileLoadFunction = async (tile, src) => {
+      const img = tile.getImage();
+      if (src !== null) {
+        const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
+        const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
+        const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
+        const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
+
+        if (options.retrieveRendered) {  
+          const mediaType = 'image/png';
+          let transferSyntaxUID = '';
+          const retrieveOptions = {
+            studyInstanceUID,
+            seriesInstanceUID,
+            sopInstanceUID,
+            frameNumbers,
+            mediaTypes: [
+              { mediaType, transferSyntaxUID }
+            ]
+          };
+          if (options.includeIccProfile) {
+            retrieveOptions['queryParams'] = {
+              iccprofile: 'yes'
+            }
+          }
+
+          options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
+            (renderedFrame) => {
+              const blob = new Blob([renderedFrame], {type: mediaType});
+              img.src = window.URL.createObjectURL(blob);
+            }
+          );
+        } else {
+          let mediaType = 'image/jpeg';
+          let transferSyntaxUID = '1.2.840.10008.1.2.4.50';
+          const retrieveOptions = {
+            studyInstanceUID,
+            seriesInstanceUID,
+            sopInstanceUID,
+            frameNumbers,
+            mediaTypes: [
+              { mediaType, transferSyntaxUID }
+            ]
+          };
+          options.client.retrieveInstanceFrames(retrieveOptions).then(
+            (rawFrames) => {
+              const blob = new Blob(rawFrames, {type: mediaType});
+              img.src = window.URL.createObjectURL(blob);
+            }
+          );
+        }
+      } else {
+        console.warn('could not load tile');
+      }
+    }
+
+    RGBimage.rasterSource = new TileImage({
+      crossOrigin: 'Anonymous',
+      tileGrid: this[_tileGrid],
+      projection: this[_projection],
+      wrapX: false,
+      transition: 0,
+    });
+
+    RGBimage.rasterSource.setTileUrlFunction(tileUrlFunction);
+    RGBimage.rasterSource.setTileLoadFunction(tileLoadFunction);
+
+    // Create OpenLayer renderer object
+    RGBimage.tileLayer = new TileLayer({
+      extent: this[_tileGrid].getExtent(),
+      source: RGBimage.rasterSource,
+      preload: Infinity,
+      projection: this[_projection]
     });
   }
 
