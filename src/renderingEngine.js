@@ -178,7 +178,7 @@ class RenderingEngine {
    * @param {object} FrameData, interface to pass the frame data to the offscreen render 
    *   @param {number[]} pixelData, image array 
    *   @param {number} image bits per pixel
-   *   @param {number[]} contrastLimitsRange
+   *   @param {number[]} thresholdValues
    *   @param {number[]} color
    *   @param {number} opacity
    *   @param {number} width
@@ -195,7 +195,7 @@ class RenderingEngine {
       frameData.rows, 
       frameData.color, 
       frameData.opacity, 
-      frameData.contrastLimitsRange, 
+      frameData.thresholdValues, 
       frameData.bitsAllocated);
     return renderedCanvas.toDataURL(mediaType, quality);
   }
@@ -435,13 +435,13 @@ class RenderingEngine {
    * @param {number} height  
    * @param {number[]} color
    * @param {number} opacity
-   * @param {number[]} contrastLimitsRange
+   * @param {number[]} thresholdValues
    * @param {number} image bits per pixel
   
    * @returns {object} canvas
    * @private
    */
-  _render(pixelData, width, height, color, opacity, contrastLimitsRange, bitsAllocated) {
+  _render(pixelData, width, height, color, opacity, thresholdValues, bitsAllocated) {
     // Resize the canvas
     this.renderCanvas.width = width;
     this.renderCanvas.height = height;
@@ -450,7 +450,7 @@ class RenderingEngine {
     const shader = this._getShaderProgram(pixelData);
     const texture = this._generateTexture(pixelData, width, height);
   
-    const range = [...contrastLimitsRange];
+    const range = [...thresholdValues];
     if (bitsAllocated === 16) {
       // 8 bit [0,256]
       // 16 bit [0,65536+256]

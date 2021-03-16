@@ -29,9 +29,9 @@ class BlendingInformation {
   /*
   * An interface class to set/get the visualization/presentation parameters from a channel object
   * @param {string} opticalPathIdentifier, ID of the channel 
-  * @param {number[]}  color
-  * @param {number}  opacity
-  * @param {number[]}  contrastLimitsRange
+  * @param {number[]} color
+  * @param {number} opacity
+  * @param {number[]} thresholdValues
   * @param {boolean} visible
   * @param {boolean} addToMap 
   */
@@ -39,14 +39,14 @@ class BlendingInformation {
     opticalPathIdentifier, 
     color,
     opacity,
-    contrastLimitsRange,
+    thresholdValues,
     visible,
     addToMap) {
 
     this.opticalPathIdentifier = opticalPathIdentifier;
     this.color = [...color];
     this.opacity = opacity;
-    this.contrastLimitsRange = [...contrastLimitsRange];
+    this.thresholdValues = [...thresholdValues];
     this.visible = visible;
     this.addToMap = addToMap;
     }
@@ -63,7 +63,7 @@ class BlendingInformation {
   constructor(
     pixelData, 
     bitsAllocated,
-    contrastLimitsRange,
+    thresholdValues,
     color,
     opacity,
     columns,
@@ -71,7 +71,7 @@ class BlendingInformation {
 
     this.pixelData = pixelData;
     this.bitsAllocated = [...bitsAllocated];
-    this.contrastLimitsRange = [...contrastLimitsRange];
+    this.thresholdValues = [...thresholdValues];
     this.color = [...color];
     this.opacity = opacity;
     this.columns = columns;
@@ -229,7 +229,7 @@ class Channel {
       const bitsAllocated = this.pyramidMetadata[z].BitsAllocated; // memory for pixel
       const pixelRepresentation = this.pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
     
-      const { contrastLimitsRange, color, opacity } = this.blendingInformation;
+      const { thresholdValues, color, opacity } = this.blendingInformation;
     
       if (src !== null) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
@@ -285,13 +285,13 @@ class Channel {
                     break;
                   default:
                     throw new Error(
-                      'bit not supported'
+                      'the pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
                     );
                 }
                 const frameData = {
                   pixelData,
                   bitsAllocated,
-                  contrastLimitsRange,
+                  thresholdValues,
                   color,
                   opacity,
                   columns,
@@ -355,13 +355,13 @@ class Channel {
                     break;
                   default:
                     throw new Error(
-                      'bit not supported'
+                      'the pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
                     );
                 }
                 const frameData = {
                   pixelData,
                   bitsAllocated,
-                  contrastLimitsRange,
+                  thresholdValues,
                   color,
                   opacity,
                   columns,
@@ -598,14 +598,14 @@ class Channel {
   /** Sets the channel visualization/presentation parameters
    * @param {number[]} color
    * @param {number} opacity
-   * @param {number[]} contrastLimitsRange
+   * @param {number[]} thresholdValues
    * @param {boolean} visible
    * @returns {boolean} force OpenLayer to rerender the view
    */
   setPresentationState(
     color,
     opacity,
-    contrastLimitsRange,
+    thresholdValues,
     visible) {
     
     let rerender = false;
@@ -623,12 +623,12 @@ class Channel {
       }
       this.blendingInformation.opacity = opacity;
     }
-    if (contrastLimitsRange) {
-      if (this.blendingInformation.contrastLimitsRange[0] !== contrastLimitsRange[0] ||
-        this.blendingInformation.contrastLimitsRange[1] !== contrastLimitsRange[1]) {
+    if (thresholdValues) {
+      if (this.blendingInformation.thresholdValues[0] !== thresholdValues[0] ||
+        this.blendingInformation.thresholdValues[1] !== thresholdValues[1]) {
         rerender = true;
       }
-      this.blendingInformation.contrastLimitsRange = [...contrastLimitsRange];
+      this.blendingInformation.thresholdValues = [...thresholdValues];
     }
     if (visible) {
       this.blendingInformation.visible = visible;
@@ -646,14 +646,14 @@ class Channel {
           const columns = this.pyramidMetadata[z].Columns;
           const rows = this.pyramidMetadata[z].Rows;
           const bitsAllocated = this.pyramidMetadata[z].BitsAllocated; // memory for pixel
-          const { contrastLimitsRange, color, opacity } = this.blendingInformation;
+          const { thresholdValues, color, opacity } = this.blendingInformation;
   
           const img = tile.getImage();
           const pixelData = img.pixelData;
           const frameData = {
             pixelData,
             bitsAllocated,
-            contrastLimitsRange,
+            contrastLimthresholdValuesitsRange,
             color,
             opacity,
             columns,

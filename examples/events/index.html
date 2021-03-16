@@ -213,13 +213,11 @@
         }
   
         return(Promise.all(promises));
-      }).then(instancesMetadata => {
-        // Note: We are using retrieveRendered: false because dcm4chee does not yet
-        // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
+      }).then(metadata => {
         const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
           client,
-          instancesMetadata,
-          retrieveRendered: false
+          metadata,
+          retrieveRendered: true
         });
 
         const container = document.getElementById("dicomImage");

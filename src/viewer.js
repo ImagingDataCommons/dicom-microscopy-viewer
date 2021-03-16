@@ -424,7 +424,7 @@ class VolumeImageViewer {
    *
    * @param {object} options
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
-   * @param {object[]} options.instancesMetadata - An array of DICOM JSON metadata objects, 
+   * @param {object[]} options.metadata - An array of DICOM JSON metadata objects, 
    *        the array is full dicom metadata (all the instances) and the Library has to take care of determining which
    *        instances represent channels (optical paths) or focal planes and internally build a lookup table upon Library object construction
    * @param {object[]} options.blendingInformations - An array containing blending information for the channels with the standard visualization parameters already setup by an external APPs 
@@ -478,8 +478,8 @@ class VolumeImageViewer {
     ]
 
     // Metadata Tiles types checks for each instance
-    for (let i = 0; i < options.instancesMetadata.length; ++i) {
-      let instanceMetadata = formatMetadata(options.instancesMetadata[i]);
+    for (let i = 0; i < options.metadata.length; ++i) {
+      let instanceMetadata = formatMetadata(options.metadata[i]);
       if (instanceMetadata.DimensionOrganizationType === '3D' || instanceMetadata.DimensionOrganizationType === '3D_TEMPORAL') {
         // 3D data
         // TO DO: get some example data.
@@ -492,7 +492,7 @@ class VolumeImageViewer {
           const instaceOpticalPathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier;
           let channel = this[_channels].find(channel => channel.blendingInformation.opticalPathIdentifier === instaceOpticalPathIdentifier);
           if (channel) {
-            channel.addMetadata(options.instancesMetadata[i])        
+            channel.addMetadata(options.metadata[i])        
           } else {
             const blendingInformation = options.blendingInformations !== undefined ? 
               options.blendingInformations.find(blendingInformation => 
@@ -500,20 +500,20 @@ class VolumeImageViewer {
                  undefined;
             if (blendingInformation) {
               const newChannel = new Channel(blendingInformation);
-              newChannel.addMetadata(options.instancesMetadata[i]);
+              newChannel.addMetadata(options.metadata[i]);
               this[_channels].push(newChannel)
             } else {
               const newBI = new BlendingInformation(
                 opticalPathIdentifier = `${instaceOpticalPathIdentifier}`, 
                 color = [...colors[i % colors.length]],
                 opacity = 1.0,
-                contrastLimitsRange = [0, 256],
+                thresholdValues = [0, 256],
                 visible = true,
                 addToMap = false
               );
 
               const newChannel = new Channel(newBI);
-              newChannel.addMetadata(options.instancesMetadata[i]);
+              newChannel.addMetadata(options.metadata[i]);
               this[_channels].push(newChannel)
             }
           }
@@ -523,7 +523,8 @@ class VolumeImageViewer {
         // in the Per-Frame Functional Group Sequence, and the recipient shall not 
         // make any assumption about the spatial position or optical path or order of the encoded frames.
         // TO DO: get some example data.
-        console.warn('Volume Image Viewer does hot hanlde TILED_SPARSE data yet.')
+        console.warn('Volume Image Viewer does hot handle TILED_SPARSE ' +
+                     'dimension organization for blending of channels yet.')
         continue;  
       }
     }
@@ -555,7 +556,7 @@ class VolumeImageViewer {
     });
 
     if (this[_channels].length === 0) {
-      throw new Error('Viewer did not find any channel')
+      throw new Error('Viewer did not find any channel or RGB image.')
     }
 
     this[_drawingSource] = new VectorSource({
@@ -730,20 +731,6 @@ class VolumeImageViewer {
     return channel;
   }
 
-  /** Gets the channel given an index
-   * @param {number} array index 
-   * @type {channel}
-   */
-  getChannelByIndex(index) {
-    if (this[_channels].length === 0 || 
-      index < 0 || index > this[_channels].length) {
-      console.warn("Channel with index " + id + " not found")  
-      return null;
-    }
-
-    return this[_channels][index];
-  }
-
   /** Gets the channel metadata given an id
    * @param {string} id of the channel (opticalPathIdentifier)
    * @type {metadata[]} array with all the instances metadata of the channel
@@ -757,14 +744,14 @@ class VolumeImageViewer {
    * @param {string} id of the channel (opticalPathIdentifier)
    * @param {number[]} color
    * @param {number} opacity
-   * @param {number[]} contrastLimitsRange
+   * @param {number[]} thresholdValues
    * @param {boolean} visible
    */
   setChannelBlendingInformation(
     opticalPathID, 
     color,
     opacity,
-    contrastLimitsRange,
+    thresholdValues,
     visible) {
 
     const channel = this.getChannelByOpticalPathID(opticalPathID)
@@ -775,7 +762,7 @@ class VolumeImageViewer {
     if (channel.setPresentationState(
         color,
         opacity,
-        contrastLimitsRange,
+        thresholdValues,
         visible)
       ) { 
       this[_map].render();
@@ -786,7 +773,7 @@ class VolumeImageViewer {
    * @param {string} opticalPathID of the channel
    * @param {number[]} color
    * @param {number} opacity
-   * @param {number[]} contrastLimitsRange
+   * @param {number[]} thresholdValues
    * @param {boolean} visible
    */
   getChannelBlendingInformation(opticalPathID) {
@@ -801,7 +788,7 @@ class VolumeImageViewer {
   /** Adds the channel to the OpenLayer Map given an id
    * @param {string} opticalPathID of the channel
    */
-  addChannelToOpenLayerMapByOpticalPathID(opticalPathID) {
+   activateOpticalPath(opticalPathID) {
     const channel = this.getChannelByOpticalPathID(opticalPathID)
     if (channel === null) {
       return;
@@ -821,7 +808,7 @@ class VolumeImageViewer {
   /** Removes the channel to the OpenLayer Map given an id
    * @param {string} opticalPathID of the channel
    */
-  removeChannelFromOpenLayerMapByOpticalPathID(opticalPathID) {
+   deactivateOpticalPath(opticalPathID) {
     const channel = this.getChannelByOpticalPathID(opticalPathID)
     if (channel === null) {
       return;
