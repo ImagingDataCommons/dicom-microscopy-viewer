@@ -874,7 +874,7 @@ class VolumeImageViewer {
    * @param {string} OpticalPath of the channel
    * @type {channel}
    */
-   getChannelByOpticalPathID(opticalPathID) {
+   getOpticalPath(opticalPathID) {
     if (this[_channels].length === 0) {
       return null;
     }
@@ -892,7 +892,7 @@ class VolumeImageViewer {
    * @type {metadata[]} array with all the instances metadata of the channel
    */
   getChannelMetadataByOpticalPathID(opticalPathID) {
-    const channel = this.getChannelByOpticalPathID(opticalPathID)
+    const channel = this.getOpticalPath(opticalPathID)
     return channel ? channel.metadata : null;
   }
 
@@ -910,7 +910,7 @@ class VolumeImageViewer {
     thresholdValues,
     visible) {
 
-    const channel = this.getChannelByOpticalPathID(opticalPathID)
+    const channel = this.getOpticalPath(opticalPathID)
     if (channel === null) {
       return null;
     }
@@ -933,7 +933,7 @@ class VolumeImageViewer {
    * @param {boolean} visible
    */
   getChannelBlendingInformation(opticalPathID) {
-    const channel = this.getChannelByOpticalPathID(opticalPathID)
+    const channel = this.getOpticalPath(opticalPathID)
     if (channel === null) {
       return null;
     }
@@ -945,7 +945,7 @@ class VolumeImageViewer {
    * @param {string} opticalPathID of the channel
    */
    activateOpticalPath(opticalPathID) {
-    const channel = this.getChannelByOpticalPathID(opticalPathID)
+    const channel = this.getOpticalPath(opticalPathID)
     if (channel === null) {
       return;
     }
@@ -965,7 +965,7 @@ class VolumeImageViewer {
    * @param {string} opticalPathID of the channel
    */
    deactivateOpticalPath(opticalPathID) {
-    const channel = this.getChannelByOpticalPathID(opticalPathID)
+    const channel = this.getOpticalPath(opticalPathID)
     if (channel === null) {
       return;
     }
