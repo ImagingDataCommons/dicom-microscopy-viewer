@@ -1,5 +1,5 @@
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js';
-import { colorImageFrames } from './colorImageFrames.js';
+import { RenderingEngine } from './renderingEngine.js';
 import {
     arraysEqual,
   } from './utils.js';
@@ -27,7 +27,7 @@ import TileLayer from 'ol/layer/Tile';
 
 class BlendingInformation {
   /*
-  * An interface class to set/get the visualization/presnetation parameters from a channel object
+  * An interface class to set/get the visualization/presentation parameters from a channel object
   * @param {string} opticalPathIdentifier, ID of the channel 
   * @param {number[]}  color
   * @param {number}  opacity
@@ -52,6 +52,33 @@ class BlendingInformation {
     }
 }
 
+/** FrameData for a tile image
+ *
+ * @class
+ * @memberof channel
+ */  
+
+ class FrameData {
+
+  constructor(
+    pixelData, 
+    bitsAllocated,
+    contrastLimitsRange,
+    color,
+    opacity,
+    columns,
+    rows) {
+
+    this.pixelData = pixelData;
+    this.bitsAllocated = [...bitsAllocated];
+    this.contrastLimitsRange = [...contrastLimitsRange];
+    this.color = [...color];
+    this.opacity = opacity;
+    this.columns = columns;
+    this.rows = rows;
+    }
+}
+
 /** Channel for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
  *
@@ -66,12 +93,15 @@ class Channel {
  * @param {object} BlendingInformation
  * 
  * TO DO: implement API to select focal plane in the case of 3D channels (channels with a bandwith)
- * TO DO: use DICOM attributes for loading/saving the channel parameters (i.e. load/save the 'state' in DICOM), for example:
- *     [x] Select area for display: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.10.4.html 
- *     [x] Clipping pixel values: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.33.html#table_C.11.33.1-1 
- *     [x] Select channels for display and specify the color of each channel: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html
- *     [x] Blending of images: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html http://dicom.nema.org/medical/dicom/current/output/chtml/part04/sect_N.2.6.html
- *   
+ * TO DO: use DICOM attributes for loading/saving the channel parameters (i.e. load/save the presentation state/BlendingInformation in DICOM), for example:
+ *        [x] Select area for display: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.10.4.html 
+ *        [x] Clipping pixel values: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.33.html#table_C.11.33.1-1 
+ *        [x] Select channels for display and specify the color of each channel: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html
+ *        [x] Blending of images: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html http://dicom.nema.org/medical/dicom/current/output/chtml/part04/sect_N.2.6.html
+ * TO DO: for coloring monochrome channels we download the uncompressed binaries data. 
+ *        For a large N of channels, this could be a substantial bottleneck. 
+ *        Check performance downloading binary (octet-stream) vs downloading compressed (png/jpeg) + decoding. 
+ *        https://github.com/cornerstonejs/codecs 
  * NOTE: channel coloring is allowed only for monochorme channels (i.e SamplesPerPixel === 1).
  */
   constructor(blendingInformation) {
@@ -92,6 +122,10 @@ class Channel {
    * @param {object} OpenLayer projection
    * @param {object} OpenLayer tileGrid
    * @param {object} VolumeImageViewer options
+   * @param {object} VolumeImageViewer offscreen rendering engine
+   * 
+   * NOTE: in this method we set observations to the OpenLayer events 'prerender' and 'postrender',
+   *       for setting the globalCompositeOperation value to 'lighter' during the tiles blending.
    */
   initChannel(referenceExtent, 
     referenceOrigins,
@@ -101,7 +135,8 @@ class Channel {
     referencePixelSpacings,
     projection,
     tileGrid,
-    options) {
+    options,
+    renderingEngine) {
     /*
     * To visualize images accross multiple scales, we first need to
     * determine the image pyramid structure, i.e. the size and resolution
@@ -186,8 +221,8 @@ class Channel {
       const columns = this.pyramidMetadata[z].Columns;
       const rows = this.pyramidMetadata[z].Rows;
       const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel; // number of colors for pixel
-      const BitsAllocated = this.pyramidMetadata[z].BitsAllocated; // memory for pixel
-      const PixelRepresentation = this.pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
+      const bitsAllocated = this.pyramidMetadata[z].BitsAllocated; // memory for pixel
+      const pixelRepresentation = this.pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
     
       const { contrastLimitsRange, color, opacity } = this.blendingInformation;
     
@@ -228,16 +263,16 @@ class Channel {
             options.client.retrieveInstanceFrames(retrieveOptions).then(
               (rawFrames) => {
                 let pixelData;
-                switch (BitsAllocated) {
+                switch (bitsAllocated) {
                   case 8:
-                    if (PixelRepresentation === 1) {
+                    if (pixelRepresentation === 1) {
                       pixelData = new Int8Array(rawFrames[0])
                     } else {
                       pixelData = new Uint8Array(rawFrames[0])
                     }
                     break;
                   case 16:
-                    if (PixelRepresentation === 1) {
+                    if (pixelRepresentation === 1) {
                       pixelData = new Int16Array(rawFrames[0])
                     } else {
                       pixelData = new Uint16Array(rawFrames[0])
@@ -250,14 +285,14 @@ class Channel {
                 }
                 const frameData = {
                   pixelData,
+                  bitsAllocated,
                   contrastLimitsRange,
-                  BitsAllocated,
                   color,
                   opacity,
-                  width: columns,
-                  height: rows
-                };
-                img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality);
+                  columns,
+                  rows
+                }; 
+                img.src = renderingEngine.colorImageFrame(frameData, 'image/jpeg', options.blendingImageQuality);
               }
             );
           } else {
@@ -295,16 +330,16 @@ class Channel {
             (rawFrames) => {
               if (samplesPerPixel === 1) {
                 let pixelData;
-                switch (BitsAllocated) {
+                switch (bitsAllocated) {
                   case 8:
-                    if (PixelRepresentation === 1) {
+                    if (pixelRepresentation === 1) {
                       pixelData = new Int8Array(rawFrames[0])
                     } else {
                       pixelData = new Uint8Array(rawFrames[0])
                     }
                     break;
                   case 16:
-                    if (PixelRepresentation === 1) {
+                    if (pixelRepresentation === 1) {
                       pixelData = new Int16Array(rawFrames[0])
                     } else {
                       pixelData = new Uint16Array(rawFrames[0])
@@ -317,14 +352,14 @@ class Channel {
                 }
                 const frameData = {
                   pixelData,
+                  bitsAllocated,
                   contrastLimitsRange,
-                  BitsAllocated,
                   color,
                   opacity,
-                  width: columns,
-                  height: rows
+                  columns,
+                  rows
                 }; 
-                img.src = colorImageFrames(frameData, 'image/jpeg', options.blendingImageQuality);
+                img.src = renderingEngine.colorImageFrame(frameData, 'image/jpeg', options.blendingImageQuality);
               } else {
                 const blob = new Blob(rawFrames, {type: mediaType});
                 img.src = window.URL.createObjectURL(blob);
@@ -373,8 +408,9 @@ class Channel {
 
   /** Returns the Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array of the channel.
    * 
-   * @param {object[]} channel
-   * @param {number[][]} Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array
+   * @param {object} channel
+   * @returns {number[][]} Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array
+   * @static
    */
   static deriveChannelGeometry(channel) {
     channel.microscopyImages = [];
@@ -533,13 +569,14 @@ class Channel {
   }
 
   /** Adds the metadata to the metadata array of the channel
-   * @type {metadata}
+   * @param {object} metadata
    */
   addMetadata(metadata){
     this.metadata.push(metadata);
   }
 
   /** Gets the channel visualization/presentation parameters
+   * @returns {object} BlendingInformation
    */
   getPresentationState() {
     return this.blendingInformation;

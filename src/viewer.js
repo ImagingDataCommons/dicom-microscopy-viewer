@@ -61,6 +61,8 @@ import {
 import {
   formatMetadata,
 } from './metadata.js'
+import { RenderingEngine } from './renderingEngine.js';
+
 
 // override drawTileImage method
 import {getUid} from 'ol/util.js';
@@ -428,6 +430,7 @@ const _pyramidMetadata = Symbol('pyramidMetadata');
 const _segmentations = Symbol('segmentations');
 const _usewebgl = Symbol('usewebgl');
 const _channels = Symbol('channels');
+const _renderingEngine = Symbol('renderingEngine');
 const _rotation = Symbol('rotation');
 const _projection = Symbol('projection');
 const _tileGrid = Symbol('tileGrid');
@@ -562,6 +565,9 @@ class VolumeImageViewer {
     //    This, at the moment, is out of scope. 
     this._initUniqueOpenLayerObjects();
 
+    // Create a rendering engine object for offscreen render (coloring the frames)
+    this[_renderingEngine] = new RenderingEngine();
+
     // For each channel we build up the OpenLayer objects. 
     this[_channels].forEach((channel) => {  
       channel.initChannel(
@@ -573,7 +579,8 @@ class VolumeImageViewer {
       this[_referencePixelSpacings],
       this[_projection],
       this[_tileGrid],
-      options);
+      options,
+      this[_renderingEngine]);
     });
 
     if (this[_channels].length === 0) {
