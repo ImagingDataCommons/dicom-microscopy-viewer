@@ -121,7 +121,7 @@ class Channel {
     * images at the different pyramid levels.
     */
     
-    let geometryArrays = Channel.deriveChannelGeometry(this);
+    let geometryArrays = Channel.deriveImageGeometry(this);
     
     // Check that all the channels have the same pyramid parameters
     if (arraysEqual(geometryArrays[0], referenceExtent) === false) {
@@ -204,153 +204,63 @@ class Channel {
     
       const { thresholdValues, color, opacity } = this.blendingInformation;
     
-      if (src !== null) {
+      if (src !== null && samplesPerPixel === 1) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-      
-        if (options.retrieveRendered) {
-          // Figure out from the metadata if this is a color image dataset
-          // if it is, use png mediatype and png transfer syntax to just get pngs
-          // Otherwise, get the data as an octet-stream and use that
-          // TO DO: should we get always png and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
-          // https://github.com/cornerstonejs/codecs
     
-          let mediaType = 'application/octet-stream';
-          let transferSyntaxUID = '1.2.840.10008.1.2.1';
-          if (samplesPerPixel !== 1) {
-            mediaType = 'image/png';
-            transferSyntaxUID = '';
-          }
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            mediaTypes: [
-              { mediaType, transferSyntaxUID }
-            ]
-          };
-          if (options.includeIccProfile) {
-            retrieveOptions['queryParams'] = {
-              iccprofile: 'yes'
-            }
-          }
-          if (samplesPerPixel === 1) {
-            options.client.retrieveInstanceFrames(retrieveOptions).then(
-              (rawFrames) => {
-                let pixelData;
-                switch (bitsAllocated) {
-                  case 8:
-                    if (pixelRepresentation === 1) {
-                      pixelData = new Int8Array(rawFrames[0])
-                    } else {
-                      pixelData = new Uint8Array(rawFrames[0])
-                    }
-                    break;
-                  case 16:
-                    if (pixelRepresentation === 1) {
-                      pixelData = new Int16Array(rawFrames[0])
-                    } else {
-                      pixelData = new Uint16Array(rawFrames[0])
-                    }
-                    break;
-                  default:
-                    throw new Error(
-                      'the pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
-                    );
+        // TO DO: should we get always jpeg and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
+        // https://github.com/cornerstonejs/codecs
+        const mediaType = 'application/octet-stream';
+        const transferSyntaxUID = '1.2.840.10008.1.2.1';
+        const retrieveOptions = {
+          studyInstanceUID,
+          seriesInstanceUID,
+          sopInstanceUID,
+          frameNumbers,
+          mediaTypes: [
+            { mediaType, transferSyntaxUID }
+          ]
+        };
+        options.client.retrieveInstanceFrames(retrieveOptions).then(
+          (rawFrames) => {
+            let pixelData;
+            switch (bitsAllocated) {
+              case 8:
+                if (pixelRepresentation === 1) {
+                  pixelData = new Int8Array(rawFrames[0])
+                } else {
+                  pixelData = new Uint8Array(rawFrames[0])
                 }
-                const frameData = {
-                  pixelData,
-                  bitsAllocated,
-                  thresholdValues,
-                  color,
-                  opacity,
-                  columns,
-                  rows
-                }; 
-                // NOTE: we store the pixelData array in img, so we can apply again colorImageFrame
-                //       at the change of any blending parameter (opacity, color, clipping).
-                img.pixelData = pixelData;
-                img.src = renderingEngine.colorImageFrame(frameData, 'image/jpeg', options.blendingImageQuality);
-              }
-            );
-          } else {
-            options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
-              (renderedFrame) => {
-                const blob = new Blob([renderedFrame], {type: mediaType});
-                img.src = window.URL.createObjectURL(blob);
-              }
-            );
-          }
-        } else {
-          // TODO: support "image/jp2" and "image/jls"
-    
-          // Figure out from the metadata if this is a color image dataset
-          // if it is, use jpeg mediatype and jpeg transfer syntax to just get jpegs
-          // Otherwise, get the data as an octet-stream and use that
-          // TO DO: should we get always jpeg and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
-          // https://github.com/cornerstonejs/codecs
-          let mediaType = 'application/octet-stream';
-          let transferSyntaxUID = '1.2.840.10008.1.2.1';
-          if (samplesPerPixel !== 1) {
-            mediaType = 'image/jpeg';
-            transferSyntaxUID = '1.2.840.10008.1.2.4.50';
-          }
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            mediaTypes: [
-              { mediaType, transferSyntaxUID }
-            ]
-          };
-          options.client.retrieveInstanceFrames(retrieveOptions).then(
-            (rawFrames) => {
-              if (samplesPerPixel === 1) {
-                let pixelData;
-                switch (bitsAllocated) {
-                  case 8:
-                    if (pixelRepresentation === 1) {
-                      pixelData = new Int8Array(rawFrames[0])
-                    } else {
-                      pixelData = new Uint8Array(rawFrames[0])
-                    }
-                    break;
-                  case 16:
-                    if (pixelRepresentation === 1) {
-                      pixelData = new Int16Array(rawFrames[0])
-                    } else {
-                      pixelData = new Uint16Array(rawFrames[0])
-                    }
-                    break;
-                  default:
-                    throw new Error(
-                      'the pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
-                    );
+                break;
+              case 16:
+                if (pixelRepresentation === 1) {
+                  pixelData = new Int16Array(rawFrames[0])
+                } else {
+                  pixelData = new Uint16Array(rawFrames[0])
                 }
-                const frameData = {
-                  pixelData,
-                  bitsAllocated,
-                  thresholdValues,
-                  color,
-                  opacity,
-                  columns,
-                  rows
-                };
-                // NOTE: we store the pixelData array in img, so we can apply again colorImageFrame
-                //       at the change of any blending parameter (opacity, color, clipping).
-                img.pixelData = pixelData;
-                img.src = renderingEngine.colorImageFrame(frameData, 'image/jpeg', options.blendingImageQuality);
-              } else {
-                const blob = new Blob(rawFrames, {type: mediaType});
-                img.src = window.URL.createObjectURL(blob);
-              }
+                break;
+              default:
+                throw new Error(
+                  'the pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
+                );
             }
-          );
-        }
+            const frameData = {
+              pixelData,
+              bitsAllocated,
+              thresholdValues,
+              color,
+              opacity,
+              columns,
+              rows
+            };
+            // NOTE: we store the pixelData array in img, so we can apply again colorImageFrame
+            //       at the change of any blending parameter (opacity, color, clipping).
+            img.pixelData = pixelData;
+            img.src = renderingEngine.colorImageFrame(frameData, 'image/jpeg', options.blendingImageQuality); 
+          }
+        );
       } else {
         console.warn('could not load tile');
       }
@@ -392,25 +302,25 @@ class Channel {
     });
   }
 
-  /** Returns the Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array of the channel.
+  /** Returns the Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array of the image.
    * 
-   * @param {object} channel
+   * @param {object} image
    * @returns {number[][]} Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array
    * @static
    */
-  static deriveChannelGeometry(channel) {
-    channel.microscopyImages = [];
-    channel.metadata.forEach(m => {
-      const image = new VLWholeSlideMicroscopyImage({ metadata: m });
-      if (image.ImageType[2] === 'VOLUME') {
-        channel.microscopyImages.push(image);
+  static deriveImageGeometry(image) {
+    image.microscopyImages = [];
+    image.metadata.forEach(m => {
+      const microscopyImage = new VLWholeSlideMicroscopyImage({ metadata: m });
+      if (microscopyImage.ImageType[2] === 'VOLUME') {
+        image.microscopyImages.push(microscopyImage);
       }
     });
-    if (channel.microscopyImages.length === 0) {
+    if (image.microscopyImages.length === 0) {
       throw new Error('No VOLUME image provided.')
     }
     // Sort instances and optionally concatenation parts if present.
-    channel.microscopyImages.sort((a, b) => {
+    image.microscopyImages.sort((a, b) => {
       const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns;
       if (sizeDiff === 0) {
         if (a.ConcatenationFrameOffsetNumber !== undefined) {
@@ -421,23 +331,23 @@ class Channel {
       return sizeDiff;
     });
     
-    channel.pyramidMetadata = [];
-    channel.pyramidFrameMappings = [];
-    let frameMappings = channel.microscopyImages.map(m => getFrameMapping(m));
-    for (let i = 0; i < channel.microscopyImages.length; i++) {
-      const cols = channel.microscopyImages[i].TotalPixelMatrixColumns;
-      const rows = channel.microscopyImages[i].TotalPixelMatrixRows;
-      const numberOfFrames = channel.microscopyImages[i].NumberOfFrames;
+    image.pyramidMetadata = [];
+    image.pyramidFrameMappings = [];
+    let frameMappings = image.microscopyImages.map(m => getFrameMapping(m));
+    for (let i = 0; i < image.microscopyImages.length; i++) {
+      const cols = image.microscopyImages[i].TotalPixelMatrixColumns;
+      const rows = image.microscopyImages[i].TotalPixelMatrixRows;
+      const numberOfFrames = image.microscopyImages[i].NumberOfFrames;
       /*
        * Instances may be broken down into multiple concatentation parts.
        * Therefore, we have to re-assemble instance metadata.
       */
       let alreadyExists = false;
       let index = null;
-      for (let j = 0; j < channel.pyramidMetadata.length; j++) {
+      for (let j = 0; j < image.pyramidMetadata.length; j++) {
         if (
-          (channel.pyramidMetadata[j].TotalPixelMatrixColumns === cols) &&
-          (channel.pyramidMetadata[j].TotalPixelMatrixRows === rows)
+          (image.pyramidMetadata[j].TotalPixelMatrixColumns === cols) &&
+          (image.pyramidMetadata[j].TotalPixelMatrixRows === rows)
         ) {
           alreadyExists = true;
           index = j;
@@ -445,88 +355,88 @@ class Channel {
       }
       if (alreadyExists) {
         // Update with information obtained from current concatentation part.
-        Object.assign(channel.pyramidFrameMappings[index], frameMappings[i]);
-        channel.pyramidMetadata[index].NumberOfFrames += numberOfFrames;
-        if ("PerFrameFunctionalGroupsSequence" in channel.microscopyImages[index]) {
-            channel.pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
-            ...channel.microscopyImages[i].PerFrameFunctionalGroupsSequence
+        Object.assign(image.pyramidFrameMappings[index], frameMappings[i]);
+        image.pyramidMetadata[index].NumberOfFrames += numberOfFrames;
+        if ("PerFrameFunctionalGroupsSequence" in image.microscopyImages[index]) {
+          image.pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
+            ...image.microscopyImages[i].PerFrameFunctionalGroupsSequence
           );
         }
-        if (!"SOPInstanceUIDOfConcatenationSource" in channel.microscopyImages[i]) {
+        if (!"SOPInstanceUIDOfConcatenationSource" in image.microscopyImages[i]) {
           throw new Error(
             'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
             'for concatenation parts.'
           );
         }
-        const sopInstanceUID = channel.microscopyImages[i].SOPInstanceUIDOfConcatenationSource;
-        channel.pyramidMetadata[index].SOPInstanceUID = sopInstanceUID;
-        delete channel.pyramidMetadata[index].SOPInstanceUIDOfConcatenationSource;
-        delete channel.pyramidMetadata[index].ConcatenationUID;
-        delete channel.pyramidMetadata[index].InConcatenationNumber;
-        delete channel.pyramidMetadata[index].ConcatenationFrameOffsetNumber;
+        const sopInstanceUID = image.microscopyImages[i].SOPInstanceUIDOfConcatenationSource;
+        image.pyramidMetadata[index].SOPInstanceUID = sopInstanceUID;
+        delete image.pyramidMetadata[index].SOPInstanceUIDOfConcatenationSource;
+        delete image.pyramidMetadata[index].ConcatenationUID;
+        delete image.pyramidMetadata[index].InConcatenationNumber;
+        delete image.pyramidMetadata[index].ConcatenationFrameOffsetNumber;
       } else {
-        channel.pyramidMetadata.push(channel.microscopyImages[i]);
-        channel.pyramidFrameMappings.push(frameMappings[i]);
+        image.pyramidMetadata.push(image.microscopyImages[i]);
+        image.pyramidFrameMappings.push(frameMappings[i]);
       }
     }
-    const nLevels = channel.pyramidMetadata.length;
+    const nLevels = image.pyramidMetadata.length;
     if (nLevels === 0) {
       console.error('empty pyramid - no levels found')
     }
-    channel.pyramidBaseMetadata = channel.pyramidMetadata[nLevels - 1];
+    image.pyramidBaseMetadata = image.pyramidMetadata[nLevels - 1];
     
     /*
      * Collect relevant information from DICOM metadata for each pyramid
      * level to construct the Openlayers map.
     */
-    const channelTileSizes = [];
-    const channelGridSizes = [];
-    const channelResolutions = [];
-    const channelOrigins = [];
-    const channelPixelSpacings = [];
+    const imageTileSizes = [];
+    const imageGridSizes = [];
+    const imageResolutions = [];
+    const imageOrigins = [];
+    const imagePixelSpacings = [];
     const offset = [0, -1];
-    const basePixelSpacing = _getPixelSpacing(channel.pyramidBaseMetadata);
-    const baseTotalPixelMatrixColumns = channel.pyramidBaseMetadata.TotalPixelMatrixColumns;
-    const baseTotalPixelMatrixRows = channel.pyramidBaseMetadata.TotalPixelMatrixRows;
-    const baseColumns = channel.pyramidBaseMetadata.Columns;
-    const baseRows = channel.pyramidBaseMetadata.Rows;
+    const basePixelSpacing = _getPixelSpacing(image.pyramidBaseMetadata);
+    const baseTotalPixelMatrixColumns = image.pyramidBaseMetadata.TotalPixelMatrixColumns;
+    const baseTotalPixelMatrixRows = image.pyramidBaseMetadata.TotalPixelMatrixRows;
+    const baseColumns = image.pyramidBaseMetadata.Columns;
+    const baseRows = image.pyramidBaseMetadata.Rows;
     const baseNColumns = Math.ceil(baseTotalPixelMatrixColumns / baseColumns);
     const baseNRows = Math.ceil(baseTotalPixelMatrixRows / baseRows);
     for (let j = (nLevels - 1); j >= 0; j--) {
-      const columns = channel.pyramidMetadata[j].Columns;
-      const rows = channel.pyramidMetadata[j].Rows;
-      const totalPixelMatrixColumns = channel.pyramidMetadata[j].TotalPixelMatrixColumns;
-      const totalPixelMatrixRows = channel.pyramidMetadata[j].TotalPixelMatrixRows;
-      const pixelSpacing = _getPixelSpacing(channel.pyramidMetadata[j]);
+      const columns = image.pyramidMetadata[j].Columns;
+      const rows = image.pyramidMetadata[j].Rows;
+      const totalPixelMatrixColumns = image.pyramidMetadata[j].TotalPixelMatrixColumns;
+      const totalPixelMatrixRows = image.pyramidMetadata[j].TotalPixelMatrixRows;
+      const pixelSpacing = _getPixelSpacing(image.pyramidMetadata[j]);
       const nColumns = Math.ceil(totalPixelMatrixColumns / columns);
       const nRows = Math.ceil(totalPixelMatrixRows / rows);
-      channelTileSizes.push([
+      imageTileSizes.push([
         columns,
         rows,
       ]);
-      channelGridSizes.push([
+      imageGridSizes.push([
         nColumns,
         nRows,
       ]);
-      channelPixelSpacings.push(pixelSpacing);
+      imagePixelSpacings.push(pixelSpacing);
      /*
       * Compute the resolution at each pyramid level, since the zoom
       * factor may not be the same between adjacent pyramid levels.
       */
       let zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns;
-      channelResolutions.push(zoomFactor);
+      imageResolutions.push(zoomFactor);
      /*
       * TODO: One may have to adjust the offset slightly due to the
       * difference between extent of the image at a given resolution level
       * and the actual number of tiles (frames).
       */
-     channelOrigins.push(offset);
+     imageOrigins.push(offset);
     }
-    channelResolutions.reverse();
-    channelTileSizes.reverse();
-    channelGridSizes.reverse();
-    channelOrigins.reverse();
-    channelPixelSpacings.reverse();
+    imageResolutions.reverse();
+    imageTileSizes.reverse();
+    imageGridSizes.reverse();
+    imageOrigins.reverse();
+    imagePixelSpacings.reverse();
 
     /** Frames may extend beyond the size of the total pixel matrix.
      * The excess pixels are empty, i.e. have only a padding value.
@@ -537,7 +447,7 @@ class Channel {
      * number of rows in the total pixel matrix.
      */
 
-    const channelExtents = [
+    const imageExtents = [
         0,                                // min X
         -(baseTotalPixelMatrixRows + 1),  // min Y
         baseTotalPixelMatrixColumns,      // max X
@@ -545,12 +455,12 @@ class Channel {
       ];
 
     return [
-      channelExtents,  
-      channelOrigins,
-      channelResolutions,
-      channelGridSizes,
-      channelTileSizes,
-      channelPixelSpacings
+      imageExtents,  
+      imageOrigins,
+      imageResolutions,
+      imageGridSizes,
+      imageTileSizes,
+      imagePixelSpacings
     ];
   }
 
@@ -626,7 +536,7 @@ class Channel {
           const frameData = {
             pixelData,
             bitsAllocated,
-            contrastLimthresholdValuesitsRange,
+            thresholdValues,
             color,
             opacity,
             columns,

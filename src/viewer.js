@@ -477,9 +477,18 @@ class VolumeImageViewer {
       [1,1,1],
     ]
 
+    if (options.metadata.length === 0) {
+      throw new Error('Input metadata has no instances.')
+    }
+
     // Metadata Tiles types checks for each instance
+    // look for channels
     for (let i = 0; i < options.metadata.length; ++i) {
       let instanceMetadata = formatMetadata(options.metadata[i]);
+      if (instanceMetadata.SamplesPerPixel !== 1) {
+        // this is not a monochorme channel, but a RGB image.
+        continue;
+      }
       if (instanceMetadata.DimensionOrganizationType === '3D' || instanceMetadata.DimensionOrganizationType === '3D_TEMPORAL') {
         // 3D data
         // TO DO: get some example data.
@@ -529,13 +538,36 @@ class VolumeImageViewer {
       }
     }
 
+    const RGBimage = {
+      OpticalPathIdentifier: '',
+      metadata: [],
+    }
+    // look for RGB images
+    for (let i = 0; i < options.metadata.length; ++i) {
+      let instanceMetadata = formatMetadata(options.metadata[i]);
+      if (instanceMetadata.SamplesPerPixel === 1) {
+        // this is not a RGB image, but a monochorme channel.
+        continue;
+      }
+      const instaceOpticalPathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier;
+      if (RGBimage.OpticalPathIdentifier === '') {
+        RGBimage.OpticalPathIdentifier = instaceOpticalPathIdentifier;
+      } else if (RGBimage.OpticalPathIdentifier !== instaceOpticalPathIdentifier) {
+        console.warn('Volume Image Viewer is trying to load more than one RGB image. It is not allowed.');
+        continue;
+      }
+
+      RGBimage.metadata.push(options.metadata[i]);
+    }
+
+    console.info(RGBimage);
     // For blending we have to make some assumptions 
     // 1) all channels should have the same origins, resolutions, grid sizes, tile sizes and pixel spacings (i.e. same TileGrid).
     //    These are arrays with number of element equal to nlevel (levels of the pyramid). All channels should have the same nlevel value.
     // 2) given (1), we calculcate the tileGrid, projection and rotation objects using the metadata of the first channel and use them for all the channels.
     // 3) If the parameters in (1) are different, it means that we have to perfom regridding/reprojection over the data (i.e. registration).
     //    This, at the moment, is out of scope. 
-    this._initUniqueOpenLayerObjects();
+    this._initUniqueOpenLayerObjects(RGBimage);
 
     // Create a rendering engine object for offscreen render (coloring the frames)
     this[_renderingEngine] = new RenderingEngine();
@@ -555,9 +587,121 @@ class VolumeImageViewer {
       this[_renderingEngine]);
     });
 
-    if (this[_channels].length === 0) {
-      throw new Error('Viewer did not find any channel or RGB image.')
-    }
+    // build up the OpenLayer objects for the RGBimage 
+    if (RGBimage.OpticalPathIdentifier !== '') {
+      /*
+       * Define custom tile URL function to retrive frames via DICOMweb WADO-RS.
+       */
+      const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
+        /*
+         * Variables x and y correspond to the X and Y axes of the slide
+         * coordinate system. Since we want to view the slide horizontally
+         * with the label on the right side, the x axis of the slide
+         * coordinate system is the vertical axis of the viewport and the
+         * y axis of the slide coordinate system the horizontal axis of the
+         * viewport. Note that this is in contrast to the nomenclature used
+         * by Openlayers.
+         */
+    
+        const z = tileCoord[0];
+        const y = tileCoord[1] + 1;
+        const x = tileCoord[2] + 1;
+        const index = x + "-" + y;
+    
+        const path = RGBimage.pyramidFrameMappings[z][index];
+        if (path === undefined) {
+          console.warn("tile " + index + " not found at level " + z);
+          return (null);
+        }
+        let url = options.client.wadoURL +
+          "/studies/" + RGBimage.pyramidMetadata[z].StudyInstanceUID +
+          "/series/" + RGBimage.pyramidMetadata[z].SeriesInstanceUID +
+          '/instances/' + path;
+        if (options.retrieveRendered) {
+          url = url + '/rendered';
+        }
+        return (url);
+      }
+
+      /*
+       * Define custom tile loader function, which is required because the
+       * WADO-RS response message has content type "multipart/related".
+      */
+      const tileLoadFunction = async (tile, src) => {
+        const img = tile.getImage();
+        if (src !== null) {
+          const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
+          const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
+          const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
+          const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
+      
+          if (options.retrieveRendered) {  
+            const mediaType = 'image/png';
+            let transferSyntaxUID = '';
+            const retrieveOptions = {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID,
+              frameNumbers,
+              mediaTypes: [
+                { mediaType, transferSyntaxUID }
+              ]
+            };
+            if (options.includeIccProfile) {
+              retrieveOptions['queryParams'] = {
+                iccprofile: 'yes'
+              }
+            }
+
+            options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
+              (renderedFrame) => {
+                const blob = new Blob([renderedFrame], {type: mediaType});
+                img.src = window.URL.createObjectURL(blob);
+              }
+            );
+          } else {
+            let mediaType = 'image/jpeg';
+            let transferSyntaxUID = '1.2.840.10008.1.2.4.50';
+            const retrieveOptions = {
+              studyInstanceUID,
+              seriesInstanceUID,
+              sopInstanceUID,
+              frameNumbers,
+              mediaTypes: [
+                { mediaType, transferSyntaxUID }
+              ]
+            };
+            options.client.retrieveInstanceFrames(retrieveOptions).then(
+              (rawFrames) => {
+                const blob = new Blob(rawFrames, {type: mediaType});
+                img.src = window.URL.createObjectURL(blob);
+              }
+            );
+          }
+        } else {
+          console.warn('could not load tile');
+        }
+      }
+
+      RGBimage.rasterSource = new TileImage({
+        crossOrigin: 'Anonymous',
+        tileGrid: this[_tileGrid],
+        projection: this[_projection],
+        wrapX: false,
+        transition: 0,
+      });
+    
+      RGBimage.rasterSource.setTileUrlFunction(tileUrlFunction);
+      RGBimage.rasterSource.setTileLoadFunction(tileLoadFunction);
+    
+      // Create OpenLayer renderer object
+      RGBimage.tileLayer = new TileLayer({
+        extent: this[_tileGrid].getExtent(),
+        source: RGBimage.rasterSource,
+        preload: Infinity,
+        projection: this[_projection]
+      });
+     }
 
     this[_drawingSource] = new VectorSource({
       tileGrid: this[_tileGrid],
@@ -602,8 +746,10 @@ class VolumeImageViewer {
           layers.push(channel.tileLayer)
         }
       });
-    } else {
+    } else if (this[_channels].length !== 0) {
       layers.push(this[_channels][0].tileLayer)  
+    } else if (RGBimage.OpticalPathIdentifier !== '') {
+      layers.push(RGBimage.tileLayer)  
     }
 
     layers.push(this[_drawingLayer]);
@@ -652,14 +798,19 @@ class VolumeImageViewer {
 
   /** init unique Open Layer objects
    */
-  _initUniqueOpenLayerObjects() {
-    if (this[_channels].length === 0) {
-      throw new Error('No channels found.')
+  _initUniqueOpenLayerObjects(RGBimage) {
+    if (this[_channels].length === 0 && RGBimage.OpticalPathIdentifier === '') {
+      throw new Error('No channels or RGBimage found.')
     }
 
-    let channel = this[_channels][0];
+    let image = null;
+    if (this[_channels].length !== 0) {
+      image = this[_channels][0];
+    } else {
+      image = RGBimage;
+    }
 
-    let geometryArrays = Channel.deriveChannelGeometry(channel);
+    let geometryArrays = Channel.deriveImageGeometry(image);
 
     this[_referenceExtents] = [...geometryArrays[0]];
     this[_referenceOrigins] = [...geometryArrays[1]];
@@ -671,9 +822,9 @@ class VolumeImageViewer {
 
     // We assume the first channel as the reference one for all the pyramid parameters.
     // All the other channels have to have the same parameters.
-    this[_pyramidMetadata] = channel.pyramidBaseMetadata;
-    this[_metadata] = [...channel.microscopyImages];
-    this[_rotation] = _getRotation(channel.pyramidBaseMetadata);
+    this[_pyramidMetadata] = image.pyramidBaseMetadata;
+    this[_metadata] = [...image.microscopyImages];
+    this[_rotation] = _getRotation(image.pyramidBaseMetadata);
 
     /*
     * Specify projection to prevent default automatic projection
@@ -687,7 +838,7 @@ class VolumeImageViewer {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
           * has meter unit.
           */
-        const spacing = _getPixelSpacing(channel.pyramidMetadata[channel.pyramidMetadata.length - 1])[0] / 10 ** 3;
+        const spacing = _getPixelSpacing(image.pyramidMetadata[image.pyramidMetadata.length - 1])[0] / 10 ** 3;
         return pixelRes * spacing;
       }
     });
