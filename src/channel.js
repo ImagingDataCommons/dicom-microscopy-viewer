@@ -137,6 +137,11 @@ class Channel {
     tileGrid,
     options,
     renderingEngine) {
+    
+    // cache viewer object and info in channel
+    this.blendingImageQuality = options.blendingImageQuality;  
+    this.renderingEngine = renderingEngine;
+    
     /*
     * To visualize images accross multiple scales, we first need to
     * determine the image pyramid structure, i.e. the size and resolution
@@ -292,6 +297,9 @@ class Channel {
                   columns,
                   rows
                 }; 
+                // NOTE: we store the pixelData array in img, so we can apply again colorImageFrame
+                //       at the change of any blending parameter (opacity, color, clipping).
+                img.pixelData = pixelData;
                 img.src = renderingEngine.colorImageFrame(frameData, 'image/jpeg', options.blendingImageQuality);
               }
             );
@@ -358,7 +366,10 @@ class Channel {
                   opacity,
                   columns,
                   rows
-                }; 
+                };
+                // NOTE: we store the pixelData array in img, so we can apply again colorImageFrame
+                //       at the change of any blending parameter (opacity, color, clipping).
+                img.pixelData = pixelData;
                 img.src = renderingEngine.colorImageFrame(frameData, 'image/jpeg', options.blendingImageQuality);
               } else {
                 const blob = new Blob(rawFrames, {type: mediaType});
@@ -375,12 +386,14 @@ class Channel {
     /*
      * We use the existing TileImage source but customize it to retrieve
      * frames (load tiles) via DICOMweb WADO-RS.
+     * NOTE: transition = 0 disable OpenLayer transition alpha opacity
     */
     this.rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
       tileGrid: tileGrid,
       projection: projection,
-      wrapX: false
+      wrapX: false,
+      transition: 0,
     });
     
     this.rasterSource.setTileUrlFunction(tileUrlFunction);
@@ -390,7 +403,7 @@ class Channel {
     this.tileLayer = new TileLayer({
       extent: tileGrid.getExtent(),
       source: this.rasterSource,
-      preload: 0,
+      preload: Infinity,
       projection: projection
     });
     
@@ -587,6 +600,7 @@ class Channel {
    * @param {number} opacity
    * @param {number[]} contrastLimitsRange
    * @param {boolean} visible
+   * @returns {boolean} force OpenLayer to rerender the view
    */
   setPresentationState(
     color,
@@ -594,13 +608,26 @@ class Channel {
     contrastLimitsRange,
     visible) {
     
+    let rerender = false;
     if (color) {
+      if (this.blendingInformation.color[0] !== color[0] ||
+        this.blendingInformation.color[1] !== color[1] ||
+        this.blendingInformation.color[2] !== color[2]) {
+        rerender = true;
+      }
       this.blendingInformation.color = [...color];
     }
     if (opacity) {
+      if (Math.abs(this.blendingInformation.opacity - opacity) > 1.e-3) {
+        rerender = true;
+      }
       this.blendingInformation.opacity = opacity;
     }
     if (contrastLimitsRange) {
+      if (this.blendingInformation.contrastLimitsRange[0] !== contrastLimitsRange[0] ||
+        this.blendingInformation.contrastLimitsRange[1] !== contrastLimitsRange[1]) {
+        rerender = true;
+      }
       this.blendingInformation.contrastLimitsRange = [...contrastLimitsRange];
     }
     if (visible) {
@@ -608,9 +635,36 @@ class Channel {
       this.tileLayer.setVisible(this.blendingInformation.visible);
     }
 
-    // need to rerun offscren render to color the layers already loaded
-    this.rasterSource.refresh()
-    // TO DO: this will redonwload the tiles, we should just recolor all the tiles already cached
+    // rerender tiles already loaded
+    if (rerender) {
+      // retrieve all the cached tiles from the raster source and reapply the offscreen render
+      for (const [key, value] of Object.entries(this.rasterSource.tileCache.entries_)) {
+        const tile = value.value_;
+        const z = tile.tileCoord[0];
+        const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel; // number of colors for pixel
+        if (samplesPerPixel == 1) {
+          const columns = this.pyramidMetadata[z].Columns;
+          const rows = this.pyramidMetadata[z].Rows;
+          const bitsAllocated = this.pyramidMetadata[z].BitsAllocated; // memory for pixel
+          const { contrastLimitsRange, color, opacity } = this.blendingInformation;
+  
+          const img = tile.getImage();
+          const pixelData = img.pixelData;
+          const frameData = {
+            pixelData,
+            bitsAllocated,
+            contrastLimitsRange,
+            color,
+            opacity,
+            columns,
+            rows
+          }; 
+          img.src = this.renderingEngine.colorImageFrame(frameData, 'image/jpeg', this.blendingImageQuality);
+        }      
+      }
+    }
+
+    return rerender;
   }
 }
 

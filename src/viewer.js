@@ -1,5 +1,4 @@
 import 'ol/ol.css';
-import CanvasTileLayerRenderer from 'ol/renderer/canvas/TileLayer.js';
 import Collection from 'ol/Collection';
 import Draw, { createRegularPolygon, createBox } from 'ol/interaction/Draw';
 import EVENT from "./events";
@@ -62,34 +61,6 @@ import {
   formatMetadata,
 } from './metadata.js'
 import { RenderingEngine } from './renderingEngine.js';
-
-
-// override drawTileImage method
-import {getUid} from 'ol/util.js';
-CanvasTileLayerRenderer.prototype.drawTileImage = function drawTileImage (tile, frameState, x, y, w, h, gutter, transition, opacity) {
-  var image = this.getTileImage(tile);
-  if (!image) {
-    return;
-  }
-  var uid = getUid(this);
-  var tileAlpha = transition ? tile.getAlpha(uid, frameState.time) : 1;
-  var alpha = opacity * tileAlpha;
-  var alphaChanged = alpha !== this.context.globalAlpha;
-  if (alphaChanged) {
-    this.context.save();
-    this.context.globalAlpha = alpha;
-  }
-  this.context.drawImage(image, gutter, gutter, image.width - 2 * gutter, image.height - 2 * gutter, x, y, w, h);
-  if (alphaChanged) {
-    this.context.restore();
-  }
-  if (tileAlpha !== 1) {
-    frameState.animate = true;
-  }
-  if (transition) {
-    tile.endTransition(uid);
-  }
-};
 
 import * as DICOMwebClient from 'dicomweb-client';
 
@@ -644,7 +615,7 @@ class VolumeImageViewer {
       const overviewTileLayer = new TileLayer({
         extent: this[_referenceExtents],
         source: this[_channels][0].rasterSource,
-        preload: 0,
+        preload: Infinity,
         projection: this[_projection]
       });
 
@@ -801,11 +772,14 @@ class VolumeImageViewer {
       return null;
     }
 
-    channel.setPresentationState(
-      color,
-      opacity,
-      contrastLimitsRange,
-      visible);
+    if (channel.setPresentationState(
+        color,
+        opacity,
+        contrastLimitsRange,
+        visible)
+      ) { 
+      this[_map].render();
+    }
   }
 
   /** Gets the channel visualization/presentation parameters given an id
