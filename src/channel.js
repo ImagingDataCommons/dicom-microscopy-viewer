@@ -52,33 +52,6 @@ class BlendingInformation {
     }
 }
 
-/** FrameData for a tile image
- *
- * @class
- * @memberof channel
- */  
-
- class FrameData {
-
-  constructor(
-    pixelData, 
-    bitsAllocated,
-    thresholdValues,
-    color,
-    opacity,
-    columns,
-    rows) {
-
-    this.pixelData = pixelData;
-    this.bitsAllocated = [...bitsAllocated];
-    this.thresholdValues = [...thresholdValues];
-    this.color = [...color];
-    this.opacity = opacity;
-    this.columns = columns;
-    this.rows = rows;
-    }
-}
-
 /** Channel for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
  *
