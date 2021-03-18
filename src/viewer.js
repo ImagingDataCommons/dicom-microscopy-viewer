@@ -703,6 +703,7 @@ const _segmentations = Symbol("segmentations");
 const _usewebgl = Symbol("usewebgl");
 const _annotationManager = Symbol("annotationManager");
 const _defaultStyleOptions = Symbol("defaultStyleOptions");
+const _overviewMap = Symbol('overviewMap');
 
 /** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
@@ -854,6 +855,7 @@ class VolumeImageViewer {
     }
 
     const nLevels = this[_pyramidMetadata].length;
+    console.debug("Pyramid levels:", nLevels);
     if (nLevels === 0) {
       console.error("empty pyramid - no levels found");
     }
@@ -929,6 +931,7 @@ class VolumeImageViewer {
        * by Openlayers.
        */
       const z = tileCoord[0];
+      console.debug("Pyramid level:", z);
       const y = tileCoord[1] + 1;
       const x = tileCoord[2] + 1;
       const index = x + "-" + y;
@@ -1036,7 +1039,7 @@ class VolumeImageViewer {
     const projection = new Projection({
       code: "DICOM",
       units: "metric",
-      extent: extent,
+      extent,
       getPointResolution: (pixelRes, point) => {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
          * has meter unit.
@@ -1059,11 +1062,11 @@ class VolumeImageViewer {
      * factor between individual levels.
      */
     const tileGrid = new TileGrid({
-      extent: extent,
-      origins: origins,
-      resolutions: resolutions,
+      extent,
+      origins,
+      resolutions,
       sizes: tileGridSizes,
-      tileSizes: tileSizes,
+      tileSizes,
     });
 
     /*
@@ -1072,41 +1075,41 @@ class VolumeImageViewer {
      */
     const rasterSource = new TileImage({
       crossOrigin: "Anonymous",
-      tileGrid: tileGrid,
-      projection: projection,
+      tileGrid,
+      projection,
       wrapX: false,
     });
     rasterSource.setTileUrlFunction(tileUrlFunction);
     rasterSource.setTileLoadFunction(tileLoadFunction);
 
     this[_imageLayer] = new TileLayer({
-      extent: extent,
+      extent,
       source: rasterSource,
       preload: 0,
-      projection: projection,
+      projection,
     });
 
     this[_drawingSource] = new VectorSource({
-      tileGrid: tileGrid,
-      projection: projection,
+      tileGrid,
+      projection,
       features: this[_features],
       wrapX: false,
     });
 
     this[_drawingLayer] = new VectorLayer({
-      extent: extent,
+      extent,
       source: this[_drawingSource],
-      projection: projection,
+      projection,
       updateWhileAnimating: true,
       updateWhileInteracting: true,
     });
 
     const view = new View({
       center: getCenter(extent),
-      extent: extent,
-      projection: projection,
-      resolutions: resolutions,
-      rotation: rotation,
+      extent,
+      projection,
+      resolutions,
+      rotation,
     });
 
     this[_controls] = {
@@ -1120,36 +1123,43 @@ class VolumeImageViewer {
       this[_controls].fullscreen = new FullScreen();
     }
 
-    if (options.controls.has("overview")) {
-      const overviewImageLayer = new TileLayer({
-        extent: extent,
-        source: rasterSource,
-        preload: 0,
-        projection: projection,
-      });
+    const overviewImageLayer = new TileLayer({
+      extent,
+      source: rasterSource,
+      preload: 0,
+      projection,
+    });
 
-      let viewOptions = { projection: projection, rotation: rotation };
-      if (resolutions && !options.overview.zoom)
-        viewOptions.resolutions = resolutions;
-      if (options.overview.zoom) viewOptions.zoom = options.overview.zoom;
-      const view = new View(viewOptions);
+    let overviewViewOptions = {
+      rotation,
+      projection,
+      zoom: 28,
+      resolutions,
+      resolution: 4,
+      maxResolution: 4,
+      minResolution: 1,
+      //zoom: 7,
+    };
 
-      this[_controls].overview = new OverviewMap({
-        view,
-        layers: [overviewImageLayer],
-        collapsed: options.overview.hasOwnProperty("collapsed")
-          ? options.overview.collapsed
-          : false,
-        collapsible: options.overview.hasOwnProperty("collapsible")
-          ? options.overview.collapsible
-          : false,
-      });
-    }
+    console.debug("View resolutions:", resolutions);
+
+    const overviewView = new View(overviewViewOptions);
+
+    this[_overviewMap] = new OverviewMap({
+      view: overviewView,
+      layers: [overviewImageLayer],
+      collapsed: options.overview.hasOwnProperty("collapsed")
+        ? options.overview.collapsed
+        : false,
+      collapsible: options.overview.hasOwnProperty("collapsible")
+        ? options.overview.collapsible
+        : false,
+    });
 
     /** Creates the map with the defined layers and view and renders it. */
     this[_map] = new Map({
       layers: [this[_imageLayer], this[_drawingLayer]],
-      view: view,
+      view,
       controls: [],
       keyboardEventTarget: document,
     });
@@ -1455,6 +1465,19 @@ class VolumeImageViewer {
     this[_map].addInteraction(this[_interactions].translate);
   }
 
+  /** Toggles overview map */
+  toggleOverviewMap() {
+    const controls = this[_map].getControls();
+    const overview = controls
+      .getArray()
+      .find((c) => c === this[_overviewMap]);
+    if (overview) {
+      this[_map].removeControl(this[_overviewMap]);
+      return;
+    }
+    this[_map].addControl(this[_overviewMap]);
+  }
+
   /** Deactivates translate interaction. */
   deactivateTranslateInteraction() {
     console.info('deactivate "translate" interaction');
@@ -1670,6 +1693,14 @@ class VolumeImageViewer {
       rois.push(this.getROI(item.getId()));
     });
     return rois;
+  }
+
+  collapseOverviewMap() {
+    this[_controls].overview.setCollapsed(true);
+  }
+
+  expandOverviewMap() {
+    this[_controls].overview.setCollapsed(true);
   }
 
   /** Number of annotated regions of interest.

@@ -16,6 +16,7 @@ const getArrowStyle = (point, rotation, anchor, color) => {
       </g>
     </svg>
   `;
+
   return new Style({
     geometry: new Point(point),
     image: new Icon({
