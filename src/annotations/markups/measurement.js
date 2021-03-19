@@ -16,7 +16,13 @@ export const format = (feature, units) => {
   return output;
 };
 
-export const isMeasurement = (feature) =>
+/**
+ * Checks if feature has measurement markup properties
+ * 
+ * @param {object} feature 
+ * @returns {boolean} true if feature has measurement markup properties
+ */
+const _isMeasurement = (feature) =>
   Enums.Markup.Measurement === feature.get(Enums.InternalProperties.Markup);
 
 /**
@@ -29,7 +35,7 @@ export const isMeasurement = (feature) =>
 const MeasurementMarkup = ({ map, markupManager }) => {
   return {
     onAdd: (feature) => {
-      if (isMeasurement(feature)) {
+      if (_isMeasurement(feature)) {
         const view = map.getView();
         const unitSuffix = getUnitSuffix(view);
         markupManager.create({
@@ -39,17 +45,17 @@ const MeasurementMarkup = ({ map, markupManager }) => {
       }
     },
     onRemove: (feature) => {
-      if (isMeasurement(feature)) {
+      if (_isMeasurement(feature)) {
         const featureId = feature.getId();
         markupManager.remove(featureId);
       }
     },
-    onUpdate: (feature) => {},
     onDrawStart: ({ feature }) => {
-      if (isMeasurement(feature)) {
+      if (_isMeasurement(feature)) {
         markupManager.create({ feature });
       }
     },
+    onUpdate: (feature) => {},
     onDrawEnd: ({ feature }) => {},
   };
 };

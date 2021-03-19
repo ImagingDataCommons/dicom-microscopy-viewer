@@ -5,9 +5,6 @@ import Circle from "ol/style/Circle";
 
 import Enums from "../../enums";
 
-export const isTextEvaluation = (feature) =>
-  Enums.Markup.TextEvaluation === feature.get(Enums.InternalProperties.Markup);
-
 /**
  * Format free text output
  * @param {Feature} feature feature
@@ -16,8 +13,17 @@ export const isTextEvaluation = (feature) =>
 export const format = (feature) =>
   feature.get(Enums.InternalProperties.Label) || "";
 
-const applyStyle = (feature) => {
-  if (hasMarker(feature)) return;
+/**
+ * Builds the text evaluation style
+ *
+ * @param {object} feature
+ * @returns {object} Style instance
+ */
+const _applyStyle = (feature) => {
+  if (_hasMarker(feature)) {
+    return;
+  }
+
   const style = new Style({
     image: new Circle({
       fill: new Fill({
@@ -34,21 +40,40 @@ const applyStyle = (feature) => {
   feature.setStyle(style);
 };
 
-export const hasMarker = (feature) =>
-  !!feature.get(Enums.InternalProperties.Marker);
+/**
+ * Checks if feature has text evaluation properties
+ *
+ * @param {object} feature
+ * @returns {boolean} true if feature has text evaluation properties
+ */
+const _isTextEvaluation = (feature) =>
+  Enums.Markup.TextEvaluation === feature.get(Enums.InternalProperties.Markup);
 
-const onInteractionEventHandler = ({ feature, markupManager }) => {
-  if (isTextEvaluation(feature)) {
-    const featureHasMarker = hasMarker(feature);
-    markupManager.create({
-      feature,
-      value: format(feature),
-      isLinkable: featureHasMarker,
-      isDraggable: featureHasMarker,
-      offset: featureHasMarker ? [7, 7] : [1, 1],
-    });
-    applyStyle(feature);
-  }
+/**
+ * Checks if feature has marker properties
+ *
+ * @param {object} feature
+ * @returns {boolean} true if feature has marker properties
+ */
+const _hasMarker = (feature) => !!feature.get(Enums.InternalProperties.Marker);
+
+/**
+ * Handler to create markups based on feature properties
+ * and apply text evaluation styles
+ *
+ * @param {object} feature
+ * @param {object} markupManager MarkupManager instance
+ * @returns {void}
+ */
+const _onInteractionEventHandler = ({ feature, markupManager }) => {
+  const featureHasMarker = _hasMarker(feature);
+  markupManager.create({
+    feature,
+    value: format(feature),
+    isLinkable: featureHasMarker,
+    isDraggable: featureHasMarker,
+  });
+  _applyStyle(feature);
 };
 
 /**
@@ -60,36 +85,40 @@ const onInteractionEventHandler = ({ feature, markupManager }) => {
 const TextEvaluationMarkup = ({ markupManager }) => {
   return {
     onAdd: (feature) => {
-      if (isTextEvaluation(feature)) {
-        onInteractionEventHandler({ feature, markupManager });
+      if (_isTextEvaluation(feature)) {
+        _onInteractionEventHandler({ feature, markupManager });
 
         /** Keep text style after external style changes */
         feature.on(
           Enums.FeatureEvents.PROPERTY_CHANGE,
           ({ key: property, target: feature }) => {
             if (property === Enums.InternalProperties.StyleOptions) {
-              applyStyle(feature);
+              _applyStyle(feature);
             }
           }
         );
       }
     },
     onRemove: (feature) => {
-      if (isTextEvaluation(feature)) {
+      if (_isTextEvaluation(feature)) {
         const featureId = feature.getId();
         markupManager.remove(featureId);
       }
     },
     onUpdate: (feature) => {
-      if (isTextEvaluation(feature)) {
+      if (_isTextEvaluation(feature)) {
         markupManager.update({ feature, value: format(feature) });
       }
     },
     onDrawStart: ({ feature }) => {
-      onInteractionEventHandler({ feature, markupManager });
+      if (_isTextEvaluation(feature)) {
+        _onInteractionEventHandler({ feature, markupManager });
+      }
     },
     onDrawEnd: ({ feature }) => {
-      onInteractionEventHandler({ feature, markupManager });
+      if (_isTextEvaluation(feature)) {
+        _onInteractionEventHandler({ feature, markupManager });
+      }
     },
   };
 };
