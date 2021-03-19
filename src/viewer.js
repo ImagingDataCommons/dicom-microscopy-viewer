@@ -1133,12 +1133,8 @@ class VolumeImageViewer {
     let overviewViewOptions = {
       rotation,
       projection,
-      zoom: 28,
-      resolutions,
-      resolution: 4,
-      maxResolution: 4,
-      minResolution: 1,
-      //zoom: 7,
+      /** resolutions, with this property the zoom doesn't work */
+      zoom: 28 /** Default max zoom */
     };
 
     console.debug("View resolutions:", resolutions);

@@ -332,6 +332,18 @@ function mapSlideCoordToPixelCoord(options) {
 }
 
 /**
+ * Get coordinate with offset
+ *
+ * @param {array} coordinates coordinates
+ * @param {number} offset offset
+ * @returns {array} coordinates with offset
+ */
+function coordinateWithOffset(coordinate, offset = 50) {
+  const [x, y] = coordinate;
+  return [x - offset, y - offset];
+}
+
+/**
  * Get view unit suffix
  *
  * @param {object} view Map view
@@ -511,4 +523,5 @@ export {
   getMeasurementContentItem,
   getTextEvaluationContentItem,
   getContentItemNameMeaning,
+  coordinateWithOffset
 };

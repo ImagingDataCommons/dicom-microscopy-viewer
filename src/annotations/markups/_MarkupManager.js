@@ -10,7 +10,7 @@ import Feature from "ol/Feature";
 
 import Enums from "../../enums";
 import { getShortestLineBetweenOverlayAndFeature } from "./utils";
-import { getUnitSuffix } from "../../utils";
+import { getUnitSuffix, coordinateWithOffset } from "../../utils";
 import defaultStyles from "../styles";
 
 class _MarkupManager {
@@ -97,13 +97,7 @@ class _MarkupManager {
    * @param {array} offset Markup offset
    * @return {object} The markup object
    */
-  create({
-    feature,
-    value = "",
-    isLinkable = true,
-    isDraggable = true,
-    offset = [7, 7],
-  }) {
+  create({ feature, value = "", isLinkable = true, isDraggable = true }) {
     const id = feature.getId();
     if (!id) {
       console.warn("Failed to create markup, feature id not found");
@@ -128,12 +122,11 @@ class _MarkupManager {
       positioning: "center-center",
       stopEvent: false,
       dragging: false,
-      offset,
       element: markup.element,
     });
 
     const featureCoordinate = feature.getGeometry().getLastCoordinate();
-    markup.overlay.setPosition(featureCoordinate);
+    markup.overlay.setPosition(coordinateWithOffset(featureCoordinate));
 
     this._map.addOverlay(markup.overlay);
     this._markups.set(id, markup);
@@ -146,8 +139,8 @@ class _MarkupManager {
 
   /**
    * Wire internal events to markup feature
-   * 
-   * @param {object} feature 
+   *
+   * @param {object} feature
    * @returns {void}
    */
   _wireInternalEvents(feature) {
@@ -205,7 +198,7 @@ class _MarkupManager {
         markup.overlay.get(dragProperty) === true &&
         markup.isDraggable
       ) {
-        markup.overlay.setPosition(event.coordinate);
+        markup.overlay.setPosition(coordinateWithOffset(event.coordinate));
         this._drawLink(feature);
       }
     });
@@ -225,8 +218,8 @@ class _MarkupManager {
 
   /**
    * Updates the feature's markup tooltip style
-   * 
-   * @param {object} feature 
+   *
+   * @param {object} feature
    * @returns {void}
    */
   _styleTooltip(feature) {
@@ -311,28 +304,10 @@ class _MarkupManager {
     }
 
     if (coordinate) {
-      markup.overlay.setPosition(coordinate);
+      markup.overlay.setPosition(coordinateWithOffset(coordinate));
     }
 
     this._markups.set(id, markup);
-  }
-
-  /**
-   * Get basic metadata of markup
-   *
-   * @param {Feature} feature The feature
-   * @return {object} metadata
-   */
-  _getMetadata(feature) {
-    const id = feature.getId();
-    const markup = this.get(id);
-    if (markup) {
-      return {
-        id: markup.id,
-        value: markup.element.innerText,
-        coordinate: markup.overlay.getPosition(),
-      };
-    }
   }
 
   /**
