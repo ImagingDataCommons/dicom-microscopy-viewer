@@ -703,7 +703,7 @@ const _segmentations = Symbol("segmentations");
 const _usewebgl = Symbol("usewebgl");
 const _annotationManager = Symbol("annotationManager");
 const _defaultStyleOptions = Symbol("defaultStyleOptions");
-const _overviewMap = Symbol('overviewMap');
+const _overviewMap = Symbol("overviewMap");
 
 /** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
@@ -1134,7 +1134,7 @@ class VolumeImageViewer {
       rotation,
       projection,
       /** resolutions, with this property the zoom doesn't work */
-      zoom: 28 /** Default max zoom */
+      zoom: 28 /** Default max zoom */,
     };
 
     console.debug("View resolutions:", resolutions);
@@ -1392,13 +1392,13 @@ class VolumeImageViewer {
       event.feature.setProperties(builtInDrawOptions, true);
       event.feature.setId(generateUID());
 
-      this[_annotationManager].onDrawStart(event);
-
-      /** Style updates should come after annotation manager's hooks */
+      /** Set external styles before calling internal annotation hooks */
       _setFeatureStyle(
         event.feature,
         options[Enums.InternalProperties.StyleOptions]
       );
+
+      this[_annotationManager].onDrawStart(event);
 
       _wireMeasurementsAndQualitativeEvaluationsEvents(
         this[_map],
@@ -1464,9 +1464,7 @@ class VolumeImageViewer {
   /** Toggles overview map */
   toggleOverviewMap() {
     const controls = this[_map].getControls();
-    const overview = controls
-      .getArray()
-      .find((c) => c === this[_overviewMap]);
+    const overview = controls.getArray().find((c) => c === this[_overviewMap]);
     if (overview) {
       this[_map].removeControl(this[_overviewMap]);
       return;

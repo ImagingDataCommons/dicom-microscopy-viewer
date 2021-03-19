@@ -3,7 +3,6 @@ import Stroke from "ol/style/Stroke";
 import Point from "ol/geom/Point";
 import LineString from "ol/geom/LineString";
 import Icon from "ol/style/Icon";
-import Fill from "ol/style/Fill";
 
 import Enums from "../../enums";
 import defaultStyles from "../styles";
@@ -21,8 +20,10 @@ const applyStyle = (feature, map) => {
         : defaultStyles.stroke.color;
 
     feature.setStyle((feature, resolution) => {
+      const newScale = map.getView().getResolutionForZoom(3) / resolution;
+
       const icon = `
-        <svg version="1.1" width="208px" height="208px" viewBox="0 -7.101 760.428 415.101" style="enable-background:new 0 0 408 408;" xmlns="http://www.w3.org/2000/svg">
+        <svg version="1.1" width="180px" height="180px" viewBox="0 -7.101 760.428 415.101" style="enable-background:new 0 0 408 408;" xmlns="http://www.w3.org/2000/svg">
           <g>
             <path style="fill:${encodeURIComponent(
               color
@@ -31,14 +32,7 @@ const applyStyle = (feature, map) => {
         </svg>
       `;
 
-      const styles = [
-        new Style({
-          stroke: new Stroke({
-            color,
-            width: 3,
-          }),
-        })
-      ];
+      const styles = [];
 
       if (geometry instanceof LineString) {
         geometry.forEachSegment((start, end) => {
@@ -51,17 +45,21 @@ const applyStyle = (feature, map) => {
             image: new Icon({
               opacity: 1,
               src: `data:image/svg+xml;utf8,${icon}`,
-              scale: 0.2,
+              scale: newScale,  /** Absolute-sized icon */
               anchor: [0.1, 0.5],
               rotateWithView: true,
               rotation: -rotation,
             }),
           });
 
-          /** Absolute-sized icon */
-          arrowStyle
-            .getImage()
-            .setScale(map.getView().getResolutionForZoom(3) / resolution);
+          styles.push(
+            new Style({
+              stroke: new Stroke({
+                color,
+                width: 12 * newScale, /** Keep scale sync with icon */
+              }),
+            })
+          );
 
           /** Arrow */
           styles.push(arrowStyle);
@@ -75,17 +73,12 @@ const applyStyle = (feature, map) => {
         image: new Icon({
           opacity: 1,
           src: `data:image/svg+xml;utf8,${icon}`,
-          scale: 0.2,
+          scale: newScale, /** Absolute-sized icon */
           anchor,
           rotateWithView: true,
           rotation: -rotation,
         }),
       });
-
-      /** Absolute-sized icon */
-      iconStyle
-        .getImage()
-        .setScale(map.getView().getResolutionForZoom(3) / resolution);
 
       return iconStyle;
     });
@@ -107,9 +100,9 @@ export const format = (feature) =>
  * Arrow marker definition
  *
  * @param {object} dependencies Shared dependencies
- * @param {object} dependencies.markupManager MarkupManager shared instance
+ * @param {object} dependencies.map Map shared instance
  */
-const ArrowMarker = ({ markupManager, map }) => {
+const ArrowMarker = ({ map }) => {
   return {
     onAdd: (feature) => {
       if (isArrow(feature)) {
@@ -125,7 +118,7 @@ const ArrowMarker = ({ markupManager, map }) => {
           }
         );
 
-        /** Update marker position on feature geometry change */
+        /** Update arrow icon position on feature geometry change */
         feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
           applyStyle(feature, map);
         });
@@ -135,14 +128,10 @@ const ArrowMarker = ({ markupManager, map }) => {
     onRemove: (feature) => {},
     onDrawStart: ({ feature }) => {
       if (isArrow(feature)) {
-        applyStyle(feature);
+        applyStyle(feature, map);
       }
     },
-    onDrawEnd: ({ feature }) => {
-      if (isArrow(feature)) {
-        applyStyle(feature);
-      }
-    },
+    onDrawEnd: ({ feature }) => {},
   };
 };
 

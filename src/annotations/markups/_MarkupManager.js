@@ -121,7 +121,7 @@ class _MarkupManager {
     markup.element = element;
     markup.overlay = new Overlay({
       className: "markup-container",
-      //positioning: "center-center",
+      positioning: "center-center",
       stopEvent: false,
       dragging: false,
       position: spacedCoordinate,
@@ -166,6 +166,9 @@ class _MarkupManager {
     );
     this._listeners.set(id, listener);
 
+    this._styleTooltip(feature);
+
+    /** Keep markup style after external style changes */
     feature.on(
       Enums.FeatureEvents.PROPERTY_CHANGE,
       ({ key: property, target: feature }) => {
@@ -174,6 +177,11 @@ class _MarkupManager {
         }
       }
     );
+
+    /** Update markup style on feature geometry change */
+    feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
+      this._styleTooltip(feature);
+    });
 
     let dragPan;
     let dragProperty = "dragging";
