@@ -116,17 +116,17 @@ class _MarkupManager {
     element.className = "ol-tooltip ol-tooltip-measure";
     element.innerText = value;
 
+    const spacedCoordinate = coordinateWithOffset(feature);
+
     markup.element = element;
     markup.overlay = new Overlay({
       className: "markup-container",
-      positioning: "center-center",
+      //positioning: "center-center",
       stopEvent: false,
       dragging: false,
+      position: spacedCoordinate,
       element: markup.element,
     });
-
-    const featureCoordinate = feature.getGeometry().getLastCoordinate();
-    markup.overlay.setPosition(coordinateWithOffset(featureCoordinate));
 
     this._map.addOverlay(markup.overlay);
     this._markups.set(id, markup);
@@ -198,7 +198,8 @@ class _MarkupManager {
         markup.overlay.get(dragProperty) === true &&
         markup.isDraggable
       ) {
-        markup.overlay.setPosition(coordinateWithOffset(event.coordinate));
+        /** Doesn't need to have the offset */
+        markup.overlay.setPosition(event.coordinate);
         this._drawLink(feature);
       }
     });
@@ -304,7 +305,7 @@ class _MarkupManager {
     }
 
     if (coordinate) {
-      markup.overlay.setPosition(coordinateWithOffset(coordinate));
+      markup.overlay.setPosition(coordinateWithOffset(feature));
     }
 
     this._markups.set(id, markup);

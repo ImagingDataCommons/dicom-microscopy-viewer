@@ -1,14 +1,16 @@
 import Style from "ol/style/Style";
+import Stroke from "ol/style/Stroke";
 import Point from "ol/geom/Point";
 import LineString from "ol/geom/LineString";
 import Icon from "ol/style/Icon";
+import Fill from "ol/style/Fill";
 
 import Enums from "../../enums";
 import defaultStyles from "../styles";
 
 const applyStyle = (feature, map) => {
   const geometry = feature.getGeometry();
-  if (geometry instanceof Point) {
+  if (geometry instanceof Point || geometry instanceof LineString) {
     const anchor = [0, 0.5];
     const rotation = 120;
     const point = geometry.getCoordinates();
@@ -28,6 +30,45 @@ const applyStyle = (feature, map) => {
           </g>
         </svg>
       `;
+
+      const styles = [
+        new Style({
+          stroke: new Stroke({
+            color,
+            width: 3,
+          }),
+        })
+      ];
+
+      if (geometry instanceof LineString) {
+        geometry.forEachSegment((start, end) => {
+          const dx = end[0] - start[0];
+          const dy = end[1] - start[1];
+          const rotation = Math.atan2(dy, dx);
+
+          const arrowStyle = new Style({
+            geometry: new Point(start),
+            image: new Icon({
+              opacity: 1,
+              src: `data:image/svg+xml;utf8,${icon}`,
+              scale: 0.2,
+              anchor: [0.1, 0.5],
+              rotateWithView: true,
+              rotation: -rotation,
+            }),
+          });
+
+          /** Absolute-sized icon */
+          arrowStyle
+            .getImage()
+            .setScale(map.getView().getResolutionForZoom(3) / resolution);
+
+          /** Arrow */
+          styles.push(arrowStyle);
+        });
+
+        return styles;
+      }
 
       const iconStyle = new Style({
         geometry: new Point(point),
@@ -92,7 +133,11 @@ const ArrowMarker = ({ markupManager, map }) => {
     },
     onUpdate: (feature) => {},
     onRemove: (feature) => {},
-    onDrawStart: ({ feature }) => {},
+    onDrawStart: ({ feature }) => {
+      if (isArrow(feature)) {
+        applyStyle(feature);
+      }
+    },
     onDrawEnd: ({ feature }) => {
       if (isArrow(feature)) {
         applyStyle(feature);
