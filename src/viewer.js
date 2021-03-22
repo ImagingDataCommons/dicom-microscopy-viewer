@@ -404,30 +404,6 @@ function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
   return coordinates;
 }
 
-/** Extracts and transforms the region of interest (ROI) from an Openlayers
- * Feature.
- *
- * @param {object} feature - Openlayers Feature
- * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
- * @param {Object} context - Context
- * @returns {ROI} Region of interest
- * @private
- */
-function _getROIFromFeature(feature, pyramid) {
-  if (feature !== undefined && feature !== null) {
-    const geometry = feature.getGeometry();
-    const scoord3d = _geometry2Scoord3d(geometry, pyramid);
-    const properties = feature.getProperties();
-    // Remove geometry from properties mapping
-    const geometryName = feature.getGeometryName();
-    delete properties[geometryName];
-    const uid = feature.getId();
-    const roi = new ROI({ scoord3d, properties, uid });
-    return roi;
-  }
-  return;
-}
-
 /** Map style options to OpenLayers style.
  *
  * @param {object} styleOptions - Style options
@@ -769,7 +745,7 @@ class VolumeImageViewer {
     });
 
     this[_features].on("remove", (e) => {
-      this[_annotationManager].onRemove(e.element);
+      this[_annotationManager].onRemove(feature);
     });
 
     /*
@@ -1242,7 +1218,7 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_ADDED,
-        _getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
       );
     });
 
@@ -1276,7 +1252,7 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_MODIFIED,
-        _getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
       );
     });
 
@@ -1284,7 +1260,7 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_REMOVED,
-        _getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
       );
     });
   }
@@ -1411,7 +1387,7 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_DRAWN,
-        _getROIFromFeature(event.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(event.feature, this[_pyramidMetadata])
       );
     });
 
@@ -1459,6 +1435,39 @@ class VolumeImageViewer {
     this[_interactions].translate = new Translate(translateOptions);
 
     this[_map].addInteraction(this[_interactions].translate);
+  }
+
+  /** Extracts and transforms the region of interest (ROI) from an Openlayers
+   * Feature.
+   *
+   * @param {object} feature - Openlayers Feature
+   * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
+   * @param {Object} context - Context
+   * @returns {ROI} Region of interest
+   * @private
+   */
+  _getROIFromFeature(feature, pyramid) {
+    if (feature !== undefined && feature !== null) {
+      const geometry = feature.getGeometry();
+
+      let scoord3d;
+      try {
+        scoord3d = _geometry2Scoord3d(geometry, pyramid);
+      } catch (error) {
+        const uid = feature.getId();
+        this.removeROI(uid);
+        throw error;
+      }
+
+      const properties = feature.getProperties();
+      // Remove geometry from properties mapping
+      const geometryName = feature.getGeometryName();
+      delete properties[geometryName];
+      const uid = feature.getId();
+      const roi = new ROI({ scoord3d, properties, uid });
+      return roi;
+    }
+    return;
   }
 
   /** Toggles overview map */
@@ -1545,7 +1554,7 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_SELECTED,
-        _getROIFromFeature(e.selected[0], this[_pyramidMetadata])
+        this._getROIFromFeature(e.selected[0], this[_pyramidMetadata])
       );
     });
 
@@ -1713,7 +1722,7 @@ class VolumeImageViewer {
   getROI(uid) {
     console.info(`get ROI ${uid}`);
     const feature = this[_drawingSource].getFeatureById(uid);
-    return _getROIFromFeature(feature, this[_pyramidMetadata]);
+    return this._getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
   /** Adds a measurement to a region of interest.
@@ -1767,7 +1776,7 @@ class VolumeImageViewer {
   popROI() {
     console.info("pop ROI");
     const feature = this[_features].pop();
-    return _getROIFromFeature(feature, this[_pyramidMetadata]);
+    return this._getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
   /** Adds a regions of interest.
@@ -1862,7 +1871,17 @@ class VolumeImageViewer {
   removeROI(uid) {
     console.info(`remove ROI ${uid}`);
     const feature = this[_drawingSource].getFeatureById(uid);
-    this[_features].remove(feature);
+
+    if (feature) {
+      this[_features].remove(feature);
+      return;
+    }
+
+    /** 
+     * If failed to draw/cache feature in drawing source, call onFailure
+     * to avoid trash of broken annotations
+     */
+    this[_annotationManager].onFailure(uid);
   }
 
   /** Removes all annotated regions of interest. */

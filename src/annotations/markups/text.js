@@ -99,6 +99,11 @@ const TextEvaluationMarkup = ({ markupManager }) => {
         );
       }
     },
+    onFailure: (uid) => {
+      if (uid) {
+        markupManager.remove(uid);
+      }
+    },
     onRemove: (feature) => {
       if (_isTextEvaluation(feature)) {
         const featureId = feature.getId();

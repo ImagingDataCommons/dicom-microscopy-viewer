@@ -44,6 +44,11 @@ const MeasurementMarkup = ({ map, markupManager }) => {
         });
       }
     },
+    onFailure: (uid) => {
+      if (uid) {
+        markupManager.remove(uid);
+      }
+    },
     onRemove: (feature) => {
       if (_isMeasurement(feature)) {
         const featureId = feature.getId();

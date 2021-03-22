@@ -108,8 +108,9 @@ const _isArrow = (feature) =>
  *
  * @param {object} dependencies Shared dependencies
  * @param {object} dependencies.map Map shared instance
+ * @param {object} dependencies.markupManager Markup manager shared instance
  */
-const ArrowMarker = ({ map }) => {
+const ArrowMarker = ({ map, markupManager }) => {
   return {
     onAdd: (feature) => {
       if (_isArrow(feature)) {
@@ -140,6 +141,11 @@ const ArrowMarker = ({ map }) => {
       if (_isArrow(feature)) {
         const featureId = feature.getId();
         markupManager.remove(featureId);
+      }
+    },
+    onFailure: (uid) => {
+      if (uid) {
+        markupManager.remove(uid);
       }
     },
     onUpdate: (feature) => {},

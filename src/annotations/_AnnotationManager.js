@@ -89,6 +89,12 @@ class _AnnotationManager {
     this[Markup.TextEvaluation].onAdd(feature);
   }
 
+  onFailure(uid) {
+    this[Marker.Arrow].onFailure(uid);
+    this[Markup.Measurement].onFailure(uid);
+    this[Markup.TextEvaluation].onFailure(uid);
+  }
+
   onRemove(feature) {
     this[Marker.Arrow].onRemove(feature);
     this[Markup.Measurement].onRemove(feature);
