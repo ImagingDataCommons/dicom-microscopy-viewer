@@ -10,7 +10,8 @@ import Feature from "ol/Feature";
 
 import Enums from "../../enums";
 import { getShortestLineBetweenOverlayAndFeature } from "./utils";
-import { getUnitSuffix, coordinateWithOffset } from "../../utils";
+import { getUnitSuffix } from "../../utils";
+import { coordinateWithOffset } from "../../_utils";
 import defaultStyles from "../styles";
 
 class _MarkupManager {

@@ -1,3 +1,5 @@
+import dcmjs from "dcmjs";
+
 import _MarkupManager from "./markups/_MarkupManager";
 
 /** Enums */
@@ -10,10 +12,12 @@ import ArrowMarker, { format as arrowFormat } from "./markers/arrow";
 import MeasurementMarkup, {
   format as measurementFormat,
 } from "./markups/measurement";
-import TextEvaluationMarkup, { format as textFormat } from "./markups/text";
+import TextEvaluationMarkup, {
+  format as textFormat,
+} from "./markups/textEvaluation";
 
 /** Utils */
-import { getContentItemNameMeaning } from "../utils";
+import { areCodedConceptsEqual } from "../utils";
 
 const { Marker, Markup } = Enums;
 
@@ -52,9 +56,23 @@ class _AnnotationManager {
 
     if (measurements && measurements.length) {
       return measurements.some((measurement) => {
-        const SUPPORTED_MEASUREMENTS = ["Area", "Length"];
-        const codeMeaning = getContentItemNameMeaning(measurement);
-        if (SUPPORTED_MEASUREMENTS.includes(codeMeaning)) {
+        const SUPPORTED_MEASUREMENTS_CODED_CONCEPTS = [
+          new dcmjs.sr.coding.CodedConcept({
+            value: "Area",
+            meaning: "42798000",
+            schemeDesignator: "SCT",
+          }),
+          new dcmjs.sr.coding.CodedConcept({
+            value: "Length",
+            meaning: "410668003",
+            schemeDesignator: "SCT",
+          }),
+        ];
+        if (
+          SUPPORTED_MEASUREMENTS_CODED_CONCEPTS.some((codedConcept) =>
+          areCodedConceptsEqual(measurement, codedConcept)
+          )
+        ) {
           feature.set(
             Enums.InternalProperties.Markup,
             Enums.Markup.Measurement
@@ -65,9 +83,21 @@ class _AnnotationManager {
 
     if (evaluations && evaluations.length) {
       return evaluations.some((evaluation) => {
-        const SUPPORTED_EVALUATIONS = ["Tracking Identifier"];
-        const codeMeaning = getContentItemNameMeaning(evaluation);
-        if (SUPPORTED_EVALUATIONS.includes(codeMeaning)) {
+        const SUPPORTED_EVALUATIONS_CODED_CONCEPTS = [
+          new dcmjs.sr.coding.CodedConcept({
+            value: "112039",
+            meaning: "Tracking Identifier",
+            schemeDesignator: "DCM",
+          }),
+        ];
+        const evaluationCodedConcept = getContentItemNameCodedConcept(
+          evaluation
+        );
+        if (
+          SUPPORTED_EVALUATIONS_CODED_CONCEPTS.some((codedConcept) =>
+          areCodedConceptsEqual(codedConcept, evaluationCodedConcept)
+          )
+        ) {
           feature.set(
             Enums.InternalProperties.Markup,
             Enums.Markup.TextEvaluation

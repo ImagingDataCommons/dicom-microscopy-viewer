@@ -1,8 +1,5 @@
-import { cross, inv, multiply } from "mathjs";
+import { inv, multiply } from "mathjs";
 import { getPointResolution } from "ol/proj";
-import dcmjs from "dcmjs";
-
-import Enums from "./enums";
 
 /** Generates a UUID-derived DICOM UID with root `2.25`.
  *
@@ -332,23 +329,6 @@ function mapSlideCoordToPixelCoord(options) {
 }
 
 /**
- * Get coordinate with offset
- *
- * @param {object} feature feature
- * @param {number} offset offset
- * @returns {array} coordinates with offset
- */
-function coordinateWithOffset(feature, offset = 70) {
-  const geometry = feature.getGeometry();
-  const coordinates = geometry.getLastCoordinate();
-  const [x, y] = coordinates;
-  return !feature.get(Enums.InternalProperties.Marker) &&
-    feature.get(Enums.InternalProperties.Markup) === Enums.Markup.TextEvaluation
-    ? coordinates
-    : [x - offset, y - offset];
-}
-
-/**
  * Get view unit suffix
  *
  * @param {object} view Map view
@@ -394,82 +374,16 @@ function getUnitSuffix(view) {
 }
 
 /**
- * Get a num content item instance given value, code, meaning and units
- *
- * @param {number} value the measurement value
- * @param {string} nameCodedConceptValue the coded concept value
- * @param {string} nameCodedConceptMeaning the value coded concept meaning
- * @param {string} unitCodedConceptValue the unit coded concept value
- * @param {string} unitCodedConceptMeaning the unit coded concept meaning
- * @returns {object} num content item instance
- */
-const getMeasurementContentItem = (
-  value,
-  nameCodedConceptValue,
-  nameCodedConceptMeaning,
-  unitCodedConceptValue,
-  unitCodedConceptMeaning
-) => {
-  return new dcmjs.sr.valueTypes.NumContentItem({
-    name: new dcmjs.sr.coding.CodedConcept({
-      value: nameCodedConceptValue,
-      meaning: nameCodedConceptMeaning,
-      schemeDesignator: "DCM",
-    }),
-    value,
-    unit: new dcmjs.sr.coding.CodedConcept({
-      value: unitCodedConceptValue,
-      meaning: unitCodedConceptMeaning,
-      schemeDesignator: "DCM",
-    }),
-  });
-};
-
-/**
- * Get a text content item instance given value, code and meaning
- *
- * @param {string} text the text
- * @param {string} nameCodedConceptValue the text coded concept value
- * @param {string} textCodedConceptMeaning the text coded concept meaning
- * @returns {object} text content item instance
- */
-const getTextEvaluationContentItem = (
-  text,
-  nameCodedConceptValue,
-  nameCodedConceptMeaning
-) => {
-  return new dcmjs.sr.valueTypes.TextContentItem({
-    name: new dcmjs.sr.coding.CodedConcept({
-      value: nameCodedConceptValue,
-      meaning: nameCodedConceptMeaning,
-      schemeDesignator: "DCM",
-    }),
-    value: text,
-    relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT,
-  });
-};
-
-/**
  * Get name coded concept from content item
  *
  * @param {object} contentItem
  * @returns {object} The concept name coded concept
  */
-const getContentItemNameCodedConcept = (contentItem) =>
-  contentItem.ConceptNameCodeSequence.length
+const getContentItemNameCodedConcept = (contentItem) => {
+  console.debug('getContentItemNameCodedConcept', contentItem);
+  return contentItem.ConceptNameCodeSequence.length
     ? contentItem.ConceptNameCodeSequence[0]
     : contentItem.ConceptNameCodeSequence;
-
-/**
- * Gets the code meaning of the name coded concept of a content item
- *
- * @param {object} contentItem The content item
- */
-const getContentItemNameMeaning = (contentItem) => {
-  const { ConceptNameCodeSequence } = contentItem;
-  return ConceptNameCodeSequence.length
-    ? ConceptNameCodeSequence[0].CodeMeaning
-    : ConceptNameCodeSequence.CodeMeaning;
 };
 
 /**
@@ -478,7 +392,7 @@ const getContentItemNameMeaning = (contentItem) => {
  * @param {object} codedConcept2
  * @returns {boolean} true if content items equal and false otherwise
  */
-const isCodedConceptEqual = (codedConcept1, codedConcept2) => {
+const areCodedConceptsEqual = (codedConcept1, codedConcept2) => {
   if (
     codedConcept2.value === codedConcept1.value &&
     codedConcept2.schemeDesignator === codedConcept1.schemeDesignator
@@ -506,7 +420,7 @@ const isContentItemsEqual = (contentItem1, contentItem2) => {
   );
   return contentItem1NameCodedConcept.equals
     ? contentItem1NameCodedConcept.equals(contentItem2NameCodedConcept)
-    : isCodedConceptEqual(
+    : areCodedConceptsEqual(
         contentItem1NameCodedConcept,
         contentItem2NameCodedConcept
       );
@@ -523,10 +437,6 @@ export {
   mapPixelCoordToSlideCoord,
   mapSlideCoordToPixelCoord,
   isContentItemsEqual,
-  isCodedConceptEqual,
+  areCodedConceptsEqual,
   getContentItemNameCodedConcept,
-  getMeasurementContentItem,
-  getTextEvaluationContentItem,
-  getContentItemNameMeaning,
-  coordinateWithOffset,
 };

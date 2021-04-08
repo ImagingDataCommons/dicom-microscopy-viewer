@@ -55,11 +55,15 @@ describe("_AnnotationManager", () => {
     textContentItem = {
       ConceptNameCodeSequence: {
         CodeMeaning: "Tracking Identifier",
+        CodeValue: "112039",
+        CodingSchemeDesignator: "DCM",
       },
     };
     numContentItem = {
       ConceptNameCodeSequence: {
         CodeMeaning: "Length",
+        CodeValue: "410668003",
+        CodingSchemeDesignator: "SCT",
       },
     };
     event = { testing: 123 };

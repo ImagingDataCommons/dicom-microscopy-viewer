@@ -40,6 +40,7 @@ import { default as VectorEventType } from "ol/source/VectorEventType";
 import { getCenter } from "ol/extent";
 
 import * as DICOMwebClient from "dicomweb-client";
+import dcmjs from "dcmjs";
 
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from "./metadata.js";
 import { ROI } from "./roi.js";
@@ -52,8 +53,6 @@ import {
   buildTransform,
   getUnitSuffix,
   isContentItemsEqual,
-  getMeasurementContentItem,
-  getTextEvaluationContentItem,
 } from "./utils.js";
 import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 import Enums from "./enums";
@@ -173,15 +172,16 @@ function _getRotation(metadata) {
   return angle + correction;
 }
 
-/** Converts a vector graphic from an Openlayers Geometry into a DICOM SCOORD3D
+/**
+ * Converts a vector graphic from an OpenLayers Feature Geometry into a DICOM SCOORD3D
  * representation.
- *
- * @param {object} geometry - Openlayers Geometry
+ * @param {object} feature - OpenLayers Feature
  * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
  * @returns {Scoord3D} DICOM Microscopy Viewer Scoord3D
  * @private
  */
-function _geometry2Scoord3d(geometry, pyramid) {
+function _geometry2Scoord3d(feature, pyramid) {
+  const geometry = feature.getGeometry();
   console.info("map coordinates from pixel matrix to slide coordinate system");
   const frameOfReferenceUID = pyramid[pyramid.length - 1].FrameOfReferenceUID;
   const type = geometry.getType();
@@ -528,13 +528,15 @@ function _updateFeatureEvaluations(feature) {
 
   if (!label) return;
 
-  const nameCodedConceptValue = "112039";
-  const nameCodedConceptMeaning = "Tracking Identifier";
-  const evaluation = getTextEvaluationContentItem(
-    label,
-    nameCodedConceptValue,
-    nameCodedConceptMeaning
-  );
+  const evaluation = new dcmjs.sr.valueTypes.TextContentItem({
+    name: new dcmjs.sr.coding.CodedConcept({
+      value: "112039",
+      meaning: "Tracking Identifier",
+      schemeDesignator: "DCM",
+    }),
+    value: label,
+    relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT,
+  });
 
   const index = evaluations.findIndex((e) =>
     isContentItemsEqual(e, evaluation)
@@ -602,27 +604,35 @@ function _updateFeatureMeasurements(map, feature) {
   const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix];
 
   if (area) {
-    const nameCodedConceptValue = "Area";
-    const nameCodedConceptMeaning = "42798000";
-    measurement = getMeasurementContentItem(
-      area,
-      nameCodedConceptValue,
-      nameCodedConceptMeaning,
-      unitCodedConceptValue,
-      unitCodedConceptMeaning
-    );
+    measurement = new dcmjs.sr.valueTypes.NumContentItem({
+      name: new dcmjs.sr.coding.CodedConcept({
+        value: "Area",
+        meaning: "42798000",
+        schemeDesignator: "SCT",
+      }),
+      value: area,
+      unit: new dcmjs.sr.coding.CodedConcept({
+        value: unitCodedConceptValue,
+        meaning: unitCodedConceptMeaning,
+        schemeDesignator: "SCT",
+      }),
+    });
   }
 
   if (length) {
-    const nameCodedConceptValue = "Length";
-    const nameCodedConceptMeaning = "410668003";
-    measurement = getMeasurementContentItem(
-      length,
-      nameCodedConceptValue,
-      nameCodedConceptMeaning,
-      unitCodedConceptValue,
-      unitCodedConceptMeaning
-    );
+    measurement = new dcmjs.sr.valueTypes.NumContentItem({
+      name: new dcmjs.sr.coding.CodedConcept({
+        value: "Length",
+        meaning: "410668003",
+        schemeDesignator: "SCT",
+      }),
+      value: length,
+      unit: new dcmjs.sr.coding.CodedConcept({
+        value: unitCodedConceptValue,
+        meaning: unitCodedConceptMeaning,
+        schemeDesignator: "SCT",
+      }),
+    });
   }
 
   const index = measurements.findIndex((m) =>
@@ -745,7 +755,7 @@ class VolumeImageViewer {
     });
 
     this[_features].on("remove", (e) => {
-      this[_annotationManager].onRemove(feature);
+      this[_annotationManager].onRemove(e.element);
     });
 
     /*
@@ -1142,6 +1152,9 @@ class VolumeImageViewer {
      *
      * We need to define them here to avoid duplications
      * of interactions that could cause bugs in the application
+     *
+     * Enabling or disabling interactions could cause side effects on OverviewMap
+     * since it also uses the same interactions in the map
      */
     const defaultInteractions = this[_map].getInteractions().getArray();
     this[_interactions] = {
@@ -1448,11 +1461,9 @@ class VolumeImageViewer {
    */
   _getROIFromFeature(feature, pyramid) {
     if (feature !== undefined && feature !== null) {
-      const geometry = feature.getGeometry();
-
       let scoord3d;
       try {
-        scoord3d = _geometry2Scoord3d(geometry, pyramid);
+        scoord3d = _geometry2Scoord3d(feature, pyramid);
       } catch (error) {
         const uid = feature.getId();
         this.removeROI(uid);
@@ -1877,7 +1888,7 @@ class VolumeImageViewer {
       return;
     }
 
-    /** 
+    /**
      * If failed to draw/cache feature in drawing source, call onFailure
      * to avoid trash of broken annotations
      */

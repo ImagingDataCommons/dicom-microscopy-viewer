@@ -17,7 +17,7 @@ export const format = (feature) =>
 
 /**
  * Builds arrow styles
- * 
+ *
  * @param {object} feature The feature instance
  * @param {object} map The viewer map instance
  * @returns {object} Style instance
@@ -37,7 +37,7 @@ const _applyStyles = (feature, map) => {
     feature.setStyle((feature, resolution) => {
       const newScale = map.getView().getResolutionForZoom(3) / resolution;
 
-      const icon = `
+      const pointIcon = `
           <svg version="1.1" width="180px" height="180px" viewBox="0 -7.101 760.428 415.101" style="enable-background:new 0 0 408 408;" xmlns="http://www.w3.org/2000/svg">
             <g>
               <path style="fill:${encodeURIComponent(
@@ -46,6 +46,14 @@ const _applyStyles = (feature, map) => {
             </g>
           </svg>
         `;
+
+      const icon = `
+        <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="180px" height="180px" viewBox="0 0 407.436 407.436" style="enable-background:new 0 0 407.436 407.436;">
+          <polygon style="fill:${encodeURIComponent(
+            color
+          )};" points="315.869,21.178 294.621,0 91.566,203.718 294.621,407.436 315.869,386.258 133.924,203.718 "/>
+        </svg>
+      `;
 
       const styles = [];
 
@@ -61,7 +69,7 @@ const _applyStyles = (feature, map) => {
               opacity: 1,
               src: `data:image/svg+xml;utf8,${icon}`,
               scale: newScale /** Absolute-sized icon */,
-              anchor: [0.1, 0.5],
+              anchor: [0.3, 0.5],
               rotateWithView: true,
               rotation: -rotation,
             }),
@@ -87,7 +95,7 @@ const _applyStyles = (feature, map) => {
         geometry: new Point(point),
         image: new Icon({
           opacity: 1,
-          src: `data:image/svg+xml;utf8,${icon}`,
+          src: `data:image/svg+xml;utf8,${pointIcon}`,
           scale: newScale /** Absolute-sized icon */,
           anchor,
           rotateWithView: true,

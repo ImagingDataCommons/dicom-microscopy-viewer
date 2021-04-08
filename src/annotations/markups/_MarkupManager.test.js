@@ -9,14 +9,9 @@ jest.mock("ol/Collection", () =>
 );
 
 const mockedMarkup = {
-  //element: `<div ...`,
   id: 123,
   isDraggable: true,
   isLinkable: true,
-  // overlay: {
-  //   element:
-  //     '<div class="mar...',
-  // },
 };
 
 describe("_MarkupManager", () => {
