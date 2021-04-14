@@ -388,6 +388,7 @@ function _setFeatureStyle(feature, styleOptions) {
   }
 }
 
+const _options = Symbol('options');
 const _client = Symbol('client');
 const _controls = Symbol('controls');
 const _drawingLayer = Symbol('drawingLayer');
@@ -401,6 +402,7 @@ const _pyramidMetadata = Symbol('pyramidMetadata');
 const _segmentations = Symbol('segmentations');
 const _usewebgl = Symbol('usewebgl');
 const _channels = Symbol('channels');
+const _colorImage = Symbol('colorImage');
 const _renderingEngine = Symbol('renderingEngine');
 const _rotation = Symbol('rotation');
 const _projection = Symbol('projection');
@@ -411,6 +413,8 @@ const _referenceResolutions = Symbol('referenceResolutions');
 const _referenceGridSizes = Symbol('referenceGridSizes');
 const _referenceTileSizes = Symbol('referenceTileSizes');
 const _referencePixelSpacings = Symbol('referencePixelSpacings');
+const _retrieveRendered = Symbol('retrieveRendered');
+const _includeIccProfile = Symbol('includeIccProfile');
 
 /** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
@@ -427,29 +431,39 @@ class VolumeImageViewer {
    * @param {object[]} options.metadata - An array of DICOM JSON metadata objects, 
    *        the array is full dicom metadata (all the instances) and the Library has to take care of determining which
    *        instances represent channels (optical paths) and internally build a lookup table upon Library object construction
-   * @param {object[]} options.blendingInformations - An array containing blending information for the channels with the standard visualization parameters already setup by an external APPs 
+   * @param {object[]} options.blendingInformation - An array containing blending information for the channels with the standard visualization parameters already setup by an external APPs 
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport.
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
    * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used.
    */
   constructor(options) {
-    if ('useWebGL' in options) {
-      this[_usewebgl] = options.useWebGL;
+    this[_options] = options
+    if ('useWebGL' in this[_options]) {
+      this[_usewebgl] = this[_options].useWebGL;
     } else {
       this[_usewebgl] = true;
     }
-    this[_client] = options.client;
+    this[_client] = this[_options].client;
 
-    if (!('retrieveRendered' in options)) {
-      options.retrieveRendered = true;
+    if (!('retrieveRendered' in this[_options])) {
+      this[_retrieveRendered] = true;
+    } else {
+      this[_retrieveRendered] = this[_options].retrieveRendered;
     }
 
-    if (!('controls' in options)) {
-      options.controls = [];
+    if (!('includeIccProfile' in this[_options])) {
+      this[_includeIccProfile] = false;
+    } else {
+      this[_includeIccProfile] = this[_options].includeIccProfile;
     }
-    options.controls = new Set(options.controls);
 
+    if (!('controls' in this[_options])) {
+      this[_options].controls = [];
+    }
+    this[_options].controls = new Set(this[_options].controls);
+
+    
     // Collection of Openlayers "VectorLayer" instances indexable by
     // DICOM Series Instance UID
     this[_segmentations] = {};
@@ -475,55 +489,53 @@ class VolumeImageViewer {
       [0,1,0],
       [0,0,1],
       [1,1,1],
-    ]
+    ];
 
-    if (options.metadata.length === 0) {
-      throw new Error('Input metadata has no instances.')
+    if (this[_options].metadata.length === 0) {
+      throw new Error('Input metadata has no instances.');
     }
 
     // Metadata Tiles types checks for each instance
     // look for channels
-    for (let i = 0; i < options.metadata.length; ++i) {
-      let instanceMetadata = formatMetadata(options.metadata[i]);
+    for (let i = 0; i < this[_options].metadata.length; ++i) {
+      let instanceMetadata = formatMetadata(this[_options].metadata[i]);
       if (instanceMetadata.SamplesPerPixel !== 1) {
-        // this is not a monochorme channel, but a RGB image.
+        // this is not a monochorme channel, but a color image.
         continue;
       }
       if (instanceMetadata.DimensionOrganizationType === '3D' || instanceMetadata.DimensionOrganizationType === '3D_TEMPORAL') {
         // 3D data
         // TO DO: get some example data.
-        console.warn('Volume Image Viewer does hot hanlde 3D data yet.')
-        continue;
+        throw new Error('Volume Image Viewer does hot hanlde 3D channel data yet.');
       } else if (instanceMetadata.DimensionOrganizationType === 'TILED_FULL') {
         if (instanceMetadata.TotalPixelMatrixFocalPlanes !== 1) {
           continue;
         } else {
-          const instaceOpticalPathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier;
-          let channel = this[_channels].find(channel => channel.blendingInformation.opticalPathIdentifier === instaceOpticalPathIdentifier);
+          const pathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier;
+          let channel = this[_channels].find(channel => channel.blendingInformation.opticalPathIdentifier === pathIdentifier);
           if (channel) {
-            channel.addMetadata(options.metadata[i])        
+            channel.addMetadata(this[_options].metadata[i])        
           } else {
-            const blendingInformation = options.blendingInformations !== undefined ? 
-              options.blendingInformations.find(blendingInformation => 
-                blendingInformation.opticalPathIdentifier === instaceOpticalPathIdentifier) :
+            const blendingInformation = this[_options].blendingInformation !== undefined ? 
+            this[_options].blendingInformation.find(blendingInformation => 
+                blendingInformation.opticalPathIdentifier === pathIdentifier) :
                  undefined;
             if (blendingInformation) {
               const newChannel = new Channel(blendingInformation);
-              newChannel.addMetadata(options.metadata[i]);
+              newChannel.addMetadata(this[_options].metadata[i]);
               this[_channels].push(newChannel)
             } else {
-              const newBI = new BlendingInformation(
-                opticalPathIdentifier = `${instaceOpticalPathIdentifier}`, 
+              const defaultBlendingInformation = new BlendingInformation(
+                opticalPathIdentifier = `${pathIdentifier}`, 
                 color = [...colors[i % colors.length]],
                 opacity = 1.0,
                 thresholdValues = [0, 256],
-                visible = true,
-                addToMap = false
+                visible = false,
               );
 
-              const newChannel = new Channel(newBI);
-              newChannel.addMetadata(options.metadata[i]);
-              this[_channels].push(newChannel)
+              const newChannel = new Channel(defaultBlendingInformation);
+              newChannel.addMetadata(this[_options].metadata[i]);
+              this[_channels].push(newChannel);
             }
           }
         }
@@ -532,32 +544,33 @@ class VolumeImageViewer {
         // in the Per-Frame Functional Group Sequence, and the recipient shall not 
         // make any assumption about the spatial position or optical path or order of the encoded frames.
         // TO DO: get some example data.
-        console.warn('Volume Image Viewer does hot handle TILED_SPARSE ' +
-                     'dimension organization for blending of channels yet.')
-        continue;  
+        throw new Error('Volume Image Viewer does hot handle TILED_SPARSE ' +
+                        'dimension organization for blending of channels yet.');
       }
     }
 
-    const RGBimage = {
+    this[_colorImage] = {
       OpticalPathIdentifier: '',
       metadata: [],
-    }
-    // look for RGB images
-    for (let i = 0; i < options.metadata.length; ++i) {
-      let instanceMetadata = formatMetadata(options.metadata[i]);
+    };
+    // look for color images
+    for (let i = 0; i < this[_options].metadata.length; ++i) {
+      let instanceMetadata = formatMetadata(this[_options].metadata[i]);
       if (instanceMetadata.SamplesPerPixel === 1) {
-        // this is not a RGB image, but a monochorme channel.
+        // this is not a color image, but a monochorme channel.
         continue;
       }
-      const instaceOpticalPathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier;
-      if (RGBimage.OpticalPathIdentifier === '') {
-        RGBimage.OpticalPathIdentifier = instaceOpticalPathIdentifier;
-      } else if (RGBimage.OpticalPathIdentifier !== instaceOpticalPathIdentifier) {
-        console.warn('Volume Image Viewer is trying to load more than one RGB image. It is not allowed.');
+      const pathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier;
+      if (this[_colorImage].OpticalPathIdentifier === '') {
+        this[_colorImage].OpticalPathIdentifier = pathIdentifier;
+      } else if (this[_colorImage].OpticalPathIdentifier !== pathIdentifier) {
+        console.warn('Volume Image Viewer detected more than one color image. ' + 
+                     'It is possible to load and visualize only one color image at time. ' + 
+                     'Please check the input metadata. Only the first detected color image will be loaded');
         continue;
       }
 
-      RGBimage.metadata.push(options.metadata[i]);
+      this[_colorImage].metadata.push(this[_options].metadata[i]);
     }
 
     // For blending we have to make some assumptions 
@@ -566,134 +579,15 @@ class VolumeImageViewer {
     // 2) given (1), we calculcate the tileGrid, projection and rotation objects using the metadata of the first channel and use them for all the channels.
     // 3) If the parameters in (1) are different, it means that we have to perfom regridding/reprojection over the data (i.e. registration).
     //    This, at the moment, is out of scope. 
-    this._initUniqueOpenLayerObjects(RGBimage);
-
-    // Create a rendering engine object for offscreen render (coloring the frames)
-    this[_renderingEngine] = new RenderingEngine();
-
-    // For each channel we build up the OpenLayer objects. 
-    this[_channels].forEach((channel) => {  
-      channel.initChannel(
-      this[_referenceExtents],
-      this[_referenceOrigins],
-      this[_referenceResolutions],
-      this[_referenceGridSizes],
-      this[_referenceTileSizes],
-      this[_referencePixelSpacings],
-      this[_projection],
-      this[_tileGrid],
-      options,
-      this[_renderingEngine]);
-    });
-
-    // build up the OpenLayer objects for the RGBimage
-    this._initRGBimage(RGBimage);
-
-    this[_drawingSource] = new VectorSource({
-      tileGrid: this[_tileGrid],
-      projection: this[_projection],
-      features: this[_features],
-      wrapX: false
-    });
-
-    this[_drawingLayer] = new VectorLayer({
-      extent: this[_referenceExtents],
-      source: this[_drawingSource],
-      projection: this[_projection],
-      updateWhileAnimating: true,
-      updateWhileInteracting: true,
-    });
-
-    const view = new View({
-      center: getCenter(this[_referenceExtents]),
-      extent: this[_referenceExtents],
-      projection: this[_projection],
-      resolutions: this[_tileGrid].getResolutions(),
-      rotation: this[_rotation]
-    });
-
-    this[_interactions] = {
-      draw: undefined,
-      select: undefined,
-      modify: undefined
-    };
-
-    this[_controls] = {
-      scale: new ScaleLine({
-        units: 'metric',
-        className: ''
-      })
-    }
-
-    const layers = [];
-    if (options.blendingInformations !== undefined) {
-      this[_channels].forEach((channel) => {
-        if (channel.blendingInformation.addToMap === true) {
-          layers.push(channel.tileLayer)
-        }
-      });
-    } else if (this[_channels].length !== 0) {
-      layers.push(this[_channels][0].tileLayer)  
-    } else if (RGBimage.OpticalPathIdentifier !== '') {
-      layers.push(RGBimage.tileLayer)  
-    }
-
-    layers.push(this[_drawingLayer]);
-
-    if (options.controls.has('fullscreen')) {
-      this[_controls].fullscreen = new FullScreen();
-    }
-
-    if (options.controls.has('overview')) {
-      const overviewTileLayer = new TileLayer({
-        extent: this[_referenceExtents],
-        source: this[_channels][0].rasterSource,
-        preload: Infinity,
-        projection: this[_projection]
-      });
-
-      const overviewView = new View({
-        projection: this[_projection],
-        resolutions: this[_tileGrid].getResolutions(),
-        rotation: this[_rotation]
-      });
-
-      this[_controls].overview = new OverviewMap({
-        view: overviewView,
-        layers: [overviewTileLayer],
-        collapsed: false,
-        collapsible: false,
-      });
-    }
-
-    /** Creates the map with the defined layers and view and renders it. */
-    this[_map] = new Map({
-      layers,
-      view: view,
-      controls: [],
-      keyboardEventTarget: document,
-    });
-
-    this[_map].addInteraction(new MouseWheelZoom());
-
-    for (let control in this[_controls]) {
-      this[_map].addControl(this[_controls][control]);
-    }
-    this[_map].getView().fit(this[_referenceExtents]);
-  }
-
-  /** init unique Open Layer objects
-   */
-  _initUniqueOpenLayerObjects(RGBimage) {
-    if (this[_channels].length === 0 && RGBimage.OpticalPathIdentifier === '') {
-      throw new Error('No channels or RGBimage found.')
+    if (this[_channels].length === 0 && this[_colorImage].OpticalPathIdentifier === '') {
+      throw new Error('No channels or colorImage found.');
     }
 
     let image = null;
     if (this[_channels].length !== 0) {
       image = this[_channels][0];
     } else {
-      image = RGBimage;
+      image = this[_colorImage];
     }
 
     let geometryArrays = Channel.deriveImageGeometry(image);
@@ -707,8 +601,8 @@ class VolumeImageViewer {
     
     // We assume the first channel as the reference one for all the pyramid parameters.
     // All the other channels have to have the same parameters.
-    this[_pyramidMetadata] = image.pyramidBaseMetadata;
-    this[_metadata] = [...image.microscopyImages];
+    this[_pyramidMetadata] = [...image.pyramidMetadata];
+    
     this[_rotation] = _getRotation(image.pyramidBaseMetadata);
 
     /*
@@ -746,14 +640,131 @@ class VolumeImageViewer {
       origins: this[_referenceOrigins],
       resolutions: this[_referenceResolutions],
       sizes: this[_referenceGridSizes],
-      tileSizes: this[_referenceTileSizes]
+      tileSizes: this[_referenceTileSizes],
     });
+
+    // Create a rendering engine object for offscreen rendering
+    this[_renderingEngine] = new RenderingEngine();
+
+    // For each channel we build up the OpenLayer objects and checks that the geometric assumptions are satisfied. 
+    this[_channels].forEach((channel) => {  
+      channel.initChannel(
+        this[_referenceExtents],
+        this[_referenceOrigins],
+        this[_referenceResolutions],
+        this[_referenceGridSizes],
+        this[_referenceTileSizes],
+        this[_referencePixelSpacings],
+        this[_projection],
+        this[_tileGrid],
+        this[_options],
+        this[_renderingEngine],
+      );
+    });
+
+    // build up the OpenLayer objects for the colorImage
+    this._initColorImage();
+
+    this[_drawingSource] = new VectorSource({
+      tileGrid: this[_tileGrid],
+      projection: this[_projection],
+      features: this[_features],
+      wrapX: false,
+    });
+
+    this[_drawingLayer] = new VectorLayer({
+      extent: this[_referenceExtents],
+      source: this[_drawingSource],
+      projection: this[_projection],
+      updateWhileAnimating: true,
+      updateWhileInteracting: true,
+    });
+
+    const view = new View({
+      center: getCenter(this[_referenceExtents]),
+      extent: this[_referenceExtents],
+      projection: this[_projection],
+      resolutions: this[_tileGrid].getResolutions(),
+      rotation: this[_rotation],
+    });
+
+    this[_interactions] = {
+      draw: undefined,
+      select: undefined,
+      modify: undefined,
+    };
+
+    this[_controls] = {
+      scale: new ScaleLine({
+        units: 'metric',
+        className: '',
+      })
+    }
+
+    const layers = [];
+    let rasterSourceOverview;
+    if (this[_options].blendingInformation !== undefined) {
+      this[_channels].forEach((channel) => {
+        if (channel.blendingInformation.visible === true) {
+          layers.push(channel.tileLayer);
+        }
+      });
+      rasterSourceOverview = this[_channels][0].rasterSource;
+    } else if (this[_channels].length !== 0) {
+      layers.push(this[_channels][0].tileLayer);
+      rasterSourceOverview = this[_channels][0].rasterSource;  
+    } else if (this[_colorImage].OpticalPathIdentifier !== '') {
+      layers.push(this[_colorImage].tileLayer);
+      rasterSourceOverview = this[_colorImage].rasterSource;
+    } else {
+      throw new Error('Viewer cannot find a color image or a monochorme channel to visualize.')
+    }
+
+    layers.push(this[_drawingLayer]);
+
+    if (this[_options].controls.has('fullscreen')) {
+      this[_controls].fullscreen = new FullScreen();
+    }
+
+    if (this[_options].controls.has('overview')) {
+      const overviewTileLayer = new TileLayer({
+        extent: this[_referenceExtents],
+        source: rasterSourceOverview,
+        projection: this[_projection],
+      });
+
+      const overviewView = new View({
+        projection: this[_projection],
+        resolutions: this[_tileGrid].getResolutions(),
+        rotation: this[_rotation],
+      });
+
+      this[_controls].overview = new OverviewMap({
+        view: overviewView,
+        layers: [overviewTileLayer],
+      });
+    }
+
+    /** Creates the map with the defined layers and view and renders it. */
+    this[_map] = new Map({
+      layers,
+      view: view,
+      controls: [],
+      keyboardEventTarget: document,
+    });
+
+    this[_map].addInteraction(new MouseWheelZoom());
+
+    for (let control in this[_controls]) {
+      this[_map].addControl(this[_controls][control]);
+    }
+    this[_map].getView().fit(this[_referenceExtents]);
   }
 
   /** init unique Open Layer objects
    */
-  _initRGBimage(RGBimage) {
-    if (RGBimage.OpticalPathIdentifier === '') {
+  _initColorImage() {
+    if (this[_colorImage].OpticalPathIdentifier === '') {
       return;
     }
     /*
@@ -775,16 +786,16 @@ class VolumeImageViewer {
       const x = tileCoord[2] + 1;
       const index = x + "-" + y;
 
-      const path = RGBimage.pyramidFrameMappings[z][index];
+      const path = this[_colorImage].pyramidFrameMappings[z][index];
       if (path === undefined) {
         console.warn("tile " + index + " not found at level " + z);
         return (null);
       }
-      let url = options.client.wadoURL +
-        "/studies/" + RGBimage.pyramidMetadata[z].StudyInstanceUID +
-        "/series/" + RGBimage.pyramidMetadata[z].SeriesInstanceUID +
+      let url = this[_options].client.wadoURL +
+        "/studies/" + this[_colorImage].pyramidMetadata[z].StudyInstanceUID +
+        "/series/" + this[_colorImage].pyramidMetadata[z].SeriesInstanceUID +
         '/instances/' + path;
-      if (options.retrieveRendered) {
+      if (this[_options].retrieveRendered) {
         url = url + '/rendered';
       }
       return (url);
@@ -802,7 +813,7 @@ class VolumeImageViewer {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
 
-        if (options.retrieveRendered) {  
+        if (this[_retrieveRendered]) {  
           const mediaType = 'image/png';
           let transferSyntaxUID = '';
           const retrieveOptions = {
@@ -814,13 +825,13 @@ class VolumeImageViewer {
               { mediaType, transferSyntaxUID }
             ]
           };
-          if (options.includeIccProfile) {
+          if (this[_includeIccProfile]) {
             retrieveOptions['queryParams'] = {
-              iccprofile: 'yes'
+              iccprofile: 'yes',
             }
           }
 
-          options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
+          this[_client].retrieveInstanceFramesRendered(retrieveOptions).then(
             (renderedFrame) => {
               const blob = new Blob([renderedFrame], {type: mediaType});
               img.src = window.URL.createObjectURL(blob);
@@ -838,7 +849,7 @@ class VolumeImageViewer {
               { mediaType, transferSyntaxUID }
             ]
           };
-          options.client.retrieveInstanceFrames(retrieveOptions).then(
+          this[_client].retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
               const blob = new Blob(rawFrames, {type: mediaType});
               img.src = window.URL.createObjectURL(blob);
@@ -850,7 +861,7 @@ class VolumeImageViewer {
       }
     }
 
-    RGBimage.rasterSource = new TileImage({
+    this[_colorImage].rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
       tileGrid: this[_tileGrid],
       projection: this[_projection],
@@ -858,69 +869,65 @@ class VolumeImageViewer {
       transition: 0,
     });
 
-    RGBimage.rasterSource.setTileUrlFunction(tileUrlFunction);
-    RGBimage.rasterSource.setTileLoadFunction(tileLoadFunction);
+    this[_colorImage].rasterSource.setTileUrlFunction(tileUrlFunction);
+    this[_colorImage].rasterSource.setTileLoadFunction(tileLoadFunction);
 
     // Create OpenLayer renderer object
-    RGBimage.tileLayer = new TileLayer({
+    this[_colorImage].tileLayer = new TileLayer({
       extent: this[_tileGrid].getExtent(),
-      source: RGBimage.rasterSource,
-      preload: Infinity,
-      projection: this[_projection]
+      source: this[_colorImage].rasterSource,
+      projection: this[_projection],
     });
   }
 
-  /** Gets the channel given an id 
+  /** Gets the channel or color image given an id 
    * @param {string} OpticalPath of the channel
    * @type {channel}
    */
    getOpticalPath(opticalPathID) {
-    if (this[_channels].length === 0) {
-      return null;
+    if (this[_channels].length === 0 && this[_colorImage].OpticalPathIdentifier === '') {
+      throw new Error('No channels or colorImage found.');
     }
     const channel = this[_channels].find(channel => channel.blendingInformation.opticalPathIdentifier === opticalPathID);
-    if (channel === undefined) {
-      console.warn("Channel with opticalPathIdentifier " + opticalPathID + " not found");
-      return null;
+    const colorImage = this[_colorImage].OpticalPathIdentifier === opticalPathID ? this[_colorImage] : undefined;
+    if (!channel && !colorImage) {
+      throw new Error("No opticalPath with ID" + opticalPathID + " has been found.");
     }
 
     return channel;
   }
 
-  /** Gets the channel metadata given an id
+  /** Gets the channel or color image metadata given an id
    * @param {string} id of the channel (opticalPathIdentifier)
    * @type {metadata[]} array with all the instances metadata of the channel
    */
    getOpticalPathMetadata(opticalPathID) {
-    const channel = this.getOpticalPath(opticalPathID)
-    return channel ? channel.metadata : null;
+    const image = this.getOpticalPath(opticalPathID)
+    if (!image) {
+      throw new Error("No opticalPath with ID" + opticalPathID + " has been found.");
+    }
+    return image.metadata;
   }
 
   /** Sets the channel visualization/presentation parameters given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
-   * @param {number[]} color
-   * @param {number} opacity
-   * @param {number[]} thresholdValues
-   * @param {boolean} visible
+   *
+   * @param {Object} blendingInformation : id of the channel (opticalPathIdentifier) {string}, 
+   *                                       color {number[]}, 
+   *                                       opacity {number}, 
+   *                                       thresholdValues {number[]}, 
+   *                                       visible {boolean}.
    */
-  setOpticalPathBlendingInformation(
-    opticalPathID, 
-    color,
-    opacity,
-    thresholdValues,
-    visible) {
+   setBlendingInformation(blendingInformation) {
+    const {
+      opticalPathID,
+    } = blendingInformation;
 
     const channel = this.getOpticalPath(opticalPathID)
     if (channel === null) {
-      return null;
+      throw new Error("No opticalPath with ID" + opticalPathID + " has been found.");
     }
 
-    if (channel.setBlendingInformation(
-        color,
-        opacity,
-        thresholdValues,
-        visible)
-      ) { 
+    if (channel.setBlendingInformation(blendingInformation)) { 
       this[_map].render();
     }
   }
@@ -932,10 +939,10 @@ class VolumeImageViewer {
    * @param {number[]} thresholdValues
    * @param {boolean} visible
    */
-  getOpticalPathBlendingInformation(opticalPathID) {
+  getBlendingInformation(opticalPathID) {
     const channel = this.getOpticalPath(opticalPathID)
     if (channel === null) {
-      return null;
+      throw new Error("No opticalPath with ID" + opticalPathID + " has been found.");
     }
 
     return channel.getBlendingInformation();
@@ -950,11 +957,10 @@ class VolumeImageViewer {
       return;
     }
 
-    if (this.isChannelInOpenLayerMap(channel)) {
+    if (this.isOpticalPathActive(channel)) {
       return;
     }
 
-    channel.blendingInformation.addToMap = true;
     // NOTE: _drawingLayer has to be the last layer, otherwise the compistion will be broken
     this[_map].removeLayer(this[_drawingLayer])
     this[_map].addLayer(channel.tileLayer)
@@ -970,19 +976,40 @@ class VolumeImageViewer {
       return;
     }
 
-    if (!this.isChannelInOpenLayerMap(channel)) {
+    if (!this.isOpticalPathActive(channel)) {
       return;
     }
 
-    channel.blendingInformation.addToMap = false;
     this[_map].removeLayer(channel.tileLayer)
+  }
+
+  /** Set the visibility of the channel to true
+   * @param {string} opticalPathID of the channel
+   */
+   showOpticalPath(opticalPathID) {
+    const blendingInformation = {
+      visible : true,
+      opticalPathID : opticalPathID,
+    };
+    this.setBlendingInformation(blendingInformation);
+  }
+
+  /** Set the visibility of the channel to false
+   * @param {string} opticalPathID of the channel
+   */
+  hideOpticalPath(opticalPathID) {
+    const blendingInformation = {
+      visible : false,
+      opticalPathID : opticalPathID,
+    };
+    this.setBlendingInformation(blendingInformation);
   }
 
   /** Returns if the channel is being rendered
    * @param {object} channel
    * @type {boolean} visible
    */
-  isChannelInOpenLayerMap(channel) {
+   isOpticalPathActive(channel) {
     if (channel === null) {
       return false;
     }

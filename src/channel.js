@@ -33,22 +33,19 @@ class BlendingInformation {
   * @param {number} opacity
   * @param {number[]} thresholdValues
   * @param {boolean} visible
-  * @param {boolean} addToMap 
   */
   constructor(
     opticalPathIdentifier, 
     color,
     opacity,
     thresholdValues,
-    visible,
-    addToMap) {
+    visible) {
 
     this.opticalPathIdentifier = opticalPathIdentifier;
     this.color = [...color];
     this.opacity = opacity;
     this.thresholdValues = [...thresholdValues];
     this.visible = visible;
-    this.addToMap = addToMap;
     }
 }
 
@@ -479,17 +476,20 @@ class Channel {
   }
 
   /** Sets the channel visualization/presentation parameters
-   * @param {number[]} color
-   * @param {number} opacity
-   * @param {number[]} thresholdValues
-   * @param {boolean} visible
+   * @param {Object} blendingInformation : color {number[]}, 
+   *                                       opacity {number}, 
+   *                                       thresholdValues {number[]}, 
+   *                                       visible {boolean}.
+   *
    * @returns {boolean} force OpenLayer to rerender the view
    */
-  setBlendingInformation(
-    color,
-    opacity,
-    thresholdValues,
-    visible) {
+  setBlendingInformation(blendingInformation) {
+    const {
+      color,
+      opacity,
+      thresholdValues,
+      visible
+    } = blendingInformation;
     
     let rerender = false;
     if (color) {
