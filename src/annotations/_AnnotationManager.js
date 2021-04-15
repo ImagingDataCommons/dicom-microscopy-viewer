@@ -17,7 +17,7 @@ import TextEvaluationMarkup, {
 } from "./markups/textEvaluation";
 
 /** Utils */
-import { areCodedConceptsEqual } from "../utils";
+import { areCodedConceptsEqual, getContentItemNameCodedConcept } from "../utils";
 
 const { Marker, Markup } = Enums;
 
@@ -68,9 +68,12 @@ class _AnnotationManager {
             schemeDesignator: "SCT",
           }),
         ];
+        const measurementCodedConcept = getContentItemNameCodedConcept(
+          measurement
+        );
         if (
           SUPPORTED_MEASUREMENTS_CODED_CONCEPTS.some((codedConcept) =>
-          areCodedConceptsEqual(measurement, codedConcept)
+          areCodedConceptsEqual(measurementCodedConcept, codedConcept)
           )
         ) {
           feature.set(

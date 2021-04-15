@@ -380,7 +380,7 @@ function getUnitSuffix(view) {
  * @returns {object} The concept name coded concept
  */
 const getContentItemNameCodedConcept = (contentItem) => {
-  console.debug('getContentItemNameCodedConcept', contentItem);
+  console.debug("getContentItemNameCodedConcept", contentItem);
   return contentItem.ConceptNameCodeSequence.length
     ? contentItem.ConceptNameCodeSequence[0]
     : contentItem.ConceptNameCodeSequence;
@@ -394,11 +394,17 @@ const getContentItemNameCodedConcept = (contentItem) => {
  */
 const areCodedConceptsEqual = (codedConcept1, codedConcept2) => {
   if (
-    codedConcept2.value === codedConcept1.value &&
-    codedConcept2.schemeDesignator === codedConcept1.schemeDesignator
+    codedConcept2.CodeValue === codedConcept1.CodeValue &&
+    codedConcept2.CodingSchemeDesignator ===
+      codedConcept1.CodingSchemeDesignator
   ) {
-    if (codedConcept2.schemeVersion && codedConcept1.schemeVersion) {
-      return codedConcept2.schemeVersion === codedConcept1.schemeVersion;
+    if (
+      codedConcept2.CodingSchemeVersion &&
+      codedConcept1.CodingSchemeVersion
+    ) {
+      return (
+        codedConcept2.CodingSchemeVersion === codedConcept1.CodingSchemeVersion
+      );
     }
     return true;
   }
