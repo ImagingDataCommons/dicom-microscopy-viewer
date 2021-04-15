@@ -54,7 +54,7 @@ import {
   Ellipse
 } from './scoord3d.js';
 import {
-  Channel,
+  _Channel,
   BlendingInformation,
 } from './channel.js'
 import {
@@ -427,15 +427,18 @@ class VolumeImageViewer {
    * Create a viewer instance for displaying VOLUME images.
    *
    * @param {object} options
-   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
+   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
    * @param {object[]} options.metadata - An array of DICOM JSON metadata objects, 
    *        the array is full dicom metadata (all the instances) and the Library has to take care of determining which
    *        instances represent channels (optical paths) and internally build a lookup table upon Library object construction
-   * @param {object[]} options.blendingInformation - An array containing blending information for the channels with the standard visualization parameters already setup by an external APPs 
-   * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport.
+   * @param {object[]} options.blendingInformation - An array containing blending information for the channels with the
+   *        standard visualization parameters already setup by an external APPs 
+   * @param {number} options.blendingImageQuality - value between 0 and 1 for indicating the quality of the resulting 
+   *        image for blending multiple channels.
+   * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
-   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
-   * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used.
+   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
+   * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used
    */
   constructor(options) {
     this[_options] = options
@@ -444,7 +447,6 @@ class VolumeImageViewer {
     } else {
       this[_usewebgl] = true;
     }
-    this[_client] = this[_options].client;
 
     if (!('retrieveRendered' in this[_options])) {
       this[_retrieveRendered] = true;
@@ -521,7 +523,7 @@ class VolumeImageViewer {
                 blendingInformation.opticalPathIdentifier === pathIdentifier) :
                  undefined;
             if (blendingInformation) {
-              const newChannel = new Channel(blendingInformation);
+              const newChannel = new _Channel(blendingInformation);
               newChannel.addMetadata(this[_options].metadata[i]);
               this[_channels].push(newChannel)
             } else {
@@ -533,7 +535,7 @@ class VolumeImageViewer {
                 visible = false,
               );
 
-              const newChannel = new Channel(defaultBlendingInformation);
+              const newChannel = new _Channel(defaultBlendingInformation);
               newChannel.addMetadata(this[_options].metadata[i]);
               this[_channels].push(newChannel);
             }
@@ -573,12 +575,18 @@ class VolumeImageViewer {
       this[_colorImage].metadata.push(this[_options].metadata[i]);
     }
 
-    // For blending we have to make some assumptions 
-    // 1) all channels should have the same origins, resolutions, grid sizes, tile sizes and pixel spacings (i.e. same TileGrid).
-    //    These are arrays with number of element equal to nlevel (levels of the pyramid). All channels should have the same nlevel value.
-    // 2) given (1), we calculcate the tileGrid, projection and rotation objects using the metadata of the first channel and use them for all the channels.
-    // 3) If the parameters in (1) are different, it means that we have to perfom regridding/reprojection over the data (i.e. registration).
-    //    This, at the moment, is out of scope. 
+    /*
+    * For blending we have to make some assumptions 
+    * 1) all channels should have the same origins, resolutions, grid sizes,
+    *    tile sizes and pixel spacings (i.e. same TileGrid).
+    *    These are arrays with number of element equal to nlevel (levels of the pyramid). 
+    *    All channels should have the same nlevel value.
+    * 2) given (1), we calculcate the tileGrid, projection and rotation objects using 
+    *    the metadata of the first channel and use them for all the channels.
+    * 3) If the parameters in (1) are different, it means that we have to perfom 
+    *    regridding/reprojection over the data (i.e. registration).
+    *    This, at the moment, is out of scope. 
+    */
     if (this[_channels].length === 0 && this[_colorImage].OpticalPathIdentifier === '') {
       throw new Error('No channels or colorImage found.');
     }
@@ -590,7 +598,7 @@ class VolumeImageViewer {
       image = this[_colorImage];
     }
 
-    let geometryArrays = Channel.deriveImageGeometry(image);
+    let geometryArrays = _Channel.deriveImageGeometry(image);
 
     this[_referenceExtents] = [...geometryArrays[0]];
     this[_referenceOrigins] = [...geometryArrays[1]];
@@ -646,9 +654,11 @@ class VolumeImageViewer {
     // Create a rendering engine object for offscreen rendering
     this[_renderingEngine] = new RenderingEngine();
 
-    // For each channel we build up the OpenLayer objects and checks that the geometric assumptions are satisfied. 
+    // For each channel we build up the OpenLayer objects and 
+    // checks that the geometric assumptions are satisfied. 
     this[_channels].forEach((channel) => {  
       channel.initChannel(
+        image.opticalPathIdentifier,
         this[_referenceExtents],
         this[_referenceOrigins],
         this[_referenceResolutions],
@@ -831,7 +841,7 @@ class VolumeImageViewer {
             }
           }
 
-          this[_client].retrieveInstanceFramesRendered(retrieveOptions).then(
+          this[_options].client.retrieveInstanceFramesRendered(retrieveOptions).then(
             (renderedFrame) => {
               const blob = new Blob([renderedFrame], {type: mediaType});
               img.src = window.URL.createObjectURL(blob);
@@ -849,7 +859,7 @@ class VolumeImageViewer {
               { mediaType, transferSyntaxUID }
             ]
           };
-          this[_client].retrieveInstanceFrames(retrieveOptions).then(
+          this[_options].client.retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
               const blob = new Blob(rawFrames, {type: mediaType});
               img.src = window.URL.createObjectURL(blob);
@@ -881,15 +891,17 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel or color image given an id 
-   * @param {string} OpticalPath of the channel
-   * @type {channel}
+   * @param {string} opticalPathID - opticalPath of the channel
+   * @return {Object} _Channel
    */
    getOpticalPath(opticalPathID) {
     if (this[_channels].length === 0 && this[_colorImage].OpticalPathIdentifier === '') {
       throw new Error('No channels or colorImage found.');
     }
-    const channel = this[_channels].find(channel => channel.blendingInformation.opticalPathIdentifier === opticalPathID);
-    const colorImage = this[_colorImage].OpticalPathIdentifier === opticalPathID ? this[_colorImage] : undefined;
+    const channel = this[_channels].find
+      (channel => channel.blendingInformation.opticalPathIdentifier === opticalPathID);
+    const colorImage = this[_colorImage].OpticalPathIdentifier === opticalPathID ?
+      this[_colorImage] : undefined;
     if (!channel && !colorImage) {
       throw new Error("No opticalPath with ID" + opticalPathID + " has been found.");
     }
@@ -898,8 +910,8 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel or color image metadata given an id
-   * @param {string} id of the channel (opticalPathIdentifier)
-   * @type {metadata[]} array with all the instances metadata of the channel
+   * @param {string} opticalPathID - opticalPath of the channel
+   * @return {metadata[]} array with all the instances metadata of the channel
    */
    getOpticalPathMetadata(opticalPathID) {
     const image = this.getOpticalPath(opticalPathID)
@@ -910,12 +922,12 @@ class VolumeImageViewer {
   }
 
   /** Sets the channel visualization/presentation parameters given an id
-   *
-   * @param {Object} blendingInformation : id of the channel (opticalPathIdentifier) {string}, 
-   *                                       color {number[]}, 
-   *                                       opacity {number}, 
-   *                                       thresholdValues {number[]}, 
-   *                                       visible {boolean}.
+   * @param {object} BlendingInformation
+   * @param {string} BlendingInformation.opticalPathIdentifier - channel ID
+   * @param {number[]} BlendingInformation.color - channel rgb color
+   * @param {number} BlendingInformation.opacity - channel opacity
+   * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
+   * @param {boolean} BlendingInformation.visible - channel visibility
    */
    setBlendingInformation(blendingInformation) {
     const {
@@ -933,11 +945,8 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel visualization/presentation parameters given an id
-   * @param {string} opticalPathID of the channel
-   * @param {number[]} color
-   * @param {number} opacity
-   * @param {number[]} thresholdValues
-   * @param {boolean} visible
+   * @param {string} opticalPathID - opticalPath of the channel
+   * @return {object} BlendingInformation
    */
   getBlendingInformation(opticalPathID) {
     const channel = this.getOpticalPath(opticalPathID)
@@ -949,7 +958,7 @@ class VolumeImageViewer {
   }
 
   /** Adds the channel to the OpenLayer Map given an id
-   * @param {string} opticalPathID of the channel
+   * @param {string} opticalPathID - opticalPath of the channel
    */
    activateOpticalPath(opticalPathID) {
     const channel = this.getOpticalPath(opticalPathID)
@@ -957,18 +966,18 @@ class VolumeImageViewer {
       return;
     }
 
-    if (this.isOpticalPathActive(channel)) {
+    if (this._isOpticalPathActive(channel)) {
       return;
     }
 
-    // NOTE: _drawingLayer has to be the last layer, otherwise the compistion will be broken
+    // _drawingLayer has to be the last layer 
     this[_map].removeLayer(this[_drawingLayer])
     this[_map].addLayer(channel.tileLayer)
     this[_map].addLayer(this[_drawingLayer])
   }
 
   /** Removes the channel to the OpenLayer Map given an id
-   * @param {string} opticalPathID of the channel
+   * @param {string} opticalPathID - opticalPath of the channel
    */
    deactivateOpticalPath(opticalPathID) {
     const channel = this.getOpticalPath(opticalPathID)
@@ -976,7 +985,7 @@ class VolumeImageViewer {
       return;
     }
 
-    if (!this.isOpticalPathActive(channel)) {
+    if (!this._isOpticalPathActive(channel)) {
       return;
     }
 
@@ -984,7 +993,7 @@ class VolumeImageViewer {
   }
 
   /** Set the visibility of the channel to true
-   * @param {string} opticalPathID of the channel
+   * @param {string} opticalPathID - opticalPath of the channel
    */
    showOpticalPath(opticalPathID) {
     const blendingInformation = {
@@ -995,7 +1004,7 @@ class VolumeImageViewer {
   }
 
   /** Set the visibility of the channel to false
-   * @param {string} opticalPathID of the channel
+   * @param {string} opticalPathID - opticalPath of the channel
    */
   hideOpticalPath(opticalPathID) {
     const blendingInformation = {
@@ -1007,9 +1016,9 @@ class VolumeImageViewer {
 
   /** Returns if the channel is being rendered
    * @param {object} channel
-   * @type {boolean} visible
+   * @return {boolean} visible
    */
-   isOpticalPathActive(channel) {
+  _isOpticalPathActive(channel) {
     if (channel === null) {
       return false;
     }
@@ -1024,7 +1033,7 @@ class VolumeImageViewer {
 
   /** Gets the size of the viewport.
    *
-   * @type {number[]}
+   * @return {number[]}
    */
   get size() {
     return this[_map].getSize();
@@ -1104,7 +1113,7 @@ class VolumeImageViewer {
   }
 
   /** Activates the draw interaction for graphic annotation of regions of interest.
-   * @param {object} options - Drawing options.
+   * @param {object} options - Drawing options
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
    * @param {object} options.strokeStyle - Style of the geometry stroke (keys: "color", "width")
    * @param {object} options.fillStyle - Style of the geometry body (keys: "color")
@@ -1183,7 +1192,7 @@ class VolumeImageViewer {
 
   /** Whether draw interaction is active
    *
-   * @type {boolean}
+   * @return {boolean}
    */
   get isDrawInteractionActive() {
     return this[_interactions].draw !== undefined;
@@ -1220,7 +1229,7 @@ class VolumeImageViewer {
 
   /** Whether select interaction is active.
    *
-   * @type {boolean}
+   * @return {boolean}
    */
   get isSelectInteractionActive() {
     return this[_interactions].select !== undefined;
@@ -1250,7 +1259,7 @@ class VolumeImageViewer {
 
   /** Whether modify interaction is active.
    *
-   * @type {boolean}
+   * @return {boolean}
    */
   get isModifyInteractionActive() {
     return this[_interactions].modify !== undefined;
@@ -1271,7 +1280,7 @@ class VolumeImageViewer {
 
   /** Number of annotated regions of interest.
    *
-   * @type {number}
+   * @return {number}
    */
   get numberOfROIs() {
     return this[_features].getLength();
@@ -1291,7 +1300,7 @@ class VolumeImageViewer {
   /** Adds a measurement to a region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
-   * @param {Object} item - NUM content item representing a measurement
+   * @param {object} item - NUM content item representing a measurement
    */
   addROIMeasurement(uid, item) {
     const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
@@ -1313,7 +1322,7 @@ class VolumeImageViewer {
   /** Adds a qualitative evaluation to a region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
-   * @param {Object} item - CODE content item representing a qualitative evaluation
+   * @param {object} item - CODE content item representing a qualitative evaluation
    */
   addROIEvaluation(uid, item) {
     const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
@@ -1344,7 +1353,7 @@ class VolumeImageViewer {
 
   /** Adds a regions of interest.
    *
-   * @param {ROI} item - Regions of interest.
+   * @param {ROI} item - Regions of interest
    * @param {object} styleOptions - Style options
    * @param {object} styleOptions.stroke - Style options for the outline of the geometry
    * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
@@ -1365,7 +1374,7 @@ class VolumeImageViewer {
 
   /** Sets the style of a region of interest.
    *
-   * @param {string} uid - Unique identifier of the regions of interest.
+   * @param {string} uid - Unique identifier of the regions of interest
    * @param {object} styleOptions - Style options
    * @param {object} styleOptions.stroke - Style options for the outline of the geometry
    * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
@@ -1427,7 +1436,7 @@ class VolumeImageViewer {
 
   /** Whether annotated regions of interest are currently visible.
    *
-   * @type {boolean}
+   * @return {boolean}
    */
   get areROIsVisible() {
     return this[_drawingLayer].getVisible();
@@ -1435,7 +1444,7 @@ class VolumeImageViewer {
 
   /** DICOM metadata for each VL Whole Slide Microscopy Image instance.
    *
-   * @type {VLWholeSlideMicroscopyImage[]}
+   * @return {VLWholeSlideMicroscopyImage[]}
    */
   get imageMetadata() {
     return this[_pyramidMetadata];
@@ -1462,8 +1471,6 @@ class _NonVolumeImageViewer {
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
    */
   constructor(options) {
-    this[_client] = options.client;
-
     this[_metadata] = new VLWholeSlideMicroscopyImage({
       metadata: options.metadata
     });
@@ -1578,7 +1585,7 @@ class _NonVolumeImageViewer {
 
   /** DICOM metadata for the displayed VL Whole Slide Microscopy Image instance.
    *
-   * @type {VLWholeSlideMicroscopyImage}
+   * @return {VLWholeSlideMicroscopyImage}
    */
   get imageMetadata() {
     return this[_metadata];
@@ -1591,7 +1598,7 @@ class _NonVolumeImageViewer {
 
   /** Gets the size of the viewport.
    *
-   * @type {number[]}
+   * @return {number[]}
    */
   get size() {
     return this[_map].getSize();
@@ -1635,11 +1642,11 @@ class LabelImageViewer extends _NonVolumeImageViewer {
   /** Creates a viewer instance for displaying LABEL images.
    *
    * @param {object} options
-   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
-   * @param {object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance.
-   * @param {string} [options.orientation='vertical'] - Orientation of the slide (vertical: label on top, or horizontal: label on right side).
-   * @param {number} [options.resizeFactor=1] - To which extent image should be reduced in size (fraction).
-   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
+   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
+   * @param {object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance
+   * @param {string} [options.orientation='vertical'] - Orientation of the slide (vertical: label on top, or horizontal: label on right side)
+   * @param {number} [options.resizeFactor=1] - To which extent image should be reduced in size (fraction)
+   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
    */
   constructor(options) {
     if (options.orientation === undefined) {

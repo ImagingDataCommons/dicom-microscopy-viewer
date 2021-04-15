@@ -9,7 +9,7 @@ import TileLayer from 'ol/layer/Tile';
 /** Extracts value of Pixel Spacing attribute from metadata.
  *
  * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
- * @returns {number[]} Spacing between pixel columns and rows in millimeter
+ * @returns {number[]} PixelSpacing - Spacing between pixel columns and rows in millimeter
  * @private
  */
  function _getPixelSpacing(metadata) {
@@ -27,8 +27,10 @@ import TileLayer from 'ol/layer/Tile';
 
 class BlendingInformation {
   /*
-  * An interface class to set/get the visualization/presentation parameters from a channel object
-  * @param {string} opticalPathIdentifier, ID of the channel 
+  * An interface class to set/get the visualization/presentation
+  * parameters from a channel object
+  *
+  * @param {string} opticalPathIdentifier
   * @param {number[]} color
   * @param {number} opacity
   * @param {number[]} thresholdValues
@@ -56,23 +58,18 @@ class BlendingInformation {
  * @memberof channel
  */
 
-class Channel {
+class _Channel {
 /**
- * Create a channel instances which contains all the visualization/presnetation parameters and OpenLayer objects for a Whole Slide Microscopy Image.
- *
- * @param {object} BlendingInformation
+ * Create a channel instances which contains all the visualization/presentation
+ * parameters and OpenLayer objects for a Whole Slide Microscopy Image.
+ * Channel coloring is allowed only for monochorme channels (i.e SamplesPerPixel === 1).
  * 
- * TO DO: implement API to select focal plane in the case of 3D channels (channels with a bandwith)
- * TO DO: use DICOM attributes for loading/saving the channel parameters (i.e. load/save the presentation state/BlendingInformation in DICOM), for example:
- *        [x] Select area for display: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.10.4.html 
- *        [x] Clipping pixel values: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.33.html#table_C.11.33.1-1 
- *        [x] Select channels for display and specify the color of each channel: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html
- *        [x] Blending of images: http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.34.html http://dicom.nema.org/medical/dicom/current/output/chtml/part04/sect_N.2.6.html
- * TO DO: for coloring monochrome channels we download the uncompressed binaries data. 
- *        For a large N of channels, this could be a substantial bottleneck. 
- *        Check performance downloading binary (octet-stream) vs downloading compressed (jpeg) + decoding. 
- *        https://github.com/cornerstonejs/codecs 
- * NOTE: channel coloring is allowed only for monochorme channels (i.e SamplesPerPixel === 1).
+ * @param {object} BlendingInformation
+ * @param {string} BlendingInformation.opticalPathIdentifier - channel ID
+ * @param {number[]} BlendingInformation.color - channel rgb color
+ * @param {number} BlendingInformation.opacity - channel opacity
+ * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
+ * @param {boolean} BlendingInformation.visible - channel visibility
  */
   constructor(blendingInformation) {
     this.blendingInformation = blendingInformation;
@@ -84,20 +81,24 @@ class Channel {
   /** Initializes the channel building the OpenLayer objects. 
    * All the channel have to share the same geometry properties.
    * 
-   * @param {number[]} reference Origins array
-   * @param {number[]} reference Resolutions array
-   * @param {number[]} reference GridSizes array
-   * @param {number[]} reference TileSizes array
-   * @param {number[]} reference PixelSpacings array
-   * @param {object} OpenLayer projection
-   * @param {object} OpenLayer tileGrid
-   * @param {object} VolumeImageViewer options
-   * @param {object} VolumeImageViewer offscreen rendering engine
+   * In this method we set observations to the OpenLayer events 'prerender' and 'postrender',
+   * for setting the globalCompositeOperation value to 'lighter' during the tiles blending.
    * 
-   * NOTE: in this method we set observations to the OpenLayer events 'prerender' and 'postrender',
-   *       for setting the globalCompositeOperation value to 'lighter' during the tiles blending.
+   * @param {string} referenceOpticalPathIdentifier - reference optical path identifier
+   * @param {number[]} referenceExtent - reference extent array
+   * @param {number[]} referenceOrigins - reference origins array
+   * @param {number[]} referenceResolutions - reference resolutions array
+   * @param {number[]} referenceGridSizes - reference grid sizes array
+   * @param {number[]} referenceTileSizes - reference tile sizes array
+   * @param {number[]} referencePixelSpacings - reference pixel spacings array
+   * @param {object} projection - OpenLayer projection
+   * @param {object} tileGrid - OpenLayer tileGrid
+   * @param {object} options - VolumeImageViewer options
+   * @param {object} renderingEngine - VolumeImageViewer offscreen rendering engine
+   * 
    */
-  initChannel(referenceExtent, 
+  initChannel(referenceOpticalPathIdentifier,
+    referenceExtent, 
     referenceOrigins,
     referenceResolutions,
     referenceGridSizes,
@@ -118,37 +119,49 @@ class Channel {
     * images at the different pyramid levels.
     */
     
-    let geometryArrays = Channel.deriveImageGeometry(this);
+    let geometryArrays = _Channel.deriveImageGeometry(this);
     
     // Check that all the channels have the same pyramid parameters
     if (arraysEqual(geometryArrays[0], referenceExtent) === false) {
       throw new Error(
-        'Channels have different extent'
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        'image has incompatible extent respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[1], referenceOrigins) === false) {
       throw new Error(
-        'Channels have different origins'
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        'image has incompatible origins respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[2], referenceResolutions) === false) {
       throw new Error(
-        'Channels have different resolutions'
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        'image has incompatible resolutions respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[3], referenceGridSizes) === false) {
       throw new Error(
-        'Channels have different grid sizes'
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        'image has incompatible grid sizes respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[4], referenceTileSizes) === false) {
       throw new Error(
-        'Channels have different tile sizes'
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        'image has incompatible tile sizes respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[5], referencePixelSpacings) === false) {
       throw new Error(
-        'Channels have different pixel spacings'
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        'image has incompatible pixel spacings respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
       );
     }
     
@@ -207,7 +220,8 @@ class Channel {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
     
-        // TO DO: should we get always jpeg and decompress for monochorme channels (i.e. samplesPerPixel === 1)?
+        // TO DO: should we get always jpeg and decompress
+        // for monochorme channels (i.e. samplesPerPixel === 1)?
         // https://github.com/cornerstonejs/codecs
         const mediaType = 'application/octet-stream';
         const transferSyntaxUID = '1.2.840.10008.1.2.1';
@@ -299,10 +313,10 @@ class Channel {
     });
   }
 
-  /** Returns the Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array of the image.
+  /** Calculates the image geometry
    * 
-   * @param {object} image
-   * @returns {number[][]} Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array
+   * @param {object} image - _Channel object
+   * @returns {number[][]} image geometry - Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array
    * @static
    */
   static deriveImageGeometry(image) {
@@ -476,12 +490,14 @@ class Channel {
   }
 
   /** Sets the channel visualization/presentation parameters
-   * @param {Object} blendingInformation : color {number[]}, 
-   *                                       opacity {number}, 
-   *                                       thresholdValues {number[]}, 
-   *                                       visible {boolean}.
+   * @param {object} BlendingInformation
+   * @param {string} BlendingInformation.opticalPathIdentifier - channel ID
+   * @param {number[]} BlendingInformation.color - channel rgb color
+   * @param {number} BlendingInformation.opacity - channel opacity
+   * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
+   * @param {boolean} BlendingInformation.visible - channel visibility
    *
-   * @returns {boolean} force OpenLayer to rerender the view
+   * @returns {boolean} rerender - force OpenLayer to rerender the view
    */
   setBlendingInformation(blendingInformation) {
     const {
@@ -551,4 +567,4 @@ class Channel {
   }
 }
 
-export { Channel, BlendingInformation };
+export { _Channel, BlendingInformation };

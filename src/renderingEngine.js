@@ -6,13 +6,13 @@
 
 class RenderingEngine {
 /**
- * Create a rendering engine instance
- * NOTE: this class only colors a frame (i.e. applies thresholding, 
- *       opacity transparence and change the pixels' color),
- *       the actual blending is perfomed in OpenLayer using the canvas2D api: 
- *       1) the OpenLayer canvas globalCompositeOperation value is updated 
- *          using the OpenLayer events 'prerender' and 'postrender' (see initChannel in channel.js);
- *       2) the blending is perfomed with the globalCompositeOperation 'lighter'.
+ * Create a rendering engine instance.
+ * This class only colors a frame (i.e. applies thresholding, 
+ * opacity transparence and change the pixels' color).
+ * The actual blending is perfomed in OpenLayer using the canvas2D api: 
+ * 1) the OpenLayer canvas globalCompositeOperation value is updated 
+ * using the OpenLayer events 'prerender' and 'postrender' (see initChannel in channel.js);
+ * 2) the blending is perfomed with the globalCompositeOperation 'lighter'.
  */
   constructor(){
     this.renderCanvas = document.createElement('canvas');
@@ -175,17 +175,17 @@ class RenderingEngine {
   }
 
   /** Gets the channel visualization/presentation parameters
-   * @param {object} FrameData, interface to pass the frame data to the offscreen render 
-   *   @param {number[]} pixelData, image array 
-   *   @param {number} image bits per pixel
-   *   @param {number[]} thresholdValues
-   *   @param {number[]} color
-   *   @param {number} opacity
-   *   @param {number} width
-   *   @param {number} height 
+   * @param {object} FrameData - interface to pass the frame data to the offscreen render 
+   * @param {number[]} FrameData.pixelData - image array 
+   * @param {number} FrameDataimage.bitsAllocated - bits per pixel
+   * @param {number[]} FrameData.thresholdValues - clipping values
+   * @param {number[]} FrameData.color - rgb color
+   * @param {number} FrameData.opacity - opacity
+   * @param {number} FrameData.width - horizontal image size
+   * @param {number} FrameData.height - vertical image size
+   * @param {string} mediaType - type (e.g.: 'image/jpeg')
+   * @param {number} quality - the resulting image quality (of type mediaType) exported by the offscreen render. 
    * 
-   * @param {string} mediaType (e.g.: 'image/jpeg')
-   * @param {number} the resulting image quality (of type mediaType) exported by the offscreen render. 
    * @returns {object} BlendingInformation
    */
   colorImageFrame(frameData, mediaType, quality) {
@@ -197,12 +197,17 @@ class RenderingEngine {
       frameData.opacity, 
       frameData.thresholdValues, 
       frameData.bitsAllocated);
-    return renderedCanvas.toDataURL(mediaType, quality);
+
+      if (quality === undefined) {
+        quality = 1.;
+      }
+
+      return renderedCanvas.toDataURL(mediaType, quality);
   }
 
   /** Builds coloring shader
    *
-   * @param {string} intensity computation on the the input image data type
+   * @param {string} intensityComputationString - intensity computation on the the input image data type
    * @returns {string} shaderStr
    * @private
    */
@@ -262,7 +267,7 @@ class RenderingEngine {
 
   /** Notifies webgl context lost
    *
-   * @param 'webglcontextlost' event
+   * @param event - 'webglcontextlost' event
    * @private
    */
   _handleLostContext(event) {
@@ -272,7 +277,7 @@ class RenderingEngine {
 
   /** Reinitializes webgl context
    *
-   * @param 'webglcontextrestored' event
+   * @param event - 'webglcontextrestored' event
    * @private
    */
   _handleRestoredContext(event) {
@@ -350,10 +355,10 @@ class RenderingEngine {
 
   /** Checks is shaders have been linked successfully
    *
-   * @param {object} webgl context
-   * @param {object} webgl program
-   * @param {object} vertex shader 
-   * @param {object} fragment shader
+   * @param {object} gl - webgl context
+   * @param {object} program - webgl program
+   * @param {object} vertexShader - vertex shader 
+   * @param {object} fragmentShader - fragment shader
    * @returns {boolean} success
    * @private
    */
@@ -370,10 +375,10 @@ class RenderingEngine {
 
   /** Claens compiled shaders
    *
-   * @param {object} webgl context
-   * @param {object} webgl program
-   * @param {object} vertex shader 
-   * @param {object} fragment shader
+   * @param {object} gl - webgl context
+   * @param {object} program - webgl program
+   * @param {object} vertexShader - vertex shader 
+   * @param {object} fragmentShader - fragment shader
    * @returns {boolean} success
    * @private
    */
@@ -386,8 +391,8 @@ class RenderingEngine {
 
   /** Creates a webgl program
    *
-   * @param {object} webgl context 
-   * @param {object} object containing the vertexSource and fragSource strings
+   * @param {object} gl - webgl context 
+   * @param {object} shader - object containing the vertexSource and fragSource strings
    * @returns {object} webgl program
    * @private
    */
@@ -399,9 +404,9 @@ class RenderingEngine {
 
   /** Compiles a shader
    *
-   * @param {object} webgl context
-   * @param {string} shader source
-   * @param {number} shader type
+   * @param {object} gl - webgl context
+   * @param {string} shaderSource - shader source
+   * @param {number} shaderType - shader type
    * @returns compiled shader
    * @private
    */
@@ -414,9 +419,9 @@ class RenderingEngine {
 
   /** Creates a webgl program
    *
-   * @param {object} webgl context 
-   * @param {object} vertex shader 
-   * @param {object} fragment shader
+   * @param {object} gl - webgl context 
+   * @param {object} vertexShader - vertex shader 
+   * @param {object} fragmentShader - fragment shader
    * @returns {object} webgl program
    * @private
    */
@@ -430,13 +435,13 @@ class RenderingEngine {
 
   /** Renders the image
    *
-   * @param {number[]} pixelData, image array
-   * @param {number} width
-   * @param {number} height  
-   * @param {number[]} color
-   * @param {number} opacity
-   * @param {number[]} thresholdValues
-   * @param {number} image bits per pixel
+   * @param {number[]} pixelData - image array
+   * @param {number} width - horizontal dimension of the image 
+   * @param {number} height - vertical dimension of the image 
+   * @param {number[]} color - rgb color
+   * @param {number} opacity - opacity
+   * @param {number[]} thresholdValues - clipping values
+   * @param {number} bitsAllocated - image bits per pixel
   
    * @returns {object} canvas
    * @private
@@ -486,8 +491,8 @@ class RenderingEngine {
 
   /** Gets shader
    *
-   * @param {number[]} pixelData, image array
-   * @returns {object}
+   * @param {number[]} pixelData - image array
+   * @returns {object} shaders
    * @private
    */
   _getShaderProgram(pixelData) {
@@ -501,9 +506,9 @@ class RenderingEngine {
 
   /** Generates texture
    *
-   * @param {number[]} pixelData, image array
-   * @param {number} image width
-   * @param {number} image height
+   * @param {number[]} pixelData - image array
+   * @param {number} width - horizontal dimension of the image 
+   * @param {number} height - vertical dimension of the image 
    * @returns {object} texture, {number} size in bytes
    * @private
    */
@@ -549,7 +554,7 @@ class RenderingEngine {
 
   /** Returns the image type
    *
-   * @param {number[]} pixelData, image array
+   * @param {number[]} pixelData - image array
    * @returns {string} image type
    * @private
    */
@@ -568,10 +573,10 @@ class RenderingEngine {
   /** Renders the image
    *
    * @param {object} shader
-   * @param {object} shader input parameters
+   * @param {object} parameters - shader input parameters
    * @param {object} texture
-   * @param {number} image width  
-   * @param {number} image height
+   * @param {number} width - horizontal dimension of the image 
+   * @param {number} height - vertical dimension of the image 
    * @private
    */
   _renderQuad(shader, parameters, texture, width, height) {
