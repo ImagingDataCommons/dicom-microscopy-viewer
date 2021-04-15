@@ -1,7 +1,3 @@
-import {
-  formatMetadata,
-} from './metadata.js'
-
 const chai = require('chai');
 const assert = require('assert');
 
@@ -17,24 +13,22 @@ const dmv = require('../build/dicom-microscopy-viewer.js');
 
 describe('dmv.viewer.VolumeImageViewer', ()=> {
 
-    console.info(formatMetadata(testCase1).OpticalPathSequence[0].OpticalPathIdentifier);
     var viewer;
-
-    const BIOne = new DICOMMicroscopyViewer.metadata.BlendingInformation(
+    const BIOne = new dmv.metadata.BlendingInformation(
       opticalPathIdentifier = `35`, 
       color = [0.,0.5,0.5],
       opacity = 1.0,
       thresholdValues = [125., 256.],
       visible = true,
     );
-    const BITwo = new DICOMMicroscopyViewer.metadata.BlendingInformation(
+    const BITwo = new dmv.metadata.BlendingInformation(
       opticalPathIdentifier = `1`, 
       color = [0.5, 0.5, 0.],
       opacity = 1.0,
       thresholdValues = [0., 256.],
       visible = true,
     );
-    const BIThree = new DICOMMicroscopyViewer.metadata.BlendingInformation(
+    const BIThree = new dmv.metadata.BlendingInformation(
       opticalPathIdentifier = `15`,
       color = [1, 0., 0.],
       opacity = 1.0,
