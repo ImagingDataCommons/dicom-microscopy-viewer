@@ -794,16 +794,16 @@ class VolumeImageViewer {
       const z = tileCoord[0];
       const y = tileCoord[1] + 1;
       const x = tileCoord[2] + 1;
-      const index = x + "-" + y;
+      const index = x + '-' + y;
 
       const path = this[_colorImage].pyramidFrameMappings[z][index];
       if (path === undefined) {
-        console.warn("tile " + index + " not found at level " + z);
+        console.warn('tile ' + index + ' not found at level ' + z);
         return (null);
       }
       let url = this[_options].client.wadoURL +
-        "/studies/" + this[_colorImage].pyramidMetadata[z].StudyInstanceUID +
-        "/series/" + this[_colorImage].pyramidMetadata[z].SeriesInstanceUID +
+        '/studies/' + this[_colorImage].pyramidMetadata[z].StudyInstanceUID +
+        '/series/' + this[_colorImage].pyramidMetadata[z].SeriesInstanceUID +
         '/instances/' + path;
       if (this[_options].retrieveRendered) {
         url = url + '/rendered';
@@ -903,7 +903,7 @@ class VolumeImageViewer {
     const colorImage = this[_colorImage].OpticalPathIdentifier === opticalPathID ?
       this[_colorImage] : undefined;
     if (!channel && !colorImage) {
-      throw new Error("No opticalPath with ID" + opticalPathID + " has been found.");
+      throw new Error('No OpticalPath with ID ' + opticalPathID + ' has been found.');
     }
 
     return channel;
@@ -915,9 +915,6 @@ class VolumeImageViewer {
    */
    getOpticalPathMetadata(opticalPathID) {
     const image = this.getOpticalPath(opticalPathID)
-    if (!image) {
-      throw new Error("No opticalPath with ID" + opticalPathID + " has been found.");
-    }
     return image.metadata;
   }
 
@@ -935,10 +932,6 @@ class VolumeImageViewer {
     } = blendingInformation;
 
     const channel = this.getOpticalPath(opticalPathID)
-    if (channel === null) {
-      throw new Error("No opticalPath with ID" + opticalPathID + " has been found.");
-    }
-
     if (channel.setBlendingInformation(blendingInformation)) { 
       this[_map].render();
     }
@@ -950,24 +943,16 @@ class VolumeImageViewer {
    */
   getBlendingInformation(opticalPathID) {
     const channel = this.getOpticalPath(opticalPathID)
-    if (channel === null) {
-      throw new Error("No opticalPath with ID" + opticalPathID + " has been found.");
-    }
-
     return channel.getBlendingInformation();
   }
 
   /** Adds the channel to the OpenLayer Map given an id
    * @param {string} opticalPathID - opticalPath of the channel
    */
-   activateOpticalPath(opticalPathID) {
+  activateOpticalPath(opticalPathID) {
     const channel = this.getOpticalPath(opticalPathID)
-    if (channel === null) {
-      return;
-    }
-
     if (this._isOpticalPathActive(channel)) {
-      return;
+      throw new Error('OpticalPath ' + opticalPathIdentifier + ' already activated');
     }
 
     // _drawingLayer has to be the last layer 
@@ -979,14 +964,10 @@ class VolumeImageViewer {
   /** Removes the channel to the OpenLayer Map given an id
    * @param {string} opticalPathID - opticalPath of the channel
    */
-   deactivateOpticalPath(opticalPathID) {
+  deactivateOpticalPath(opticalPathID) {
     const channel = this.getOpticalPath(opticalPathID)
-    if (channel === null) {
-      return;
-    }
-
     if (!this._isOpticalPathActive(channel)) {
-      return;
+      throw new Error('OpticalPath ' + opticalPathIdentifier + ' already deactivated');
     }
 
     this[_map].removeLayer(channel.tileLayer)
@@ -995,7 +976,7 @@ class VolumeImageViewer {
   /** Set the visibility of the channel to true
    * @param {string} opticalPathID - opticalPath of the channel
    */
-   showOpticalPath(opticalPathID) {
+  showOpticalPath(opticalPathID) {
     const blendingInformation = {
       visible : true,
       opticalPathID : opticalPathID,

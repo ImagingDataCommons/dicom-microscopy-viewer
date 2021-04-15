@@ -125,42 +125,42 @@ class _Channel {
     if (arraysEqual(geometryArrays[0], referenceExtent) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        'image has incompatible extent respect to the reference optical path ' +
+        ' image has incompatible extent respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[1], referenceOrigins) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        'image has incompatible origins respect to the reference optical path ' +
+        ' image has incompatible origins respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[2], referenceResolutions) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        'image has incompatible resolutions respect to the reference optical path ' +
+        ' image has incompatible resolutions respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[3], referenceGridSizes) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        'image has incompatible grid sizes respect to the reference optical path ' +
+        ' image has incompatible grid sizes respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[4], referenceTileSizes) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        'image has incompatible tile sizes respect to the reference optical path ' +
+        ' image has incompatible tile sizes respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       );
     }
     if (arraysEqual(geometryArrays[5], referencePixelSpacings) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        'image has incompatible pixel spacings respect to the reference optical path ' +
+        ' image has incompatible pixel spacings respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       );
     }
@@ -182,16 +182,16 @@ class _Channel {
       const z = tileCoord[0];
       const y = tileCoord[1] + 1;
       const x = tileCoord[2] + 1;
-      const index = x + "-" + y;
+      const index = x + '-' + y;
     
       const path = this.pyramidFrameMappings[z][index];
       if (path === undefined) {
-        console.warn("tile " + index + " not found at level " + z);
+        console.warn('tile ' + index + ' not found at level ' + z);
         return (null);
       }
       let url = options.client.wadoURL +
-        "/studies/" + this.pyramidMetadata[z].StudyInstanceUID +
-        "/series/" + this.pyramidMetadata[z].SeriesInstanceUID +
+        '/studies/' + this.pyramidMetadata[z].StudyInstanceUID +
+        '/series/' + this.pyramidMetadata[z].SeriesInstanceUID +
         '/instances/' + path;
       if (options.retrieveRendered) {
         url = url + '/rendered';
@@ -529,7 +529,7 @@ class _Channel {
       }
       this.blendingInformation.thresholdValues = [...thresholdValues];
     }
-    if (visible) {
+    if (visible !== undefined && visible !== null) {
       this.blendingInformation.visible = visible;
       this.tileLayer.setVisible(this.blendingInformation.visible);
     }
