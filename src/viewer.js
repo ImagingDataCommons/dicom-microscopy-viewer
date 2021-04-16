@@ -558,6 +558,12 @@ function _updateFeatureEvaluations(feature) {
  * @returns {void}
  */
 function _updateFeatureMeasurements(map, feature) {
+  if (
+    Enums.Markup.Measurement !== feature.get(Enums.InternalProperties.Markup)
+  ) {
+    return;
+  }
+
   const measurements = feature.get(Enums.InternalProperties.Measurements) || [];
   const area = getFeatureArea(feature);
   const length = getFeatureLength(feature);
