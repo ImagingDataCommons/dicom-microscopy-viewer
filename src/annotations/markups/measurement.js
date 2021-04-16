@@ -1,5 +1,6 @@
 import Enums from "../../enums";
 import { getUnitSuffix } from "../../utils";
+import { getFeatureArea, getFeatureLength } from "../../_utils.js";
 
 /**
  * Format measure output
@@ -8,9 +9,7 @@ import { getUnitSuffix } from "../../utils";
  * @return {string} The formatted measure of this feature
  */
 export const format = (feature, units) => {
-  let value =
-    feature.get(Enums.FeatureMeasurement.Length) ||
-    feature.get(Enums.FeatureMeasurement.Area);
+  let value = getFeatureLength(feature) || getFeatureArea(feature);
   let rawValue = Math.round((value / 10) * 100) / 100;
   let output = Math.round((rawValue / 10) * 100) / 100 + " " + units;
   return output;
@@ -18,8 +17,8 @@ export const format = (feature, units) => {
 
 /**
  * Checks if feature has measurement markup properties
- * 
- * @param {object} feature 
+ *
+ * @param {object} feature
  * @returns {boolean} true if feature has measurement markup properties
  */
 const _isMeasurement = (feature) =>

@@ -1,4 +1,6 @@
 import Enums from "./enums";
+import { default as Circle } from "ol/geom/Circle";
+import { fromCircle } from "ol/geom/Polygon";
 
 /**
  * Get coordinate with offset
@@ -17,6 +19,31 @@ import Enums from "./enums";
     : [x - offset, y - offset];
 }
 
+/**
+ * Gets feature's geometry area
+ * @param {Feature} feature 
+ * @returns {number} geometry area
+ */
+const getFeatureArea = feature => {
+  const geometry = feature.getGeometry();
+  if (geometry instanceof Circle) {
+    return fromCircle(geometry).getArea();
+  }
+  return geometry.getArea && geometry.getArea();
+};
+
+/**
+ * Gets feature's geometry length
+ * @param {Feature} feature 
+ * @returns {number} geometry length
+ */
+const getFeatureLength = feature => {
+  const geometry = feature.getGeometry();
+  return geometry.getLength && geometry.getLength();
+};
+
 export {
   coordinateWithOffset,
+  getFeatureArea,
+  getFeatureLength
 };

@@ -30,8 +30,7 @@ import View from "ol/View";
 import DragPan from "ol/interaction/DragPan";
 import DragZoom from "ol/interaction/DragZoom";
 
-import { getLength, getArea } from "ol/sphere";
-import { default as PolygonGeometry, fromCircle } from "ol/geom/Polygon";
+import { default as PolygonGeometry } from "ol/geom/Polygon";
 import { default as PointGeometry } from "ol/geom/Point";
 import { default as LineStringGeometry } from "ol/geom/LineString";
 import { default as CircleGeometry } from "ol/geom/Circle";
@@ -54,6 +53,7 @@ import {
   getUnitSuffix,
   isContentItemsEqual,
 } from "./utils.js";
+import { getFeatureArea, getFeatureLength } from "./_utils.js";
 import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
 import Enums from "./enums";
 import _AnnotationManager from "./annotations/_AnnotationManager";
@@ -500,10 +500,8 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents(map, feature) {
   /**
    * Update feature measurement properties first and then measurements
    */
-  _updateFeatureMeasurementProperties(map, feature);
   _updateFeatureMeasurements(map, feature);
   feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-    _updateFeatureMeasurementProperties(map, feature);
     _updateFeatureMeasurements(map, feature);
   });
 
@@ -553,30 +551,6 @@ function _updateFeatureEvaluations(feature) {
 }
 
 /**
- * Updates feature measurement properties
- *
- * @param {object} map The map instance
- * @param {object} feature The feature instance
- * @returns {void}
- */
-const _updateFeatureMeasurementProperties = (map, feature) => {
-  /**
-   * Open Layers side-effect: Geometry will be changed
-   * inside the formCircle call which causes errors
-   * if const variable is used for geometry
-   */
-  let geometry = feature.getGeometry().clone();
-  if (geometry instanceof LineStringGeometry) {
-    feature.set(Enums.FeatureMeasurement.Length, getLength(geometry));
-  } else if (geometry instanceof CircleGeometry) {
-    geometry = fromCircle(geometry);
-    feature.set(Enums.FeatureMeasurement.Area, getArea(geometry));
-  } else if (geometry instanceof PolygonGeometry) {
-    feature.set(Enums.FeatureMeasurement.Area, getArea(geometry));
-  }
-};
-
-/**
  * Generate feature measurements from its measurement properties
  *
  * @param {object} map The map instance
@@ -585,8 +559,8 @@ const _updateFeatureMeasurementProperties = (map, feature) => {
  */
 function _updateFeatureMeasurements(map, feature) {
   const measurements = feature.get(Enums.InternalProperties.Measurements) || [];
-  const area = feature.get(Enums.FeatureMeasurement.Area);
-  const length = feature.get(Enums.FeatureMeasurement.Length);
+  const area = getFeatureArea(feature);
+  const length = getFeatureLength(feature);
 
   if (!area && !length) return;
 

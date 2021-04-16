@@ -16,11 +16,6 @@ export const Markup = {
   TextEvaluation: "text",
 };
 
-export const FeatureMeasurement = {
-  Area: "area",
-  Length: "length",
-};
-
 export const FeatureEvents = {
   PROPERTY_CHANGE: "propertychange",
 };
@@ -59,5 +54,4 @@ export default {
   HTMLElementEvents,
   InternalProperties,
   MapEvents,
-  FeatureMeasurement,
 };
