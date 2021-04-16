@@ -58,13 +58,13 @@ class _AnnotationManager {
       return measurements.some((measurement) => {
         const SUPPORTED_MEASUREMENTS_CODED_CONCEPTS = [
           new dcmjs.sr.coding.CodedConcept({
-            value: "Area",
-            meaning: "42798000",
+            meaning: "Area",
+            value: "42798000",
             schemeDesignator: "SCT",
           }),
           new dcmjs.sr.coding.CodedConcept({
-            value: "Length",
-            meaning: "410668003",
+            meaning: "Length",
+            value: "410668003",
             schemeDesignator: "SCT",
           }),
         ];

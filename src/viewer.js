@@ -521,8 +521,8 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents(map, feature) {
  * @returns {void}
  */
 function _updateFeatureEvaluations(feature) {
-  const label = feature.get(Enums.InternalProperties.Label);
   const evaluations = feature.get(Enums.InternalProperties.Evaluations) || [];
+  const label = feature.get(Enums.InternalProperties.Label);
 
   if (!label) return;
 
@@ -580,8 +580,8 @@ function _updateFeatureMeasurements(map, feature) {
   if (area) {
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
-        value: "Area",
-        meaning: "42798000",
+        meaning: "Area",
+        value: "42798000",
         schemeDesignator: "SCT",
       }),
       value: area,
@@ -596,8 +596,8 @@ function _updateFeatureMeasurements(map, feature) {
   if (length) {
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
-        value: "Length",
-        meaning: "410668003",
+        meaning: "Length",
+        value: "410668003",
         schemeDesignator: "SCT",
       }),
       value: length,
