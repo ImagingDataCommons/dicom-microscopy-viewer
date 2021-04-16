@@ -152,6 +152,13 @@ class _AnnotationManager {
     this[Markup.TextEvaluation].onDrawEnd(event);
     this.props.markupManager.onDrawEnd(event);
   }
+
+  onDrawAbort(event) {
+    this[Marker.Arrow].onDrawAbort(event);
+    this[Markup.Measurement].onDrawAbort(event);
+    this[Markup.TextEvaluation].onDrawAbort(event);
+    this.props.markupManager.onDrawAbort(event);
+  }
 }
 
 export default _AnnotationManager;

@@ -32,6 +32,7 @@ export const HTMLElementEvents = {
 export const InteractionEvents = {
   DRAW_START: "drawstart",
   DRAW_END: "drawend",
+  DRAW_ABORT: "drawabort",
   TRANSLATE_START: "translatestart",
   MODIFY_START: "modifystart",
 };

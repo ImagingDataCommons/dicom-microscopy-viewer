@@ -226,6 +226,10 @@ class _MarkupManager {
     });
   }
 
+  onDrawAbort({ feature }) {
+    this.remove(feature.getId());
+  }
+
   /**
    * Updates the feature's markup tooltip style
    *

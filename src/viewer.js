@@ -1369,6 +1369,10 @@ class VolumeImageViewer {
       );
     });
 
+    this[_interactions].draw.on(Enums.InteractionEvents.DRAW_ABORT, (event) => {
+      this[_annotationManager].onDrawAbort(event);
+    });
+
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
       this[_annotationManager].onDrawEnd(event);
       publish(

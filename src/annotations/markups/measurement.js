@@ -61,6 +61,7 @@ const MeasurementMarkup = ({ map, markupManager }) => {
     },
     onUpdate: (feature) => {},
     onDrawEnd: ({ feature }) => {},
+    onDrawAbort: ({ feature }) => {},
   };
 };
 
