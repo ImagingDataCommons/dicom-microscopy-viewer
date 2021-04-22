@@ -35,10 +35,13 @@ const _applyStyles = (feature, map) => {
         : defaultStyles.stroke.color;
 
     feature.setStyle((feature, resolution) => {
-      const newScale = map.getView().getResolutionForZoom(3) / resolution;
+      const view = map.getView();
+      const currentZoomLevel = view.getZoom();
+      const zoomResolution = view.getResolutionForZoom(currentZoomLevel);
+      const newScale = zoomResolution / resolution;
 
       const pointIcon = `
-          <svg version="1.1" width="180px" height="180px" viewBox="0 -7.101 760.428 415.101" style="enable-background:new 0 0 408 408;" xmlns="http://www.w3.org/2000/svg">
+          <svg version="1.1" width="70px" height="70px" viewBox="0 -7.101 760.428 415.101" style="enable-background:new 0 0 408 408;" xmlns="http://www.w3.org/2000/svg">
             <g>
               <path style="fill:${encodeURIComponent(
                 color
@@ -48,7 +51,7 @@ const _applyStyles = (feature, map) => {
         `;
 
       const icon = `
-        <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="180px" height="180px" viewBox="0 0 407.436 407.436" style="enable-background:new 0 0 407.436 407.436;">
+        <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="70px" height="70px" viewBox="0 0 407.436 407.436" style="enable-background:new 0 0 407.436 407.436;">
           <polygon style="fill:${encodeURIComponent(
             color
           )};" points="315.869,21.178 294.621,0 91.566,203.718 294.621,407.436 315.869,386.258 133.924,203.718 "/>
@@ -79,7 +82,7 @@ const _applyStyles = (feature, map) => {
             new Style({
               stroke: new Stroke({
                 color,
-                width: 12 * newScale /** Keep scale sync with icon */,
+                width: 5 * newScale /** Keep scale sync with icon */,
               }),
             })
           );
@@ -158,6 +161,7 @@ const ArrowMarker = ({ map, markupManager }) => {
     },
     onUpdate: (feature) => {},
     onDrawEnd: ({ feature }) => {},
+    onDrawAbort: ({ feature }) => {},
   };
 };
 
