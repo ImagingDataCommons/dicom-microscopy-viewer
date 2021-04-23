@@ -22,9 +22,10 @@ import { areCodedConceptsEqual, getContentItemNameCodedConcept } from "../utils"
 const { Marker, Markup } = Enums;
 
 class _AnnotationManager {
-  constructor({ map } = {}) {
+  constructor({ map, pyramid } = {}) {
     const markupManager = new _MarkupManager({
       map,
+      pyramid,
       formatters: {
         [Marker.Arrow]: arrowFormat,
         [Markup.Measurement]: measurementFormat,
@@ -34,6 +35,7 @@ class _AnnotationManager {
 
     this.props = {
       map,
+      pyramid,
       markupManager,
     };
 

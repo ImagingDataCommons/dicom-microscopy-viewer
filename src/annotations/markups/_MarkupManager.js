@@ -15,8 +15,9 @@ import { coordinateWithOffset } from "../../_utils";
 import defaultStyles from "../styles";
 
 class _MarkupManager {
-  constructor({ map, formatters, onClick, onStyle } = {}) {
+  constructor({ map, pyramid, formatters, onClick, onStyle } = {}) {
     this._map = map;
+    this._pyramid = pyramid;
     this._formatters = formatters;
 
     this.onClick = onClick;
@@ -155,7 +156,7 @@ class _MarkupManager {
           const view = this._map.getView();
           const unitSuffix = getUnitSuffix(view);
           const format = this._getFormatter(feature);
-          const output = format(feature, unitSuffix);
+          const output = format(feature, unitSuffix, this._pyramid);
           this.update({
             feature,
             value: output,

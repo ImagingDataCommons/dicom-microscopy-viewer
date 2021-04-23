@@ -30,10 +30,6 @@ import View from "ol/View";
 import DragPan from "ol/interaction/DragPan";
 import DragZoom from "ol/interaction/DragZoom";
 
-import { default as PolygonGeometry } from "ol/geom/Polygon";
-import { default as PointGeometry } from "ol/geom/Point";
-import { default as LineStringGeometry } from "ol/geom/LineString";
-import { default as CircleGeometry } from "ol/geom/Circle";
 import { default as VectorEventType } from "ol/source/VectorEventType";
 
 import { getCenter } from "ol/extent";
@@ -46,15 +42,16 @@ import { ROI } from "./roi.js";
 import {
   computeRotation,
   generateUID,
-  applyInverseTransform,
-  applyTransform,
-  buildInverseTransform,
-  buildTransform,
   getUnitSuffix,
   isContentItemsEqual,
 } from "./utils.js";
-import { getFeatureArea, getFeatureLength } from "./_utils.js";
-import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
+import {
+  getPixelSpacing,
+  geometry2Scoord3d,
+  scoord3d2Geometry,
+  getFeatureScoord3dLength,
+  getFeatureScoord3dArea
+} from "./_utils";
 import Enums from "./enums";
 import _AnnotationManager from "./annotations/_AnnotationManager";
 import Icon from "ol/style/Icon";
@@ -122,18 +119,6 @@ function _getInteractionBindingCondition(bindings) {
   };
 }
 
-/** Extracts value of Pixel Spacing attribute from metadata.
- *
- * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
- * @returns {number[]} Spacing between pixel columns and rows in millimeter
- * @private
- */
-function _getPixelSpacing(metadata) {
-  const functionalGroup = metadata.SharedFunctionalGroupsSequence[0];
-  const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
-  return pixelMeasures.PixelSpacing;
-}
-
 /** Determines whether image needs to be rotated relative to slide
  * coordinate system based on direction cosines.
  * We want to rotate all images such that the X axis of the slide coordinate
@@ -170,238 +155,6 @@ function _getRotation(metadata) {
   // We want the slide oriented horizontally with the label on the right side
   const correction = 90 * (Math.PI / 180);
   return angle + correction;
-}
-
-/**
- * Converts a vector graphic from an OpenLayers Feature Geometry into a DICOM SCOORD3D
- * representation.
- * @param {object} feature - OpenLayers Feature
- * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
- * @returns {Scoord3D} DICOM Microscopy Viewer Scoord3D
- * @private
- */
-function _geometry2Scoord3d(feature, pyramid) {
-  const geometry = feature.getGeometry();
-  console.info("map coordinates from pixel matrix to slide coordinate system");
-  const frameOfReferenceUID = pyramid[pyramid.length - 1].FrameOfReferenceUID;
-  const type = geometry.getType();
-  if (type === "Point") {
-    let coordinates = geometry.getCoordinates();
-    coordinates = _geometryCoordinates2scoord3dCoordinates(
-      coordinates,
-      pyramid
-    );
-    return new Point({
-      coordinates,
-      frameOfReferenceUID: frameOfReferenceUID,
-    });
-  } else if (type === "Polygon") {
-    /*
-     * The first linear ring of the array defines the outer-boundary (surface).
-     * Each subsequent linear ring defines a hole in the surface.
-     */
-    let coordinates = geometry.getCoordinates()[0].map((c) => {
-      return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
-    });
-    return new Polygon({
-      coordinates,
-      frameOfReferenceUID: frameOfReferenceUID,
-    });
-  } else if (type === "LineString") {
-    let coordinates = geometry.getCoordinates().map((c) => {
-      const result = _geometryCoordinates2scoord3dCoordinates(c, pyramid);
-      return result;
-    });
-    return new Polyline({
-      coordinates,
-      frameOfReferenceUID: frameOfReferenceUID,
-    });
-  } else if (type === "Circle") {
-    const center = geometry.getCenter();
-    const radius = geometry.getRadius();
-    // Endpoints of major and  minor axis of the ellipse.
-    let coordinates = [
-      [center[0] - radius, center[1], 0],
-      [center[0] + radius, center[1], 0],
-      [center[0], center[1] - radius, 0],
-      [center[0], center[1] + radius, 0],
-    ];
-    coordinates = coordinates.map((c) => {
-      return _geometryCoordinates2scoord3dCoordinates(c, pyramid);
-    });
-    return new Ellipse({
-      coordinates,
-      frameOfReferenceUID: frameOfReferenceUID,
-    });
-  } else {
-    // TODO: Combine multiple points into MULTIPOINT.
-    console.error(`unknown geometry type "${type}"`);
-  }
-}
-
-/** Converts a vector graphic from a DICOM SCOORD3D into an Openlayers Geometry
- * representation.
- *
- * @param {Scoord3D} scoord3d - DICOM Microscopy Viewer Scoord3D
- * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
- * @returns {object} Openlayers Geometry
- * @private
- */
-function _scoord3d2Geometry(scoord3d, pyramid) {
-  console.info("map coordinates from slide coordinate system to pixel matrix");
-  const type = scoord3d.graphicType;
-  const data = scoord3d.graphicData;
-
-  if (type === "POINT") {
-    let coordinates = _scoord3dCoordinates2geometryCoordinates(data, pyramid);
-    return new PointGeometry(coordinates);
-  } else if (type === "POLYLINE") {
-    const coordinates = data.map((d) => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
-    });
-    return new LineStringGeometry(coordinates);
-  } else if (type === "POLYGON") {
-    const coordinates = data.map((d) => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
-    });
-    return new PolygonGeometry([coordinates]);
-  } else if (type === "ELLIPSE") {
-    // TODO: ensure that the ellipse represents a circle, i.e. that
-    // major and minor axis form a right angle and have the same length
-    const majorAxisCoordinates = data.slice(0, 2);
-    const minorAxisCoordinates = data.slice(2, 4);
-    // Circle is defined by two points: the center point and a point on the
-    // circumference.
-    const point1 = majorAxisCoordinates[0];
-    const point2 = majorAxisCoordinates[1];
-    let coordinates = [
-      [
-        (point1[0] + point2[0]) / parseFloat(2),
-        (point1[1] + point2[1]) / parseFloat(2),
-        0,
-      ],
-      point2,
-    ];
-    coordinates = coordinates.map((d) => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid);
-    });
-    // to flat coordinates
-    coordinates = [
-      ...coordinates[0].slice(0, 2),
-      ...coordinates[1].slice(0, 2),
-    ];
-
-    // flat coordinates in combination with opt_layout and no opt_radius are also accepted
-    // and internally it calculates the Radius
-    return new CircleGeometry(coordinates, null, "XY");
-  } else {
-    console.error(`unsupported graphic type "${type}"`);
-  }
-}
-
-function _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
-  return _coordinateFormatGeometry2Scoord3d(
-    [coordinates[0], coordinates[1], coordinates[2]],
-    pyramid
-  );
-}
-
-function _scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
-  return _coordinateFormatScoord3d2Geometry(
-    [coordinates[0], coordinates[1], coordinates[2]],
-    pyramid
-  );
-}
-
-/** Translates coordinates of Total Pixel Matrix in pixel unit into coordinates
- * in Frame of Reference (slide coordinate system) in millimeter unit.
- *
- * @param {number[]|number[][]} coordinates - Coordinates in Total Pixel Matrix
- * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
- * @returns {number[]|number[][]} Coordinates in Frame of Reference
- * @private
- */
-function _coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
-  let transform = false;
-  if (!Array.isArray(coordinates[0])) {
-    coordinates = [coordinates];
-    transform = true;
-  }
-  const metadata = pyramid[pyramid.length - 1];
-  const origin = metadata.TotalPixelMatrixOriginSequence[0];
-  const orientation = metadata.ImageOrientationSlide;
-  const spacing = _getPixelSpacing(metadata);
-  const offset = [
-    Number(origin.XOffsetInSlideCoordinateSystem),
-    Number(origin.YOffsetInSlideCoordinateSystem),
-  ];
-
-  const affine = buildTransform({
-    offset,
-    orientation,
-    spacing,
-  });
-  coordinates = coordinates.map((c) => {
-    const pixelCoord = [c[0], -(c[1] + 1)];
-    const slideCoord = applyTransform({ coordinate: pixelCoord, affine });
-    return [slideCoord[0], slideCoord[1], 0];
-  });
-  if (transform) {
-    return coordinates[0];
-  }
-  return coordinates;
-}
-
-/** Translates coordinates of coordinates in Frame of Reference
- * (slide coordinate system) in millimeter unit into coordinates in
- * Total Pixel Matrix in pixel unit.
- *
- * @param {number[]|number[][]} coordinates - Coordinates in Frame of Reference
- * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
- * @returns {number[]|number[][]} Coordinates in Total Pixel Matrix
- * @private
- */
-function _coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
-  let transform = false;
-  if (!Array.isArray(coordinates[0])) {
-    coordinates = [coordinates];
-    transform = true;
-  }
-  const metadata = pyramid[pyramid.length - 1];
-  const orientation = metadata.ImageOrientationSlide;
-  const spacing = _getPixelSpacing(metadata);
-  const origin = metadata.TotalPixelMatrixOriginSequence[0];
-  const offset = [
-    Number(origin.XOffsetInSlideCoordinateSystem),
-    Number(origin.YOffsetInSlideCoordinateSystem),
-  ];
-
-  let outOfFrame = false;
-  const affine = buildInverseTransform({
-    offset,
-    orientation,
-    spacing,
-  });
-  coordinates = coordinates.map((c) => {
-    if (c[0] > 25 || c[1] > 76) {
-      outOfFrame = true;
-    }
-    const slideCoord = [c[0], c[1]];
-    const pixelCoord = applyInverseTransform({
-      coordinate: slideCoord,
-      affine,
-    });
-    return [pixelCoord[0], -(pixelCoord[1] + 1), 0];
-  });
-  if (transform) {
-    return coordinates[0];
-  }
-  if (outOfFrame) {
-    console.warning(
-      "found coordinates outside slide coordinate system 25 x 76 mm"
-    );
-  }
-  return coordinates;
 }
 
 /** Map style options to OpenLayers style.
@@ -494,15 +247,16 @@ function _addROIPropertiesToFeature(feature, properties, opt_silent) {
  *
  * @param {object} map The map instance
  * @param {object} feature The feature instance
+ * @param {object} pyramid The pyramid metadata
  * @returns {void}
  */
-function _wireMeasurementsAndQualitativeEvaluationsEvents(map, feature) {
+function _wireMeasurementsAndQualitativeEvaluationsEvents(map, feature, pyramid) {
   /**
    * Update feature measurement properties first and then measurements
    */
-  _updateFeatureMeasurements(map, feature);
+  _updateFeatureMeasurements(map, feature, pyramid);
   feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-    _updateFeatureMeasurements(map, feature);
+    _updateFeatureMeasurements(map, feature, pyramid);
   });
 
   /**
@@ -555,9 +309,10 @@ function _updateFeatureEvaluations(feature) {
  *
  * @param {object} map The map instance
  * @param {object} feature The feature instance
+ * @param {object} pyramid The pyramid metadata
  * @returns {void}
  */
-function _updateFeatureMeasurements(map, feature) {
+function _updateFeatureMeasurements(map, feature, pyramid) {
   if (
     Enums.Markup.Measurement !== feature.get(Enums.InternalProperties.Markup)
   ) {
@@ -565,8 +320,8 @@ function _updateFeatureMeasurements(map, feature) {
   }
 
   const measurements = feature.get(Enums.InternalProperties.Measurements) || [];
-  const area = getFeatureArea(feature);
-  const length = getFeatureLength(feature);
+  const area = getFeatureScoord3dArea(feature, pyramid);
+  const length = getFeatureScoord3dLength(feature, pyramid);
 
   if (!area && !length) return;
 
@@ -837,7 +592,7 @@ class VolumeImageViewer {
     const resolutions = [];
     const origins = [];
     const offset = [0, -1];
-    const basePixelSpacing = _getPixelSpacing(this[_pyramidBaseMetadata]);
+    const basePixelSpacing = getPixelSpacing(this[_pyramidBaseMetadata]);
     const baseTotalPixelMatrixColumns = this[_pyramidBaseMetadata]
       .TotalPixelMatrixColumns;
     const baseTotalPixelMatrixRows = this[_pyramidBaseMetadata]
@@ -854,7 +609,7 @@ class VolumeImageViewer {
         .TotalPixelMatrixColumns;
       const totalPixelMatrixRows = this[_pyramidMetadata][j]
         .TotalPixelMatrixRows;
-      const pixelSpacing = _getPixelSpacing(this[_pyramidMetadata][j]);
+      const pixelSpacing = getPixelSpacing(this[_pyramidMetadata][j]);
       const nColumns = Math.ceil(totalPixelMatrixColumns / columns);
       const nRows = Math.ceil(totalPixelMatrixRows / rows);
       tileSizes.push([columns, rows]);
@@ -1010,7 +765,7 @@ class VolumeImageViewer {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
          * has meter unit.
          */
-        const spacing = _getPixelSpacing(pyramid[nLevels - 1])[0] / 10 ** 3;
+        const spacing = getPixelSpacing(pyramid[nLevels - 1])[0] / 10 ** 3;
         return pixelRes * spacing;
       },
     });
@@ -1154,7 +909,10 @@ class VolumeImageViewer {
 
     this[_map].getView().fit(extent);
 
-    this[_annotationManager] = new _AnnotationManager({ map: this[_map] });
+    this[_annotationManager] = new _AnnotationManager({
+      map: this[_map],
+      pyramid: this[_pyramidMetadata],
+    });
   }
 
   /** Resizes the viewer to fit the viewport. */
@@ -1371,7 +1129,8 @@ class VolumeImageViewer {
 
       _wireMeasurementsAndQualitativeEvaluationsEvents(
         this[_map],
-        event.feature
+        event.feature,
+        this[_pyramidMetadata]
       );
     });
 
@@ -1447,7 +1206,7 @@ class VolumeImageViewer {
     if (feature !== undefined && feature !== null) {
       let scoord3d;
       try {
-        scoord3d = _geometry2Scoord3d(feature, pyramid);
+        scoord3d = geometry2Scoord3d(feature, pyramid);
       } catch (error) {
         const uid = feature.getId();
         this.removeROI(uid);
@@ -1793,14 +1552,14 @@ class VolumeImageViewer {
    */
   addROI(roi, styleOptions) {
     console.info(`add ROI ${roi.uid}`);
-    const geometry = _scoord3d2Geometry(roi.scoord3d, this[_pyramidMetadata]);
+    const geometry = scoord3d2Geometry(roi.scoord3d, this[_pyramidMetadata]);
     const featureOptions = { geometry };
 
     const feature = new Feature(featureOptions);
     _addROIPropertiesToFeature(feature, roi.properties, true);
     feature.setId(roi.uid);
 
-    _wireMeasurementsAndQualitativeEvaluationsEvents(this[_map], feature);
+    _wireMeasurementsAndQualitativeEvaluationsEvents(this[_map], feature, this[_pyramidMetadata]);
 
     this[_features].push(feature);
 
@@ -2000,7 +1759,7 @@ class _NonVolumeImageViewer {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
          * has meter unit.
          */
-        const mmSpacing = _getPixelSpacing(this[_metadata])[0];
+        const mmSpacing = getPixelSpacing(this[_metadata])[0];
         const spacing = mmSpacing / resizeFactor / 10 ** 3;
         return pixelRes * spacing;
       },

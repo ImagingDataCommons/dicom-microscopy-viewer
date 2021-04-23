@@ -1,6 +1,9 @@
 import Enums from "../../enums";
 import { getUnitSuffix } from "../../utils";
-import { getFeatureArea, getFeatureLength } from "../../_utils.js";
+import {
+  getFeatureScoord3dArea,
+  getFeatureScoord3dLength,
+} from "../../_utils.js";
 
 /**
  * Format measure output
@@ -8,11 +11,11 @@ import { getFeatureArea, getFeatureLength } from "../../_utils.js";
  * @param {string} units units
  * @return {string} The formatted measure of this feature
  */
-export const format = (feature, units) => {
-  let value = getFeatureLength(feature) || getFeatureArea(feature);
-  let rawValue = Math.round((value / 10) * 100) / 100;
-  let output = Math.round((rawValue / 10) * 100) / 100 + " " + units;
-  return output;
+export const format = (feature, units, pyramid) => {
+  let value =
+    getFeatureScoord3dLength(feature, pyramid) ||
+    getFeatureScoord3dArea(feature, pyramid);
+  return `${value.toFixed(2)} ${units}`;
 };
 
 /**
@@ -29,9 +32,10 @@ const _isMeasurement = (feature) =>
  *
  * @param {object} dependencies Shared dependencies
  * @param {object} dependencies.map Viewer's map instance
+ * @param {object} dependencies.pyramid Pyramid metadata
  * @param {object} dependencies.markupManager MarkupManager shared instance
  */
-const MeasurementMarkup = ({ map, markupManager }) => {
+const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
   return {
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
@@ -39,7 +43,7 @@ const MeasurementMarkup = ({ map, markupManager }) => {
         const unitSuffix = getUnitSuffix(view);
         markupManager.create({
           feature,
-          value: format(feature, unitSuffix),
+          value: format(feature, unitSuffix, pyramid),
         });
       }
     },
