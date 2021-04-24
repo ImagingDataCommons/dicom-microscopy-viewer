@@ -12,7 +12,6 @@ const dmv = require('../build/dicom-microscopy-viewer.js');
 
 describe('dmv.viewer.VolumeImageViewer', ()=> {
 
-  console.log("bellaaaaaaaaaaaaa", dmv);
   var viewer;
   const BIOne = new dmv.metadata.BlendingInformation(
     opticalPathIdentifier = `1`, 
