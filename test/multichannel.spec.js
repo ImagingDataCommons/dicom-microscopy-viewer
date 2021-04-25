@@ -17,21 +17,21 @@ describe('dmv.viewer.VolumeImageViewer', ()=> {
     opticalPathIdentifier = `1`, 
     color = [0.,0.5,0.5],
     opacity = 1.0,
-    thresholdValues = [125., 256.],
+    thresholdValues = [125., 255.],
     visible = true,
   );
   const BITwo = new dmv.metadata.BlendingInformation(
     opticalPathIdentifier = `2`, 
     color = [0.5, 0.5, 0.],
     opacity = 1.0,
-    thresholdValues = [0., 256.],
+    thresholdValues = [0., 255.],
     visible = true,
   );
   const BIThree = new dmv.metadata.BlendingInformation(
     opticalPathIdentifier = `3`,
     color = [1, 0., 0.],
     opacity = 1.0,
-    thresholdValues = [0., 256.],
+    thresholdValues = [0., 255.],
     visible = true,
   );
   
@@ -39,7 +39,6 @@ describe('dmv.viewer.VolumeImageViewer', ()=> {
     client: 'test',
     metadata: metadata,
     blendingInformation: [BIOne, BITwo, BIThree],
-    blendingImageQuality: 0.8, // value between 0 and 1;
   });
 
   it('sets optical path color', () => {
@@ -54,7 +53,7 @@ describe('dmv.viewer.VolumeImageViewer', ()=> {
   })
 
   it('sets optical path thresholdValues', () => {
-    const thresholdValues = [0., 256.];
+    const thresholdValues = [0., 255.];
     const blendingInformation = {
       thresholdValues : thresholdValues,
       opticalPathID : `1`,

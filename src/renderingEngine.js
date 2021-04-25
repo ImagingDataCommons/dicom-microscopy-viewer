@@ -174,7 +174,14 @@ class RenderingEngine {
     }
   }
 
-  /** Gets the channel visualization/presentation parameters
+  /** Runs the offscreen render applying the channel visualization/presentation parameters.
+   * The image is returned as dataUrl (i.e. the data are recompressed). 
+   * The returned image type is image/png (lossless).
+   * NOTE: The actual render time is < respect to the recompression of the data (toDataURL).
+   *       Using lossy compression (jpeg), would improve the compression step. 
+   *       However, the images are originally stored in the server as lossy jpeg and
+   *       we would have lossy re-compression issues
+   *       (al least for IDC data, https://imaging.datacommons.cancer.gov/).
    * @param {object} FrameData - interface to pass the frame data to the offscreen render 
    * @param {number[]} FrameData.pixelData - image array 
    * @param {number} FrameDataimage.bitsAllocated - bits per pixel
@@ -183,12 +190,10 @@ class RenderingEngine {
    * @param {number} FrameData.opacity - opacity
    * @param {number} FrameData.width - horizontal image size
    * @param {number} FrameData.height - vertical image size
-   * @param {string} mediaType - type (e.g.: 'image/jpeg')
-   * @param {number} quality - the resulting image quality (of type mediaType) exported by the offscreen render. 
    * 
-   * @returns {object} BlendingInformation
+   * @returns {string} dataUrl of the generated image.
    */
-  colorImageFrame(frameData, mediaType, quality) {
+  colorImageFrame(frameData) {
     const renderedCanvas = this._render(
       frameData.pixelData, 
       frameData.columns, 
@@ -196,13 +201,13 @@ class RenderingEngine {
       frameData.color, 
       frameData.opacity, 
       frameData.thresholdValues, 
-      frameData.bitsAllocated);
+      frameData.bitsAllocated
+    );
 
-      if (quality === undefined) {
-        quality = 1.;
-      }
+    return renderedCanvas.toDataURL('image/png');
 
-      return renderedCanvas.toDataURL(mediaType, quality);
+    // NOTE: ToBlob is async and provides smaller images,
+    // but here teh renderingEngine is sequential (one object, one gl context, etc..)
   }
 
   /** Builds coloring shader
@@ -455,17 +460,20 @@ class RenderingEngine {
     const shader = this._getShaderProgram(pixelData);
     const texture = this._generateTexture(pixelData, width, height);
   
-    const range = [...thresholdValues];
+    const clippingRange = [...thresholdValues];
+    const colorFunctionRange = [0, 255];
     if (bitsAllocated === 16) {
-      // 8 bit [0,256]
-      // 16 bit [0,65536+256]
-      const convertFactor = (65793.) / 256.;
-      range[0] *= convertFactor;
-      range[1] *= convertFactor;
+      // 8 bit [0,255]
+      // 16 bit [0,65536+255]
+      const convertFactor = (65793.) / 255.;
+      clippingRange[0] *= convertFactor;
+      clippingRange[1] *= convertFactor;
+      colorFunctionRange[0] *= convertFactor;
+      colorFunctionRange[1] *= convertFactor;
     }
   
-    const windowCenter = (range[0] + range[1]) * 0.5;
-    const windowWidth = range[1] - range[0];
+    const windowCenter = (colorFunctionRange[0] + colorFunctionRange[1]) * 0.5;
+    const windowWidth = colorFunctionRange[1] - colorFunctionRange[0];
   
     const parameters = {
       u_resolution: { type: '2f',
@@ -475,9 +483,9 @@ class RenderingEngine {
       ww: { type: 'f',
         value: windowWidth },
       minT: { type: 'f',
-        value: range[0] },
+        value: clippingRange[0] },
       maxT: { type: 'f',
-        value: range[1] },
+        value: clippingRange[1] },
       opacity: { type: 'f',
         value: opacity },
       color: { type: '3f',

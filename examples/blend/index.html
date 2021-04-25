@@ -16,7 +16,6 @@
     <noscript>
       You need to enable JavaScript to run this app.
     </noscript>
-
     <script src="https://unpkg.com/dicomweb-client"></script>
     <script src="https://unpkg.com/dicom-microscopy-viewer"></script>
 
@@ -27,6 +26,7 @@
 
     var colorPicker;
     var channelToggle;
+    var minRange;
     window.addEventListener("load", startup, false);
 
     function startup() {
@@ -36,18 +36,29 @@
 
       channelToggle = document.querySelector("#toggleChannel");
       channelToggle.addEventListener("change", updateChannelToggle, false);
+
+      minRange = document.querySelector("#minRange");
+      minRange.oninput = function() {
+        const minValue = this.value;
+        const thresholdValues = [minValue, 255.];
+        const blendingInformation = {
+          thresholdValues : thresholdValues,
+          opticalPathID : `15`,
+        };
+        viewer.setBlendingInformation(blendingInformation);
+      }
     }
 
     function updateChannelColor(event) {  
-      const hexColor = event.target.value
+      const hexColor = event.target.value;
       const color = [parseInt(hexColor.substr(1, 2), 16) / 255.,
 			  parseInt(hexColor.substr(3, 2), 16) / 255.,
 			  parseInt(hexColor.substr(5, 2), 16) / 255.];
       const blendingInformation = {
         color : color,
         opticalPathID : `15`,
-      }
-      viewer.setBlendingInformation(blendingInformation)
+      };
+      viewer.setBlendingInformation(blendingInformation);
     }
     
     function updateChannelToggle() {
@@ -104,21 +115,21 @@
         opticalPathIdentifier = `35`, 
         color = [0.,0.5,0.5],
         opacity = 1.0,
-        thresholdValues = [125., 256.],
+        thresholdValues = [125., 255.],
         visible = true,
       );
       const BITwo = new DICOMMicroscopyViewer.metadata.BlendingInformation(
         opticalPathIdentifier = `1`, 
         color = [0.5, 0.5, 0.],
         opacity = 1.0,
-        thresholdValues = [0., 256.],
+        thresholdValues = [0., 255.],
         visible = true,
       );
       const BIThree = new DICOMMicroscopyViewer.metadata.BlendingInformation(
         opticalPathIdentifier = `15`,
         color = [1, 0., 0.],
         opacity = 1.0,
-        thresholdValues = [0., 256.],
+        thresholdValues = [30., 255.],
         visible = true,
       );
       
@@ -126,8 +137,7 @@
         client,
         metadata,
         blendingInformation: [BIOne, BITwo, BIThree],
-        blendingImageQuality: 0.8, // value between 0 and 1;
-        controls: ['fullscreen'],
+        controls: ['fullscreen', 'zoom'],
         retrieveRendered: true,
       });
 
@@ -153,19 +163,24 @@
 
     <div class="bs-example" data-example-id="simple-thumbnails">
       <div class="row">
-        <div class="col-xs-3 col-md-6">
+        <div class="col-xs-3 col-md-4">
           <div class="alert alert-warning text-center" role="alert">Toggle KERATIN Channel</div>
           <input type="checkbox" checked id="toggleChannel" style="margin:auto; width:100%; height:40px"/>
         </div>
-        <div class="col-xs-3 col-md-6" >
+        <div class="col-xs-3 col-md-4" >
           <div class="alert alert-warning text-center" role="alert">Select Color</div>
           <input type="color" id="colorpicker" value="#ff0000" style="margin:auto; width:100%; height:40px">
+          <br/>
+        </div>  
+        <div class="col-xs-3 col-md-4" >
+          <div class="alert alert-warning text-center" role="alert">Clip Min Values</div>
+          <input type="range" min="0" max="256" value="30" class="slider" id="minRange" style="margin:auto; width:100%; height:40px">
           <br/>
         </div>  
           
         <div class="col-xs-12 col-md-12">
           <div
-            style="width:100%;height:550px;position:relative;display:inline-block;"
+            style="width:100%;height:200px;position:relative;display:inline-block;"
             oncontextmenu="return false"
             class="cornerstone-enabled-image"
             unselectable="on"
@@ -174,7 +189,7 @@
           >
             <div
               id="dicomImage"
-              style="width:100%;height:750px;top:0px;left:0px; position:absolute; border: 1px solid black;"
+              style="width:100%;height:850px;top:0px;left:0px; position:absolute; border: 1px solid black;"
             ></div>
 
           </div>

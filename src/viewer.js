@@ -31,6 +31,7 @@ import { default as CircleGeometry } from 'ol/geom/Circle';
 import { default as VectorEventType } from "ol/source/VectorEventType";
 import { default as MapEventType } from "ol/MapEventType";
 import { defaults as defaultInteractions } from 'ol/interaction';
+import {ZoomSlider, defaults as defaultControls} from 'ol/control';
 
 import { getCenter } from 'ol/extent';
 import { toStringXY, rotate } from 'ol/coordinate';
@@ -63,6 +64,7 @@ import {
 import { RenderingEngine } from './renderingEngine.js';
 
 import * as DICOMwebClient from 'dicomweb-client';
+import { forEach } from 'mathjs';
 
 
 /** Extracts value of Pixel Spacing attribute from metadata.
@@ -433,8 +435,6 @@ class VolumeImageViewer {
    *        instances represent channels (optical paths) and internally build a lookup table upon Library object construction
    * @param {object[]} options.blendingInformation - An array containing blending information for the channels with the
    *        standard visualization parameters already setup by an external APPs 
-   * @param {number} options.blendingImageQuality - value between 0 and 1 for indicating the quality of the resulting 
-   *        image for blending multiple channels.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
@@ -531,7 +531,7 @@ class VolumeImageViewer {
                 opticalPathIdentifier = `${pathIdentifier}`, 
                 color = [...colors[i % colors.length]],
                 opacity = 1.0,
-                thresholdValues = [0, 256],
+                thresholdValues = [0, 255],
                 visible = false,
               );
 
@@ -651,6 +651,14 @@ class VolumeImageViewer {
       tileSizes: this[_referenceTileSizes],
     });
 
+    const view = new View({
+      center: getCenter(this[_referenceExtents]),
+      extent: this[_referenceExtents],
+      projection: this[_projection],
+      resolutions: this[_tileGrid].getResolutions(),
+      rotation: this[_rotation],
+    });
+
     // Create a rendering engine object for offscreen rendering
     this[_renderingEngine] = new RenderingEngine();
 
@@ -688,14 +696,6 @@ class VolumeImageViewer {
       projection: this[_projection],
       updateWhileAnimating: true,
       updateWhileInteracting: true,
-    });
-
-    const view = new View({
-      center: getCenter(this[_referenceExtents]),
-      extent: this[_referenceExtents],
-      projection: this[_projection],
-      resolutions: this[_tileGrid].getResolutions(),
-      rotation: this[_rotation],
     });
 
     this[_interactions] = {
@@ -736,6 +736,10 @@ class VolumeImageViewer {
       this[_controls].fullscreen = new FullScreen();
     }
 
+    if (this[_options].controls.has('zoom')) {
+      this[_controls].zoomslider = new ZoomSlider();
+    }
+
     if (this[_options].controls.has('overview')) {
       const overviewTileLayer = new TileLayer({
         extent: this[_referenceExtents],
@@ -755,11 +759,11 @@ class VolumeImageViewer {
       });
     }
 
-    /** Creates the map with the defined layers and view and renders it. */
+    // Creates the map with the defined layers and view and renders it.
     this[_map] = new Map({
       layers,
       view: view,
-      controls: [],
+      controls: defaultControls(),
       keyboardEventTarget: document,
     });
 
@@ -769,6 +773,62 @@ class VolumeImageViewer {
       this[_map].addControl(this[_controls][control]);
     }
     this[_map].getView().fit(this[_referenceExtents]);
+
+    // This updates the tiles offscreen rendering when zoom is applied to the view.
+    const viewer = this;
+    view.origAnimate = view.animate;
+    let currZoom = 0;
+    view.animate = function(animateSpecs) { 
+      let newZoom = animateSpecs.zoom;
+      if (!newZoom) {
+        newZoom = this.getZoomForResolution(animateSpecs.resolution);
+      }
+      if (newZoom) {      
+        if (Math.round(newZoom) !== Math.round(currZoom)) {
+          currZoom = newZoom;
+          if (viewer[_channels] && viewer[_channels].length !== 0) {
+            // For each channel check if any tiles at the new zoom 
+            // needs to refresh the offscreen coloring rendering.
+            let render = false;
+            viewer[_channels].forEach((channel) => {  
+              const channelRender = channel.updateTilesRendering(false, newZoom);
+              if (channelRender) {
+                render = true;
+              }
+            });
+            if (render) {
+              viewer[_map].render();
+            }
+          }
+        }
+      }
+      this.origAnimate(animateSpecs);
+    };
+
+    // This updates the tiles offscreen rendering when panning the view.
+    this[_map].on('pointermove', evt => {
+      if (evt.dragging){
+        if (viewer[_channels] && viewer[_channels].length !== 0) {
+          // For each channel check if any tiles at the new panning 
+          // needs to refresh the offscreen coloring rendering.
+          const tilesCoordRanges = this._transformViewCoordinatesInTilesCoordinates();
+          let render = false;
+          viewer[_channels].forEach((channel) => {  
+            const channelRender = channel.updateTilesRendering(
+              false, 
+              tilesCoordRanges[2], 
+              [tilesCoordRanges[0], tilesCoordRanges[1]]
+            );
+            if (channelRender) {
+              render = true;
+            }
+          });
+          if (render) {
+            viewer[_map].render();
+          }
+        }
+      }
+    });
   }
 
   /** init unique Open Layer objects
@@ -926,15 +986,63 @@ class VolumeImageViewer {
    * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
    * @param {boolean} BlendingInformation.visible - channel visibility
    */
-   setBlendingInformation(blendingInformation) {
+  setBlendingInformation(blendingInformation) {
     const {
       opticalPathID,
     } = blendingInformation;
 
     const channel = this.getOpticalPath(opticalPathID)
-    if (channel.setBlendingInformation(blendingInformation)) { 
+    const tilesCoordRanges = this._transformViewCoordinatesInTilesCoordinates();
+    
+    if (channel.setBlendingInformation(blendingInformation, tilesCoordRanges)) {
       this[_map].render();
     }
+  }
+
+  /** Returns if the channel is being rendered
+   * @returns {number[]} array with tiles X and Y coordinates ranges and zoom level.
+   */
+  _transformViewCoordinatesInTilesCoordinates() {
+    const viewSize = this[_map].getView().calculateExtent(this[_map].getSize());
+    // viewSize: x1, y1, x2, y2
+    const zoomLevel = this[_map].getView().getZoom();
+    const resolution = this[_map].getView().values_.resolution;
+    const tilesCoordinates = [];
+    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution
+      ([viewSize[0], viewSize[1]], resolution));
+    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution
+      ([viewSize[0], viewSize[3]], resolution));
+    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution
+      ([viewSize[2], viewSize[1]], resolution));
+    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution
+      ([viewSize[2], viewSize[3]], resolution));
+
+    const tileCoordXRange = {
+      min : Number.MAX_SAFE_INTEGER,
+      max : Number.MIN_SAFE_INTEGER
+    };
+    const tileCoordYRange = {
+      min : Number.MAX_SAFE_INTEGER,
+      max : Number.MIN_SAFE_INTEGER
+    };
+    for (let i = 0; i < tilesCoordinates.length; i++) {
+      // X coordinates
+      if (tilesCoordinates[i][2] < tileCoordXRange.min) {
+        tileCoordXRange.min = tilesCoordinates[i][2];
+      }
+      if (tilesCoordinates[i][2] > tileCoordXRange.max) {
+        tileCoordXRange.max = tilesCoordinates[i][2];
+      }
+      // Y coordinates
+      if (tilesCoordinates[i][1] < tileCoordYRange.min) {
+        tileCoordYRange.min = tilesCoordinates[i][1];
+      }
+      if (tilesCoordinates[i][1] > tileCoordYRange.max) {
+        tileCoordYRange.max = tilesCoordinates[i][1];
+      }
+    }
+
+    return [tileCoordXRange, tileCoordYRange, zoomLevel]; 
   }
 
   /** Gets the channel visualization/presentation parameters given an id

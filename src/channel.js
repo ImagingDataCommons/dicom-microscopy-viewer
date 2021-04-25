@@ -110,7 +110,6 @@ class _Channel {
     renderingEngine) {
     
     // cache viewer object and info in channel
-    this.blendingImageQuality = options.blendingImageQuality;  
     this.renderingEngine = renderingEngine;
     
     /*
@@ -204,6 +203,7 @@ class _Channel {
     */
     const tileLoadFunction = async (tile, src) => {
       const img = tile.getImage();
+      tile.needToRerender = false;
     
       const z = tile.tileCoord[0];
       const columns = this.pyramidMetadata[z].Columns;
@@ -269,7 +269,7 @@ class _Channel {
             // NOTE: we store the pixelData array in img, so we can apply again colorImageFrame
             //       at the change of any blending parameter (opacity, color, clipping).
             img.pixelData = pixelData;
-            img.src = renderingEngine.colorImageFrame(frameData, 'image/jpeg', options.blendingImageQuality); 
+            img.src = renderingEngine.colorImageFrame(frameData);
           }
         );
       } else {
@@ -496,10 +496,11 @@ class _Channel {
    * @param {number} BlendingInformation.opacity - channel opacity
    * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
    * @param {boolean} BlendingInformation.visible - channel visibility
+   * @param {number[]} tilesCoordRanges - array with tiles X and Y coordinates ranges and zoom level
    *
    * @returns {boolean} rerender - force OpenLayer to rerender the view
    */
-  setBlendingInformation(blendingInformation) {
+  setBlendingInformation(blendingInformation, tilesCoordRanges) {
     const {
       color,
       opacity,
@@ -536,17 +537,63 @@ class _Channel {
 
     // rerender tiles already loaded
     if (rerender) {
-      // retrieve all the cached tiles from the raster source and reapply the offscreen render
-      for (const [key, value] of Object.entries(this.rasterSource.tileCache.entries_)) {
-        const tile = value.value_;
-        const z = tile.tileCoord[0];
+      return this.updateTilesRendering(
+        true, 
+        tilesCoordRanges[2], 
+        [tilesCoordRanges[0], tilesCoordRanges[1]]
+      );
+    } else {
+      return false;
+    }
+  }
+
+  /** Reruns the offscreen render to color the tiles if needed.
+   * This is called at every zoom interaction.
+   * @param {boolean} visuParamChanged - true if this is called by setBlendingInformation
+   * @param {number} zoomLevel - zoom level to update
+   * @param {number[]} tilesCoordRanges - array with tiles X and Y coordinates ranges to update
+   *
+   * @returns {boolean} rerender - force OpenLayer to rerender the view.
+  */
+   updateTilesRendering(visuParamChanged, zoomLevel, tilesCoordRanges) {
+    // rerender tiles already loaded
+    // retrieve all the cached tiles from the raster source and reapply the offscreen render
+    let mapRerender = false;
+    for (const [key, value] of Object.entries(this.rasterSource.tileCache.entries_)) {
+      const tile = value.value_;
+      const z = tile.tileCoord[0]; // integer
+      const y = tile.tileCoord[1];
+      const x = tile.tileCoord[2];
+      // for perfomances reasons we refresh only the tiles that are currently 
+      // at the same zoom level and extent of the view. The other tiles will be updated
+      // interactively when zooming or panning the view.
+      let render = false;
+      let update = Math.abs(z - zoomLevel) < 0.55;
+      if (tilesCoordRanges) {
+        update = update &&
+          (y >= tilesCoordRanges[1].min && y <= tilesCoordRanges[1].max) && 
+          (x >= tilesCoordRanges[0].min && x <= tilesCoordRanges[0].max);
+      }
+      if (update) {
+        if (visuParamChanged) {
+          render = true;
+        } else {
+          render = tile.needToRerender;
+        }
+      }
+
+      if (visuParamChanged) {
+        tile.needToRerender = !render;
+      }
+
+      if (render) {
+        tile.needToRerender = false;
         const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel; // number of colors for pixel
-        if (samplesPerPixel == 1) {
+        if (samplesPerPixel === 1) {
           const columns = this.pyramidMetadata[z].Columns;
           const rows = this.pyramidMetadata[z].Rows;
           const bitsAllocated = this.pyramidMetadata[z].BitsAllocated; // memory for pixel
           const { thresholdValues, color, opacity } = this.blendingInformation;
-  
           const img = tile.getImage();
           const pixelData = img.pixelData;
           const frameData = {
@@ -558,12 +605,14 @@ class _Channel {
             columns,
             rows
           }; 
-          img.src = this.renderingEngine.colorImageFrame(frameData, 'image/jpeg', this.blendingImageQuality);
-        }      
+          img.src = this.renderingEngine.colorImageFrame(frameData);
+
+          mapRerender = true;
+        }
       }
     }
 
-    return rerender;
+    return mapRerender;
   }
 }
 
