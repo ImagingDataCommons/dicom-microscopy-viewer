@@ -268,7 +268,8 @@ class _MarkupManager {
       .ol-tooltip {
         color: ${color};
         white-space: nowrap;
-        font-size: 14px;
+        font-size: 17px;
+        font-weight: bold;
       }
       .ol-tooltip-measure { opacity: 1; }
       .ol-tooltip-static { color: ${color}; }
