@@ -335,10 +335,11 @@ function getFeatureScoord3dLength(feature, pyramid) {
 
 function getFeatureScoord3dArea(feature, pyramid) {
   let geometry = feature.getGeometry();
-  const type = geometry.getType();
+  let type = geometry.getType();
 
   if (type === "Circle") {
     geometry = fromCircle(geometry);
+    type = geometry.getType();
   }
 
   if (type === "Polygon") {

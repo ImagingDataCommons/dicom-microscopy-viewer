@@ -251,9 +251,10 @@ class _MarkupManager {
         styles.setStroke(stroke);
         link.setStyle(styles);
       }
-      const styleTag = document.createElement("style");
-      styleTag.innerHTML = this._getTooltipStyles(tooltipColor);
-      this._markupsOverlay.setElement(styleTag);
+      const marker = this.get(feature.getId());
+      if (marker) {
+        marker.element.style.color = tooltipColor;
+      }
     }
   }
 
