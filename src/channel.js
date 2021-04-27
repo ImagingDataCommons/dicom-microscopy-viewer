@@ -203,8 +203,7 @@ class _Channel {
     */
     const tileLoadFunction = async (tile, src) => {
       const img = tile.getImage();
-      tile.needToRerender = false;
-    
+      tile.needToRerender = true;
       const z = tile.tileCoord[0];
       const columns = this.pyramidMetadata[z].Columns;
       const rows = this.pyramidMetadata[z].Rows;
@@ -212,69 +211,131 @@ class _Channel {
       const bitsAllocated = this.pyramidMetadata[z].BitsAllocated; // memory for pixel
       const pixelRepresentation = this.pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
     
-      const { thresholdValues, color, opacity } = this.blendingInformation;
-    
       if (src !== null && samplesPerPixel === 1) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
-    
-        // TO DO: should we get always jpeg and decompress
-        // for monochorme channels (i.e. samplesPerPixel === 1)?
-        // https://github.com/cornerstonejs/codecs
-        const mediaType = 'application/octet-stream';
-        const transferSyntaxUID = '1.2.840.10008.1.2.1';
-        const retrieveOptions = {
-          studyInstanceUID,
-          seriesInstanceUID,
-          sopInstanceUID,
-          frameNumbers,
-          mediaTypes: [
-            { mediaType, transferSyntaxUID }
-          ]
-        };
-        options.client.retrieveInstanceFrames(retrieveOptions).then(
-          (rawFrames) => {
-            let pixelData;
-            switch (bitsAllocated) {
-              case 8:
-                if (pixelRepresentation === 1) {
-                  pixelData = new Int8Array(rawFrames[0])
-                } else {
-                  pixelData = new Uint8Array(rawFrames[0])
-                }
-                break;
-              case 16:
-                if (pixelRepresentation === 1) {
-                  pixelData = new Int16Array(rawFrames[0])
-                } else {
-                  pixelData = new Uint16Array(rawFrames[0])
-                }
-                break;
-              default:
-                throw new Error(
-                  'the pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
-                );
+
+        if (options.retrieveRendered) {
+          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html  
+          // we use in order: jp2, jpeg.
+          // we could add png, but at the moment we don't have a png decoder library and we would have to draw 
+          // to a canvas, retieve the imageData and then recompat the array from a RGBA to a 1 component array
+          // for the offscreen rendering engine, which provides poor perfomances.
+
+          const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
+          const jpegMediaType = 'image/jpeg'; // decoded with libJPEG-turbo
+          const transferSyntaxUID = '';
+          const retrieveOptions = {
+            studyInstanceUID,
+            seriesInstanceUID,
+            sopInstanceUID,
+            frameNumbers,
+            mediaTypes: [
+              { mediaType : jp2MediaType, transferSyntaxUID },
+              { mediaType : jpegMediaType, transferSyntaxUID }
+            ]
+          };
+          if (options.includeIccProfile) {
+            retrieveOptions['queryParams'] = {
+              iccprofile: 'yes',
             }
-            const frameData = {
-              pixelData,
-              bitsAllocated,
-              thresholdValues,
-              color,
-              opacity,
-              columns,
-              rows
-            };
-            // NOTE: we store the pixelData array in img, so we can apply again colorImageFrame
-            //       at the change of any blending parameter (opacity, color, clipping).
-            img.pixelData = pixelData;
-            img.src = renderingEngine.colorImageFrame(frameData);
           }
-        );
+
+          options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
+            (renderedFrame) => {
+              // coloring image
+              const { 
+                thresholdValues, 
+                color, 
+                opacity 
+              } = this.blendingInformation;
+
+              const frameData = {
+                img,
+                frames: renderedFrame,
+                bitsAllocated,
+                pixelRepresentation,
+                thresholdValues,
+                color,
+                opacity,
+                columns,
+                rows
+              };
+              
+              const rendered = renderingEngine.colorMonochomeImageFrame(frameData);
+              tile.needToRerender = !rendered;
+            }
+          );
+        } else {
+          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.3.3.2.html
+          // we use in order: jls, jp2, jpx, jpeg.
+
+          const jlsMediaType = 'image/jls'; // decoded with CharLS
+          const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80';
+          const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81';
+          const jp2MediaType = 'image/jp2'; // decoded with OpenJPEG
+          const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90';
+          const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91';
+          const jpxMediaType = 'image/jpx'; // decoded with OpenJPEG
+          const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92';
+          const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93';
+          const jpegMediaType = 'image/jpeg'; // decoded with libJPEG-turbo
+          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50';
+  
+          /*const octetStreamMediaType = 'application/octet-stream';
+          const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1';*/
+          
+          const retrieveOptions = {
+            studyInstanceUID,
+            seriesInstanceUID,
+            sopInstanceUID,
+            frameNumbers,
+            mediaTypes: [
+              { mediaType : jlsMediaType, transferSyntaxUID : jlsTransferSyntaxUIDlossless },
+              { mediaType : jlsMediaType, transferSyntaxUID : jlsTransferSyntaxUID },
+              { mediaType : jp2MediaType, transferSyntaxUID : jp2TransferSyntaxUIDlossless },
+              { mediaType : jp2MediaType, transferSyntaxUID : jp2TransferSyntaxUID },
+              { mediaType : jpxMediaType, transferSyntaxUID : jpxTransferSyntaxUIDlossless },
+              { mediaType : jpxMediaType, transferSyntaxUID : jpxTransferSyntaxUID },
+              { mediaType : jpegMediaType, transferSyntaxUID : jpegTransferSyntaxUID }
+            ]
+            /*mediaTypes: [
+              { mediaType : octetStreamMediaType, transferSyntaxUID : octetStreamTransferSyntaxUID }
+            ] we can't ask to retrieve both jpeg formats and octet-stream*/
+          };
+  
+          options.client.retrieveInstanceFrames(retrieveOptions).then(
+            (rawFrames) => {
+              // coloring image
+              const { 
+                thresholdValues, 
+                color, 
+                opacity 
+              } = this.blendingInformation;
+
+              const frameData = {
+                img,
+                frames: rawFrames[0],
+                bitsAllocated,
+                pixelRepresentation,
+                thresholdValues,
+                color,
+                opacity,
+                columns,
+                rows
+              };
+              
+              const rendered = renderingEngine.colorMonochomeImageFrame(frameData);
+              tile.needToRerender = !rendered;
+            }
+          );
+        }
       } else {
         console.warn('could not load tile');
       }
+      
     }
     
     /*
@@ -555,7 +616,7 @@ class _Channel {
    *
    * @returns {boolean} rerender - force OpenLayer to rerender the view.
   */
-   updateTilesRendering(visuParamChanged, zoomLevel, tilesCoordRanges) {
+  updateTilesRendering(visuParamChanged, zoomLevel, tilesCoordRanges) {
     // rerender tiles already loaded
     // retrieve all the cached tiles from the raster source and reapply the offscreen render
     let mapRerender = false;
@@ -568,7 +629,7 @@ class _Channel {
       // at the same zoom level and extent of the view. The other tiles will be updated
       // interactively when zooming or panning the view.
       let render = false;
-      let update = Math.abs(z - zoomLevel) < 0.55;
+      let update = Math.abs(z - zoomLevel) < 0.75;
       if (tilesCoordRanges) {
         update = update &&
           (y >= tilesCoordRanges[1].min && y <= tilesCoordRanges[1].max) && 
@@ -578,7 +639,7 @@ class _Channel {
         if (visuParamChanged) {
           render = true;
         } else {
-          render = tile.needToRerender;
+          render = tile.needToRerender === false ? false : true;
         }
       }
 
@@ -587,27 +648,28 @@ class _Channel {
       }
 
       if (render) {
-        tile.needToRerender = false;
         const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel; // number of colors for pixel
         if (samplesPerPixel === 1) {
           const columns = this.pyramidMetadata[z].Columns;
           const rows = this.pyramidMetadata[z].Rows;
-          const bitsAllocated = this.pyramidMetadata[z].BitsAllocated; // memory for pixel
           const { thresholdValues, color, opacity } = this.blendingInformation;
           const img = tile.getImage();
-          const pixelData = img.pixelData;
+
+          // coloring images
           const frameData = {
-            pixelData,
-            bitsAllocated,
+            img,
             thresholdValues,
             color,
             opacity,
             columns,
             rows
-          }; 
-          img.src = this.renderingEngine.colorImageFrame(frameData);
-
-          mapRerender = true;
+          };
+            
+          const rendered = this.renderingEngine.colorMonochomeImageFrame(frameData);
+          if (rendered) {
+            mapRerender = true;
+            tile.needToRerender = !rendered;
+          }
         }
       }
     }

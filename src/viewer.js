@@ -65,6 +65,7 @@ import { RenderingEngine } from './renderingEngine.js';
 
 import * as DICOMwebClient from 'dicomweb-client';
 import { forEach } from 'mathjs';
+import imageType from 'image-type';
 
 
 /** Extracts value of Pixel Spacing attribute from metadata.
@@ -783,8 +784,8 @@ class VolumeImageViewer {
       if (!newZoom) {
         newZoom = this.getZoomForResolution(animateSpecs.resolution);
       }
-      if (newZoom) {      
-        if (Math.round(newZoom) !== Math.round(currZoom)) {
+      if (newZoom) {
+        if (Math.abs(newZoom - currZoom) > 1e-6) {
           currZoom = newZoom;
           if (viewer[_channels] && viewer[_channels].length !== 0) {
             // For each channel check if any tiles at the new zoom 
@@ -808,27 +809,35 @@ class VolumeImageViewer {
     // This updates the tiles offscreen rendering when panning the view.
     this[_map].on('pointermove', evt => {
       if (evt.dragging){
-        if (viewer[_channels] && viewer[_channels].length !== 0) {
-          // For each channel check if any tiles at the new panning 
-          // needs to refresh the offscreen coloring rendering.
-          const tilesCoordRanges = this._transformViewCoordinatesInTilesCoordinates();
-          let render = false;
-          viewer[_channels].forEach((channel) => {  
-            const channelRender = channel.updateTilesRendering(
-              false, 
-              tilesCoordRanges[2], 
-              [tilesCoordRanges[0], tilesCoordRanges[1]]
-            );
-            if (channelRender) {
-              render = true;
-            }
-          });
-          if (render) {
-            viewer[_map].render();
-          }
-        }
+        this._updateTilesRenderingAtPanning();
       }
     });
+
+    this[_map].on('moveend', evt => {
+      this._updateTilesRenderingAtPanning();
+    });
+  }
+
+  _updateTilesRenderingAtPanning(){
+    if (viewer[_channels] && viewer[_channels].length !== 0) {
+      // For each channel check if any tiles at the new panning 
+      // needs to refresh the offscreen coloring rendering.
+      const tilesCoordRanges = this._transformViewCoordinatesInTilesCoordinates();
+      let render = false;
+      viewer[_channels].forEach((channel) => {  
+        const channelRender = channel.updateTilesRendering(
+          false, 
+          tilesCoordRanges[2], 
+          [tilesCoordRanges[0], tilesCoordRanges[1]]
+        );
+        if (channelRender) {
+          render = true;
+        }
+      });
+      if (render) {
+        viewer[_map].render();
+      }
+    }
   }
 
   /** init unique Open Layer objects
@@ -883,16 +892,23 @@ class VolumeImageViewer {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src);
 
-        if (this[_retrieveRendered]) {  
-          const mediaType = 'image/png';
-          let transferSyntaxUID = '';
+        if (this[_retrieveRendered]) {    
+          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html  
+          // we use in order: jp2, png, jpeg.
+          const jp2MediaType = 'image/jp2';
+          const pngMediaType = 'image/png';
+          const jpegMediaType = 'image/jpeg';  
+          const transferSyntaxUID = '';
+
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
-              { mediaType, transferSyntaxUID }
+              { mediaType : jp2MediaType, transferSyntaxUID },
+              { mediaType : pngMediaType, transferSyntaxUID },
+              { mediaType : jpegMediaType, transferSyntaxUID }
             ]
           };
           if (this[_includeIccProfile]) {
@@ -903,26 +919,41 @@ class VolumeImageViewer {
 
           this[_options].client.retrieveInstanceFramesRendered(retrieveOptions).then(
             (renderedFrame) => {
-              const blob = new Blob([renderedFrame], {type: mediaType});
-              img.src = window.URL.createObjectURL(blob);
+              img.src = this[_renderingEngine].createURLFromRGBImage(renderedFrame);
             }
           );
         } else {
-          let mediaType = 'image/jpeg';
-          let transferSyntaxUID = '1.2.840.10008.1.2.4.50';
+          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html  
+          // we use in order: jls, jp2, jpx, jpeg.
+          const jlsMediaType = 'image/jls';
+          const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80';
+          const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81';
+          const jp2MediaType = 'image/jp2';
+          const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90';
+          const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91';
+          const jpxMediaType = 'image/jpx';
+          const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92';
+          const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93';
+          const jpegMediaType = 'image/jpeg';
+          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50';
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
-              { mediaType, transferSyntaxUID }
+              { mediaType : jlsMediaType, transferSyntaxUID : jlsTransferSyntaxUIDlossless },
+              { mediaType : jlsMediaType, transferSyntaxUID : jlsTransferSyntaxUID },
+              { mediaType : jp2MediaType, transferSyntaxUID : jp2TransferSyntaxUIDlossless },
+              { mediaType : jp2MediaType, transferSyntaxUID : jp2TransferSyntaxUID },
+              { mediaType : jpxMediaType, transferSyntaxUID : jpxTransferSyntaxUIDlossless },
+              { mediaType : jpxMediaType, transferSyntaxUID : jpxTransferSyntaxUID },
+              { mediaType : jpegMediaType, transferSyntaxUID : jpegTransferSyntaxUID }
             ]
           };
           this[_options].client.retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
-              const blob = new Blob(rawFrames, {type: mediaType});
-              img.src = window.URL.createObjectURL(blob);
+              img.src = this[_renderingEngine].createURLFromRGBImage(rawFrames[0]);
             }
           );
         }
