@@ -380,7 +380,6 @@ function getUnitSuffix(view) {
  * @returns {object} The concept name coded concept
  */
 const getContentItemNameCodedConcept = (contentItem) => {
-  console.debug("getContentItemNameCodedConcept", contentItem);
   return contentItem.ConceptNameCodeSequence.length
     ? contentItem.ConceptNameCodeSequence[0]
     : contentItem.ConceptNameCodeSequence;

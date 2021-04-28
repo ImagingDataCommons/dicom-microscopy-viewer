@@ -5,6 +5,7 @@ export const InternalProperties = {
   Label: "label",
   Measurements: "measurements",
   Evaluations: "evaluations",
+  PresentationState: "presentationState"
 };
 
 export const Marker = {

@@ -41,9 +41,11 @@ const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
       if (_isMeasurement(feature)) {
         const view = map.getView();
         const unitSuffix = getUnitSuffix(view);
+        const ps = feature.get(Enums.InternalProperties.PresentationState);
         markupManager.create({
           feature,
           value: format(feature, unitSuffix, pyramid),
+          position: ps && ps.markup ? ps.markup.coordinates : null,
         });
       }
     },

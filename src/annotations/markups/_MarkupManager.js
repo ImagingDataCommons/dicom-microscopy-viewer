@@ -89,17 +89,31 @@ class _MarkupManager {
   }
 
   /**
+   * Update feature's presentation state property.
+   * 
+   * @param {object} options 
+   */
+  updatePresentationState({ feature, coordinates }) {
+    feature.set(Enums.InternalProperties.PresentationState, {
+      markup: {
+        coordinates
+      }
+    });
+  }
+
+  /**
    * Creates a new markup
    *
    * @param {object} options The options
    * @param {Feature} options.feature The feature to plug the measure markup
    * @param {string} options.value The inner content of element
+   * @param {string} options.position The position 
    * @param {boolean} options.isLinkable Create a link between feature and markup
    * @param {boolean} options.isDraggable Allow markup to be dragged
    * @param {array} offset Markup offset
    * @return {object} The markup object
    */
-  create({ feature, value = "", isLinkable = true, isDraggable = true }) {
+  create({ feature, value = "", position, isLinkable = true, isDraggable = true }) {
     const id = feature.getId();
     if (!id) {
       console.warn("Failed to create markup, feature id not found");
@@ -126,9 +140,11 @@ class _MarkupManager {
       positioning: "center-center",
       stopEvent: false,
       dragging: false,
-      position: spacedCoordinate,
+      position: position || spacedCoordinate,
       element: markup.element,
     });
+
+    this.updatePresentationState({ feature, coordinates: position || spacedCoordinate });
 
     this._map.addOverlay(markup.overlay);
     this._markups.set(id, markup);
@@ -210,6 +226,7 @@ class _MarkupManager {
       ) {
         /** Doesn't need to have the offset */
         markup.overlay.setPosition(event.coordinate);
+        this.updatePresentationState({ feature, coordinates: event.coordinate });
         this._drawLink(feature);
       }
     });

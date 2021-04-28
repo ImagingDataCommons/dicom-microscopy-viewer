@@ -67,11 +67,13 @@ const _hasMarker = (feature) => !!feature.get(Enums.InternalProperties.Marker);
  */
 const _onInteractionEventHandler = ({ feature, markupManager }) => {
   const featureHasMarker = _hasMarker(feature);
+  const ps = feature.get(Enums.InternalProperties.PresentationState);
   markupManager.create({
     feature,
     value: format(feature),
     isLinkable: featureHasMarker,
     isDraggable: featureHasMarker,
+    position: ps && ps.markup ? ps.markup.coordinates : null,
   });
   _applyStyle(feature);
 };

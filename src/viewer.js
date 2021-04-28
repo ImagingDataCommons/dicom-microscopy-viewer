@@ -50,7 +50,7 @@ import {
   geometry2Scoord3d,
   scoord3d2Geometry,
   getFeatureScoord3dLength,
-  getFeatureScoord3dArea
+  getFeatureScoord3dArea,
 } from "./_utils";
 import Enums from "./enums";
 import _AnnotationManager from "./annotations/_AnnotationManager";
@@ -222,7 +222,13 @@ function _getOpenLayersStyle(styleOptions) {
  * @param {boolean} opt_silent Opt silent update
  */
 function _addROIPropertiesToFeature(feature, properties, opt_silent) {
-  const { Label, Measurements, Evaluations, Marker } = Enums.InternalProperties;
+  const {
+    Label,
+    Measurements,
+    Evaluations,
+    Marker,
+    PresentationState,
+  } = Enums.InternalProperties;
 
   if (properties[Label]) {
     feature.set(Label, properties[Label], opt_silent);
@@ -239,6 +245,10 @@ function _addROIPropertiesToFeature(feature, properties, opt_silent) {
   if (properties[Marker]) {
     feature.set(Marker, properties[Marker], opt_silent);
   }
+
+  if (properties[PresentationState]) {
+    feature.set(PresentationState, properties[PresentationState], opt_silent);
+  }
 }
 
 /**
@@ -250,7 +260,11 @@ function _addROIPropertiesToFeature(feature, properties, opt_silent) {
  * @param {object} pyramid The pyramid metadata
  * @returns {void}
  */
-function _wireMeasurementsAndQualitativeEvaluationsEvents(map, feature, pyramid) {
+function _wireMeasurementsAndQualitativeEvaluationsEvents(
+  map,
+  feature,
+  pyramid
+) {
   /**
    * Update feature measurement properties first and then measurements
    */
@@ -1559,7 +1573,11 @@ class VolumeImageViewer {
     _addROIPropertiesToFeature(feature, roi.properties, true);
     feature.setId(roi.uid);
 
-    _wireMeasurementsAndQualitativeEvaluationsEvents(this[_map], feature, this[_pyramidMetadata]);
+    _wireMeasurementsAndQualitativeEvaluationsEvents(
+      this[_map],
+      feature,
+      this[_pyramidMetadata]
+    );
 
     this[_features].push(feature);
 
