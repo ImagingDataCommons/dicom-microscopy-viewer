@@ -43,7 +43,7 @@ import {
   computeRotation,
   generateUID,
   getUnitSuffix,
-  isContentItemsEqual,
+  doContentItemsMatch,
 } from "./utils.js";
 import {
   getPixelSpacing,
@@ -51,7 +51,7 @@ import {
   scoord3d2Geometry,
   getFeatureScoord3dLength,
   getFeatureScoord3dArea,
-} from "./_utils";
+} from "./scoord3dUtils";
 import Enums from "./enums";
 import _AnnotationManager from "./annotations/_AnnotationManager";
 import Icon from "ol/style/Icon";
@@ -305,7 +305,7 @@ function _updateFeatureEvaluations(feature) {
   });
 
   const index = evaluations.findIndex((e) =>
-    isContentItemsEqual(e, evaluation)
+    doContentItemsMatch(e, evaluation)
   );
 
   if (index > -1) {
@@ -360,11 +360,13 @@ function _updateFeatureMeasurements(map, feature, pyramid) {
         schemeDesignator: "SCT",
       }),
       value: area,
-      unit: new dcmjs.sr.coding.CodedConcept({
-        value: unitCodedConceptValue,
-        meaning: unitCodedConceptMeaning,
-        schemeDesignator: "SCT",
-      }),
+      unit: [
+        new dcmjs.sr.coding.CodedConcept({
+          value: unitCodedConceptValue,
+          meaning: unitCodedConceptMeaning,
+          schemeDesignator: "SCT",
+        }),
+      ],
     });
   }
 
@@ -376,16 +378,18 @@ function _updateFeatureMeasurements(map, feature, pyramid) {
         schemeDesignator: "SCT",
       }),
       value: length,
-      unit: new dcmjs.sr.coding.CodedConcept({
-        value: unitCodedConceptValue,
-        meaning: unitCodedConceptMeaning,
-        schemeDesignator: "SCT",
-      }),
+      unit: [
+        new dcmjs.sr.coding.CodedConcept({
+          value: unitCodedConceptValue,
+          meaning: unitCodedConceptMeaning,
+          schemeDesignator: "SCT",
+        }),
+      ],
     });
   }
 
   const index = measurements.findIndex((m) =>
-    isContentItemsEqual(m, measurement)
+    doContentItemsMatch(m, measurement)
   );
 
   if (index > -1) {
@@ -398,7 +402,8 @@ function _updateFeatureMeasurements(map, feature, pyramid) {
   console.debug(`Measurements of feature (${feature.getId()}):`, measurements);
 }
 
-/** Updates the style of a feature.
+/**
+ * Updates the style of a feature.
  *
  * @param {object} styleOptions - Style options
  * @param {object} styleOptions.stroke - Style options for the outline of the geometry
@@ -440,7 +445,8 @@ const _annotationManager = Symbol("annotationManager");
 const _defaultStyleOptions = Symbol("defaultStyleOptions");
 const _overviewMap = Symbol("overviewMap");
 
-/** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
+/**
+ * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
  *
  * @class
@@ -929,12 +935,17 @@ class VolumeImageViewer {
     });
   }
 
-  /** Resizes the viewer to fit the viewport. */
+  /**
+   * Resizes the viewer to fit the viewport.
+   *
+   * @returns {void}
+   */
   resize() {
     this[_map].updateSize();
   }
 
-  /** Gets the size of the viewport.
+  /**
+   * Gets the size of the viewport.
    *
    * @type {number[]}
    */
@@ -942,7 +953,9 @@ class VolumeImageViewer {
     return this[_map].getSize();
   }
 
-  /** Renders the images in the specified viewport container.
+  /**
+   * Renders the images in the specified viewport container.
+   *
    * @param {object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
@@ -1030,7 +1043,9 @@ class VolumeImageViewer {
     });
   }
 
-  /** Activates the draw interaction for graphic annotation of regions of interest.
+  /**
+   * Activates the draw interaction for graphic annotation of regions of interest.
+   *
    * @param {object} options - Drawing options.
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
    * @param {string} options.marker - Marker
@@ -1164,7 +1179,10 @@ class VolumeImageViewer {
     this[_map].addInteraction(this[_interactions].draw);
   }
 
-  /** Deactivates draw interaction. */
+  /**
+   * Deactivates draw interaction.
+   * @returns {void}
+   */
   deactivateDrawInteraction() {
     console.info('deactivate "draw" interaction');
     if (this[_interactions].draw !== undefined) {
@@ -1173,7 +1191,8 @@ class VolumeImageViewer {
     }
   }
 
-  /** Whether draw interaction is active
+  /**
+   * Whether draw interaction is active
    *
    * @type {boolean}
    */
@@ -1181,7 +1200,35 @@ class VolumeImageViewer {
     return this[_interactions].draw !== undefined;
   }
 
-  /* Activates translate interaction.
+  /**
+   * Whether dragPan interaction is active.
+   *
+   * @type {boolean}
+   */
+  get isDragPanInteractionActive() {
+    return this[_interactions].dragPan !== undefined;
+  }
+
+  /**
+   * Whether dragZoom interaction is active.
+   *
+   * @type {boolean}
+   */
+  get isDragZoomInteractionActive() {
+    return this[_interactions].dragZoom !== undefined;
+  }
+
+  /**
+   * Whether translate interaction is active.
+   *
+   * @type {boolean}
+   */
+  get isTranslateInteractionActive() {
+    return this[_interactions].translate !== undefined;
+  }
+
+  /**
+   * Activates translate interaction.
    *
    * @param {Object} options - Translation options.
    */
@@ -1207,7 +1254,8 @@ class VolumeImageViewer {
     this[_map].addInteraction(this[_interactions].translate);
   }
 
-  /** Extracts and transforms the region of interest (ROI) from an Openlayers
+  /**
+   * Extracts and transforms the region of interest (ROI) from an Openlayers
    * Feature.
    *
    * @param {object} feature - Openlayers Feature
@@ -1238,7 +1286,11 @@ class VolumeImageViewer {
     return;
   }
 
-  /** Toggles overview map */
+  /**
+   * Toggles overview map.
+   *
+   * @returns {void}
+   */
   toggleOverviewMap() {
     const controls = this[_map].getControls();
     const overview = controls.getArray().find((c) => c === this[_overviewMap]);
@@ -1249,7 +1301,11 @@ class VolumeImageViewer {
     this[_map].addControl(this[_overviewMap]);
   }
 
-  /** Deactivates translate interaction. */
+  /** 
+   * Deactivates translate interaction. 
+   * 
+   * @returns {void}
+   */
   deactivateTranslateInteraction() {
     console.info('deactivate "translate" interaction');
     if (this[_interactions].translate) {
@@ -1258,7 +1314,8 @@ class VolumeImageViewer {
     }
   }
 
-  /* Activates dragZoom interaction.
+  /**
+   * Activates dragZoom interaction.
    *
    * @param {object} options - DragZoom options.
    */
@@ -1284,7 +1341,10 @@ class VolumeImageViewer {
     this[_map].addInteraction(this[_interactions].dragZoom);
   }
 
-  /** Deactivates dragZoom interaction. */
+  /**
+   * Deactivates dragZoom interaction.
+   * @returns {void}
+   */
   deactivateDragZoomInteraction() {
     console.info('deactivate "dragZoom" interaction');
     if (this[_interactions].dragZoom) {
@@ -1293,9 +1353,10 @@ class VolumeImageViewer {
     }
   }
 
-  /* Activates select interaction.
+  /**
+   * Activates select interaction.
    *
-   * @param {object} options - Selection options.
+   * @param {object} options selection options.
    */
   activateSelectInteraction(options = {}) {
     this.deactivateSelectInteraction();
@@ -1329,7 +1390,11 @@ class VolumeImageViewer {
     this[_map].addInteraction(this[_interactions].select);
   }
 
-  /** Deactivates select interaction. */
+  /**
+   * Deactivates select interaction.
+   *
+   * @returns {void}
+   */
   deactivateSelectInteraction() {
     console.info('deactivate "select" interaction');
     if (this[_interactions].select) {
@@ -1338,7 +1403,8 @@ class VolumeImageViewer {
     }
   }
 
-  /** Activates dragpan interaction.
+  /**
+   * Activates dragpan interaction.
    *
    * @param {Object} options - DragPan options.
    */
@@ -1366,7 +1432,11 @@ class VolumeImageViewer {
     this[_map].addInteraction(this[_interactions].dragPan);
   }
 
-  /** Deactivate dragpan interaction. */
+  /**
+   * Deactivate dragpan interaction.
+   *
+   * @returns {void}
+   */
   deactivateDragPanInteraction() {
     console.info('deactivate "drag pan" interaction');
     if (this[_interactions].dragPan) {
@@ -1375,7 +1445,8 @@ class VolumeImageViewer {
     }
   }
 
-  /** Activates snap interaction.
+  /**
+   * Activates snap interaction.
    *
    * @param {Object} options - Snap options.
    */
@@ -1389,7 +1460,11 @@ class VolumeImageViewer {
     this[_map].addInteraction(this[_interactions].snap);
   }
 
-  /** Deactivates snap interaction. */
+  /**
+   * Deactivates snap interaction.
+   *
+   * @returns {void}
+   */
   deactivateSnapInteraction() {
     console.info('deactivate "snap" interaction');
     if (this[_interactions].snap) {
@@ -1398,7 +1473,8 @@ class VolumeImageViewer {
     }
   }
 
-  /** Whether select interaction is active.
+  /**
+   * Whether select interaction is active.
    *
    * @type {boolean}
    */
@@ -1445,7 +1521,8 @@ class VolumeImageViewer {
     }
   }
 
-  /** Whether modify interaction is active.
+  /**
+   * Whether modify interaction is active.
    *
    * @type {boolean}
    */
@@ -1453,7 +1530,8 @@ class VolumeImageViewer {
     return this[_interactions].modify !== undefined;
   }
 
-  /** Gets all annotated regions of interest.
+  /**
+   * Gets all annotated regions of interest.
    *
    * @returns {ROI[]} Array of regions of interest.
    */
@@ -1474,7 +1552,8 @@ class VolumeImageViewer {
     this[_controls].overview.setCollapsed(true);
   }
 
-  /** Number of annotated regions of interest.
+  /**
+   * Number of annotated regions of interest.
    *
    * @type {number}
    */
@@ -1482,7 +1561,8 @@ class VolumeImageViewer {
     return this[_features].getLength();
   }
 
-  /** Gets an individual annotated regions of interest.
+  /**
+   * Gets an individual annotated regions of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
    * @returns {ROI} Regions of interest.
@@ -1493,7 +1573,8 @@ class VolumeImageViewer {
     return this._getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
-  /** Adds a measurement to a region of interest.
+  /**
+   * Adds a measurement to a region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
    * @param {Object} item - NUM content item representing a measurement
@@ -1515,7 +1596,8 @@ class VolumeImageViewer {
     });
   }
 
-  /** Adds a qualitative evaluation to a region of interest.
+  /**
+   * Adds a qualitative evaluation to a region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
    * @param {Object} item - CODE content item representing a qualitative evaluation
@@ -1547,7 +1629,8 @@ class VolumeImageViewer {
     return this._getROIFromFeature(feature, this[_pyramidMetadata]);
   }
 
-  /** Adds a regions of interest.
+  /**
+   * Adds a regions of interest.
    *
    * @param {ROI} roi - Regions of interest
    * @param {object} roi.properties - ROI properties
@@ -1584,7 +1667,8 @@ class VolumeImageViewer {
     _setFeatureStyle(feature, styleOptions);
   }
 
-  /** Update properties of regions of interest.
+  /**
+   * Update properties of regions of interest.
    *
    * @param {object} roi - ROI to be updated
    * @param {string} roi.uid - Unique identifier of the region of interest
@@ -1605,7 +1689,8 @@ class VolumeImageViewer {
     this[_annotationManager].onUpdate(feature);
   }
 
-  /** Sets the style of a region of interest.
+  /**
+   * Sets the style of a region of interest.
    *
    * @param {string} uid - Unique identifier of the regions of interest.
    * @param {object} styleOptions - Style options
@@ -1626,7 +1711,8 @@ class VolumeImageViewer {
     });
   }
 
-  /** Adds a new viewport overlay.
+  /**
+   * Adds a new viewport overlay.
    *
    * @param {object} options Overlay options
    * @param {object} options.element The custom overlay html element
@@ -1636,7 +1722,8 @@ class VolumeImageViewer {
     this[_map].addOverlay(new Overlay({ element, className }));
   }
 
-  /** Removes an individual regions of interest.
+  /**
+   * Removes an individual regions of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
    */
@@ -1656,13 +1743,18 @@ class VolumeImageViewer {
     this[_annotationManager].onFailure(uid);
   }
 
-  /** Removes all annotated regions of interest. */
+  /**
+   * Removes all annotated regions of interest.
+   *
+   * @returns {void}
+   */
   removeAllROIs() {
     console.info("remove all ROIs");
     this[_features].clear();
   }
 
-  /** Hides annotated regions of interest such that they are no longer
+  /**
+   * Hides annotated regions of interest such that they are no longer
    *  visible on the viewport.
    */
   hideROIs() {
@@ -1670,7 +1762,8 @@ class VolumeImageViewer {
     this[_drawingLayer].setVisible(false);
   }
 
-  /** Shows annotated regions of interest such that they become visible
+  /**
+   * Shows annotated regions of interest such that they become visible
    *  on the viewport ontop of the images.
    */
   showROIs() {
@@ -1678,7 +1771,8 @@ class VolumeImageViewer {
     this[_drawingLayer].setVisible(true);
   }
 
-  /** Whether annotated regions of interest are currently visible.
+  /**
+   * Whether annotated regions of interest are currently visible.
    *
    * @type {boolean}
    */
@@ -1686,7 +1780,8 @@ class VolumeImageViewer {
     return this[_drawingLayer].getVisible();
   }
 
-  /** DICOM metadata for each VL Whole Slide Microscopy Image instance.
+  /**
+   * DICOM metadata for each VL Whole Slide Microscopy Image instance.
    *
    * @type {VLWholeSlideMicroscopyImage[]}
    */
@@ -1695,14 +1790,16 @@ class VolumeImageViewer {
   }
 }
 
-/** Static viewer for DICOM VL Whole Slide Microscopy Image instances
+/**
+ * Static viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type other than VOLUME.
  *
  * @class
  * @private
  */
 class _NonVolumeImageViewer {
-  /** Creates a viewer instance for displaying non-VOLUME images.
+  /**
+   * Creates a viewer instance for displaying non-VOLUME images.
    *
    * @param {object} options
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
@@ -1832,7 +1929,8 @@ class _NonVolumeImageViewer {
     });
   }
 
-  /** DICOM metadata for the displayed VL Whole Slide Microscopy Image instance.
+  /**
+   * DICOM metadata for the displayed VL Whole Slide Microscopy Image instance.
    *
    * @type {VLWholeSlideMicroscopyImage}
    */
@@ -1840,12 +1938,17 @@ class _NonVolumeImageViewer {
     return this[_metadata];
   }
 
-  /** Resizes the viewer to fit the viewport. */
+  /**
+   * Resizes the viewer to fit the viewport.
+   *
+   * @returns {void}
+   */
   resize() {
     this[_map].updateSize();
   }
 
-  /** Gets the size of the viewport.
+  /**
+   * Gets the size of the viewport.
    *
    * @type {number[]}
    */
@@ -1854,7 +1957,8 @@ class _NonVolumeImageViewer {
   }
 }
 
-/** Static viewer for DICOM VL Whole Slide Microscopy Image instances
+/**
+ * Static viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type OVERVIEW.
  *
  * @class
@@ -1878,7 +1982,8 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
   }
 }
 
-/** Static viewer for DICOM VL Whole Slide Microscopy Image instances
+/**
+ * Static viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type LABEL.
  *
  * @class

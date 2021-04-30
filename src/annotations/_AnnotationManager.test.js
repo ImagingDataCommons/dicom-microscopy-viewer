@@ -1,7 +1,7 @@
 import _AnnotationManager from "./_AnnotationManager";
 import _MarkupManager from "./markups/_MarkupManager";
 import MeasurementMarkup from "./markups/measurement";
-import TextEvaluationMarkup from "./markups/text";
+import TextEvaluationMarkup from "./markups/textEvaluation";
 import ArrowMarker from "./markers/arrow";
 import Enums from "../enums";
 import * as utils from "../utils";
@@ -26,7 +26,7 @@ jest.mock("./markups/measurement", () =>
     onDrawEnd: jest.fn(),
   }))
 );
-jest.mock("./markups/text", () =>
+jest.mock("./markups/textEvaluation", () =>
   jest.fn(() => ({
     onAdd: jest.fn(),
     onRemove: jest.fn(),
@@ -53,18 +53,22 @@ describe("_AnnotationManager", () => {
 
   beforeAll(() => {
     textContentItem = {
-      ConceptNameCodeSequence: {
-        CodeMeaning: "Tracking Identifier",
-        CodeValue: "112039",
-        CodingSchemeDesignator: "DCM",
-      },
+      ConceptNameCodeSequence: [
+        {
+          CodeMeaning: "Tracking Identifier",
+          CodeValue: "112039",
+          CodingSchemeDesignator: "DCM",
+        },
+      ],
     };
     numContentItem = {
-      ConceptNameCodeSequence: {
-        CodeMeaning: "Length",
-        CodeValue: "410668003",
-        CodingSchemeDesignator: "SCT",
-      },
+      ConceptNameCodeSequence: [
+        {
+          CodeMeaning: "Length",
+          CodeValue: "410668003",
+          CodingSchemeDesignator: "SCT",
+        },
+      ],
     };
     event = { testing: 123 };
     measurements = [numContentItem];
@@ -157,14 +161,16 @@ describe("_AnnotationManager", () => {
   });
 
   it("update feature markup property based on feature measurements", () => {
-    const getContentItemNameMeaningSpy = jest.spyOn(
+    const getContentItemNameCodedConceptSpy = jest.spyOn(
       utils,
-      "getContentItemNameMeaning"
+      "getContentItemNameCodedConcept"
     );
     featureProperties = { measurements };
     _annotationManager._addMeasurementsAndEvaluationsProperties(feature);
     expect(feature.getProperties).toHaveBeenCalled();
-    expect(getContentItemNameMeaningSpy).toHaveBeenCalledWith(measurements[0]);
+    expect(getContentItemNameCodedConceptSpy).toHaveBeenCalledWith(
+      measurements[0]
+    );
     expect(feature.set).toHaveBeenCalledWith(
       InternalProperties.Markup,
       Markup.Measurement
@@ -172,30 +178,34 @@ describe("_AnnotationManager", () => {
   });
 
   it("update feature markup property based on feature text evaluations", () => {
-    const getContentItemNameMeaningSpy = jest.spyOn(
+    const getContentItemNameCodedConceptSpy = jest.spyOn(
       utils,
-      "getContentItemNameMeaning"
+      "getContentItemNameCodedConcept"
     );
     featureProperties = { evaluations };
     _annotationManager._addMeasurementsAndEvaluationsProperties(feature);
     expect(feature.getProperties).toHaveBeenCalled();
-    expect(getContentItemNameMeaningSpy).toHaveBeenCalledWith(evaluations[0]);
+    expect(getContentItemNameCodedConceptSpy).toHaveBeenCalledWith(
+      evaluations[0]
+    );
     expect(feature.set).toHaveBeenCalledWith(
       InternalProperties.Markup,
       Markup.TextEvaluation
     );
   });
 
-  it("wont update feature markup property if invalid meaning", () => {
-    const getContentItemNameMeaningSpy = jest.spyOn(
+  it("wont update feature markup property if invalid coded concept", () => {
+    const getContentItemNameCodedConceptSpy = jest.spyOn(
       utils,
-      "getContentItemNameMeaning"
+      "getContentItemNameCodedConcept"
     );
-    evaluations[0].ConceptNameCodeSequence.CodeMeaning = "False";
+    evaluations[0].ConceptNameCodeSequence[0].CodeValue = "False";
     featureProperties = { evaluations };
     _annotationManager._addMeasurementsAndEvaluationsProperties(feature);
     expect(feature.getProperties).toHaveBeenCalled();
-    expect(getContentItemNameMeaningSpy).toHaveBeenCalledWith(evaluations[0]);
+    expect(getContentItemNameCodedConceptSpy).toHaveBeenCalledWith(
+      evaluations[0]
+    );
     expect(feature.set).not.toHaveBeenCalledWith(
       InternalProperties.Markup,
       Markup.TextEvaluation

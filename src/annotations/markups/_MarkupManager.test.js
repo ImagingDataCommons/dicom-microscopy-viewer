@@ -32,6 +32,7 @@ describe("_MarkupManager", () => {
       getId: jest.fn(() => 123),
       getProperties: jest.fn(),
       set: jest.fn(),
+      get: jest.fn()
     };
     map = {
       addOverlay: jest.fn(),

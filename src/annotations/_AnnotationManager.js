@@ -52,7 +52,7 @@ class _AnnotationManager {
 
   /**
    * Add markup properties based on ROI
-   * measurements and evaluations
+   * measurements and evaluations.
    *
    * @param {Feature} feature The feature
    */
@@ -118,7 +118,7 @@ class _AnnotationManager {
   onAdd(feature) {
     /**
      * Add properties to ROI feature before triggering
-     * markup and markers callbacks to keep UI in sync
+     * markup and markers callbacks to keep UI in sync.
      */
     this._addMeasurementsAndEvaluationsProperties(feature);
 

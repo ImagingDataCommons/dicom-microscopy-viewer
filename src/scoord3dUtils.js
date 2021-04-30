@@ -16,6 +16,7 @@ import {
 /**
  * Converts a vector graphic from an OpenLayers Feature Geometry into a DICOM SCOORD3D
  * representation.
+ *
  * @param {object} feature - OpenLayers Feature
  * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
  * @returns {Scoord3D} DICOM Microscopy Viewer Scoord3D
@@ -77,7 +78,8 @@ function geometry2Scoord3d(feature, pyramid) {
   }
 }
 
-/** Converts a vector graphic from a DICOM SCOORD3D into an Openlayers Geometry
+/**
+ * Converts a vector graphic from a DICOM SCOORD3D into an Openlayers Geometry
  * representation.
  *
  * @param {Scoord3D} scoord3d - DICOM Microscopy Viewer Scoord3D
@@ -137,7 +139,8 @@ function scoord3d2Geometry(scoord3d, pyramid) {
   }
 }
 
-/** Translates coordinates of coordinates in Frame of Reference
+/**
+ * Translates coordinates of coordinates in Frame of Reference
  * (slide coordinate system) in millimeter unit into coordinates in
  * Total Pixel Matrix in pixel unit.
  *
@@ -190,11 +193,12 @@ function coordinateFormatScoord3d2Geometry(coordinates, pyramid) {
 }
 
 /**
- * Get coordinate with offset
+ * Get coordinate with offset.
  *
  * @param {object} feature feature
  * @param {number} offset offset
  * @returns {array} coordinates with offset
+ * @private
  */
 function coordinateWithOffset(feature, offset = 70) {
   const geometry = feature.getGeometry();
@@ -207,9 +211,11 @@ function coordinateWithOffset(feature, offset = 70) {
 }
 
 /**
- * Gets feature's geometry area
+ * Gets feature's geometry area.
+ *
  * @param {Feature} feature
  * @returns {number} geometry area
+ * @private
  */
 function getFeatureArea(feature) {
   const geometry = feature.getGeometry();
@@ -219,7 +225,8 @@ function getFeatureArea(feature) {
   return geometry.getArea && geometry.getArea();
 }
 
-/** Extracts value of Pixel Spacing attribute from metadata.
+/**
+ * Extracts value of Pixel Spacing attribute from metadata.
  *
  * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
  * @returns {number[]} Spacing between pixel columns and rows in millimeter
@@ -232,16 +239,19 @@ function getPixelSpacing(metadata) {
 }
 
 /**
- * Gets feature's geometry length
+ * Gets feature's geometry length.
+ *
  * @param {Feature} feature
  * @returns {number} geometry length
+ * @private
  */
 function getFeatureLength(feature) {
   const geometry = feature.getGeometry();
   return geometry.getLength && geometry.getLength();
 }
 
-/** Translates coordinates of Total Pixel Matrix in pixel unit into coordinates
+/**
+ * Translates coordinates of Total Pixel Matrix in pixel unit into coordinates
  * in Frame of Reference (slide coordinate system) in millimeter unit.
  *
  * @param {number[]|number[][]} coordinates - Coordinates in Total Pixel Matrix
@@ -280,6 +290,14 @@ function coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
   return coordinates;
 }
 
+/**
+ * Converts openlayers geometry coordinates into scoord3d coordinates.
+ *
+ * @param {array} coordinates array of coordinates
+ * @param {object} pyramid metadata pyramid
+ * @returns
+ * @private
+ */
 function geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
   return coordinateFormatGeometry2Scoord3d(
     [coordinates[0], coordinates[1], coordinates[2]],
@@ -287,6 +305,14 @@ function geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
   );
 }
 
+/**
+ * Converts scoord3d coordinates into openlayers geometry coordinates.
+ *
+ * @param {array} coordinates array of coordinates
+ * @param {object} pyramid metadata pyramid
+ * @returns
+ * @private
+ */
 function scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
   return coordinateFormatScoord3d2Geometry(
     [coordinates[0], coordinates[1], coordinates[2]],
@@ -294,8 +320,16 @@ function scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
   );
 }
 
+/**
+ * Get area of polygon using shoelace algorithm.
+ * Return absolute value of half the sum.
+ * (The value is halved as we are summing up triangles, not rectangles)
+ *
+ * @param {array} coordinates
+ * @returns {number} area
+ * @private
+ */
 function areaOfPolygon(coordinates) {
-  // Shoelace algorithm.
   const n = coordinates.length;
   let area = 0.0;
   let j = n - 1;
@@ -304,14 +338,20 @@ function areaOfPolygon(coordinates) {
     area +=
       (coordinates[j][0] + coordinates[i][0]) *
       (coordinates[j][1] - coordinates[i][1]);
-    j = i; // j is previous vertex to i
+    j = i; /** j is previous vertex to i */
   }
 
-  // Return absolute value of half the sum
-  // (The value is halved as we are summing up triangles, not rectangles).
   return Math.abs(area / 2.0);
 }
 
+/**
+ * Get feature's geometry scoord3d length
+ *
+ * @param {Feature} feature feature
+ * @param {object} pyramid metadata pyramid
+ * @returns {number} length
+ * @private
+ */
 function getFeatureScoord3dLength(feature, pyramid) {
   const geometry = feature.getGeometry();
   const type = geometry.getType();
@@ -333,6 +373,14 @@ function getFeatureScoord3dLength(feature, pyramid) {
   }
 }
 
+/**
+ * Get feature's geometry scoord3d area
+ *
+ * @param {Feature} feature feature
+ * @param {object} pyramid metadata pyramid
+ * @returns {number} area
+ * @private
+ */
 function getFeatureScoord3dArea(feature, pyramid) {
   let geometry = feature.getGeometry();
   let type = geometry.getType();

@@ -11,7 +11,7 @@ import Feature from "ol/Feature";
 import Enums from "../../enums";
 import { getShortestLineBetweenOverlayAndFeature } from "./utils";
 import { getUnitSuffix } from "../../utils";
-import { coordinateWithOffset } from "../../_utils";
+import { coordinateWithOffset } from "../../scoord3dUtils";
 import defaultStyles from "../styles";
 
 class _MarkupManager {
@@ -61,7 +61,7 @@ class _MarkupManager {
   }
 
   /**
-   * Removes a markup and its link
+   * Removes a markup and its link.
    *
    * @param {string} id The markup id
    * @return {string} The markup id
@@ -156,7 +156,7 @@ class _MarkupManager {
   }
 
   /**
-   * Wire internal events to markup feature
+   * Wire internal events to markup feature.
    *
    * @param {object} feature
    * @returns {void}
@@ -249,7 +249,7 @@ class _MarkupManager {
   }
 
   /**
-   * Updates the feature's markup tooltip style
+   * Updates the feature's markup tooltip style.
    *
    * @param {object} feature
    * @returns {void}
@@ -276,7 +276,7 @@ class _MarkupManager {
   }
 
   /**
-   * Returns tooltip styles
+   * Returns tooltip styles.
    *
    * @param {string} color
    */
@@ -301,7 +301,7 @@ class _MarkupManager {
   }
 
   /**
-   * Checks if feature has the correct markup
+   * Checks if feature has the correct markup.
    *
    * @param {Feature} feature The feature
    */
@@ -312,7 +312,7 @@ class _MarkupManager {
   }
 
   /**
-   * Update markup content
+   * Update markup content.
    *
    * @param {object} markup The markup properties
    * @param {Feature} markup.feature The markup feature
@@ -362,7 +362,7 @@ class _MarkupManager {
   }
 
   /**
-   * Returns the string format function for a given markup
+   * Returns the string format function for a given markup.
    *
    * @param {object} feature The feature
    * @returns {function} format function
@@ -375,7 +375,7 @@ class _MarkupManager {
   }
 
   /**
-   * Draws a link between the feature and the markup
+   * Draws a link between the feature and the markup.
    *
    * @param {object} feature The feature
    */

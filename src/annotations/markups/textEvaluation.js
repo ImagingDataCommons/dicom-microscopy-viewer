@@ -6,7 +6,8 @@ import Circle from "ol/style/Circle";
 import Enums from "../../enums";
 
 /**
- * Format free text output
+ * Format free text output.
+ *
  * @param {Feature} feature feature
  * @return {string} The formatted output
  */
@@ -14,7 +15,7 @@ export const format = (feature) =>
   feature.get(Enums.InternalProperties.Label) || "";
 
 /**
- * Builds the text evaluation style
+ * Builds the text evaluation style.
  *
  * @param {object} feature
  * @returns {object} Style instance
@@ -41,7 +42,7 @@ const _applyStyle = (feature) => {
 };
 
 /**
- * Checks if feature has text evaluation properties
+ * Checks if feature has text evaluation properties.
  *
  * @param {object} feature
  * @returns {boolean} true if feature has text evaluation properties
@@ -50,7 +51,7 @@ const _isTextEvaluation = (feature) =>
   Enums.Markup.TextEvaluation === feature.get(Enums.InternalProperties.Markup);
 
 /**
- * Checks if feature has marker properties
+ * Checks if feature has marker properties.
  *
  * @param {object} feature
  * @returns {boolean} true if feature has marker properties
@@ -59,7 +60,7 @@ const _hasMarker = (feature) => !!feature.get(Enums.InternalProperties.Marker);
 
 /**
  * Handler to create markups based on feature properties
- * and apply text evaluation styles
+ * and apply text evaluation styles.
  *
  * @param {object} feature
  * @param {object} markupManager MarkupManager instance
@@ -79,7 +80,7 @@ const _onInteractionEventHandler = ({ feature, markupManager }) => {
 };
 
 /**
- * Text evaluation markup definition
+ * Text evaluation markup definition.
  *
  * @param {object} dependencies Shared dependencies
  * @param {object} dependencies.markupManager MarkupManager shared instance
