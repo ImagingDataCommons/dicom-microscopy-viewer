@@ -776,9 +776,9 @@ class VolumeImageViewer {
     this[_map].getView().fit(this[_referenceExtents]);
 
     // This updates the tiles offscreen rendering when zoom is applied to the view.
-    const viewer = this;
     view.origAnimate = view.animate;
     let currZoom = 0;
+    const viewer = this;
     view.animate = function(animateSpecs) { 
       let newZoom = animateSpecs.zoom;
       if (!newZoom) {
@@ -787,20 +787,7 @@ class VolumeImageViewer {
       if (newZoom) {
         if (Math.abs(newZoom - currZoom) > 1e-6) {
           currZoom = newZoom;
-          if (viewer[_channels] && viewer[_channels].length !== 0) {
-            // For each channel check if any tiles at the new zoom 
-            // needs to refresh the offscreen coloring rendering.
-            let render = false;
-            viewer[_channels].forEach((channel) => {  
-              const channelRender = channel.updateTilesRendering(false, newZoom);
-              if (channelRender) {
-                render = true;
-              }
-            });
-            if (render) {
-              viewer[_map].render();
-            }
-          }
+          viewer._updateTilesRenderingAtZoom(newZoom);
         }
       }
       this.origAnimate(animateSpecs);
@@ -813,18 +800,48 @@ class VolumeImageViewer {
       }
     });
 
+    let startMoveZoom = 0;
+    this[_map].on('movestart', evt => {
+      startMoveZoom = Math.round(evt.frameState.viewState.zoom);
+    });
+
     this[_map].on('moveend', evt => {
-      this._updateTilesRenderingAtPanning();
+      const endMoveZoom = Math.round(evt.frameState.viewState.zoom);
+      if (endMoveZoom === startMoveZoom) {
+        this._updateTilesRenderingAtPanning();
+      }
     });
   }
 
-  _updateTilesRenderingAtPanning(){
+  /** updates tiles rendering for monochorme channels at zoom interactions
+   * @param {number} zoom - applied zoom
+   */
+  _updateTilesRenderingAtZoom(zoom){
     if (viewer[_channels] && viewer[_channels].length !== 0) {
+      // For each channel check if any tiles at the new zoom 
+      // needs to refresh the offscreen coloring rendering.
+      let render = false;
+      viewer[_channels].forEach((channel) => {  
+        const channelRender = channel.updateTilesRendering(false, zoom);
+        if (channelRender) {
+          render = true;
+        }
+      });
+      if (render) {
+        viewer[_map].render();
+      }
+    }
+  }
+
+  /** updates tiles rendering for monochorme channels at panning interactions
+   */
+  _updateTilesRenderingAtPanning(){
+    if (this[_channels] && this[_channels].length !== 0) {
       // For each channel check if any tiles at the new panning 
       // needs to refresh the offscreen coloring rendering.
       const tilesCoordRanges = this._transformViewCoordinatesInTilesCoordinates();
       let render = false;
-      viewer[_channels].forEach((channel) => {  
+      this[_channels].forEach((channel) => {  
         const channelRender = channel.updateTilesRendering(
           false, 
           tilesCoordRanges[2], 
@@ -835,7 +852,7 @@ class VolumeImageViewer {
         }
       });
       if (render) {
-        viewer[_map].render();
+        this[_map].render();
       }
     }
   }
@@ -886,7 +903,14 @@ class VolumeImageViewer {
      */
     const tileLoadFunction = async (tile, src) => {
       const img = tile.getImage();
-      if (src !== null) {
+      const z = tile.tileCoord[0];
+      const columns = this[_colorImage].pyramidMetadata[z].Columns;
+      const rows = this[_colorImage].pyramidMetadata[z].Rows;
+      const samplesPerPixel = this[_colorImage].pyramidMetadata[z].SamplesPerPixel; // number of colors for pixel
+      const bitsAllocated = this[_colorImage].pyramidMetadata[z].BitsAllocated; // memory for pixel
+      const pixelRepresentation = this[_colorImage].pyramidMetadata[z].PixelRepresentation; // 0 unsigned, 1 signed
+
+      if (src !== null && samplesPerPixel === 3) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src);
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src);
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src);
@@ -894,10 +918,10 @@ class VolumeImageViewer {
 
         if (this[_retrieveRendered]) {    
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html  
-          // we use in order: jp2, png, jpeg.
+          // we use in order: jp2, jpeg, png.
           const jp2MediaType = 'image/jp2';
-          const pngMediaType = 'image/png';
-          const jpegMediaType = 'image/jpeg';  
+          const jpegMediaType = 'image/jpeg';
+          const pngMediaType = 'image/png'; 
           const transferSyntaxUID = '';
 
           const retrieveOptions = {
@@ -907,8 +931,8 @@ class VolumeImageViewer {
             frameNumbers,
             mediaTypes: [
               { mediaType : jp2MediaType, transferSyntaxUID },
-              { mediaType : pngMediaType, transferSyntaxUID },
-              { mediaType : jpegMediaType, transferSyntaxUID }
+              { mediaType : jpegMediaType, transferSyntaxUID },
+              { mediaType : pngMediaType, transferSyntaxUID }
             ]
           };
           if (this[_includeIccProfile]) {
@@ -919,12 +943,16 @@ class VolumeImageViewer {
 
           this[_options].client.retrieveInstanceFramesRendered(retrieveOptions).then(
             (renderedFrame) => {
-              img.src = this[_renderingEngine].createURLFromRGBImage(renderedFrame);
+              const frameData = {
+                frames: renderedFrame,
+              };
+
+              img.src = this[_renderingEngine].createURLFromRGBImage(frameData);
             }
           );
         } else {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html  
-          // we use in order: jls, jp2, jpx, jpeg.
+          // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
           const jlsMediaType = 'image/jls';
           const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80';
           const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81';
@@ -936,6 +964,10 @@ class VolumeImageViewer {
           const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93';
           const jpegMediaType = 'image/jpeg';
           const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50';
+
+          const octetStreamMediaType = 'application/octet-stream';
+          const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1';
+
           const retrieveOptions = {
             studyInstanceUID,
             seriesInstanceUID,
@@ -953,7 +985,42 @@ class VolumeImageViewer {
           };
           this[_options].client.retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
-              img.src = this[_renderingEngine].createURLFromRGBImage(rawFrames[0]);
+              const frameData = {
+                frames: rawFrames[0],
+                bitsAllocated,
+                pixelRepresentation,
+                columns,
+                rows
+              };
+
+              img.src = this[_renderingEngine].createURLFromRGBImage(frameData);
+            }
+          ).catch(
+            () => {
+              // since we can't ask to retrieve both jpeg formats and octet-stream
+              // we use a catch in the case all jpeg formats will fail
+              const retrieveOptions = {
+                studyInstanceUID,
+                seriesInstanceUID,
+                sopInstanceUID,
+                frameNumbers,
+                mediaTypes: [
+                  { mediaType : octetStreamMediaType, transferSyntaxUID : octetStreamTransferSyntaxUID }
+                ]
+              };
+              this[_options].client.retrieveInstanceFrames(retrieveOptions).then(
+                (rawFrames) => {
+                  const frameData = {
+                    frames: rawFrames[0],
+                    bitsAllocated,
+                    pixelRepresentation,
+                    columns,
+                    rows
+                  };
+
+                  img.src = this[_renderingEngine].createURLFromRGBImage(frameData);
+                }
+              )
             }
           );
         }

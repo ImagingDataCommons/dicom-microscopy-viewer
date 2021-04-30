@@ -220,16 +220,16 @@ constructor(){
    *       we would have lossy re-compression issues
    *       (al least for IDC data, https://imaging.datacommons.cancer.gov/).
    * 
-   * @param {object} FrameData - interface to pass the frame data to the offscreen render
-   * @param {object} FrameData.img - Image object
-   * @param {number[]} FrameData.frames - compressed image array
-   * @param {number} FrameData.bitsAllocated - bits per pixel
-   * @param {number} FrameData.pixelRepresentation - pixel sign
-   * @param {number[]} FrameData.thresholdValues - clipping values
-   * @param {number[]} FrameData.color - rgb color
-   * @param {number} FrameData.opacity - opacity
-   * @param {number} FrameData.columns - horizontal image size
-   * @param {number} FrameData.rows - vertical image size
+   * @param {object} frameData - interface to pass the frame data to the offscreen render
+   * @param {object} frameData.img - Image object
+   * @param {number[]} frameData.frames - compressed image array
+   * @param {number} frameData.bitsAllocated - bits per pixel
+   * @param {number} frameData.pixelRepresentation - pixel sign
+   * @param {number[]} frameData.thresholdValues - clipping values
+   * @param {number[]} frameData.color - rgb color
+   * @param {number} frameData.opacity - opacity
+   * @param {number} frameData.columns - horizontal image size
+   * @param {number} frameData.rows - vertical image size
    * 
    * @returns {boolean} image was colored.
    */
@@ -252,7 +252,11 @@ constructor(){
         pixelData, 
         decodedframeInfo
       } = this._checkImageTypeAndDecode(frames)
-      let bitsPerSample = decodedframeInfo.bitsPerSample;
+
+      let bitsPerSample;
+      if (decodedframeInfo) {
+        bitsPerSample = decodedframeInfo.bitsPerSample;
+      }
 
       if (!pixelData) {
         // data downloaded uncompressed   
@@ -313,31 +317,43 @@ constructor(){
   }
 
   /** Creates image url from raw frames or rendered frame of RGB images. 
-   * Decodes the image if jp2/jpx (OpenJPEG) or jls (CharLS) and re-econde them into a png data url.
-   * If jpeg or png it just creates a url from a blob.
+   * Decodes the image if jpeg (jpegturbo), jp2/jpx (OpenJPEG) or jls (CharLS) and re-econde them into a png data url.
+   * If png it just creates a url from a blob.
    * The image type is automatically detected by checking the magic number
    * https://en.wikipedia.org/wiki/Magic_number_(programming)#Magic_numbers_in_files 
    * (see https://github.com/sindresorhus/file-type).
    * 
-   * @param {number[]} frames - compressed image array
+   * @param {object} frameData - interface to pass the frame data to the offscreen render
+   * @param {number[]} frameData.frames - compressed image array
+   * @param {number} frameData.bitsAllocated - bits per pixel
+   * @param {number} frameData.pixelRepresentation - pixel sign
+   * @param {number} frameData.columns - horizontal image size
+   * @param {number} frameData.rows - vertical image size
    * @returns {boolean} blob.
    * 
    */
-  createURLFromRGBImage(frames) {
+  createURLFromRGBImage(frameData) {
+    const {
+      frames,
+      bitsAllocated,
+      pixelRepresentation,
+      columns,
+      rows
+    } = frameData
+
     const  {
       pixelData,
       decodedframeInfo, 
       mediaType
-    } = this._checkImageTypeAndDecode(frames, false);
+    } = this._checkImageTypeAndDecode(frames);
 
     if (!pixelData && mediaType) {
-      // the image is png or jpeg, just use the source compressed array
+      // the image is png, just use the source compressed array
       const blob = new Blob([frames], {type: mediaType});
       return window.URL.createObjectURL(blob)
-    } else if (pixelData && mediaType) {
-      // jp2/jpx/jls pixelData is decoded and uncompressed into a RGB image array.
+    } else if (pixelData && mediaType && decodedframeInfo) {
+      // jp2/jpx/jls/jpeg pixelData is decoded and uncompressed into a RGB image array.
       // put the data in a canvas and return data url
-
       if (decodedframeInfo.componentCount !== 3) {
         throw new Error(
           'decoded image is not a RGB image'
@@ -366,9 +382,59 @@ constructor(){
 
       return this.tempCanvas.toDataURL('image/png');
     } else {
-      throw new Error(
-        'could not encode image to png'
-      );
+      // octet-stream RGB image
+      let octetPixelData;
+      const signed = pixelRepresentation === 1 ? true : false;
+      switch (bitsAllocated) {
+        case 8:
+          if (signed) {
+            octetPixelData = new Int8Array(frames)
+          } else {
+            octetPixelData = new Uint8Array(frames)
+          }
+          break;
+        case 16:
+          if (signed) {
+            octetPixelData = new Int16Array(frames)
+          } else {
+            octetPixelData = new Uint16Array(frames)
+          }
+          break;
+        default:
+          throw new Error(
+            'The pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
+          );
+      }
+
+      const width = columns;
+      const height = rows;
+
+      if (octetPixelData.length !== width * height * 3) {
+        throw new Error(
+          'decoded image is not a RGB image'
+        );
+      }
+
+      const dstBmp = new Uint8ClampedArray(width * height * 4);
+      let ptrSrc = 0;
+      let ptrDst = 0;
+      const dstLen = dstBmp.length;
+      
+      while(ptrDst < dstLen) {
+        dstBmp[ptrDst++] = octetPixelData[ptrSrc++];
+        dstBmp[ptrDst++] = octetPixelData[ptrSrc++];
+        dstBmp[ptrDst++] = octetPixelData[ptrSrc++];
+        dstBmp[ptrDst++] = 255;
+      }
+      
+      // Create a ImageData object using the typed array:
+      const idata = new ImageData(dstBmp, width, height);
+      this.tempCanvas.width = width;
+      this.tempCanvas.height = height;
+      const ctx = this.tempCanvas.getContext("2d");
+      ctx.putImageData(idata, 0, 0);
+
+      return this.tempCanvas.toDataURL('image/png');
     }
   }
 
@@ -376,29 +442,29 @@ constructor(){
    * NOTE: for png at the moment we don't have a library for decoding,
    *       undefined is returned.
    * @param {number[]} frames - buffer of the image array
-   * @param {boolean[]} decodeJpeg - decode base format jpeg, true in default
    * @returns {obejct} image array, frameInfo and mediaType.
    * @private
    */
-  _checkImageTypeAndDecode(frames, decodeJpeg = true){
+  _checkImageTypeAndDecode(frames){
     const fullEncodedBitStream = new Uint8Array(frames);
     const imageTypeObject = imageType(fullEncodedBitStream);
     if (imageTypeObject === null) {
-      return;
+      // this is uncompressed (octet-stream), just return undefined and 
+      // createURLFromRGBImage and colorMonochomeImageFrame will deal with it
+      return {
+        pixelData : undefined,
+        decodedframeInfo : undefined,
+        mediaType : undefined,
+      };
     }
     const mediaType = imageTypeObject.mime;
     let pixelData;
     let decodedframeInfo;
     if (mediaType === 'image/jpeg') {
       if (!jpegDecoder) {
-        return;
-      }
-      if (!decodeJpeg) {
-        return {
-          pixelData : undefined,
-          decodedframeInfo : undefined,
-          mediaType
-        };
+        throw new Error(
+          'jpegDecoder was not initialized.'
+        );
       }
       // data are compressed jpeg -> decode
       const {decodedPixelData, frameInfo} = this._decodeInternal(jpegDecoder, fullEncodedBitStream);
@@ -406,7 +472,9 @@ constructor(){
       decodedframeInfo = frameInfo;
     } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
       if (!jp2jpxDecoder) {
-        return;
+        throw new Error(
+          'jp2jpxDecoder was not initialized.'
+        );
       }
       // data are compressed jp2 -> decode
       const {decodedPixelData, frameInfo} = this._decodeInternal(jp2jpxDecoder, fullEncodedBitStream);
@@ -414,7 +482,9 @@ constructor(){
       decodedframeInfo = frameInfo;
     } else if (mediaType === 'image/jls') {
       if (!jlsDecoder) {
-        return ;
+        throw new Error(
+          'jlsDecoder was not initialized.'
+        );
       }
       // data are compressed jls -> decode
       const {decodedPixelData, frameInfo} = this._decodeInternal(jlsDecoder, fullEncodedBitStream);

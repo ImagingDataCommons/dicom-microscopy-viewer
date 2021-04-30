@@ -270,7 +270,7 @@ class _Channel {
           );
         } else {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.3.3.2.html
-          // we use in order: jls, jp2, jpx, jpeg.
+          // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
 
           const jlsMediaType = 'image/jls'; // decoded with CharLS
           const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80';
@@ -284,8 +284,8 @@ class _Channel {
           const jpegMediaType = 'image/jpeg'; // decoded with libJPEG-turbo
           const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50';
   
-          /*const octetStreamMediaType = 'application/octet-stream';
-          const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1';*/
+          const octetStreamMediaType = 'application/octet-stream';
+          const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1';
           
           const retrieveOptions = {
             studyInstanceUID,
@@ -301,11 +301,8 @@ class _Channel {
               { mediaType : jpxMediaType, transferSyntaxUID : jpxTransferSyntaxUID },
               { mediaType : jpegMediaType, transferSyntaxUID : jpegTransferSyntaxUID }
             ]
-            /*mediaTypes: [
-              { mediaType : octetStreamMediaType, transferSyntaxUID : octetStreamTransferSyntaxUID }
-            ] we can't ask to retrieve both jpeg formats and octet-stream*/
           };
-  
+
           options.client.retrieveInstanceFrames(retrieveOptions).then(
             (rawFrames) => {
               // coloring image
@@ -330,7 +327,46 @@ class _Channel {
               const rendered = renderingEngine.colorMonochomeImageFrame(frameData);
               tile.needToRerender = !rendered;
             }
-          );
+          ).catch(
+            () => {
+              // since we can't ask to retrieve both jpeg formats and octet-stream
+              // we use a catch in the case all jpeg formats will fail
+              const retrieveOptions = {
+                studyInstanceUID,
+                seriesInstanceUID,
+                sopInstanceUID,
+                frameNumbers,
+                mediaTypes: [
+                  { mediaType : octetStreamMediaType, transferSyntaxUID : octetStreamTransferSyntaxUID }
+                ]
+              };
+              options.client.retrieveInstanceFrames(retrieveOptions).then(
+                (rawFrames) => {
+                  // coloring image
+                  const { 
+                    thresholdValues, 
+                    color, 
+                    opacity 
+                  } = this.blendingInformation;
+    
+                  const frameData = {
+                    img,
+                    frames: rawFrames[0],
+                    bitsAllocated,
+                    pixelRepresentation,
+                    thresholdValues,
+                    color,
+                    opacity,
+                    columns,
+                    rows
+                  };
+                  
+                  const rendered = renderingEngine.colorMonochomeImageFrame(frameData);
+                  tile.needToRerender = !rendered;
+                }
+              )
+            }
+          );;
         }
       } else {
         console.warn('could not load tile');
