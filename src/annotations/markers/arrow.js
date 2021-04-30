@@ -8,7 +8,8 @@ import Enums from "../../enums";
 import defaultStyles from "../styles";
 
 /**
- * Format arrow output
+ * Format arrow output.
+ *
  * @param {LineString} arrow geometry
  * @return {string} The formatted output
  */
@@ -16,7 +17,7 @@ export const format = (feature) =>
   feature.get(Enums.InternalProperties.Label) || "";
 
 /**
- * Builds arrow styles
+ * Builds arrow styles.
  *
  * @param {object} feature The feature instance
  * @param {object} map The viewer map instance
@@ -115,7 +116,7 @@ const _isArrow = (feature) =>
   Enums.Marker.Arrow === feature.get(Enums.InternalProperties.Marker);
 
 /**
- * Arrow marker definition
+ * Arrow marker definition.
  *
  * @param {object} dependencies Shared dependencies
  * @param {object} dependencies.map Map shared instance

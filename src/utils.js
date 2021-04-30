@@ -1,7 +1,8 @@
 import { inv, multiply } from "mathjs";
 import { getPointResolution } from "ol/proj";
 
-/** Generates a UUID-derived DICOM UID with root `2.25`.
+/** 
+ * Generates a UUID-derived DICOM UID with root `2.25`.
  *
  * @returns {string} Unique identifier
  * @private
@@ -26,7 +27,8 @@ function generateUID() {
   return uid;
 }
 
-/** Creates a rotation matrix.
+/** 
+ * Creates a rotation matrix.
  *
  * @param {Object} options - Options
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
@@ -46,7 +48,8 @@ function createRotationMatrix(options) {
   ];
 }
 
-/** Computes the rotation of the image with respect to the frame of reference.
+/** 
+ * Computes the rotation of the image with respect to the frame of reference.
  *
  * @param {Object} options - Options
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
@@ -67,7 +70,8 @@ function computeRotation(options) {
   }
 }
 
-/** Builds an affine transformation matrix to map coordinates in the Total
+/** 
+ * Builds an affine transformation matrix to map coordinates in the Total
  * Pixel Matrix into the slide coordinate system.
  *
  * @param {Object} options - Options
@@ -120,7 +124,8 @@ function buildTransform(options) {
   ];
 }
 
-/** Applies an affine transformation to a coordinate in the Total Pixel Matrix
+/** 
+ * Applies an affine transformation to a coordinate in the Total Pixel Matrix
  * to map it into the slide coordinate system.
  *
  * @param {Object} options - Options
@@ -166,7 +171,8 @@ function applyTransform(options) {
   return [x, y];
 }
 
-/** Builds an affine transformation matrix to map coordinates in the slide
+/** 
+ * Builds an affine transformation matrix to map coordinates in the slide
  * coordinate system into the Total Pixel Matrix.
  *
  * @param {number[]} options.offset - X and Y offset of the image in the slide coordinate system
@@ -219,7 +225,8 @@ function buildInverseTransform(options) {
   return inv(m);
 }
 
-/** Applies an affine transformation to a coordinate in the slide coordinate
+/** 
+ * Applies an affine transformation to a coordinate in the slide coordinate
  * system to map it into the Total Pixel Matrix.
  *
  * @param {Object} options - Options
@@ -266,7 +273,8 @@ function applyInverseTransform(options) {
   return [col, row];
 }
 
-/** Maps 2D (Column, Row) image coordinate in the Total Pixel Matrix
+/** 
+ * Maps 2D (Column, Row) image coordinate in the Total Pixel Matrix
  * to 3D (X, Y, Z) slide coordinates in the Frame of Reference.
  *
  * @param {Object} options - Options
@@ -297,7 +305,8 @@ function mapPixelCoordToSlideCoord(options) {
   return applyTransform({ coordinate: point, affine: affine });
 }
 
-/** Maps 3D (X, Y, Z) slide coordinate in to the Frame of Reference to
+/** 
+ * Maps 3D (X, Y, Z) slide coordinate in to the Frame of Reference to
  * 2D (Column, Row) image coordinate in the Total Pixel Matrix.
  *
  * @param {Object} options - Options
@@ -329,7 +338,7 @@ function mapSlideCoordToPixelCoord(options) {
 }
 
 /**
- * Get view unit suffix
+ * Get view unit suffix.
  *
  * @param {object} view Map view
  * @returns {string} unit suffix
@@ -374,17 +383,13 @@ function getUnitSuffix(view) {
 }
 
 /**
- * Get name coded concept from content item
+ * Get name coded concept from content item.
  *
  * @param {object} contentItem
  * @returns {object} The concept name coded concept
  */
-const getContentItemNameCodedConcept = (contentItem) => {
-  console.debug("getContentItemNameCodedConcept", contentItem);
-  return contentItem.ConceptNameCodeSequence.length
-    ? contentItem.ConceptNameCodeSequence[0]
-    : contentItem.ConceptNameCodeSequence;
-};
+const getContentItemNameCodedConcept = (contentItem) =>
+  contentItem.ConceptNameCodeSequence[0];
 
 /**
  *
@@ -412,12 +417,13 @@ const areCodedConceptsEqual = (codedConcept1, codedConcept2) => {
 };
 
 /**
+ * Check wether two content items match.
  *
  * @param {object} contentItem1
  * @param {object} contentItem2
- * @returns {boolean} true if content items equal and false otherwise
+ * @returns {boolean} true if content items match and false otherwise
  */
-const isContentItemsEqual = (contentItem1, contentItem2) => {
+const doContentItemsMatch = (contentItem1, contentItem2) => {
   const contentItem1NameCodedConcept = getContentItemNameCodedConcept(
     contentItem1
   );
@@ -442,7 +448,7 @@ export {
   generateUID,
   mapPixelCoordToSlideCoord,
   mapSlideCoordToPixelCoord,
-  isContentItemsEqual,
+  doContentItemsMatch,
   areCodedConceptsEqual,
   getContentItemNameCodedConcept,
 };

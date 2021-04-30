@@ -3,10 +3,11 @@ import { getUnitSuffix } from "../../utils";
 import {
   getFeatureScoord3dArea,
   getFeatureScoord3dLength,
-} from "../../_utils.js";
+} from "../../scoord3dUtils.js";
 
 /**
- * Format measure output
+ * Format measure output.
+ * 
  * @param {Feature} feature feature
  * @param {string} units units
  * @return {string} The formatted measure of this feature
@@ -19,7 +20,7 @@ export const format = (feature, units, pyramid) => {
 };
 
 /**
- * Checks if feature has measurement markup properties
+ * Checks if feature has measurement markup properties.
  *
  * @param {object} feature
  * @returns {boolean} true if feature has measurement markup properties
@@ -28,7 +29,7 @@ const _isMeasurement = (feature) =>
   Enums.Markup.Measurement === feature.get(Enums.InternalProperties.Markup);
 
 /**
- * Measurement markup definition
+ * Measurement markup definition.
  *
  * @param {object} dependencies Shared dependencies
  * @param {object} dependencies.map Viewer's map instance
