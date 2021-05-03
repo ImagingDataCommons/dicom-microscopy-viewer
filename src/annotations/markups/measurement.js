@@ -7,16 +7,18 @@ import {
 
 /**
  * Format measure output.
- * 
+ *
  * @param {Feature} feature feature
  * @param {string} units units
  * @return {string} The formatted measure of this feature
  */
 export const format = (feature, units, pyramid) => {
-  let value =
-    getFeatureScoord3dLength(feature, pyramid) ||
-    getFeatureScoord3dArea(feature, pyramid);
-  return `${value.toFixed(2)} ${units}`;
+  const length = getFeatureScoord3dLength(feature, pyramid);
+  const area = getFeatureScoord3dArea(feature, pyramid);
+  let value = length || area;
+  return length
+    ? `${value.toFixed(2)} ${units}`
+    : `${value.toFixed(2)} ${units}²`;
 };
 
 /**
