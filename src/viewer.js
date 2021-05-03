@@ -1750,6 +1750,7 @@ class VolumeImageViewer {
   hideROIs() {
     console.info("hide ROIs");
     this[_drawingLayer].setVisible(false);
+    this[_annotationManager].setVisible(false);
   }
 
   /**
@@ -1759,6 +1760,7 @@ class VolumeImageViewer {
   showROIs() {
     console.info("show ROIs");
     this[_drawingLayer].setVisible(true);
+    this[_annotationManager].setVisible(true);
   }
 
   /**
