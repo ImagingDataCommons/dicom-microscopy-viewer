@@ -269,6 +269,7 @@ class _Channel {
             }
           );
         } else {
+          console.info(`retrieve frames ${frameNumbers}`);
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.3.3.2.html
           // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
 

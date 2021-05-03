@@ -778,19 +778,18 @@ class VolumeImageViewer {
     // This updates the tiles offscreen rendering when zoom is applied to the view.
     view.origAnimate = view.animate;
     let currZoom = 0;
-    const viewer = this;
-    view.animate = function(animateSpecs) { 
+    view.animate = (animateSpecs) => { 
       let newZoom = animateSpecs.zoom;
       if (!newZoom) {
-        newZoom = this.getZoomForResolution(animateSpecs.resolution);
+        newZoom = view.getZoomForResolution(animateSpecs.resolution);
       }
       if (newZoom) {
         if (Math.abs(newZoom - currZoom) > 1e-6) {
           currZoom = newZoom;
-          viewer._updateTilesRenderingAtZoom(newZoom);
+          this._updateTilesRenderingAtZoom(newZoom);
         }
       }
-      this.origAnimate(animateSpecs);
+      view.origAnimate(animateSpecs);
     };
 
     // This updates the tiles offscreen rendering when panning the view.
@@ -817,18 +816,18 @@ class VolumeImageViewer {
    * @param {number} zoom - applied zoom
    */
   _updateTilesRenderingAtZoom(zoom){
-    if (viewer[_channels] && viewer[_channels].length !== 0) {
+    if (this[_channels] && this[_channels].length !== 0) {
       // For each channel check if any tiles at the new zoom 
       // needs to refresh the offscreen coloring rendering.
       let render = false;
-      viewer[_channels].forEach((channel) => {  
+      this[_channels].forEach((channel) => {  
         const channelRender = channel.updateTilesRendering(false, zoom);
         if (channelRender) {
           render = true;
         }
       });
       if (render) {
-        viewer[_map].render();
+        this[_map].render();
       }
     }
   }
@@ -951,6 +950,7 @@ class VolumeImageViewer {
             }
           );
         } else {
+          console.info(`retrieve frames ${frameNumbers}`);
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html  
           // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
           const jlsMediaType = 'image/jls';
