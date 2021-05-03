@@ -115,6 +115,15 @@ class _AnnotationManager {
     }
   }
 
+  /**
+   * Sets annotations visibility.
+   * 
+   * @param {boolean} isVisible 
+   */
+  setVisible(isVisible) {
+    this.props.markupManager.setVisible(isVisible);
+  }
+
   onAdd(feature) {
     /**
      * Add properties to ROI feature before triggering

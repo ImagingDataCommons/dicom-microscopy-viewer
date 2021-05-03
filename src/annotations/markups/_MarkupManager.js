@@ -41,6 +41,28 @@ class _MarkupManager {
   }
 
   /**
+   * Set markups visibility.
+   * 
+   * @param {boolean} isVisible 
+   * @returns {void}
+   */
+  setVisible(isVisible) {
+    this._linksVector.setVisible(isVisible);
+
+    if (isVisible) {
+      this._markups.forEach((markup) => {
+        this._map.removeOverlay(markup.overlay);
+        this._map.addOverlay(markup.overlay);
+      });
+      return;
+    }
+    this._markups.forEach((markup) => {
+      this._map.addOverlay(markup.overlay);
+      this._map.removeOverlay(markup.overlay);
+    });
+  }
+
+  /**
    * Checks whether a markup exists.
    *
    * @param {string} id The markup id
