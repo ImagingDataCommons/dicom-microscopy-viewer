@@ -26,140 +26,208 @@
   </head>
 
   <body>
-    <noscript>
-      You need to enable JavaScript to run this app.
-    </noscript>
+    <noscript> You need to enable JavaScript to run this app. </noscript>
 
     <script src="https://unpkg.com/dicomweb-client"></script>
     <!-- <script src="https://unpkg.com/dicom-microscopy-viewer"></script> -->
     <script src="../../build/dicom-microscopy-viewer.js"></script>
+    <script src="../styles.js"></script>
     <script>
-
       const CORE_ACTIONS = {
-        ACTIVATE_DRAW : "activate_draw",
-        DEACTIVATE_DRAW : "deactivate_draw",
-        ACTIVATE_SELECTION : "activate_selection",
-        ACTIVATE_MODIFICATIONS : "activate_modifications"
+        ACTIVATE_DRAW: "activate_draw",
+        DEACTIVATE_DRAW: "deactivate_draw",
+        ACTIVATE_SELECTION: "activate_selection",
+        ACTIVATE_MODIFICATIONS: "activate_modifications",
       };
 
       document.addEventListener("DOMContentLoaded", () => {
+        document
+          .getElementById("tools-list")
+          .addEventListener("click", (event) => {
+            let geometryType = event.target.id;
+            disableToolList();
 
-        document.getElementById("tools-list").addEventListener("click", (event) => {
-          const geometryType = event.target.id;
-          disableToolList();
-          window.viewer.activateDrawInteraction({ geometryType });
-          document.getElementById(`${geometryType}`).setAttribute("class", "list-group-item active");
-          disableCoreActions();
-          toggleElement("activate_draw", true);
-        });
+            const toolToGeometryType = {
+              /** Annotations */
+              freetext: "point",
+              arrow: "point",
+              length: "line",
+              "polygon-markup": "polygon",
+              /** Built-in */
+              polygon: "polygon",
+              circle: "circle",
+              point: "point",
+              box: "box",
+              freehandpolygon: "freehandpolygon",
+              line: "line",
+              freehandline: "freehandline",
+            };
+            const toolToDrawOptions = {
+              freetext: {
+                markup: "text",
+                label: "default label",
+              },
+              arrow: {
+                marker: "arrow",
+                markup: "text",
+                label: "default label",
+              },
+              length: {
+                markup: "measurement",
+                maxPoints: 1,
+                minPoints: 1,
+                vertexEnabled: false,
+              },
+              "polygon-markup": {
+                markup: "measurement",
+              },
+            };
+            const drawOptions = toolToDrawOptions[geometryType] || {};
+
+            window.viewer.activateDrawInteraction({
+              geometryType: toolToGeometryType[geometryType],
+              styleOptions: openLayersStyles.default,
+              ...drawOptions,
+            });
+            document
+              .getElementById(`${geometryType}`)
+              .setAttribute("class", "list-group-item active");
+            disableCoreActions();
+            toggleElement("activate_draw", true);
+          });
 
         // Event list
-        document.getElementById("event-list").addEventListener("click", (event) => {
-          const eventType = event.target.id;
+        document
+          .getElementById("event-list")
+          .addEventListener("click", (event) => {
+            const eventType = event.target.id;
 
-          if(document.getElementById(eventType).classList.contains("active")){
-            document.removeEventListener(`dicommicroscopyviewer_${eventType}`, logEvent);
-          }else{
-            addEventListener(eventType);
-          }
-          document.getElementById(eventType).classList.toggle("active");
-        });
+            if (
+              document.getElementById(eventType).classList.contains("active")
+            ) {
+              document.removeEventListener(
+                `dicommicroscopyviewer_${eventType}`,
+                logEvent
+              );
+            } else {
+              addEventListener(eventType);
+            }
+            document.getElementById(eventType).classList.toggle("active");
+          });
 
-        Object.keys(CORE_ACTIONS).forEach(action =>
-          document.getElementById(CORE_ACTIONS[action]).addEventListener("click", toggleCoreAction, false)
+        Object.keys(CORE_ACTIONS).forEach((action) =>
+          document
+            .getElementById(CORE_ACTIONS[action])
+            .addEventListener("click", toggleCoreAction, false)
         );
 
-        const rois = document.getElementById('rois');
+        const rois = document.getElementById("rois");
 
-        rois.addEventListener("click", (e) => {
-          const li = e.target.closest('li');
-          let nodes = Array.from(rois.children);
-          nodes = Array.from(li.closest('ul').children);
-          const index = nodes.indexOf(li);
-          viewer.removeROI(index);
-          // if there is a selection when deleting the structure, the selection keeps there
-          if(viewer.isSelectInteractionActive){
-            viewer.deactivateSelectInteraction();
-            viewer.deactivateDrawInteraction();
-            disableCoreActions();
-            toggleElement("deactivate_draw", true);
-          }
-          rois.removeChild(rois.children[index]);
-        }, false)
-
+        rois.addEventListener(
+          "click",
+          (e) => {
+            const li = e.target.closest("li");
+            let nodes = Array.from(rois.children);
+            nodes = Array.from(li.closest("ul").children);
+            const index = nodes.indexOf(li);
+            viewer.removeROI(index);
+            // if there is a selection when deleting the structure, the selection keeps there
+            if (viewer.isSelectInteractionActive) {
+              viewer.deactivateSelectInteraction();
+              viewer.deactivateDrawInteraction();
+              disableCoreActions();
+              toggleElement("deactivate_draw", true);
+            }
+            rois.removeChild(rois.children[index]);
+          },
+          false
+        );
       });
 
-      function disableCoreActions(){
-        const elements = document.getElementById("core-actions").querySelector("a.active");
-        if(elements !== null){
+      function disableCoreActions() {
+        const elements = document
+          .getElementById("core-actions")
+          .querySelector("a.active");
+        if (elements !== null) {
           elements.classList.remove("active");
         }
       }
 
-      function toggleElement(element, state){
-        if(state){
+      function toggleElement(element, state) {
+        if (state) {
           document.getElementById(element).classList.add("active");
-        }else{
+        } else {
           document.getElementById(element).classList.remove("active");
         }
       }
 
-      function toggleCoreAction(event){
+      function toggleCoreAction(event) {
         const targetId = event.target.id;
         disableCoreActions();
 
         window.viewer.deactivateDrawInteraction();
         window.viewer.deactivateSelectInteraction();
         window.viewer.deactivateModifyInteraction();
-        
-        switch (targetId){
+
+        switch (targetId) {
           case CORE_ACTIONS.ACTIVATE_SELECTION:
-            if(!window.viewer.isSelectInteractionActive){
+            if (!window.viewer.isSelectInteractionActive) {
               disableToolList();
               window.viewer.deactivateDrawInteraction();
               window.viewer.activateSelectInteraction();
             }
-          break;
+            break;
           case CORE_ACTIONS.ACTIVATE_MODIFICATIONS:
-            if(!window.viewer.isModifyInteractionActive){
+            if (!window.viewer.isModifyInteractionActive) {
               disableToolList();
               window.viewer.deactivateDrawInteraction();
               window.viewer.activateModifyInteraction();
             }
-          break;
-          case CORE_ACTIONS.DEACTIVATE_DRAW:            
-            disableToolList();        
-          break;
+            break;
+          case CORE_ACTIONS.DEACTIVATE_DRAW:
+            disableToolList();
+            break;
           case CORE_ACTIONS.ACTIVATE_DRAW:
             viewer.activateDrawInteraction({ geometryType: "polygon" });
-            document.getElementById("polygon").setAttribute("class", "list-group-item active");
-          break;
+            document
+              .getElementById("polygon")
+              .setAttribute("class", "list-group-item active");
+            break;
         }
         toggleElement(targetId, true);
       }
 
-      function addEventListener(eventType){
-        document.addEventListener(`dicommicroscopyviewer_${eventType}`, logEvent);
+      function addEventListener(eventType) {
+        document.addEventListener(
+          `dicommicroscopyviewer_${eventType}`,
+          logEvent
+        );
       }
 
-      function disableToolList(){
-        const toolList = document.getElementById("tools-list").querySelector("a.active")
-        if(toolList !== null){
+      function disableToolList() {
+        const toolList = document
+          .getElementById("tools-list")
+          .querySelector("a.active");
+        if (toolList !== null) {
           toolList.classList.remove("active");
         }
       }
 
       function logEvent(event) {
-        console.log(event)
+        console.log(event);
         const eventType = event.type.split("dicommicroscopyviewer_")[1];
         const content = event.detail;
-        const activeElements = document.getElementById("log").querySelector("a.active");
-        if(activeElements){
+        const activeElements = document
+          .getElementById("log")
+          .querySelector("a.active");
+        if (activeElements) {
           activeElements.classList.remove("active");
         }
         const new_event = `<a class="list-group-item active">
                             <h4 class="list-group-item-heading">${eventType}</h4>
-                            <p class="list-group-item-text">${new Date(content.time).toLocaleTimeString()}</p>
+                            <p class="list-group-item-text">${new Date(
+                              content.time
+                            ).toLocaleTimeString()}</p>
                           </a>`;
 
         const log = document.getElementById("log");
@@ -168,45 +236,56 @@
         newNode.innerHTML = new_event.trim();
         log.prepend(newNode);
 
-        if(eventType === 'roi_added'){
+        if (eventType === "roi_added") {
           const rois = document.getElementById("rois");
-          const json = JSON.stringify(content.payload.scoord3d.graphicData, undefined, 2).replace(/"/g, "");
+          const json = JSON.stringify(
+            content.payload.scoord3d.graphicData,
+            undefined,
+            2
+          ).replace(/"/g, "");
           const newROI = `<div class="list-group-item" title="${json}">
-            <h4 class="list-group-item-heading">${Object.keys(content.payload.properties)[0]}</h4>
-            <p class="list-group-item-text">${new Date(content.time).toLocaleTimeString()}</p>
+            <h4 class="list-group-item-heading">${
+              Object.keys(content.payload.properties)[0]
+            }</h4>
+            <p class="list-group-item-text">${new Date(
+              content.time
+            ).toLocaleTimeString()}</p>
             </div>`;
-            let newROIDivElement = document.createElement("li");
-            newROIDivElement.innerHTML = newROI.trim();
-            rois.append(newROIDivElement);
+          let newROIDivElement = document.createElement("li");
+          newROIDivElement.innerHTML = newROI.trim();
+          rois.append(newROIDivElement);
         }
       }
 
       const url = "https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs";
       const client = new DICOMwebClient.api.DICOMwebClient({ url });
-      const studyInstanceUID = "1.2.392.200140.2.1.1.1.2.799008771.2448.1519719572.518";
-      const seriesInstanceUID = "1.2.392.200140.2.1.1.1.3.799008771.2448.1519719572.519";
+      const studyInstanceUID =
+        "1.2.392.200140.2.1.1.1.2.799008771.4064.1519721619.405";
+      const seriesInstanceUID =
+        "1.2.392.200140.2.1.1.1.3.799008771.4064.1519721619.406";
 
       const searchInstanceOptions = {
         studyInstanceUID,
-        seriesInstanceUID
+        seriesInstanceUID,
       };
 
-      client.searchForInstances(searchInstanceOptions)
-        .then(instances => {
+      client
+        .searchForInstances(searchInstanceOptions)
+        .then((instances) => {
           const promises = [];
 
           for (let i = 0; i < instances.length; i++) {
-
             const sopInstanceUID = instances[i]["00080018"]["Value"][0];
 
             const retrieveInstanceOptions = {
               studyInstanceUID,
               seriesInstanceUID,
-              sopInstanceUID
+              sopInstanceUID,
             };
 
-            const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions)
-              .then(metadata => {
+            const promise = client
+              .retrieveInstanceMetadata(retrieveInstanceOptions)
+              .then((metadata) => {
                 const imageType = metadata[0]["00080008"]["Value"];
                 if (imageType[2] === "VOLUME") {
                   return metadata[0];
@@ -216,83 +295,103 @@
           }
           return Promise.all(promises);
         })
-        .then(metadata => {
-          metadata = metadata.filter(m => m);
+        .then((metadata) => {
+          metadata = metadata.filter((m) => m);
 
           // Note: We are using retrieveRendered: false because dcm4chee does not yet
           // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
-          const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({client,
-            metadata,
-            retrieveRendered: false
-          });
+          const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer(
+            { client, metadata, retrieveRendered: false }
+          );
 
           const container = document.getElementById("dicomImage");
           viewer.render({ container });
 
           viewer.activateDrawInteraction({ geometryType: "polygon" });
           window.viewer = viewer;
-
         });
 
       addEventListener("move_started");
       addEventListener("move_ended");
       addEventListener("roi_added");
-
     </script>
   </body>
   <body>
     <div class="container">
       <div class="page-header">
-        <h1>
-          Microscopy viewer Events Handler
-        </h1>
-        <p>
-          This example demonstrates how to interact with Microscopy Events.
-        </p>
+        <h1>Microscopy viewer Events Handler</h1>
+        <p>This example demonstrates how to interact with Microscopy Events.</p>
         <a href="../">Go back to the Examples page</a>
       </div>
 
       <div class="bs-example" data-example-id="simple-thumbnails">
         <div class="row">
           <div class="col-xs-6 col-md-4">
-            <div class="alert alert-warning text-center" role="alert">Attach/Detach event listeners</div>
+            <div class="alert alert-warning text-center" role="alert">
+              Attach/Detach event listeners
+            </div>
             <div class="list-group" id="event-list">
               <a id="roi_added" class="list-group-item active">ROI Added</a>
               <a id="roi_removed" class="list-group-item">ROI Removed</a>
               <a id="roi_drawn" class="list-group-item">ROI Drawn</a>
               <a id="roi_selected" class="list-group-item">ROI Selected</a>
               <a id="roi_modified" class="list-group-item">ROI Modified</a>
-              <a id="move_started" class="list-group-item active">Move Started</a>
+              <a id="move_started" class="list-group-item active"
+                >Move Started</a
+              >
               <a id="move_ended" class="list-group-item active">Move Ended</a>
             </div>
           </div>
-          <div class="col-xs-6 col-md-4" >
-            <div class="alert alert-warning text-center" role="alert">Select the tool to use for drawing</div>
+          <div class="col-xs-6 col-md-4">
+            <div class="alert alert-warning text-center" role="alert">
+              Select the tool to use for drawing
+            </div>
             <div class="list-group" id="tools-list">
+              <a id="length" class="list-group-item">Length</a>
+              <a id="arrow" class="list-group-item">Arrow</a>
+              <a id="freetext" class="list-group-item">FreeText</a>
+              <a id="polygon-markup" class="list-group-item"
+                >Polygon with markup</a
+              >
               <a id="polygon" class="list-group-item active">Polygon</a>
               <a id="point" class="list-group-item">Point</a>
               <a id="circle" class="list-group-item">Circle</a>
               <a id="box" class="list-group-item">Box</a>
-              <a id="freehandpolygon" class="list-group-item">Freehand Polygon</a>
+              <a id="freehandpolygon" class="list-group-item"
+                >Freehand Polygon</a
+              >
               <a id="line" class="list-group-item">Line</a>
               <a id="freehandline" class="list-group-item">Freehand Line</a>
             </div>
-            <br/>
-            
-            
+            <br />
           </div>
-          <div class="col-xs-12 col-md-4" >
-            <div class="alert alert-warning text-center" role="alert">Core actions</div>
+          <div class="col-xs-12 col-md-4">
+            <div class="alert alert-warning text-center" role="alert">
+              Core actions
+            </div>
             <div class="list-group" id="core-actions">
-              <a id="activate_draw" class="list-group-item active">Activate Draw</a>
-              <a id="deactivate_draw" class="list-group-item">Deactivate Draw</a>
-              <a id="activate_selection" class="list-group-item">Activation ROI Selection</a>
-              <a id="activate_modifications" class="list-group-item">Activate ROI Modification</a>
+              <a id="activate_draw" class="list-group-item active"
+                >Activate Draw</a
+              >
+              <a id="deactivate_draw" class="list-group-item"
+                >Deactivate Draw</a
+              >
+              <a id="activate_selection" class="list-group-item"
+                >Activation ROI Selection</a
+              >
+              <a id="activate_modifications" class="list-group-item"
+                >Activate ROI Modification</a
+              >
             </div>
           </div>
           <div class="col-xs-12 col-md-12">
             <div
-              style="width:100%;height:550px;position:relative;display:inline-block;"
+              style="
+                width: 100%;
+                height: 550px;
+                position: relative;
+                display: inline-block;
+              "
               oncontextmenu="return false"
               class="cornerstone-enabled-image"
               unselectable="on"
@@ -301,31 +400,40 @@
             >
               <div
                 id="dicomImage"
-                style="width:100%;height:550px;top:0px;left:0px; position:absolute; border: 1px solid black;"
+                style="
+                  width: 100%;
+                  height: 550px;
+                  top: 0px;
+                  left: 0px;
+                  position: absolute;
+                  border: 1px solid black;
+                "
               ></div>
-
             </div>
           </div>
           <div class="col-xs-6 col-md-6">
-              <div class="alert alert-warning text-center" role="alert">ROIs added (mouseover to see the coordinates or click to remove)</div>
-              <ul class="list-group" id="rois">
-              </ul>
+            <div class="alert alert-warning text-center" role="alert">
+              ROIs added (mouseover to see the coordinates or click to remove)
+            </div>
+            <ul class="list-group" id="rois"></ul>
           </div>
           <div class="col-xs-6 col-md-6">
-            <div class="alert alert-warning text-center" role="alert">Event Log</div>
+            <div class="alert alert-warning text-center" role="alert">
+              Event Log
+            </div>
             <div class="list-group scrollable" id="log"></div>
           </div>
         </div>
       </div>
     </div>
     <style>
-    .scrollable {
-      height: 600px;
-      overflow-y: scroll;
-    }
-    #rois li {
-      list-style-type: none;
-    }
+      .scrollable {
+        height: 600px;
+        overflow-y: scroll;
+      }
+      #rois li {
+        list-style-type: none;
+      }
     </style>
   </body>
 </html>
