@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Namespace: roi</title>
+    <title>JSDoc: Source: annotations/markups/measurement.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,106 +17,93 @@
 
 <div id="main">
 
-    <h1 class="page-title">Namespace: roi</h1>
+    <h1 class="page-title">Source: annotations/markups/measurement.js</h1>
 
     
 
 
 
-
-<section>
-
-<header>
     
-        <h2>roi</h2>
-        
-    
-</header>
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import Enums from "../../enums";
+import { getUnitSuffix } from "../../utils";
+import {
+  getFeatureScoord3dArea,
+  getFeatureScoord3dLength,
+} from "../../scoord3dUtils.js";
 
-<article>
-    <div class="container-overview">
-    
-        
-            <div class="description">Namespace for regions of interest (ROI).</div>
-        
+/**
+ * Format measure output.
+ *
+ * @param {Feature} feature feature
+ * @param {string} units units
+ * @return {string} The formatted measure of this feature
+ */
+export const format = (feature, units, pyramid) => {
+  const length = getFeatureScoord3dLength(feature, pyramid);
+  const area = getFeatureScoord3dArea(feature, pyramid);
+  let value = length || area;
+  return length
+    ? `${value.toFixed(2)} ${units}`
+    : `${value.toFixed(2)} ${units}²`;
+};
 
-        
+/**
+ * Checks if feature has measurement markup properties.
+ *
+ * @param {object} feature
+ * @returns {boolean} true if feature has measurement markup properties
+ */
+const _isMeasurement = (feature) =>
+  Enums.Markup.Measurement === feature.get(Enums.InternalProperties.Markup);
 
+/**
+ * Measurement markup definition.
+ *
+ * @param {object} dependencies Shared dependencies
+ * @param {object} dependencies.map Viewer's map instance
+ * @param {object} dependencies.pyramid Pyramid metadata
+ * @param {object} dependencies.markupManager MarkupManager shared instance
+ */
+const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
+  return {
+    onAdd: (feature) => {
+      if (_isMeasurement(feature)) {
+        const view = map.getView();
+        const unitSuffix = getUnitSuffix(view);
+        markupManager.create({
+          feature,
+          value: format(feature, unitSuffix, pyramid),
+        });
+      }
+    },
+    onFailure: (uid) => {
+      if (uid) {
+        markupManager.remove(uid);
+      }
+    },
+    onRemove: (feature) => {
+      if (_isMeasurement(feature)) {
+        const featureId = feature.getId();
+        markupManager.remove(featureId);
+      }
+    },
+    onDrawStart: ({ feature }) => {
+      if (_isMeasurement(feature)) {
+        markupManager.create({ feature });
+      }
+    },
+    onUpdate: (feature) => {},
+    onDrawEnd: ({ feature }) => {},
+    onDrawAbort: ({ feature }) => {},
+  };
+};
 
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="dicom-microscopy-viewer.js.html">dicom-microscopy-viewer.js</a>, <a href="dicom-microscopy-viewer.js.html#line74">line 74</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-        
-    
-    </div>
-
-    
-
-    
-
-    
-        <h3 class="subsection-title">Classes</h3>
-
-        <dl>
-            <dt><a href="roi.ROI.html">ROI</a></dt>
-            <dd></dd>
-        </dl>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</article>
-
-</section>
+export default MeasurementMarkup;
+</code></pre>
+        </article>
+    </section>
 
 
 
