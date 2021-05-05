@@ -117,8 +117,8 @@ class _AnnotationManager {
 
   /**
    * Sets annotations visibility.
-   * 
-   * @param {boolean} isVisible 
+   *
+   * @param {boolean} isVisible
    */
   setVisible(isVisible) {
     this.props.markupManager.setVisible(isVisible);

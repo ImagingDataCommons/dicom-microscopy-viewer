@@ -1227,8 +1227,22 @@ class VolumeImageViewer {
     return this[_interactions].translate !== undefined;
   }
 
+  /** 
+   * Deactivates translate interaction. 
+   * 
+   * @returns {void}
+   */
+  deactivateTranslateInteraction() {
+    console.info('deactivate "translate" interaction');
+    if (this[_interactions].translate) {
+      this[_map].removeInteraction(this[_interactions].translate);
+      this[_interactions].translate = undefined;
+    }
+  }
+
   /**
-   * Activates translate interaction.
+   * Activates select interaction.
+   *
    *
    * @param {Object} options - Translation options.
    */
@@ -1299,19 +1313,6 @@ class VolumeImageViewer {
       return;
     }
     this[_map].addControl(this[_overviewMap]);
-  }
-
-  /** 
-   * Deactivates translate interaction. 
-   * 
-   * @returns {void}
-   */
-  deactivateTranslateInteraction() {
-    console.info('deactivate "translate" interaction');
-    if (this[_interactions].translate) {
-      this[_map].removeInteraction(this[_interactions].translate);
-      this[_interactions].translate = undefined;
-    }
   }
 
   /**
