@@ -1,4 +1,4 @@
-import { keywordToTag, tagToKeyword } from './dictionary';
+import { tagToKeyword } from './dictionary'
 
 /** Determines the mapping of pyramid tile positions to frame numbers.
  *
@@ -6,52 +6,49 @@ import { keywordToTag, tagToKeyword } from './dictionary';
  * @returns {Object} Mapping of pyramid tile position (Row-Column) to frame URI
  * @private
  */
-function getFrameMapping(metadata) {
-  const rows = metadata.Rows;
-  const columns = metadata.Columns;
-  const totalPixelMatrixColumns = metadata.TotalPixelMatrixColumns;
-  const totalPixelMatrixRows = metadata.TotalPixelMatrixRows;
-  const sopInstanceUID = metadata.SOPInstanceUID;
-  let numberOfFrames = metadata.NumberOfFrames || 1;
-  numberOfFrames = Number(numberOfFrames);
-  let frameOffsetNumber = metadata.ConcatenationFrameOffsetNumber || 0;
-  frameOffsetNumber = Number(frameOffsetNumber);
+function getFrameMapping (metadata) {
+  const rows = metadata.Rows
+  const columns = metadata.Columns
+  const totalPixelMatrixColumns = metadata.TotalPixelMatrixColumns
+  const sopInstanceUID = metadata.SOPInstanceUID
+  let numberOfFrames = metadata.NumberOfFrames || 1
+  numberOfFrames = Number(numberOfFrames)
+  let frameOffsetNumber = metadata.ConcatenationFrameOffsetNumber || 0
+  frameOffsetNumber = Number(frameOffsetNumber)
   /*
    * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
    * of the standard. Older datasets are equivalent to "TILED_SPARSE"
    * even though they may not have a value or a different value.
   */
-  const dimensionOrganizationType = metadata.DimensionOrganizationType || 'TILED_SPARSE';
-  const tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns);
-  const tilesPerColumn = Math.ceil(totalPixelMatrixRows / rows);
-  const frameMapping = {};
+  const dimensionOrganizationType = metadata.DimensionOrganizationType || 'TILED_SPARSE'
+  const tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns)
+  const frameMapping = {}
   if (dimensionOrganizationType === 'TILED_FULL') {
-    let offset = frameOffsetNumber + 1;
-    let limit = frameOffsetNumber + numberOfFrames;
+    const offset = frameOffsetNumber + 1
+    const limit = frameOffsetNumber + numberOfFrames
     for (let j = offset; j <= limit; j++) {
-      let rowFraction = j / tilesPerRow;
-      let rowIndex = Math.ceil(rowFraction);
-      let colIndex = j - (rowIndex * tilesPerRow) + tilesPerRow;
-      let index = rowIndex + '-' + colIndex;
-      let frameNumber = j - offset + 1;
-      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
+      const rowFraction = j / tilesPerRow
+      const rowIndex = Math.ceil(rowFraction)
+      const colIndex = j - (rowIndex * tilesPerRow) + tilesPerRow
+      const index = rowIndex + '-' + colIndex
+      const frameNumber = j - offset + 1
+      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
     }
   } else {
-    const functionalGroups = metadata.PerFrameFunctionalGroupsSequence;
+    const functionalGroups = metadata.PerFrameFunctionalGroupsSequence
     for (let j = 0; j < numberOfFrames; j++) {
-      let planePositions = functionalGroups[j].PlanePositionSlideSequence[0];
-      let rowPosition = planePositions.RowPositionInTotalImagePixelMatrix;
-      let columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix;
-      let rowIndex = Math.ceil(rowPosition / rows);
-      let colIndex = Math.ceil(columnPosition / columns);
-      let index = rowIndex + '-' + colIndex;
-      let frameNumber = j + 1;
-      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
+      const planePositions = functionalGroups[j].PlanePositionSlideSequence[0]
+      const rowPosition = planePositions.RowPositionInTotalImagePixelMatrix
+      const columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix
+      const rowIndex = Math.ceil(rowPosition / rows)
+      const colIndex = Math.ceil(columnPosition / columns)
+      const index = rowIndex + '-' + colIndex
+      const frameNumber = j + 1
+      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
     }
   }
-  return frameMapping;
+  return frameMapping
 }
-
 
 /** Formats DICOM metadata structured according to the DICOM JSON model into a
  * more human friendly representation, where values of data elements can be
@@ -62,46 +59,46 @@ function getFrameMapping(metadata) {
  * @returns {Object} Formatted metadata
  * @memberof metadata
  */
-function formatMetadata(metadata) {
+function formatMetadata (metadata) {
   const loadJSONDataset = (elements) => {
-    const dataset = {};
+    const dataset = {}
     Object.keys(elements).forEach(tag => {
-      const keyword = tagToKeyword[tag];
-      const vr = elements[tag]['vr'];
+      const keyword = tagToKeyword[tag]
+      const vr = elements[tag].vr
       if ('BulkDataURI' in elements[tag]) {
         console.debug(`skip bulk data element "${keyword}"`)
       } else if ('Value' in elements[tag]) {
-        const value = elements[tag]['Value'];
+        const value = elements[tag].Value
         if (vr === 'SQ') {
-          dataset[keyword] = value.map(item => loadJSONDataset(item));
+          dataset[keyword] = value.map(item => loadJSONDataset(item))
         } else {
           // Handle value multiplicity.
           if (value.length === 1) {
             if (vr === 'DS' || vr === 'IS') {
-              dataset[keyword] = Number(value[0]);
+              dataset[keyword] = Number(value[0])
             } else {
-              dataset[keyword] = value[0];
+              dataset[keyword] = value[0]
             }
           } else {
             if (vr === 'DS' || vr === 'IS') {
-              dataset[keyword] = value.map(v => Number(v));
+              dataset[keyword] = value.map(v => Number(v))
             } else {
-              dataset[keyword] = value;
+              dataset[keyword] = value
             }
           }
         }
       } else {
         if (vr === 'SQ') {
-          dataset[keyword] = [];
+          dataset[keyword] = []
         } else {
-          dataset[keyword] = null;
+          dataset[keyword] = null
         }
       }
-    });
-    return dataset;
+    })
+    return dataset
   }
 
-  const dataset = loadJSONDataset(metadata);
+  const dataset = loadJSONDataset(metadata)
 
   // The top level (lowest resolution) image may be a single frame image in
   // which case the "NumberOfFrames" attribute is optional. We include it for
@@ -110,12 +107,11 @@ function formatMetadata(metadata) {
     throw new Error('Could not format metadata: ', metadata)
   }
   if (!('NumberOfFrames' in dataset) && (dataset.Modality === 'SM')) {
-    dataset.NumberOfFrames = 1;
+    dataset.NumberOfFrames = 1
   }
 
-  return dataset;
+  return dataset
 }
-
 
 /** DICOM VL Whole Slide Microscopy Image instance
  * (without Pixel Data or any other bulk data).
@@ -124,22 +120,21 @@ function formatMetadata(metadata) {
  * @memberof metadata
  */
 class VLWholeSlideMicroscopyImage {
-
-    /**
+  /**
      * @params {Object} options
      * @params {Object} options.metadata - Metadata in DICOM JSON format
      */
-    constructor(options) {
-      const dataset = formatMetadata(options.metadata);
-      if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
-        throw new Error(
-          'Cannot construct VL Whole Slide Microscopy Image instance ' +
+  constructor (options) {
+    const dataset = formatMetadata(options.metadata)
+    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
+      throw new Error(
+        'Cannot construct VL Whole Slide Microscopy Image instance ' +
           `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
-        );
-      }
-
-      Object.assign(this, dataset);
+      )
     }
+
+    Object.assign(this, dataset)
+  }
 }
 
 /** DICOM Comprehensive 3D SR instance.
@@ -148,27 +143,26 @@ class VLWholeSlideMicroscopyImage {
  * @memberof metadata
  */
 class Comprehensive3DSR {
-
-    /**
+  /**
      * @params {Object} options
      * @params {Object} options.metadata - Metadata in DICOM JSON format
      */
-    constructor(options) {
-      const dataset = formatMetadata(options.metadata);
-      if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.88.34') {
-        throw new Error(
-          'Cannot construct Comprehensive 3D SR instance ' +
+  constructor (options) {
+    const dataset = formatMetadata(options.metadata)
+    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.88.34') {
+      throw new Error(
+        'Cannot construct Comprehensive 3D SR instance ' +
           `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
-        );
-      }
-
-      Object.assign(this, dataset);
+      )
     }
+
+    Object.assign(this, dataset)
+  }
 }
 
 export {
   Comprehensive3DSR,
   formatMetadata,
   getFrameMapping,
-  VLWholeSlideMicroscopyImage,
-};
+  VLWholeSlideMicroscopyImage
+}

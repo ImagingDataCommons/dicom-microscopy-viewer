@@ -1,18 +1,18 @@
-import EVENTS from './events.js';
+import EVENTS from './events.js'
 import {
   Comprehensive3DSR,
   VLWholeSlideMicroscopyImage,
-  formatMetadata,
-} from './metadata.js';
-import { ROI } from './roi.js';
+  formatMetadata
+} from './metadata.js'
+import { ROI } from './roi.js'
 import {
   Point,
   Multipoint,
   Polyline,
   Polygon,
   Ellipsoid,
-  Ellipse,
-} from './scoord3d.js';
+  Ellipse
+} from './scoord3d.js'
 import {
   applyInverseTransform,
   applyTransform,
@@ -20,17 +20,16 @@ import {
   buildTransform,
   computeRotation,
   mapSlideCoordToPixelCoord,
-  mapPixelCoordToSlideCoord,
-} from './utils.js';
+  mapPixelCoordToSlideCoord
+} from './utils.js'
 import {
   LabelImageViewer,
   OverviewImageViewer,
   VolumeImageViewer
-} from './viewer.js';
+} from './viewer.js'
 import {
-  BlendingInformation,
-} from './channel.js';
-
+  BlendingInformation
+} from './channel.js'
 
 /** Namespace for the viewer.
  *
@@ -39,7 +38,7 @@ import {
  */
 const api = {
   VLWholeSlideMicroscopyImageViewer: VolumeImageViewer
-};
+}
 
 /** Namespace for the viewer.
  *
@@ -48,8 +47,8 @@ const api = {
 const viewer = {
   LabelImageViewer,
   OverviewImageViewer,
-  VolumeImageViewer,
-};
+  VolumeImageViewer
+}
 
 /** Namespace for working with DICOM Metadata.
  *
@@ -59,8 +58,8 @@ const metadata = {
   formatMetadata,
   VLWholeSlideMicroscopyImage,
   Comprehensive3DSR,
-  BlendingInformation,
-};
+  BlendingInformation
+}
 
 /** Namespace for 3-dimensional spatial coordinates (SCOORD3D).
  *
@@ -72,15 +71,15 @@ const scoord3d = {
   Polyline,
   Polygon,
   Ellipsoid,
-  Ellipse,
-};
+  Ellipse
+}
 
 /** Namespace for regions of interest (ROI).
  *
  * @namespace roi
  */
 const roi = {
-  ROI,
+  ROI
 }
 
 /** Namespace for viewer events.
@@ -88,8 +87,8 @@ const roi = {
  * @namespace events
  */
 const events = {
-  EVENTS,
-};
+  EVENTS
+}
 
 /** Namespace for various utilities.
  *
@@ -102,7 +101,7 @@ const utils = {
   buildTransform,
   computeRotation,
   mapSlideCoordToPixelCoord,
-  mapPixelCoordToSlideCoord,
-};
+  mapPixelCoordToSlideCoord
+}
 
-export { api, events, metadata, roi, scoord3d, utils, viewer };
+export { api, events, metadata, roi, scoord3d, utils, viewer }

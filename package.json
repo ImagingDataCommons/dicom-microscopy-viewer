@@ -3,9 +3,22 @@
   "version": "0.23.1",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "./src/dicom-microscopy-viewer.js",
+  "standard": {
+    "ignore": [
+      "/build/*",
+      "/docs/*",
+      "/examples/simple_viewer/scripts/metadata.js",
+      "/examples/simple_viewer/scripts/dicomdict.js",
+      "/src/annotations/_AnnotationManager.test.js",
+      "/src/annotations/markups/_MarkupManager.test.js",
+      "/src/dictionary.js",
+      "/src/__mocks__/*",
+      "/test/*"
+    ]
+  },
   "scripts": {
     "test:unit": "jest",
-    "test": "npm run build && mochify",
+    "test": "npm run build && standard && mochify",
     "webdriver": "mochify --wd",
     "start": "rollup -c -w",
     "build": "rollup -c",
@@ -43,7 +56,8 @@
     "rollup-plugin-json": "3.1.0",
     "rollup-plugin-node-builtins": "2.1.2",
     "rollup-plugin-node-resolve": "3.4.0",
-    "rollup-plugin-postcss": "2.9.0"
+    "rollup-plugin-postcss": "2.9.0",
+    "standard": "*"
   },
   "dependencies": {
     "dcmjs": "^0.18.2",

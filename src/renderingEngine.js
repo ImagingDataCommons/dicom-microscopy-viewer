@@ -1,29 +1,29 @@
 // Allocate decoders
-let jpegDecoder = undefined;
-if (typeof libjpegturbowasm === "function") {
-  libjpegturbowasm().then(function(libjpegturbo) {
-    jpegDecoder = new libjpegturbo.JPEGDecoder();
-    console.info("jpegDecoder initialized.")
-  });
+import imageType from 'image-type'
+
+let jpegDecoder
+if (typeof libjpegturbowasm === 'function') {
+  libjpegturbowasm().then(function (libjpegturbo) {// eslint-disable-line
+    jpegDecoder = new libjpegturbo.JPEGDecoder()
+    console.info('jpegDecoder initialized.')
+  })
 }
 
-let jp2jpxDecoder = undefined;
-if (typeof OpenJPEGWASM === "function") {
-  OpenJPEGWASM().then(function(openjpegwasm) {
-    jp2jpxDecoder = new openjpegwasm.J2KDecoder();
-    console.info("jp2jpxDecoder initialized.")
-  });
+let jp2jpxDecoder
+if (typeof OpenJPEGWASM === 'function') {
+  OpenJPEGWASM().then(function (openjpegwasm) {// eslint-disable-line
+    jp2jpxDecoder = new openjpegwasm.J2KDecoder()
+    console.info('jp2jpxDecoder initialized.')
+  })
 }
 
-let jlsDecoder = undefined;
-if (typeof Module === "object") {
-  Module.onRuntimeInitialized = async _ => {
-    jlsDecoder = new Module.JpegLSDecoder();
-    console.info("jlsDecoder initialized.")
+let jlsDecoder
+if (typeof Module === 'object') {
+  Module.onRuntimeInitialized = async _ => {// eslint-disable-line
+    jlsDecoder = new Module.JpegLSDecoder()// eslint-disable-line
+    console.info('jlsDecoder initialized.')
   }
 }
-
-import imageType from 'image-type';
 
 /** Offscreen render for coloring tile frames
  *
@@ -34,22 +34,22 @@ import imageType from 'image-type';
 class RenderingEngine {
 /**
  * Create a rendering engine instance.
- * This class only colors a frame (i.e. applies thresholding, 
+ * This class only colors a frame (i.e. applies thresholding,
  * opacity transparence and change the pixels' color).
- * The actual blending is perfomed in OpenLayer using the canvas2D api: 
- * 1) the OpenLayer canvas globalCompositeOperation value is updated 
+ * The actual blending is perfomed in OpenLayer using the canvas2D api:
+ * 1) the OpenLayer canvas globalCompositeOperation value is updated
  * using the OpenLayer events 'prerender' and 'postrender' (see initChannel in channel.js);
  * 2) the blending is perfomed with the globalCompositeOperation 'lighter'.
  */
-constructor(){
-    this.renderCanvas = document.createElement('canvas');
-    this.renderCanvas.id = 'offscreenwebgl';
-    this.tempCanvas = document.createElement('canvas');
-    this.tempCanvas.id = 'tempCanvas';
-    this.gl = null;
-    this.texCoordBuffer;
-    this.positionBuffer;
-    this.isWebGLInitialized = false;
+  constructor () {
+    this.renderCanvas = document.createElement('canvas')
+    this.renderCanvas.id = 'offscreenwebgl'
+    this.tempCanvas = document.createElement('canvas')
+    this.tempCanvas.id = 'tempCanvas'
+    this.gl = null
+    this.texCoordBuffer = null
+    this.positionBuffer = null
+    this.isWebGLInitialized = false
 
     this.definitions =
     `precision mediump float;
@@ -60,8 +60,8 @@ constructor(){
     uniform float maxT;
     uniform vec3 color;
     uniform float opacity;
-    varying vec2 v_texCoord;`;
-  
+    varying vec2 v_texCoord;`
+
     this.windowAndReturnRGBA =
     `// Apply window settings
       float center0 = wc - 0.5;
@@ -77,8 +77,8 @@ constructor(){
     
       // RGBA output
       gl_FragColor = vec4(scaledColor.r, scaledColor.g, scaledColor.b, opacity);
-    `;
-  
+    `
+
     this.vertexShader = 'attribute vec2 a_position;' +
     'attribute vec2 a_texCoord;' +
     'uniform vec2 u_resolution;' +
@@ -89,7 +89,7 @@ constructor(){
       'vec2 clipSpace = zeroToTwo - 1.0;' +
       'gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);' +
       'v_texCoord = a_texCoord;' +
-    '}';
+    '}'
 
     this.shaders = {
       int8: this._buildShader(
@@ -101,7 +101,7 @@ constructor(){
         if (packedPixelValue.b == 0.0)
         pixelValue = -pixelValue;`),
       uint8: this._buildShader('float pixelValue = packedPixelValue.r*256.0;'),
-      uint16: this._buildShader('float pixelValue = packedPixelValue.r*256.0 + packedPixelValue.a*65536.0;'),
+      uint16: this._buildShader('float pixelValue = packedPixelValue.r*256.0 + packedPixelValue.a*65536.0;')
     }
 
     this.dataUtilities = {
@@ -109,117 +109,117 @@ constructor(){
         storedPixelDataToPackedData: (pixelData, width, height) => {
           // Transfer image data to alpha channel of WebGL texture
           // Store data in Uint8Array
-          const numberOfChannels = 2;
-          const data = new Uint8Array(width * height * numberOfChannels);
-          let offset = 0;
-    
+          const numberOfChannels = 2
+          const data = new Uint8Array(width * height * numberOfChannels)
+          let offset = 0
+
           for (let i = 0; i < pixelData.length; i++) {
-            data[offset++] = pixelData[i];
-            data[offset++] = pixelData[i] < 0 ? 0 : 1; // 0 For negative, 1 for positive
+            data[offset++] = pixelData[i]
+            data[offset++] = pixelData[i] < 0 ? 0 : 1 // 0 For negative, 1 for positive
           }
-    
-          return data;
+
+          return data
         }
       },
       int16: {
         storedPixelDataToPackedData: (pixelData, width, height) => {
           // Pack int16 into three uint8 channels (r, g, b)
-          const numberOfChannels = 3;
-          const data = new Uint8Array(width * height * numberOfChannels);
-          let offset = 0;
-    
+          const numberOfChannels = 3
+          const data = new Uint8Array(width * height * numberOfChannels)
+          let offset = 0
+
           for (let i = 0; i < pixelData.length; i++) {
-            const val = Math.abs(pixelData[i]);
-    
-            data[offset++] = val & 0xFF;
-            data[offset++] = val >> 8;
-            data[offset++] = pixelData[i] < 0 ? 0 : 1; // 0 For negative, 1 for positive
+            const val = Math.abs(pixelData[i])
+
+            data[offset++] = val & 0xFF
+            data[offset++] = val >> 8
+            data[offset++] = pixelData[i] < 0 ? 0 : 1 // 0 For negative, 1 for positive
           }
-    
-          return data;
+
+          return data
         }
       },
       uint8: {
         storedPixelDataToPackedData: (pixelData, width, height) => {
           // Transfer image data to alpha channel of WebGL texture
-          return pixelData;
+          return pixelData
         }
       },
       uint16: {
         storedPixelDataToPackedData: (pixelData, width, height) => {
           // Pack uint16 into two uint8 channels (r and a)
-          const numberOfChannels = 2;
-          const data = new Uint8Array(width * height * numberOfChannels);
-          let offset = 0;
-    
+          const numberOfChannels = 2
+          const data = new Uint8Array(width * height * numberOfChannels)
+          let offset = 0
+
           for (let i = 0; i < pixelData.length; i++) {
-            const val = pixelData[i];
-    
-            data[offset++] = val & 0xFF;
-            data[offset++] = val >> 8;
+            const val = pixelData[i]
+
+            data[offset++] = val & 0xFF
+            data[offset++] = val >> 8
           }
-    
-          return data;
+
+          return data
         }
       }
-    }  
-    
-    this.initRenderer();
+    }
+
+    this.initRenderer()
   }
 
   /** Checks WebGL capabilities
-   * @returns {boolean} 
+   * @returns {boolean}
    */
-  isWebGLAvailable() {
+  isWebGLAvailable () {
     // Adapted from
     // http://stackoverflow.com/questions/9899807/three-js-detect-webgl-support-and-fallback-to-regular-canvas
-  
+
     const options = {
       failIfMajorPerformanceCaveat: true
-    };
-  
+    }
+
     try {
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement('canvas')
       return Boolean(window.WebGLRenderingContext) &&
-        (canvas.getContext('webgl', options) || canvas.getContext('experimental-webgl', options));
+        (canvas.getContext('webgl', options) || canvas.getContext('experimental-webgl', options))
     } catch (e) {
-      return false;
+      return false
     }
   }
 
-  /** Initializes the offscreen renders. 
+  /** Initializes the offscreen renders.
    */
-  initRenderer() {
+  initRenderer () {
     if (this.isWebGLInitialized === true) {
-      return;
+      return
     }
-  
+
     if (this._initWebGL(this.renderCanvas)) {
-      this._initBuffers();
+      this._initBuffers()
       if (!this._initShaders()) {
-        throw new Error('Error in shaders linking');
+        throw new Error('Error in shaders linking')
       }
-  
-      this.isWebGLInitialized = true;
+
+      this.isWebGLInitialized = true
     }
   }
 
   /** Runs the offscreen render applying the channel visualization/presentation parameters
    * to monochome images (1 color channel).
    * The pipeline consists in 3 steps:
-   * 1) decode the image if is jpeg (libJPEG-turbo), jp2/jpx (OpenJPEG) or jls (CharLS). 
+   * 1) decode the image if is jpeg (libJPEG-turbo), jp2/jpx (OpenJPEG) or jls (CharLS).
    *    The image type is automatically detected by checking the magic number
-   *    https://en.wikipedia.org/wiki/Magic_number_(programming)#Magic_numbers_in_files 
+   *    https://en.wikipedia.org/wiki/Magic_number_(programming)#Magic_numbers_in_files
    *    (see https://github.com/sindresorhus/file-type).
    * 2) apply coloring to the images with the offscreen webgl canvas.
    * 3) recompress the image in lossless png format.
    *
    * NOTE: The actual render time is < respect to the recompression of the data in png (toDataURL).
-   *       Using lossy compression (jpeg), would improve the compression step. 
+   *       Using lossy compression (jpeg), would improve the compression step.
    *       However, the images are originally stored in the server as lossy jpeg and
    *       we would have lossy re-compression issues
    *       (al least for IDC data, https://imaging.datacommons.cancer.gov/).
-   * 
+   *
    * @param {object} frameData - interface to pass the frame data to the offscreen render
    * @param {object} frameData.img - Image object
    * @param {number[]} frameData.frames - compressed image array
@@ -230,10 +230,10 @@ constructor(){
    * @param {number} frameData.opacity - opacity
    * @param {number} frameData.columns - horizontal image size
    * @param {number} frameData.rows - vertical image size
-   * 
+   *
    * @returns {boolean} image was colored.
    */
-  colorMonochomeImageFrame(frameData) {
+  colorMonochomeImageFrame (frameData) {
     const {
       img,
       frames,
@@ -246,20 +246,20 @@ constructor(){
       rows
     } = frameData
 
-    const signed = pixelRepresentation === 1 ? true : false;
+    const signed = pixelRepresentation === 1
     if (frames) {
       let {
-        pixelData, 
+        pixelData,
         decodedframeInfo
       } = this._checkImageTypeAndDecode(frames)
 
-      let bitsPerSample;
+      let bitsPerSample
       if (decodedframeInfo) {
-        bitsPerSample = decodedframeInfo.bitsPerSample;
+        bitsPerSample = decodedframeInfo.bitsPerSample
       }
 
       if (!pixelData) {
-        // data downloaded uncompressed   
+        // data downloaded uncompressed
         switch (bitsAllocated) {
           case 8:
             if (signed) {
@@ -267,62 +267,62 @@ constructor(){
             } else {
               pixelData = new Uint8Array(frames)
             }
-            break;
+            break
           case 16:
             if (signed) {
               pixelData = new Int16Array(frames)
             } else {
               pixelData = new Uint16Array(frames)
             }
-            break;
+            break
           default:
             throw new Error(
               'The pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
-            );
+            )
         }
-        bitsPerSample = bitsAllocated;
+        bitsPerSample = bitsAllocated
       }
-      
+
       // NOTE: we store the pixelData array and bitsPerSample in img, so we can apply again colorImageFrame
-      //       at the change of any blending parameter (opacity, color, clipping).     
-      img.pixelData = pixelData;
-      img.bitsPerSample = bitsPerSample;
+      //       at the change of any blending parameter (opacity, color, clipping).
+      img.pixelData = pixelData
+      img.bitsPerSample = bitsPerSample
     }
-    
+
     if (img.pixelData) {
       // run offscreen render to color images
       const renderedCanvas = this._render(
         img.pixelData,
-        img.bitsPerSample, 
-        columns, 
-        rows, 
-        color, 
-        opacity, 
-        thresholdValues, 
-      );
-  
+        img.bitsPerSample,
+        columns,
+        rows,
+        color,
+        opacity,
+        thresholdValues
+      )
+
       // econde back the image in png
-      img.src = renderedCanvas.toDataURL('image/png');
-  
+      img.src = renderedCanvas.toDataURL('image/png')
+
       // NOTE: ToBlob is async and provides smaller images,
       // but here the renderingEngine is synch/sequential (one object, one gl context, etc..).
-      // When the OffscreenCanvas will be fully supported, 
+      // When the OffscreenCanvas will be fully supported,
       // it can be used for a full web-workers async approach
       // https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas
 
-      return true;
+      return true
     }
 
-    return false;
+    return false
   }
 
-  /** Creates image url from raw frames or rendered frame of RGB images. 
+  /** Creates image url from raw frames or rendered frame of RGB images.
    * Decodes the image if jpeg (jpegturbo), jp2/jpx (OpenJPEG) or jls (CharLS) and re-econde them into a png data url.
    * If png it just creates a url from a blob.
    * The image type is automatically detected by checking the magic number
-   * https://en.wikipedia.org/wiki/Magic_number_(programming)#Magic_numbers_in_files 
+   * https://en.wikipedia.org/wiki/Magic_number_(programming)#Magic_numbers_in_files
    * (see https://github.com/sindresorhus/file-type).
-   * 
+   *
    * @param {object} frameData - interface to pass the frame data to the offscreen render
    * @param {number[]} frameData.frames - compressed image array
    * @param {number} frameData.bitsAllocated - bits per pixel
@@ -330,9 +330,9 @@ constructor(){
    * @param {number} frameData.columns - horizontal image size
    * @param {number} frameData.rows - vertical image size
    * @returns {boolean} blob.
-   * 
+   *
    */
-  createURLFromRGBImage(frameData) {
+  createURLFromRGBImage (frameData) {
     const {
       frames,
       bitsAllocated,
@@ -341,15 +341,15 @@ constructor(){
       rows
     } = frameData
 
-    const  {
+    const {
       pixelData,
-      decodedframeInfo, 
+      decodedframeInfo,
       mediaType
-    } = this._checkImageTypeAndDecode(frames);
+    } = this._checkImageTypeAndDecode(frames)
 
     if (!pixelData && mediaType) {
       // the image is png, just use the source compressed array
-      const blob = new Blob([frames], {type: mediaType});
+      const blob = new Blob([frames], { type: mediaType })// eslint-disable-line
       return window.URL.createObjectURL(blob)
     } else if (pixelData && mediaType && decodedframeInfo) {
       // jp2/jpx/jls/jpeg pixelData is decoded and uncompressed into a RGB image array.
@@ -357,34 +357,34 @@ constructor(){
       if (decodedframeInfo.componentCount !== 3) {
         throw new Error(
           'decoded image is not a RGB image'
-        );
+        )
       }
-      const width = decodedframeInfo.width;
-      const height = decodedframeInfo.height;
-      const dstBmp = new Uint8ClampedArray(width * height * 4);
-      let ptrSrc = 0;
-      let ptrDst = 0;
-      const dstLen = dstBmp.length;
-      
-      while(ptrDst < dstLen) {
-        dstBmp[ptrDst++] = pixelData[ptrSrc++];
-        dstBmp[ptrDst++] = pixelData[ptrSrc++];
-        dstBmp[ptrDst++] = pixelData[ptrSrc++];
-        dstBmp[ptrDst++] = 255;
-      }
-      
-      // Create a ImageData object using the typed array:
-      const idata = new ImageData(dstBmp, width, height);
-      this.tempCanvas.width = width;
-      this.tempCanvas.height = height;
-      const ctx = this.tempCanvas.getContext("2d");
-      ctx.putImageData(idata, 0, 0);
+      const width = decodedframeInfo.width
+      const height = decodedframeInfo.height
+      const dstBmp = new Uint8ClampedArray(width * height * 4)
+      let ptrSrc = 0
+      let ptrDst = 0
+      const dstLen = dstBmp.length
 
-      return this.tempCanvas.toDataURL('image/png');
+      while (ptrDst < dstLen) {
+        dstBmp[ptrDst++] = pixelData[ptrSrc++]
+        dstBmp[ptrDst++] = pixelData[ptrSrc++]
+        dstBmp[ptrDst++] = pixelData[ptrSrc++]
+        dstBmp[ptrDst++] = 255
+      }
+
+      // Create a ImageData object using the typed array:
+      const idata = new ImageData(dstBmp, width, height)// eslint-disable-line
+      this.tempCanvas.width = width
+      this.tempCanvas.height = height
+      const ctx = this.tempCanvas.getContext('2d')
+      ctx.putImageData(idata, 0, 0)
+
+      return this.tempCanvas.toDataURL('image/png')
     } else {
       // octet-stream RGB image
-      let octetPixelData;
-      const signed = pixelRepresentation === 1 ? true : false;
+      let octetPixelData
+      const signed = pixelRepresentation === 1
       switch (bitsAllocated) {
         case 8:
           if (signed) {
@@ -392,49 +392,49 @@ constructor(){
           } else {
             octetPixelData = new Uint8Array(frames)
           }
-          break;
+          break
         case 16:
           if (signed) {
             octetPixelData = new Int16Array(frames)
           } else {
             octetPixelData = new Uint16Array(frames)
           }
-          break;
+          break
         default:
           throw new Error(
             'The pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
-          );
+          )
       }
 
-      const width = columns;
-      const height = rows;
+      const width = columns
+      const height = rows
 
       if (octetPixelData.length !== width * height * 3) {
         throw new Error(
           'decoded image is not a RGB image'
-        );
+        )
       }
 
-      const dstBmp = new Uint8ClampedArray(width * height * 4);
-      let ptrSrc = 0;
-      let ptrDst = 0;
-      const dstLen = dstBmp.length;
-      
-      while(ptrDst < dstLen) {
-        dstBmp[ptrDst++] = octetPixelData[ptrSrc++];
-        dstBmp[ptrDst++] = octetPixelData[ptrSrc++];
-        dstBmp[ptrDst++] = octetPixelData[ptrSrc++];
-        dstBmp[ptrDst++] = 255;
+      const dstBmp = new Uint8ClampedArray(width * height * 4)
+      let ptrSrc = 0
+      let ptrDst = 0
+      const dstLen = dstBmp.length
+
+      while (ptrDst < dstLen) {
+        dstBmp[ptrDst++] = octetPixelData[ptrSrc++]
+        dstBmp[ptrDst++] = octetPixelData[ptrSrc++]
+        dstBmp[ptrDst++] = octetPixelData[ptrSrc++]
+        dstBmp[ptrDst++] = 255
       }
-      
+
       // Create a ImageData object using the typed array:
-      const idata = new ImageData(dstBmp, width, height);
-      this.tempCanvas.width = width;
-      this.tempCanvas.height = height;
-      const ctx = this.tempCanvas.getContext("2d");
-      ctx.putImageData(idata, 0, 0);
+      const idata = new ImageData(dstBmp, width, height)// eslint-disable-line
+      this.tempCanvas.width = width
+      this.tempCanvas.height = height
+      const ctx = this.tempCanvas.getContext('2d')
+      ctx.putImageData(idata, 0, 0)
 
-      return this.tempCanvas.toDataURL('image/png');
+      return this.tempCanvas.toDataURL('image/png')
     }
   }
 
@@ -445,70 +445,70 @@ constructor(){
    * @returns {obejct} image array, frameInfo and mediaType.
    * @private
    */
-  _checkImageTypeAndDecode(frames){
-    const fullEncodedBitStream = new Uint8Array(frames);
-    const imageTypeObject = imageType(fullEncodedBitStream);
+  _checkImageTypeAndDecode (frames) {
+    const fullEncodedBitStream = new Uint8Array(frames)
+    const imageTypeObject = imageType(fullEncodedBitStream)
     if (imageTypeObject === null) {
-      // this is uncompressed (octet-stream), just return undefined and 
+      // this is uncompressed (octet-stream), just return undefined and
       // createURLFromRGBImage and colorMonochomeImageFrame will deal with it
       return {
-        pixelData : undefined,
-        decodedframeInfo : undefined,
-        mediaType : undefined,
-      };
+        pixelData: undefined,
+        decodedframeInfo: undefined,
+        mediaType: undefined
+      }
     }
-    const mediaType = imageTypeObject.mime;
-    let pixelData;
-    let decodedframeInfo;
+    const mediaType = imageTypeObject.mime
+    let pixelData
+    let decodedframeInfo
     if (mediaType === 'image/jpeg') {
       if (!jpegDecoder) {
         throw new Error(
           'jpegDecoder was not initialized.'
-        );
+        )
       }
       // data are compressed jpeg -> decode
-      const {decodedPixelData, frameInfo} = this._decodeInternal(jpegDecoder, fullEncodedBitStream);
-      pixelData = decodedPixelData.slice(0);
-      decodedframeInfo = frameInfo;
+      const { decodedPixelData, frameInfo } = this._decodeInternal(jpegDecoder, fullEncodedBitStream)
+      pixelData = decodedPixelData.slice(0)
+      decodedframeInfo = frameInfo
     } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
       if (!jp2jpxDecoder) {
         throw new Error(
           'jp2jpxDecoder was not initialized.'
-        );
+        )
       }
       // data are compressed jp2 -> decode
-      const {decodedPixelData, frameInfo} = this._decodeInternal(jp2jpxDecoder, fullEncodedBitStream);
-      pixelData = decodedPixelData.slice(0);
-      decodedframeInfo = frameInfo;
+      const { decodedPixelData, frameInfo } = this._decodeInternal(jp2jpxDecoder, fullEncodedBitStream)
+      pixelData = decodedPixelData.slice(0)
+      decodedframeInfo = frameInfo
     } else if (mediaType === 'image/jls') {
       if (!jlsDecoder) {
         throw new Error(
           'jlsDecoder was not initialized.'
-        );
+        )
       }
       // data are compressed jls -> decode
-      const {decodedPixelData, frameInfo} = this._decodeInternal(jlsDecoder, fullEncodedBitStream);
-      pixelData = decodedPixelData.slice(0);
-      decodedframeInfo = frameInfo;
+      const { decodedPixelData, frameInfo } = this._decodeInternal(jlsDecoder, fullEncodedBitStream)
+      pixelData = decodedPixelData.slice(0)
+      decodedframeInfo = frameInfo
     } else if (mediaType === 'image/png') {
       return {
-        pixelData : undefined,
-        decodedframeInfo : undefined,
+        pixelData: undefined,
+        decodedframeInfo: undefined,
         mediaType
-      };
+      }
     } else {
       throw new Error(
         'The media type ' + mediaType + ' is not supported by the offscreen render.'
-      );
+      )
     }
-  
+
     return {
       pixelData,
       decodedframeInfo,
       mediaType
-    };
+    }
   }
-  
+
   /** Returns decoded array
    *
    * @param {object} decoder - decoder to use
@@ -516,24 +516,24 @@ constructor(){
    * @returns {object} decoded array and frameInfo
    * @private
    */
-  _decodeInternal(decoder, fullEncodedBitStream){
-    const encodedBuffer = decoder.getEncodedBuffer(fullEncodedBitStream.length);
-    encodedBuffer.set(fullEncodedBitStream);
-    decoder.decode();
+  _decodeInternal (decoder, fullEncodedBitStream) {
+    const encodedBuffer = decoder.getEncodedBuffer(fullEncodedBitStream.length)
+    encodedBuffer.set(fullEncodedBitStream)
+    decoder.decode()
     return {
       decodedPixelData: decoder.getDecodedBuffer(),
       frameInfo: decoder.getFrameInfo()
-    };
+    }
   }
-  
+
   /** Builds coloring shader
    *
    * @param {string} intensityComputationString - intensity computation on the the input image data type
    * @returns {string} shaderStr
    * @private
    */
-  _buildShader(intensityComputationString) {
-    const shader = {};
+  _buildShader (intensityComputationString) {
+    const shader = {}
     shader.fragSource = `
     ${this.definitions}
   
@@ -545,8 +545,8 @@ constructor(){
       ${intensityComputationString}
       
       ${this.windowAndReturnRGBA}
-    }`;
-  
+    }`
+
     return shader
   }
 
@@ -556,34 +556,33 @@ constructor(){
    * @returns {obecjt} webgl context
    * @private
    */
-  _initWebGL(canvas) {
-    this.gl = null;
+  _initWebGL (canvas) {
+    this.gl = null
     try {
       // Try to grab the standard context. If it fails, fallback to experimental.
       const options = {
         preserveDrawingBuffer: true // Preserve buffer so we can copy to display canvas element
-      };
-  
-      this.gl = canvas.getContext('webgl', options) || canvas.getContext('experimental-webgl', options);
-  
+      }
+
+      this.gl = canvas.getContext('webgl', options) || canvas.getContext('experimental-webgl', options)
+
       // Set up event listeners for context lost / context restored
-      canvas.removeEventListener('webglcontextlost', this._handleLostContext, false);
-      canvas.addEventListener('webglcontextlost', this._handleLostContext, false);
-  
-      canvas.removeEventListener('webglcontextrestored', this._handleRestoredContext, false);
-      canvas.addEventListener('webglcontextrestored', this._handleRestoredContext, false);
-  
+      canvas.removeEventListener('webglcontextlost', this._handleLostContext, false)
+      canvas.addEventListener('webglcontextlost', this._handleLostContext, false)
+
+      canvas.removeEventListener('webglcontextrestored', this._handleRestoredContext, false)
+      canvas.addEventListener('webglcontextrestored', this._handleRestoredContext, false)
     } catch (error) {
-      throw new Error('Error creating WebGL context');
+      throw new Error('Error creating WebGL context')
     }
-  
+
     // If we don't have a GL context, give up now
     if (!this.gl) {
-      console.error('Unable to initialize WebGL. Your browser may not support it.');
-      this.gl = null;
+      console.error('Unable to initialize WebGL. Your browser may not support it.')
+      this.gl = null
     }
-  
-    return this.gl;
+
+    return this.gl
   }
 
   /** Notifies webgl context lost
@@ -591,9 +590,9 @@ constructor(){
    * @param event - 'webglcontextlost' event
    * @private
    */
-  _handleLostContext(event) {
-    event.preventDefault();
-    console.warn('WebGL Context Lost!');
+  _handleLostContext (event) {
+    event.preventDefault()
+    console.warn('WebGL Context Lost!')
   }
 
   /** Reinitializes webgl context
@@ -601,35 +600,35 @@ constructor(){
    * @param event - 'webglcontextrestored' event
    * @private
    */
-  _handleRestoredContext(event) {
-    event.preventDefault();
-    this.isWebGLInitialized = false;
-  
-    this.initRenderer();
+  _handleRestoredContext (event) {
+    event.preventDefault()
+    this.isWebGLInitialized = false
+
+    this.initRenderer()
   }
 
   /** Initializes buffers
    *
    * @private
    */
-  _initBuffers() {
-    this.positionBuffer = this.gl.createBuffer();
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+  _initBuffers () {
+    this.positionBuffer = this.gl.createBuffer()
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer)
     this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([
       1, 1,
       0, 1,
       1, 0,
       0, 0
-    ]), this.gl.STATIC_DRAW);
-  
-    this.texCoordBuffer = this.gl.createBuffer();
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.texCoordBuffer);
+    ]), this.gl.STATIC_DRAW)
+
+    this.texCoordBuffer = this.gl.createBuffer()
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.texCoordBuffer)
     this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([
       1.0, 1.0,
       0.0, 1.0,
       1.0, 0.0,
       0.0, 0.0
-    ]), this.gl.STATIC_DRAW);
+    ]), this.gl.STATIC_DRAW)
   }
 
   /** Initializes shaders
@@ -637,90 +636,90 @@ constructor(){
    * @returns {boolean} success
    * @private
    */
-  _initShaders() {
-    let ext = this.gl.getExtension('KHR_parallel_shader_compile');
+  _initShaders () {
+    const ext = this.gl.getExtension('KHR_parallel_shader_compile')
     for (const id in this.shaders) {
-      const shader = this.shaders[id];
+      const shader = this.shaders[id]
       shader.vertexSource = this.vertexShader
-  
-      shader.attributes = {};
-      shader.uniforms = {};
-  
-      shader.program = this._createProgramFromString(this.gl, shader);
+
+      shader.attributes = {}
+      shader.uniforms = {}
+
+      shader.program = this._createProgramFromString(this.gl, shader)
 
       if (ext) {
         if (this.gl.getProgramParameter(shader.program, ext.COMPLETION_STATUS_KHR)) {
           if (!this._shadersLinked(this.gl, shader.program, shader.compiledVertexShader, shader.compiledFragShader)) {
-            return false;
+            return false
           }
         }
       } else {
         if (!this._shadersLinked(this.gl, shader.program, shader.compiledVertexShader, shader.compiledFragShader)) {
-          return false;
+          return false
         }
       }
 
-      this._cleanShaders(this.gl, shader.program, shader.compiledVertexShader, shader.compiledFragShader);
-  
-      shader.attributes.texCoordLocation = this.gl.getAttribLocation(shader.program, 'a_texCoord');
-      this.gl.enableVertexAttribArray(shader.attributes.texCoordLocation);
-  
-      shader.attributes.positionLocation = this.gl.getAttribLocation(shader.program, 'a_position');
-      this.gl.enableVertexAttribArray(shader.attributes.positionLocation);
-  
-      shader.uniforms.resolutionLocation = this.gl.getUniformLocation(shader.program, 'u_resolution');
+      this._cleanShaders(this.gl, shader.program, shader.compiledVertexShader, shader.compiledFragShader)
+
+      shader.attributes.texCoordLocation = this.gl.getAttribLocation(shader.program, 'a_texCoord')
+      this.gl.enableVertexAttribArray(shader.attributes.texCoordLocation)
+
+      shader.attributes.positionLocation = this.gl.getAttribLocation(shader.program, 'a_position')
+      this.gl.enableVertexAttribArray(shader.attributes.positionLocation)
+
+      shader.uniforms.resolutionLocation = this.gl.getUniformLocation(shader.program, 'u_resolution')
     }
 
-    return true;
+    return true
   }
 
   /** Checks is shaders have been linked successfully
    *
    * @param {object} gl - webgl context
    * @param {object} program - webgl program
-   * @param {object} vertexShader - vertex shader 
+   * @param {object} vertexShader - vertex shader
    * @param {object} fragmentShader - fragment shader
    * @returns {boolean} success
    * @private
    */
-  _shadersLinked(gl, program, vertexShader, fragmentShader) {
+  _shadersLinked (gl, program, vertexShader, fragmentShader) {
     if (!gl.getProgramParameter(program, gl.LINK_STATUS) && !gl.isContextLost()) {
-      console.error('Link failed: ' + gl.getProgramInfoLog(program));
-      console.error('Vertex Shader info-log: ' + gl.getShaderInfoLog(vertexShader));
-      console.error('Frag Shader info-log: ' + gl.getShaderInfoLog(fragmentShader));
-      return false;
+      console.error('Link failed: ' + gl.getProgramInfoLog(program))
+      console.error('Vertex Shader info-log: ' + gl.getShaderInfoLog(vertexShader))
+      console.error('Frag Shader info-log: ' + gl.getShaderInfoLog(fragmentShader))
+      return false
     }
 
-    return true;
+    return true
   }
 
   /** Claens compiled shaders
    *
    * @param {object} gl - webgl context
    * @param {object} program - webgl program
-   * @param {object} vertexShader - vertex shader 
+   * @param {object} vertexShader - vertex shader
    * @param {object} fragmentShader - fragment shader
    * @returns {boolean} success
    * @private
    */
-  _cleanShaders(gl, program, vertexShader, fragmentShader) {
-    gl.detachShader(program, vertexShader);
-    gl.detachShader(program, fragmentShader);
-    gl.deleteShader(vertexShader);
-    gl.deleteShader(fragmentShader);
+  _cleanShaders (gl, program, vertexShader, fragmentShader) {
+    gl.detachShader(program, vertexShader)
+    gl.detachShader(program, fragmentShader)
+    gl.deleteShader(vertexShader)
+    gl.deleteShader(fragmentShader)
   }
 
   /** Creates a webgl program
    *
-   * @param {object} gl - webgl context 
+   * @param {object} gl - webgl context
    * @param {object} shader - object containing the vertexSource and fragSource strings
    * @returns {object} webgl program
    * @private
    */
-  _createProgramFromString(gl, shader) {
-    shader.compiledVertexShader = this._compileShader(gl, shader.vertexSource, gl.VERTEX_SHADER);
-    shader.compiledFragShader = this._compileShader(gl, shader.fragSource, gl.FRAGMENT_SHADER);
-    return this._createProgram(gl, shader.compiledVertexShader, shader.compiledFragShader);
+  _createProgramFromString (gl, shader) {
+    shader.compiledVertexShader = this._compileShader(gl, shader.vertexSource, gl.VERTEX_SHADER)
+    shader.compiledFragShader = this._compileShader(gl, shader.fragSource, gl.FRAGMENT_SHADER)
+    return this._createProgram(gl, shader.compiledVertexShader, shader.compiledFragShader)
   }
 
   /** Compiles a shader
@@ -731,35 +730,35 @@ constructor(){
    * @returns compiled shader
    * @private
    */
-  _compileShader(gl, shaderSource, shaderType) {
-    const shader = gl.createShader(shaderType);
-    gl.shaderSource(shader, shaderSource);
-    gl.compileShader(shader);
-    return shader;
+  _compileShader (gl, shaderSource, shaderType) {
+    const shader = gl.createShader(shaderType)
+    gl.shaderSource(shader, shaderSource)
+    gl.compileShader(shader)
+    return shader
   }
 
   /** Creates a webgl program
    *
-   * @param {object} gl - webgl context 
-   * @param {object} vertexShader - vertex shader 
+   * @param {object} gl - webgl context
+   * @param {object} vertexShader - vertex shader
    * @param {object} fragmentShader - fragment shader
    * @returns {object} webgl program
    * @private
    */
-  _createProgram(gl, vertexShader, fragmentShader) {
-    const program = gl.createProgram();
-    gl.attachShader(program, vertexShader);
-    gl.attachShader(program, fragmentShader);
-    gl.linkProgram(program);
-    return program;
+  _createProgram (gl, vertexShader, fragmentShader) {
+    const program = gl.createProgram()
+    gl.attachShader(program, vertexShader)
+    gl.attachShader(program, fragmentShader)
+    gl.linkProgram(program)
+    return program
   }
 
   /** Renders the image
    *
    * @param {number[]} pixelData - image array
    * @param {number} bitsAllocated - image bits per pixel
-   * @param {number} width - horizontal dimension of the image 
-   * @param {number} height - vertical dimension of the image 
+   * @param {number} width - horizontal dimension of the image
+   * @param {number} height - vertical dimension of the image
    * @param {number[]} color - rgb color
    * @param {number} opacity - opacity
    * @param {number[]} thresholdValues - clipping values
@@ -767,55 +766,69 @@ constructor(){
    * @returns {object} canvas
    * @private
    */
-  _render(pixelData, bitsAllocated, width, height, color, opacity, thresholdValues) {
+  _render (pixelData, bitsAllocated, width, height, color, opacity, thresholdValues) {
     // Resize the canvas
-    this.renderCanvas.width = width;
-    this.renderCanvas.height = height;
-  
+    this.renderCanvas.width = width
+    this.renderCanvas.height = height
+
     // Render the current image
-    const shader = this._getShaderProgram(pixelData);
-    const texture = this._generateTexture(pixelData, width, height);
-  
+    const shader = this._getShaderProgram(pixelData)
+    const texture = this._generateTexture(pixelData, width, height)
+
     // Setup color function
-    let max;
+    let max
     if (bitsAllocated === 8) {
-      max = 257;
+      max = 257
     } else if (bitsAllocated === 16) {
-      max = 65793;
+      max = 65793
     } else {
       throw new Error(
         'The pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
-      );
+      )
     }
-    const convertFactor = max / 255.;
-    const clippingRange = [...thresholdValues];
-    clippingRange[0] = Math.round(clippingRange[0] * convertFactor);
-    clippingRange[1] = Math.round(clippingRange[1] * convertFactor);
-    const colorFunctionRange = [0, max];
-  
-    const windowCenter = (colorFunctionRange[0] + colorFunctionRange[1]) * 0.5;
-    const windowWidth = colorFunctionRange[1] - colorFunctionRange[0];
-  
+    const convertFactor = max / 255.0
+    const clippingRange = [...thresholdValues]
+    clippingRange[0] = Math.round(clippingRange[0] * convertFactor)
+    clippingRange[1] = Math.round(clippingRange[1] * convertFactor)
+    const colorFunctionRange = [0, max]
+
+    const windowCenter = (colorFunctionRange[0] + colorFunctionRange[1]) * 0.5
+    const windowWidth = colorFunctionRange[1] - colorFunctionRange[0]
+
     const parameters = {
-      u_resolution: { type: '2f',
-        value: [width, height] },
-      wc: { type: 'f',
-        value: windowCenter },
-      ww: { type: 'f',
-        value: windowWidth },
-      minT: { type: 'f',
-        value: clippingRange[0] },
-      maxT: { type: 'f',
-        value: clippingRange[1] },
-      opacity: { type: 'f',
-        value: opacity },
-      color: { type: '3f',
-        value: color },
-    };
-  
-    this._renderQuad(shader, parameters, texture.texture, width, height);
-  
-    return this.renderCanvas;
+      u_resolution: {
+        type: '2f',
+        value: [width, height]
+      },
+      wc: {
+        type: 'f',
+        value: windowCenter
+      },
+      ww: {
+        type: 'f',
+        value: windowWidth
+      },
+      minT: {
+        type: 'f',
+        value: clippingRange[0]
+      },
+      maxT: {
+        type: 'f',
+        value: clippingRange[1]
+      },
+      opacity: {
+        type: 'f',
+        value: opacity
+      },
+      color: {
+        type: '3f',
+        value: color
+      }
+    }
+
+    this._renderQuad(shader, parameters, texture.texture, width, height)
+
+    return this.renderCanvas
   }
 
   /** Gets shader
@@ -824,61 +837,61 @@ constructor(){
    * @returns {object} shaders
    * @private
    */
-  _getShaderProgram(pixelData) {
-    const datatype = this._getImageDataType(pixelData);
-    if (this.shaders.hasOwnProperty(datatype)) {
-      return this.shaders[datatype];
+  _getShaderProgram (pixelData) {
+    const datatype = this._getImageDataType(pixelData)
+    if (this.shaders.hasOwnProperty(datatype)) {// eslint-disable-line
+      return this.shaders[datatype]
     }
-  
-    return this.shaders.rgb;
+
+    return this.shaders.rgb
   }
 
   /** Generates texture
    *
    * @param {number[]} pixelData - image array
-   * @param {number} width - horizontal dimension of the image 
-   * @param {number} height - vertical dimension of the image 
+   * @param {number} width - horizontal dimension of the image
+   * @param {number} height - vertical dimension of the image
    * @returns {object} texture, {number} size in bytes
    * @private
    */
-  _generateTexture(pixelData, width, height) {
+  _generateTexture (pixelData, width, height) {
     const TEXTURE_FORMAT = {
       uint8: this.gl.LUMINANCE,
       int8: this.gl.LUMINANCE_ALPHA,
       uint16: this.gl.LUMINANCE_ALPHA,
-      int16: this.gl.RGB,
-    };
-  
+      int16: this.gl.RGB
+    }
+
     const TEXTURE_BYTES = {
       int8: 1, // Luminance
       uint16: 2, // Luminance + Alpha
-      int16: 3, // RGB
-    };
-  
-    const imageDataType = this._getImageDataType(pixelData);
-    const format = TEXTURE_FORMAT[imageDataType];
-  
+      int16: 3 // RGB
+    }
+
+    const imageDataType = this._getImageDataType(pixelData)
+    const format = TEXTURE_FORMAT[imageDataType]
+
     // GL texture configuration
-    const texture = this.gl.createTexture();
-    this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
-  
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-    this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1);
-  
-    const imageData = this.dataUtilities[imageDataType].storedPixelDataToPackedData(pixelData, width, height);
-  
-    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, format, width, height, 0, format, this.gl.UNSIGNED_BYTE, imageData);
-  
+    const texture = this.gl.createTexture()
+    this.gl.bindTexture(this.gl.TEXTURE_2D, texture)
+
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE)
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE)
+    this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1)
+
+    const imageData = this.dataUtilities[imageDataType].storedPixelDataToPackedData(pixelData, width, height)
+
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, format, width, height, 0, format, this.gl.UNSIGNED_BYTE, imageData)
+
     // Calculate the size in bytes of this image in memory
-    const sizeInBytes = width * height * TEXTURE_BYTES[imageDataType];
-  
+    const sizeInBytes = width * height * TEXTURE_BYTES[imageDataType]
+
     return {
       texture,
       sizeInBytes
-    };
+    }
   }
 
   /** Returns the image type
@@ -887,16 +900,16 @@ constructor(){
    * @returns {string} image type
    * @private
    */
-  _getImageDataType(pixelData) {
+  _getImageDataType (pixelData) {
     if (pixelData instanceof Int16Array) {
-      return 'int16';
+      return 'int16'
     } else if (pixelData instanceof Uint16Array) {
-      return 'uint16';
+      return 'uint16'
     } else if (pixelData instanceof Int8Array) {
-      return 'int8';
+      return 'int8'
     }
-  
-    return 'uint8';
+
+    return 'uint8'
   }
 
   /** Renders the image
@@ -904,54 +917,54 @@ constructor(){
    * @param {object} shader
    * @param {object} parameters - shader input parameters
    * @param {object} texture
-   * @param {number} width - horizontal dimension of the image 
-   * @param {number} height - vertical dimension of the image 
+   * @param {number} width - horizontal dimension of the image
+   * @param {number} height - vertical dimension of the image
    * @private
    */
-  _renderQuad(shader, parameters, texture, width, height) {
-    this.gl.clearColor(1.0, 0.0, 0.0, 1.0);
-    this.gl.viewport(0, 0, width, height);
-  
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
-    this.gl.useProgram(shader.program);
-  
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.texCoordBuffer);
-    this.gl.vertexAttribPointer(shader.attributes.texCoordLocation, 2, this.gl.FLOAT, false, 0, 0);
-  
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
-    this.gl.vertexAttribPointer(shader.attributes.positionLocation, 2, this.gl.FLOAT, false, 0, 0);
-  
+  _renderQuad (shader, parameters, texture, width, height) {
+    this.gl.clearColor(1.0, 0.0, 0.0, 1.0)
+    this.gl.viewport(0, 0, width, height)
+
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT)
+    this.gl.useProgram(shader.program)
+
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.texCoordBuffer)
+    this.gl.vertexAttribPointer(shader.attributes.texCoordLocation, 2, this.gl.FLOAT, false, 0, 0)
+
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer)
+    this.gl.vertexAttribPointer(shader.attributes.positionLocation, 2, this.gl.FLOAT, false, 0, 0)
+
     for (const key in parameters) {
-      const uniformLocation = this.gl.getUniformLocation(shader.program, key);
-      const uniform = parameters[key];
-  
-      const type = uniform.type;
-      const value = uniform.value;
-  
+      const uniformLocation = this.gl.getUniformLocation(shader.program, key)
+      const uniform = parameters[key]
+
+      const type = uniform.type
+      const value = uniform.value
+
       if (type === 'i') {
-        this.gl.uniform1i(uniformLocation, value);
+        this.gl.uniform1i(uniformLocation, value)
       } else if (type === 'f') {
-        this.gl.uniform1f(uniformLocation, value);
+        this.gl.uniform1f(uniformLocation, value)
       } else if (type === '2f') {
-        this.gl.uniform2f(uniformLocation, value[0], value[1]);
+        this.gl.uniform2f(uniformLocation, value[0], value[1])
       } else if (type === '3f') {
-        this.gl.uniform3f(uniformLocation, value[0], value[1], value[2]);
+        this.gl.uniform3f(uniformLocation, value[0], value[1], value[2])
       }
     }
-  
+
     this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([
       width, height,
       0, height,
       width, 0,
-      0, 0]), this.gl.STATIC_DRAW);
-  
-    this.gl.activeTexture(this.gl.TEXTURE0);
-  
-    this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
-    this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+      0, 0]), this.gl.STATIC_DRAW)
+
+    this.gl.activeTexture(this.gl.TEXTURE0)
+
+    this.gl.bindTexture(this.gl.TEXTURE_2D, texture)
+    this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4)
   }
 }
 
 export {
-  RenderingEngine,
-};
+  RenderingEngine
+}
