@@ -1,11 +1,24 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.23.0",
+  "version": "0.23.1",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "./src/dicom-microscopy-viewer.js",
+  "standard": {
+    "ignore": [
+      "/build/*",
+      "/docs/*",
+      "/examples/simple_viewer/scripts/metadata.js",
+      "/examples/simple_viewer/scripts/dicomdict.js",
+      "/src/annotations/_AnnotationManager.test.js",
+      "/src/annotations/markups/_MarkupManager.test.js",
+      "/src/dictionary.js",
+      "/src/__mocks__/*",
+      "/test/*"
+    ]
+  },
   "scripts": {
     "test:unit": "jest",
-    "test": "npm run build && mochify",
+    "test": "npm run build && standard && mochify",
     "webdriver": "mochify --wd",
     "start": "rollup -c -w",
     "build": "rollup -c",
@@ -53,7 +66,8 @@
     "dcmjs": "^0.18.2",
     "dicomweb-client": "^0.5.2",
     "mathjs": "^7.1",
-    "ol": "^6.5"
+    "ol": "^6.5",
+    "image-type": "^4.1.0"
   },
   "config": {
     "puppeteer_skip_chromium_download": false
