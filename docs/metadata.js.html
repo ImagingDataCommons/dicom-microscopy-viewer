@@ -134,7 +134,10 @@ function formatMetadata(metadata) {
   // The top level (lowest resolution) image may be a single frame image in
   // which case the "NumberOfFrames" attribute is optional. We include it for
   // consistency.
-  if (!('NumberOfFrames' in dataset)) {
+  if (dataset === undefined) {
+    throw new Error('Could not format metadata: ', metadata)
+  }
+  if (!('NumberOfFrames' in dataset) &amp;&amp; (dataset.Modality === 'SM')) {
     dataset.NumberOfFrames = 1;
   }
 
@@ -142,7 +145,8 @@ function formatMetadata(metadata) {
 }
 
 
-/** DICOM VL Whole Slide Microscopy Image instance.
+/** DICOM VL Whole Slide Microscopy Image instance
+ * (without Pixel Data or any other bulk data).
  *
  * @class
  * @memberof metadata
@@ -154,20 +158,48 @@ class VLWholeSlideMicroscopyImage {
      * @params {Object} options.metadata - Metadata in DICOM JSON format
      */
     constructor(options) {
-      const sopClassUID = options.metadata['00080016']['Value'][0];
-      if (sopClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
+      const dataset = formatMetadata(options.metadata);
+      if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
         throw new Error(
           'Cannot construct VL Whole Slide Microscopy Image instance ' +
-          `given dataset with SOP Class UID "${sopClassUID}"`
+          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
         );
       }
 
-      const dataset = formatMetadata(options.metadata);
       Object.assign(this, dataset);
     }
 }
 
-export { VLWholeSlideMicroscopyImage, formatMetadata, getFrameMapping };
+/** DICOM Comprehensive 3D SR instance.
+ *
+ * @class
+ * @memberof metadata
+ */
+class Comprehensive3DSR {
+
+    /**
+     * @params {Object} options
+     * @params {Object} options.metadata - Metadata in DICOM JSON format
+     */
+    constructor(options) {
+      const dataset = formatMetadata(options.metadata);
+      if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.88.34') {
+        throw new Error(
+          'Cannot construct Comprehensive 3D SR instance ' +
+          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+        );
+      }
+
+      Object.assign(this, dataset);
+    }
+}
+
+export {
+  Comprehensive3DSR,
+  formatMetadata,
+  getFrameMapping,
+  VLWholeSlideMicroscopyImage,
+};
 </code></pre>
         </article>
     </section>
@@ -178,13 +210,13 @@ export { VLWholeSlideMicroscopyImage, formatMetadata, getFrameMapping };
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Sun Nov 29 2020 13:38:48 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed May 05 2021 11:47:39 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

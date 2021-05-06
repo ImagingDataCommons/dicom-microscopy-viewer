@@ -153,4 +153,8 @@ The developers gratefully acknowledge their reseach support:
 * The [National Center for Image Guided Therapy](http://ncigt.org)
 * The [MGH & BWH Center for Clinical Data Science](https://www.ccds.io/)
 
-
+## Troubleshooting
+### Overview map not responsive: 
+Some interactions could cause side effects on the viewer's instance of OverviewMap since it also uses the same interactions in the map.
+If you enable the 'draw' interaction, the overview map will lost its ability to instantly update
+the map when changed.

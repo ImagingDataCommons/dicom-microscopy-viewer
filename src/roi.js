@@ -1,12 +1,12 @@
-import { generateUID } from './utils.js';
+import { generateUID } from "./utils.js";
+import Enums from "./enums";
 
-const _uid = Symbol('uid');
-const _scoord3d = Symbol('scoord3d');
-const _properties = Symbol('properties');
+const _uid = Symbol("uid");
+const _scoord3d = Symbol("scoord3d");
+const _properties = Symbol("properties");
 
-const _name = Symbol('name');
-const _value = Symbol('value');
-
+const _name = Symbol("name");
+const _value = Symbol("value");
 
 /** A region of interest (ROI)
  *
@@ -14,7 +14,6 @@ const _value = Symbol('value');
  * @memberof roi
  */
 class ROI {
-
   /* Creates a new ROI object.
    *
    * @param {Object} options - Options for construction of ROI
@@ -23,36 +22,36 @@ class ROI {
    * @param {Object} options.properties - Properties (name-value pairs)
    */
   constructor(options) {
-    if (!('scoord3d' in options)) {
-      throw new Error('spatial coordinates are required for ROI')
+    if (!("scoord3d" in options)) {
+      throw new Error("spatial coordinates are required for ROI");
     }
-    if (!(typeof(options.scoord3d) === 'object' || options.scoord3d !== null)) {
-      throw new Error('scoord3d of ROI must be a Scoord3D object')
+    if (!(typeof options.scoord3d === "object" || options.scoord3d !== null)) {
+      throw new Error("scoord3d of ROI must be a Scoord3D object");
     }
-    if (!('uid' in options)) {
+    if (!("uid" in options)) {
       this[_uid] = generateUID();
     } else {
-      if (!(typeof(options.uid) === 'string' || options.uid instanceof String)) {
-        throw new Error('uid of ROI must be a string')
+      if (!(typeof options.uid === "string" || options.uid instanceof String)) {
+        throw new Error("uid of ROI must be a string");
       }
       this[_uid] = options.uid;
     }
     this[_scoord3d] = options.scoord3d;
-    if ('properties' in options) {
-      if (!(typeof(options.properties) === 'object')) {
-        throw new Error('properties of ROI must be an object')
+    if ("properties" in options) {
+      if (!(typeof options.properties === "object")) {
+        throw new Error("properties of ROI must be an object");
       }
       this[_properties] = options.properties;
       if (this[_properties].evaluations === undefined) {
-        this[_properties]['evaluations'] = []
+        this[_properties][Enums.InternalProperties.Evaluations] = [];
       }
       if (this[_properties].measurements === undefined) {
-        this[_properties]['measurements'] = []
+        this[_properties][Enums.InternalProperties.Measurements] = [];
       }
     } else {
       this[_properties] = {};
-      this[_properties]['evaluations'] = []
-      this[_properties]['measurements'] = []
+      this[_properties][Enums.InternalProperties.Evaluations] = [];
+      this[_properties][Enums.InternalProperties.Measurements] = [];
     }
   }
 
@@ -101,7 +100,7 @@ class ROI {
    * @params {Object} item - NUM content item representing a measurement
    */
   addMeasurement(item) {
-    this[_properties]['measurements'].push(item);
+    this[_properties][Enums.InternalProperties.Measurements].push(item);
   }
 
   /** Adds a qualitative evaluation.
@@ -109,9 +108,8 @@ class ROI {
    * @params {Object} item - CODE content item representing a qualitative evaluation
    */
   addEvaluation(item) {
-    this[_properties]['evaluations'].push(item);
+    this[_properties][Enums.InternalProperties.Evaluations].push(item);
   }
-
 }
 
 export { ROI };
