@@ -3,20 +3,11 @@ import { RenderingEngine } from './renderingEngine.js';
 import {
     arraysEqual,
   } from './utils.js';
+  import {
+    getPixelSpacing,
+  } from "./scoord3dUtils";
 import TileImage from 'ol/source/TileImage';
 import TileLayer from 'ol/layer/Tile';
-
-/** Extracts value of Pixel Spacing attribute from metadata.
- *
- * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
- * @returns {number[]} PixelSpacing - Spacing between pixel columns and rows in millimeter
- * @private
- */
- function _getPixelSpacing(metadata) {
-    const functionalGroup = metadata.SharedFunctionalGroupsSequence[0];
-    const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
-    return pixelMeasures.PixelSpacing;
-  }
 
 /** BlendingInformation for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
@@ -504,7 +495,7 @@ class _Channel {
     const imageOrigins = [];
     const imagePixelSpacings = [];
     const offset = [0, -1];
-    const basePixelSpacing = _getPixelSpacing(image.pyramidBaseMetadata);
+    const basePixelSpacing = getPixelSpacing(image.pyramidBaseMetadata);
     const baseTotalPixelMatrixColumns = image.pyramidBaseMetadata.TotalPixelMatrixColumns;
     const baseTotalPixelMatrixRows = image.pyramidBaseMetadata.TotalPixelMatrixRows;
     const baseColumns = image.pyramidBaseMetadata.Columns;
@@ -516,7 +507,7 @@ class _Channel {
       const rows = image.pyramidMetadata[j].Rows;
       const totalPixelMatrixColumns = image.pyramidMetadata[j].TotalPixelMatrixColumns;
       const totalPixelMatrixRows = image.pyramidMetadata[j].TotalPixelMatrixRows;
-      const pixelSpacing = _getPixelSpacing(image.pyramidMetadata[j]);
+      const pixelSpacing = getPixelSpacing(image.pyramidMetadata[j]);
       const nColumns = Math.ceil(totalPixelMatrixColumns / columns);
       const nRows = Math.ceil(totalPixelMatrixRows / rows);
       imageTileSizes.push([

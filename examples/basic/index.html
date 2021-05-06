@@ -24,7 +24,8 @@
     <script src="https://unpkg.com/dicom-microscopy-viewer"></script>
     <!-- enable for testing locally
     <script src="../../node_modules/dicomweb-client/build/dicomweb-client.js"></script>
-    <script src="../../build/dicom-microscopy-viewer.js"></script>!-->
+    <script src="../../build/dicom-microscopy-viewer.js"></script>
+    !-->
     <script>
     const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
     const client = new DICOMwebClient.api.DICOMwebClient({url});
@@ -59,7 +60,7 @@
       const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
         client,
         metadata,
-        controls: ['fullscreen', 'overview'],
+        controls: ['fullscreen', 'overview', 'zoom'],
         retrieveRendered: true
       });
 

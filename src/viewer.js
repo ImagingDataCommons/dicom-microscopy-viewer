@@ -673,7 +673,7 @@ class VolumeImageViewer {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
           * has meter unit.
           */
-        const spacing = _getPixelSpacing(image.pyramidMetadata[image.pyramidMetadata.length - 1])[0] / 10 ** 3;
+        const spacing = getPixelSpacing(image.pyramidMetadata[image.pyramidMetadata.length - 1])[0] / 10 ** 3;
         return pixelRes * spacing;
       }
     });
@@ -783,7 +783,7 @@ class VolumeImageViewer {
     }
 
     if (this[_options].controls.has('overview')) {
-      const overviewTileLayer = new TileLayer({
+      const overviewImageLayer = new TileLayer({
         extent: this[_referenceExtents],
         source: rasterSourceOverview,
         projection: this[_projection],
@@ -793,7 +793,6 @@ class VolumeImageViewer {
       const overviewView = new View({
         projection: this[_projection],
         rotation: this[_rotation],
-        /** resolutions: this[_tileGrid].getResolutions(), with this property the zoom doesn't work */
         zoom: 28 /** Default max zoom */
       });
 
@@ -802,11 +801,13 @@ class VolumeImageViewer {
         layers: [overviewImageLayer],
         collapsed: this[_options].overview.hasOwnProperty("collapsed")
           ? this[_options].overview.collapsed
-          : false,
+          : true,
         collapsible: this[_options].overview.hasOwnProperty("collapsible")
           ? this[_options].overview.collapsible
-          : false,
+          : true,
       });
+
+      this[_controls].overview = this[_overviewMap];
     }
 
     // Creates the map with the defined layers and view and renders it.
@@ -1236,10 +1237,7 @@ class VolumeImageViewer {
       throw new Error('OpticalPath ' + opticalPathIdentifier + ' already activated');
     }
 
-    // _drawingLayer has to be the last layer 
-    this[_map].removeLayer(this[_drawingLayer])
-    this[_map].addLayer(channel.tileLayer)
-    this[_map].addLayer(this[_drawingLayer])
+    this[_map].getLayers().insertAt(0, channel.tileLayer);
   }
 
   /** Removes the channel to the OpenLayer Map given an id
