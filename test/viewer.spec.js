@@ -107,12 +107,10 @@ describe('dmv.viewer.VolumeImageViewer', ()=> {
         it('should add property to ROI upon construction', () => {
           const roi = new dmv.roi.ROI({
             scoord3d : point,
-            properties : { foo: 'bar' }
           });
           assert.deepEqual(
             roi.properties,
             {
-              foo: 'bar',
               measurements: [],
               evaluations: [],
             }
@@ -292,7 +290,6 @@ describe('dmv.viewer.VolumeImageViewer', ()=> {
         it('should create a Box ROI and return it back successfuly', () => {
           const roi = new dmv.roi.ROI({
             scoord3d : box,
-            properties : { 'foo': 'bar' }
           });
           viewer.addROI(roi);
           const measurement = {
@@ -333,7 +330,6 @@ describe('dmv.viewer.VolumeImageViewer', ()=> {
           assert.deepEqual(
             viewer.getROI(roi.uid).properties,
             {
-              'foo': 'bar',
               'measurements': [measurement],
               'evaluations': [evaluation],
             }
