@@ -293,9 +293,9 @@ function coordinateFormatGeometry2Scoord3d(coordinates, pyramid) {
 /**
  * Converts openlayers geometry coordinates into scoord3d coordinates.
  *
- * @param {array} coordinates array of coordinates
- * @param {object} pyramid metadata pyramid
- * @returns
+ * @param {array} coordinates - Array of Openlayers map coordinates
+ * @param {object} pyramid - Metadata of images in the pyramid
+ * @returns {array} Array of slide coordinates
  * @private
  */
 function geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
@@ -308,9 +308,9 @@ function geometryCoordinates2scoord3dCoordinates(coordinates, pyramid) {
 /**
  * Converts scoord3d coordinates into openlayers geometry coordinates.
  *
- * @param {array} coordinates array of coordinates
- * @param {object} pyramid metadata pyramid
- * @returns
+ * @param {array} coordinates - Array of slide coordinates
+ * @param {object} pyramid - Metadata of images in the pyramid
+ * @returns {array} Array of Openlayers map coordinates
  * @private
  */
 function scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
@@ -325,8 +325,8 @@ function scoord3dCoordinates2geometryCoordinates(coordinates, pyramid) {
  * Return absolute value of half the sum.
  * (The value is halved as we are summing up triangles, not rectangles)
  *
- * @param {array} coordinates
- * @returns {number} area
+ * @param {array} coordinates - Array of slide coordinates
+ * @returns {number} Area
  * @private
  */
 function areaOfPolygon(coordinates) {
@@ -347,9 +347,9 @@ function areaOfPolygon(coordinates) {
 /**
  * Get feature's geometry scoord3d length
  *
- * @param {Feature} feature feature
- * @param {object} pyramid metadata pyramid
- * @returns {number} length
+ * @param {Feature} feature - Openlayers feature
+ * @param {object} pyramid - Metadata of images in the pyramid
+ * @returns {number} Length
  * @private
  */
 function getFeatureScoord3dLength(feature, pyramid) {
@@ -376,9 +376,9 @@ function getFeatureScoord3dLength(feature, pyramid) {
 /**
  * Get feature's geometry scoord3d area
  *
- * @param {Feature} feature feature
- * @param {object} pyramid metadata pyramid
- * @returns {number} area
+ * @param {Feature} feature - Openlayers feature
+ * @param {object} pyramid - Metadata of images in the pyramid
+ * @returns {number} Area
  * @private
  */
 function getFeatureScoord3dArea(feature, pyramid) {
