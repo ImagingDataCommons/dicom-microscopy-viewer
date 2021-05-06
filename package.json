@@ -25,7 +25,10 @@
     "prepublishOnly": "npm run build",
     "watch": "rollup -c -w",
     "generateStaticSite": "npm run build && cp -R ./build ./examples",
-    "generateDocs": "jsdoc -c ./jsdoc_conf.json"
+    "generateDocs": "jsdoc -c ./jsdoc_conf.json",
+    "fmt": "standard 'src/*.js' --fix",
+    "lint": "standard 'src/*.js'",
+    "clean": "rm -rf ./build"
   },
   "repository": {
     "type": "git",
@@ -57,7 +60,7 @@
     "rollup-plugin-node-builtins": "2.1.2",
     "rollup-plugin-node-resolve": "3.4.0",
     "rollup-plugin-postcss": "2.9.0",
-    "standard": "*"
+    "standard": "^16.0.3"
   },
   "dependencies": {
     "dcmjs": "^0.18.2",
@@ -65,5 +68,8 @@
     "mathjs": "^7.1",
     "ol": "^6.5",
     "image-type": "^4.1.0"
+  },
+  "config": {
+    "puppeteer_skip_chromium_download": false
   }
 }

@@ -150,40 +150,47 @@ describe('dmv.viewer.VolumeImageViewer', () => {
       assert.deepEqual(roi.evaluations, [evaluation])
     })
 
-    it('should add evaluation to ROI after construction', () => {
+    it('should add property to ROI upon construction', () => {
+      const roi = new dmv.roi.ROI({
+        scoord3d : point,
+      });
+      assert.deepEqual(
+        roi.properties,
+        {
+          measurements: [],
+          evaluations: [],
+        }
+      );
+      assert.deepEqual(roi.measurements, [])
+      assert.deepEqual(roi.evaluations, [])
+    })
+    it('should add evaluation to ROI upon construction', () => {
       const evaluation = {
         ConceptNameCodeSequence: [{
           CodeValue: '121071',
           CodeMeaning: 'Finding',
-          CodingSchemeDesignator: 'DCM'
+          CodingSchemeDesignator: 'DCM',
         }],
         ConceptCodeSequence: [{
           CodeValue: '108369006',
           CodingSchemeDesignator: 'SCT',
           CodeMeaning: 'Tumor'
         }],
-        ValueType: 'CODE'
+        ValueType: 'CODE',
       }
       const roi = new dmv.roi.ROI({
-        scoord3d: point
-      })
+        scoord3d : point,
+        properties : {
+          'evaluations': [evaluation]
+        }
+      });
       assert.deepEqual(
         roi.properties,
         {
-          measurements: [],
-          evaluations: []
+          'measurements': [],
+          'evaluations': [evaluation]
         }
-      )
-      assert.deepEqual(roi.measurements, [])
-      assert.deepEqual(roi.evaluations, [])
-      roi.addEvaluation(evaluation)
-      assert.deepEqual(
-        roi.properties,
-        {
-          measurements: [],
-          evaluations: [evaluation]
-        }
-      )
+      );
       assert.deepEqual(roi.measurements, [])
       assert.deepEqual(roi.evaluations, [evaluation])
     })
@@ -289,61 +296,59 @@ describe('dmv.viewer.VolumeImageViewer', () => {
 
     it('should create a Box ROI and return it back successfuly', () => {
       const roi = new dmv.roi.ROI({
-        scoord3d: box,
-        properties: { foo: 'bar' }
-      })
-      viewer.addROI(roi)
+        scoord3d : box,
+      });
+      viewer.addROI(roi);
       const measurement = {
         ConceptNameCodeSequence: [{
           CodeValue: '410668003',
           CodeMeaning: 'Length',
-          CodingSchemeDesignator: 'DCM'
+          CodingSchemeDesignator: 'DCM',
         }],
         MeasuredValueSequence: [{
           MeasurementUnitsCodeSequence: [{
             CodeValue: 'mm',
             CodeMeaning: 'millimeter',
-            CodingSchemeDesignator: 'UCUM'
+            CodingSchemeDesignator: 'UCUM',
           }],
           NumericValue: 5
         }],
-        ValueType: 'CODE'
+        ValueType: 'CODE',
       }
       viewer.addROIMeasurement(roi.uid, measurement)
       const evaluation = {
         ConceptNameCodeSequence: [{
           CodeValue: '121071',
           CodeMeaning: 'Finding',
-          CodingSchemeDesignator: 'DCM'
+          CodingSchemeDesignator: 'DCM',
         }],
         ConceptCodeSequence: [{
           CodeValue: '108369006',
           CodingSchemeDesignator: 'SCT',
           CodeMeaning: 'Tumor'
         }],
-        ValueType: 'CODE'
+        ValueType: 'CODE',
       }
       viewer.addROIEvaluation(roi.uid, evaluation)
       assert.deepEqual(
         viewer.getROI(roi.uid).scoord3d.graphicData,
         box.graphicData
-      )
+      );
       assert.deepEqual(
         viewer.getROI(roi.uid).properties,
         {
-          foo: 'bar',
-          measurements: [measurement],
-          evaluations: [evaluation]
+          'measurements': [measurement],
+          'evaluations': [evaluation],
         }
-      )
+      );
       assert.deepEqual(
         viewer.getROI(roi.uid).measurements,
         [measurement]
-      )
+      );
       assert.deepEqual(
         viewer.getROI(roi.uid).evaluations,
         [evaluation]
-      )
+      );
     })
 
     it('should create a Polygon ROI and return it back successfuly', () => {

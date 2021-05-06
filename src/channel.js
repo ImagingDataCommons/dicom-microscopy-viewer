@@ -641,7 +641,7 @@ class _Channel {
     // retrieve all the cached tiles from the raster source and reapply the offscreen render
     let mapRerender = false
     for (const [key, value] of Object.entries(this.rasterSource.tileCache.entries_)) {
-      console.log("updating rendering for tile :", key)
+      console.log('updating rendering for tile : ', key)
       const tile = value.value_
       const z = tile.tileCoord[0] // integer
       const y = tile.tileCoord[1]
