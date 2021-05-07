@@ -26,12 +26,12 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>import Fill from "ol/style/Fill";
-import Stroke from "ol/style/Stroke";
-import Style from "ol/style/Style";
-import Circle from "ol/style/Circle";
+            <pre class="prettyprint source linenums"><code>import Fill from 'ol/style/Fill'
+import Stroke from 'ol/style/Stroke'
+import Style from 'ol/style/Style'
+import Circle from 'ol/style/Circle'
 
-import Enums from "../../enums";
+import Enums from '../../enums'
 
 /**
  * Format free text output.
@@ -40,7 +40,7 @@ import Enums from "../../enums";
  * @return {string} The formatted output
  */
 export const format = (feature) =>
-  feature.get(Enums.InternalProperties.Label) || "";
+  feature.get(Enums.InternalProperties.Label) || ''
 
 /**
  * Builds the text evaluation style.
@@ -50,24 +50,24 @@ export const format = (feature) =>
  */
 const _applyStyle = (feature) => {
   if (_hasMarker(feature)) {
-    return;
+    return
   }
 
   const style = new Style({
     image: new Circle({
       fill: new Fill({
-        color: "rgba(255,255,255,0.0)",
+        color: 'rgba(255,255,255,0.0)'
       }),
       stroke: new Stroke({
-        color: "rgba(255,255,255,0.0)",
-        width: 0,
+        color: 'rgba(255,255,255,0.0)',
+        width: 0
       }),
-      radius: 5,
-    }),
-  });
+      radius: 5
+    })
+  })
 
-  feature.setStyle(style);
-};
+  feature.setStyle(style)
+}
 
 /**
  * Checks if feature has text evaluation properties.
@@ -76,7 +76,7 @@ const _applyStyle = (feature) => {
  * @returns {boolean} true if feature has text evaluation properties
  */
 const _isTextEvaluation = (feature) =>
-  Enums.Markup.TextEvaluation === feature.get(Enums.InternalProperties.Markup);
+  Enums.Markup.TextEvaluation === feature.get(Enums.InternalProperties.Markup)
 
 /**
  * Checks if feature has marker properties.
@@ -84,7 +84,7 @@ const _isTextEvaluation = (feature) =>
  * @param {object} feature
  * @returns {boolean} true if feature has marker properties
  */
-const _hasMarker = (feature) => !!feature.get(Enums.InternalProperties.Marker);
+const _hasMarker = (feature) => !!feature.get(Enums.InternalProperties.Marker)
 
 /**
  * Handler to create markups based on feature properties
@@ -95,15 +95,15 @@ const _hasMarker = (feature) => !!feature.get(Enums.InternalProperties.Marker);
  * @returns {void}
  */
 const _onInteractionEventHandler = ({ feature, markupManager }) => {
-  const featureHasMarker = _hasMarker(feature);
+  const featureHasMarker = _hasMarker(feature)
   markupManager.create({
     feature,
     value: format(feature),
     isLinkable: featureHasMarker,
-    isDraggable: featureHasMarker,
-  });
-  _applyStyle(feature);
-};
+    isDraggable: featureHasMarker
+  })
+  _applyStyle(feature)
+}
 
 /**
  * Text evaluation markup definition.
@@ -115,50 +115,50 @@ const TextEvaluationMarkup = ({ markupManager }) => {
   return {
     onAdd: (feature) => {
       if (_isTextEvaluation(feature)) {
-        _onInteractionEventHandler({ feature, markupManager });
+        _onInteractionEventHandler({ feature, markupManager })
 
         /** Keep text style after external style changes */
         feature.on(
           Enums.FeatureEvents.PROPERTY_CHANGE,
           ({ key: property, target: feature }) => {
             if (property === Enums.InternalProperties.StyleOptions) {
-              _applyStyle(feature);
+              _applyStyle(feature)
             }
           }
-        );
+        )
       }
     },
     onFailure: (uid) => {
       if (uid) {
-        markupManager.remove(uid);
+        markupManager.remove(uid)
       }
     },
     onRemove: (feature) => {
       if (_isTextEvaluation(feature)) {
-        const featureId = feature.getId();
-        markupManager.remove(featureId);
+        const featureId = feature.getId()
+        markupManager.remove(featureId)
       }
     },
     onUpdate: (feature) => {
       if (_isTextEvaluation(feature)) {
-        markupManager.update({ feature, value: format(feature) });
+        markupManager.update({ feature, value: format(feature) })
       }
     },
     onDrawStart: ({ feature }) => {
       if (_isTextEvaluation(feature)) {
-        _onInteractionEventHandler({ feature, markupManager });
+        _onInteractionEventHandler({ feature, markupManager })
       }
     },
     onDrawEnd: ({ feature }) => {
       if (_isTextEvaluation(feature)) {
-        _onInteractionEventHandler({ feature, markupManager });
+        _onInteractionEventHandler({ feature, markupManager })
       }
     },
-    onDrawAbort: ({ feature }) => {},
-  };
-};
+    onDrawAbort: ({ feature }) => {}
+  }
+}
 
-export default TextEvaluationMarkup;
+export default TextEvaluationMarkup
 </code></pre>
         </article>
     </section>
@@ -169,13 +169,13 @@ export default TextEvaluationMarkup;
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#arraysEqual">arraysEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed May 05 2021 11:47:39 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Fri May 07 2021 13:33:10 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

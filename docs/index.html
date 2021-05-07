@@ -46,29 +46,24 @@
         <article><p><a href="https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer"><img src="https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer.svg?branch=master" alt="Build Status"></a></p>
 <h1>DICOM Microscopy Viewer</h1>
 <p>Vanilla JS library for web-based visualization of <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html">DICOM VL Whole Slide Microscopy Image</a> datasets.</p>
-<h2>Motivation and implementation</h2>
-<p>The library is intended to provide a lightweight and standard-compliant viewer for microscopy images in DICOM format.
-The viewer relies on <a href="http://openlayers.org/">Openlayers</a> for rendering pyramid images and dynamically retrieves pyramid tiles (image frames) via <a href="https://www.dicomstandard.org/dicomweb/retrieve-wado-rs-and-wado-uri/">DICOMweb WADO-RS</a> using <a href="https://github.com/mghcomputationalpathology/dicomweb-client">dicomweb-client</a>.
-However, the viewer API fully abstracts the underlying rendering library and doesn't expose the lower level Openlayers API directly, such that another rendering library could in principle be used in the future if this would be of advantage.</p>
+<p>The viewer allows visualization of slide microscopy images stored in a <a href="https://www.dicomstandard.org/dicomweb/">DICOMweb</a> compatible archive.
+It leverages the <a href="https://github.com/dcmjs-org/dicomweb-client">dicomweb-client</a> JavaScript library to retrieve data from the archive.</p>
+<h2>Features</h2>
+<ul>
+<li>Display of different image types: <code>VOLUME</code>, <code>OVERVIEW</code>, <code>LABEL</code></li>
+<li>Annotation of regions of interest (ROI) as vector graphics based on 3-dimensional spatial coordinates (SCOORD3D): <code>POINT</code>, <code>MULTIPOINT</code>, <code>POLYLINE</code>, <code>POLYGON</code>, <code>ELLIPSE</code>, <code>ELLIPSOID</code></li>
+<li>Assembly of concatenations</li>
+<li>Decoding of compressed pixel data, supporting baseline JPEG, JPEG 2000 and JPEG-LS codecs</li>
+<li>Additive blending and coloring of monochromatic images of multiple optical paths (channels), supporting highly-multiplexed immunofluorescence imaging</li>
+</ul>
 <h2>Live demo</h2>
 <p>Check out the online examples at <a href="https://microscopy.dcmjs.org/">microscopy.dcmjs.org</a>.</p>
-<h2>Installation</h2>
-<p>Install the <a href="https://www.npmjs.com/package/dicom-microscopy-viewer">dicom-microscopy-viewer</a> package using the <code>npm</code> package manager:</p>
-<pre class="prettyprint source lang-None"><code>npm install dicom-microscopy-viewer
-</code></pre>
-<h2>Building and testing</h2>
-<p>Build and test code locally:</p>
-<pre class="prettyprint source lang-None"><code>git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
-cd ~/dicom-microscopy-viewer
-npm install
-npm run build
-npm test
-</code></pre>
-<p>We use <a href="https://rollupjs.org/guide/en">rollup</a> for bundling and <a href="https://github.com/mantoni/mochify.js">mochify</a> for testing (based on <a href="https://mochajs.org/">mocha</a> and <a href="http://www.chaijs.com/">chai</a>).</p>
-<p>Build the documentation:</p>
-<pre class="prettyprint source lang-None"><code>npm run generateDocs
-</code></pre>
-<h2>Usage</h2>
+<h2>Documentation</h2>
+<p>The online Application Programming Interface (API) documentation is available at <a href="https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/">mghcomputationalpathology.github.io/dicom-microscopy-viewer</a>.</p>
+<h2>Getting started</h2>
+<p>Take a look at the examples in the <code>/examples</code> directory.
+They are also available online at <a href="https://microscopy.dcmjs.org/">microscopy.dcmjs.org</a>.</p>
+<h3>Basic usage</h3>
 <pre class="prettyprint source lang-html"><code>&lt;script type=&quot;text/javascript&quot; src=&quot;https://unpkg.com/dicom-microscopy-viewer&quot;>&lt;/script>
 </code></pre>
 <p>The viewer can be embedded in any website, one only needs to</p>
@@ -116,23 +111,6 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
   viewer.render({container: 'viewport'});
 });
 </code></pre>
-<h2>Status</h2>
-<p><strong>Investigational use only!</strong></p>
-<p>The viewer allows visualization of <em>VL Whole Slide Microscopy Image</em> datasets stored in a <a href="https://www.dicomstandard.org/dicomweb/">DICOMweb</a> compatible archive.
-It leverages the <a href="https://github.com/dcmjs-org/dicomweb-client">dicomweb-client</a> JavaScript library to retrieve data from the archive.</p>
-<h3>Features</h3>
-<ul>
-<li>Display of different image types: <code>VOLUME</code>, <code>OVERVIEW</code>, <code>LABEL</code></li>
-<li>Server-side rendering of images with inclusion of ICC profiles for color reproducibility</li>
-<li>Client-side assembly of concatenations</li>
-<li>Vector graphic annotation of regions of interest (ROI) based on 3-dimensional spatial coordinates (SCOORD3D): <code>POINT</code>, <code>MULTIPOINT</code>, <code>POLYLINE</code>, <code>POLYGON</code>, <code>ELLIPSE</code>, <code>ELLIPSOID</code></li>
-</ul>
-<h3>Limitations</h3>
-<p>Currently, the viewer only supports</p>
-<ul>
-<li>Brightfield illumination (no fluorescence)</li>
-<li>2D images (no z-stacks)</li>
-</ul>
 <h2>Citation</h2>
 <p>Please cite the following article when using the viewer for scientific studies: <a href="http://www.jpathinformatics.org/article.asp?issn=2153-3539;year=2018;volume=9;issue=1;spage=37;epage=37;aulast=Herrmann">Herrmann et al. J Path Inform. 2018</a>:</p>
 <pre class="prettyprint source lang-None"><code>@article{jpathinform-2018-9-37,
@@ -152,26 +130,33 @@ It leverages the <a href="https://github.com/dcmjs-org/dicomweb-client">dicomweb
 }
 
 </code></pre>
-<h2>Documentation</h2>
-<p>The online Application Programming Interface (API) documentation is available at <a href="https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/">mghcomputationalpathology.github.io/dicom-microscopy-viewer</a>.</p>
-<h2>Getting started</h2>
-<p>Take a look at the examples in the <code>/examples</code> directory.
-They are also available online at <a href="https://microscopy.dcmjs.org/">microscopy.dcmjs.org</a>.</p>
+<h2>Installation</h2>
+<p>Install the <a href="https://www.npmjs.com/package/dicom-microscopy-viewer">dicom-microscopy-viewer</a> package using the <code>npm</code> package manager:</p>
+<pre class="prettyprint source lang-None"><code>npm install dicom-microscopy-viewer
+</code></pre>
+<h2>Building and testing</h2>
+<p>Build and test code locally:</p>
+<pre class="prettyprint source lang-None"><code>git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
+cd ~/dicom-microscopy-viewer
+npm install
+npm run build
+npm test
+</code></pre>
+<p>We use <a href="https://rollupjs.org/guide/en">rollup</a> for bundling and <a href="https://github.com/mantoni/mochify.js">mochify</a> for testing (based on <a href="https://mochajs.org/">mocha</a> and <a href="http://www.chaijs.com/">chai</a>).</p>
+<p>Build the documentation:</p>
+<pre class="prettyprint source lang-None"><code>npm run generateDocs
+</code></pre>
 <h2>Support</h2>
 <p>The developers gratefully acknowledge their reseach support:</p>
 <ul>
-<li>Open Health Imaging Foundation (<a href="http://ohif.org">OHIF</a>)</li>
-<li>Quantitative Image Informatics for Cancer Research (<a href="http://qiicr.org">QIICR</a>)</li>
+<li><a href="http://ohif.org">Open Health Imaging Foundation (OHIF)</a></li>
+<li><a href="http://qiicr.org">Quantitative Image Informatics for Cancer Research (QIICR)</a></li>
 <li><a href="http://radiomics.io">Radiomics</a></li>
-<li>The <a href="http://nac.spl.harvard.edu">Neuroimage Analysis Center</a></li>
-<li>The <a href="http://ncigt.org">National Center for Image Guided Therapy</a></li>
-<li>The <a href="https://www.ccds.io/">MGH &amp; BWH Center for Clinical Data Science</a></li>
-</ul>
-<h2>Troubleshooting</h2>
-<h3>Overview map not responsive:</h3>
-<p>Some interactions could cause side effects on the viewer's instance of OverviewMap since it also uses the same interactions in the map.
-If you enable the 'draw' interaction, the overview map will lost its ability to instantly update
-the map when changed.</p></article>
+<li><a href="https://datacommons.cancer.gov/repository/imaging-data-commons">Imaging Data Commons (IDC)</a></li>
+<li><a href="http://nac.spl.harvard.edu">Neuroimage Analysis Center</a></li>
+<li><a href="http://ncigt.org">National Center for Image Guided Therapy</a></li>
+<li><a href="https://www.ccds.io/">MGH &amp; BWH Center for Clinical Data Science (CCDS)</a></li>
+</ul></article>
     </section>
 
 
@@ -182,13 +167,13 @@ the map when changed.</p></article>
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#arraysEqual">arraysEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed May 05 2021 11:47:39 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Fri May 07 2021 13:33:10 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

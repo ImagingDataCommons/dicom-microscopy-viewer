@@ -26,53 +26,53 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>import dcmjs from "dcmjs";
+            <pre class="prettyprint source linenums"><code>import dcmjs from 'dcmjs'
 
-import _MarkupManager from "./markups/_MarkupManager";
+import _MarkupManager from './markups/_MarkupManager'
 
 /** Enums */
-import Enums from "../enums";
+import Enums from '../enums'
 
 /** Markers */
-import ArrowMarker, { format as arrowFormat } from "./markers/arrow";
+import ArrowMarker, { format as arrowFormat } from './markers/arrow'
 
 /** Markups */
 import MeasurementMarkup, {
-  format as measurementFormat,
-} from "./markups/measurement";
+  format as measurementFormat
+} from './markups/measurement'
 import TextEvaluationMarkup, {
-  format as textFormat,
-} from "./markups/textEvaluation";
+  format as textFormat
+} from './markups/textEvaluation'
 
 /** Utils */
-import { areCodedConceptsEqual, getContentItemNameCodedConcept } from "../utils";
+import { areCodedConceptsEqual, getContentItemNameCodedConcept } from '../utils'
 
-const { Marker, Markup } = Enums;
+const { Marker, Markup } = Enums
 
 class _AnnotationManager {
-  constructor({ map, pyramid } = {}) {
+  constructor ({ map, pyramid } = {}) {
     const markupManager = new _MarkupManager({
       map,
       pyramid,
       formatters: {
         [Marker.Arrow]: arrowFormat,
         [Markup.Measurement]: measurementFormat,
-        [Markup.TextEvaluation]: textFormat,
-      },
-    });
+        [Markup.TextEvaluation]: textFormat
+      }
+    })
 
     this.props = {
       map,
       pyramid,
-      markupManager,
-    };
+      markupManager
+    }
 
     /** Markups */
-    this[Markup.Measurement] = MeasurementMarkup(this.props);
-    this[Markup.TextEvaluation] = TextEvaluationMarkup(this.props);
+    this[Markup.Measurement] = MeasurementMarkup(this.props)
+    this[Markup.TextEvaluation] = TextEvaluationMarkup(this.props)
 
     /** Markers */
-    this[Marker.Arrow] = ArrowMarker(this.props);
+    this[Marker.Arrow] = ArrowMarker(this.props)
   }
 
   /**
@@ -81,126 +81,126 @@ class _AnnotationManager {
    *
    * @param {Feature} feature The feature
    */
-  _addMeasurementsAndEvaluationsProperties(feature) {
-    const { measurements, evaluations } = feature.getProperties();
+  _addMeasurementsAndEvaluationsProperties (feature) {
+    const { measurements, evaluations } = feature.getProperties()
 
     if (measurements &amp;&amp; measurements.length) {
-      return measurements.some((measurement) => {
+      return measurements.some((measurement) => {// eslint-disable-line
         const SUPPORTED_MEASUREMENTS_CODED_CONCEPTS = [
           new dcmjs.sr.coding.CodedConcept({
-            meaning: "Area",
-            value: "42798000",
-            schemeDesignator: "SCT",
+            meaning: 'Area',
+            value: '42798000',
+            schemeDesignator: 'SCT'
           }),
           new dcmjs.sr.coding.CodedConcept({
-            meaning: "Length",
-            value: "410668003",
-            schemeDesignator: "SCT",
-          }),
-        ];
+            meaning: 'Length',
+            value: '410668003',
+            schemeDesignator: 'SCT'
+          })
+        ]
         const measurementCodedConcept = getContentItemNameCodedConcept(
           measurement
-        );
+        )
         if (
           SUPPORTED_MEASUREMENTS_CODED_CONCEPTS.some((codedConcept) =>
-          areCodedConceptsEqual(measurementCodedConcept, codedConcept)
+            areCodedConceptsEqual(measurementCodedConcept, codedConcept)
           )
         ) {
           feature.set(
             Enums.InternalProperties.Markup,
             Enums.Markup.Measurement
-          );
+          )
         }
-      });
+      })
     }
 
     if (evaluations &amp;&amp; evaluations.length) {
-      return evaluations.some((evaluation) => {
+      return evaluations.some((evaluation) => {// eslint-disable-line
         const SUPPORTED_EVALUATIONS_CODED_CONCEPTS = [
           new dcmjs.sr.coding.CodedConcept({
-            value: "112039",
-            meaning: "Tracking Identifier",
-            schemeDesignator: "DCM",
-          }),
-        ];
+            value: '112039',
+            meaning: 'Tracking Identifier',
+            schemeDesignator: 'DCM'
+          })
+        ]
         const evaluationCodedConcept = getContentItemNameCodedConcept(
           evaluation
-        );
+        )
         if (
           SUPPORTED_EVALUATIONS_CODED_CONCEPTS.some((codedConcept) =>
-          areCodedConceptsEqual(codedConcept, evaluationCodedConcept)
+            areCodedConceptsEqual(codedConcept, evaluationCodedConcept)
           )
         ) {
           feature.set(
             Enums.InternalProperties.Markup,
             Enums.Markup.TextEvaluation
-          );
+          )
         }
-      });
+      })
     }
   }
 
   /**
    * Sets annotations visibility.
-   * 
-   * @param {boolean} isVisible 
+   *
+   * @param {boolean} isVisible
    */
-  setVisible(isVisible) {
-    this.props.markupManager.setVisible(isVisible);
+  setVisible (isVisible) {
+    this.props.markupManager.setVisible(isVisible)
   }
 
-  onAdd(feature) {
+  onAdd (feature) {
     /**
      * Add properties to ROI feature before triggering
      * markup and markers callbacks to keep UI in sync.
      */
-    this._addMeasurementsAndEvaluationsProperties(feature);
+    this._addMeasurementsAndEvaluationsProperties(feature)
 
-    this[Marker.Arrow].onAdd(feature);
-    this[Markup.Measurement].onAdd(feature);
-    this[Markup.TextEvaluation].onAdd(feature);
+    this[Marker.Arrow].onAdd(feature)
+    this[Markup.Measurement].onAdd(feature)
+    this[Markup.TextEvaluation].onAdd(feature)
   }
 
-  onFailure(uid) {
-    this[Marker.Arrow].onFailure(uid);
-    this[Markup.Measurement].onFailure(uid);
-    this[Markup.TextEvaluation].onFailure(uid);
+  onFailure (uid) {
+    this[Marker.Arrow].onFailure(uid)
+    this[Markup.Measurement].onFailure(uid)
+    this[Markup.TextEvaluation].onFailure(uid)
   }
 
-  onRemove(feature) {
-    this[Marker.Arrow].onRemove(feature);
-    this[Markup.Measurement].onRemove(feature);
-    this[Markup.TextEvaluation].onRemove(feature);
+  onRemove (feature) {
+    this[Marker.Arrow].onRemove(feature)
+    this[Markup.Measurement].onRemove(feature)
+    this[Markup.TextEvaluation].onRemove(feature)
   }
 
-  onUpdate(feature) {
-    this[Marker.Arrow].onUpdate(feature);
-    this[Markup.Measurement].onUpdate(feature);
-    this[Markup.TextEvaluation].onUpdate(feature);
+  onUpdate (feature) {
+    this[Marker.Arrow].onUpdate(feature)
+    this[Markup.Measurement].onUpdate(feature)
+    this[Markup.TextEvaluation].onUpdate(feature)
   }
 
-  onDrawStart(event) {
-    this[Marker.Arrow].onDrawStart(event);
-    this[Markup.Measurement].onDrawStart(event);
-    this[Markup.TextEvaluation].onDrawStart(event);
+  onDrawStart (event) {
+    this[Marker.Arrow].onDrawStart(event)
+    this[Markup.Measurement].onDrawStart(event)
+    this[Markup.TextEvaluation].onDrawStart(event)
   }
 
-  onDrawEnd(event) {
-    this[Marker.Arrow].onDrawEnd(event);
-    this[Markup.Measurement].onDrawEnd(event);
-    this[Markup.TextEvaluation].onDrawEnd(event);
-    this.props.markupManager.onDrawEnd(event);
+  onDrawEnd (event) {
+    this[Marker.Arrow].onDrawEnd(event)
+    this[Markup.Measurement].onDrawEnd(event)
+    this[Markup.TextEvaluation].onDrawEnd(event)
+    this.props.markupManager.onDrawEnd(event)
   }
 
-  onDrawAbort(event) {
-    this[Marker.Arrow].onDrawAbort(event);
-    this[Markup.Measurement].onDrawAbort(event);
-    this[Markup.TextEvaluation].onDrawAbort(event);
-    this.props.markupManager.onDrawAbort(event);
+  onDrawAbort (event) {
+    this[Marker.Arrow].onDrawAbort(event)
+    this[Markup.Measurement].onDrawAbort(event)
+    this[Markup.TextEvaluation].onDrawAbort(event)
+    this.props.markupManager.onDrawAbort(event)
   }
 }
 
-export default _AnnotationManager;
+export default _AnnotationManager
 </code></pre>
         </article>
     </section>
@@ -211,13 +211,13 @@ export default _AnnotationManager;
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#arraysEqual">arraysEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed May 05 2021 11:47:39 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Fri May 07 2021 13:33:10 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>
