@@ -291,20 +291,20 @@
               seriesInstanceUID,
               sopInstanceUID,
             };
-    
+
             const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
               const image = DICOMMicroscopyViewer.metadata.formatMetadata(metadata[0]);
               if (image.ImageType[2] === "VOLUME") {
                 return(metadata[0]);
               }
             });
-    
+
             promises.push(promise);
           }
-    
+
           return(Promise.all(promises));
         }).then(metadata => {
-          
+
           const controls = [];
           try {
             const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
