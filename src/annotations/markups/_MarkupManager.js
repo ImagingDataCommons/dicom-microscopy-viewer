@@ -306,6 +306,13 @@ class _MarkupManager {
       if (marker) {
         marker.element.style.color = tooltipColor;
       }
+      /**
+       * This is necessary to resolve intermediary error:
+       * 'Two axis of Ellipse must have right angle'
+       * 
+       * TODO: Resolve core problem.
+       */
+      feature.changed();
     }
   }
 
