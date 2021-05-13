@@ -344,6 +344,18 @@ function areaOfPolygon (coordinates) {
 }
 
 /**
+ * Get next even number.
+ * 
+ * @param {number} value 
+ * @returns {number} next even number
+ */
+function roundToEven(value) {
+  return Number.isNaN(value)
+    ? 0.0
+    : 2 * Math.round(value / 2);
+}
+
+/**
  * Get feature's geometry scoord3d length
  *
  * @param {Feature} feature - Openlayers feature
@@ -358,16 +370,15 @@ function getFeatureScoord3dLength (feature, pyramid) {
   if (type === 'LineString') {
     const coordinates = geometry.getCoordinates()
     if (coordinates && coordinates.length) {
-      const scoord3dCoordinates = coordinates.map((c) =>
-        geometryCoordinates2scoord3dCoordinates(c, pyramid)
-      )
+      const scoord3dCoordinates = coordinates;
       const p1 = scoord3dCoordinates[0]
       const p2 = scoord3dCoordinates[1]
       let xLen = p2[0] - p1[0]
       let yLen = p2[1] - p1[1]
       xLen *= xLen
       yLen *= yLen
-      return Math.sqrt(xLen + yLen)
+      const pyramidLevels = roundToEven(pyramid.length - 1)
+      return Math.sqrt(xLen + yLen) / pyramidLevels
     }
   }
 }
@@ -393,9 +404,9 @@ function getFeatureScoord3dArea (feature, pyramid) {
     const coordinates = geometry.getCoordinates()
     if (coordinates && coordinates.length) {
       const scoord3dCoordinates = geometry
-        .getCoordinates()[0]
-        .map((c) => geometryCoordinates2scoord3dCoordinates(c, pyramid))
-      return areaOfPolygon(scoord3dCoordinates)
+        .getCoordinates()[0];
+        const pyramidLevels = roundToEven(pyramid.length - 1)
+      return areaOfPolygon(scoord3dCoordinates) / pyramidLevels
     }
   }
 }
