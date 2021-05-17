@@ -27,12 +27,13 @@ class BlendingInformation {
   * @param {number[]} thresholdValues
   * @param {boolean} visible
   */
-  constructor (
+  constructor ({
     opticalPathIdentifier,
     color,
     opacity,
     thresholdValues,
-    visible) {
+    visible
+  }) {
     this.opticalPathIdentifier = opticalPathIdentifier
     this.color = [...color]
     this.opacity = opacity

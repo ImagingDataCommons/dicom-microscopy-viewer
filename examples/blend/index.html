@@ -19,7 +19,7 @@
     <script src="https://unpkg.com/@cornerstonejs/codec-libjpeg-turbo/dist/libjpegturbowasm.js"></script>
     <script src="https://unpkg.com/@cornerstonejs/codec-openjpeg/dist/openjpegwasm.js"></script>
     <script src="https://unpkg.com/@cornerstonejs/codec-charls/dist/charlsjs.js"></script>
-
+    
     <script src="https://unpkg.com/dicomweb-client"></script>
     <script src="https://unpkg.com/dicom-microscopy-viewer"></script>
     <!-- enable for testing locally
@@ -48,29 +48,29 @@
           thresholdValues : thresholdValues,
           opticalPathID : `15`,
         };
-        window.viewer.setBlendingInformation(blendingInformation);
+        viewer.setBlendingInformation(blendingInformation);
       }
     }
 
-    function updateChannelColor(event) {
+    function updateChannelColor(event) {  
       const hexColor = event.target.value;
       const color = [parseInt(hexColor.substr(1, 2), 16) / 255.,
-                     parseInt(hexColor.substr(3, 2), 16) / 255.,
-                     parseInt(hexColor.substr(5, 2), 16) / 255.];
+        parseInt(hexColor.substr(3, 2), 16) / 255.,
+        parseInt(hexColor.substr(5, 2), 16) / 255.];
       const blendingInformation = {
         color : color,
         opticalPathID : `15`,
       };
-      window.viewer.setBlendingInformation(blendingInformation);
+      viewer.setBlendingInformation(blendingInformation);
     }
 
     function updateChannelToggle() {
       const opticalPathID = `15`;
       if(channelToggle.checked) {
-        window.viewer.activateOpticalPath(opticalPathID);
-        window.viewer.showOpticalPath(opticalPathID);
+        viewer.activateOpticalPath(opticalPathID);
+        viewer.showOpticalPath(opticalPathID);
       } else {
-        window.viewer.deactivateOpticalPath(opticalPathID);
+        viewer.deactivateOpticalPath(opticalPathID);
       }
     }
 
@@ -114,34 +114,33 @@
     }).then(metadata => {
 
       // Example of custom initialization of the channel visualization parameters (this is optional)
-      const BIOne = new DICOMMicroscopyViewer.metadata.BlendingInformation(
-        opticalPathIdentifier = `35`,
-        color = [0.,0.5,0.5],
-        opacity = 1.0,
-        thresholdValues = [125., 255.],
-        visible = true,
-      );
-      const BITwo = new DICOMMicroscopyViewer.metadata.BlendingInformation(
-        opticalPathIdentifier = `1`,
-        color = [0.5, 0.5, 0.],
-        opacity = 1.0,
-        thresholdValues = [0., 255.],
-        visible = true,
-      );
-      const BIThree = new DICOMMicroscopyViewer.metadata.BlendingInformation(
-        opticalPathIdentifier = `15`,
-        color = [1, 0., 0.],
-        opacity = 1.0,
-        thresholdValues = [30., 255.],
-        visible = true,
-      );
+      const BIOne = new DICOMMicroscopyViewer.metadata.BlendingInformation({
+        opticalPathIdentifier: `35`,
+        color: [0.,0.5,0.5],
+        opacity: 1.0,
+        thresholdValues: [125., 255.],
+        visible: true,
+      });
+      const BITwo = new DICOMMicroscopyViewer.metadata.BlendingInformation({
+        opticalPathIdentifier: `1`,
+        color: [0.5, 0.5, 0.],
+        opacity: 1.0,
+        thresholdValues: [0., 255.],
+        visible: true,
+      });
+      const BIThree = new DICOMMicroscopyViewer.metadata.BlendingInformation({
+        opticalPathIdentifier: `15`,
+        color: [1, 0., 0.],
+        opacity: 1.0,
+        thresholdValues: [30., 255.],
+        visible: true,
+      });
 
       const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
         client,
         metadata,
         blendingInformation: [BIOne, BITwo, BIThree],
-        controls: ['fullscreen', 'zoom'],
-        retrieveRendered: true,
+        controls: ['fullscreen', 'zoom']
       });
 
       const container = document.getElementById("dicomImage");

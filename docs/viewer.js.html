@@ -60,7 +60,7 @@ import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
 
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
-import { ZoomSlider, defaults as defaultControls } from 'ol/control'
+import { ZoomSlider } from 'ol/control'
 import { getCenter } from 'ol/extent'
 
 import * as DICOMwebClient from 'dicomweb-client'
@@ -590,15 +590,18 @@ class VolumeImageViewer {
           continue
         } else {
           const pathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier
-          const channel = this[_channels].find(channel => channel.blendingInformation.opticalPathIdentifier === pathIdentifier)
+          const channel = this[_channels].find(channel => {
+            return channel.blendingInformation.opticalPathIdentifier === pathIdentifier
+          })
           if (channel) {
             channel.addMetadata(this[_options].metadata[i])
           } else {
             const blendingInformation = this[_options].blendingInformation !== undefined
-              ? this[_options].blendingInformation.find(blendingInformation =>
-                  blendingInformation.opticalPathIdentifier === pathIdentifier)
+              ? this[_options].blendingInformation.find(info => {
+                  return info.opticalPathIdentifier === pathIdentifier
+                })
               : undefined
-            if (blendingInformation) {
+            if (blendingInformation !== undefined) {
               const newChannel = new _Channel(blendingInformation)
               newChannel.addMetadata(this[_options].metadata[i])
               this[_channels].push(newChannel)
@@ -608,13 +611,13 @@ class VolumeImageViewer {
               const opacity = 1.0
               const thresholdValues = [0, 255]
               const visible = false
-              const defaultBlendingInformation = new BlendingInformation(
+              const defaultBlendingInformation = new BlendingInformation({
                 opticalPathIdentifier,
                 color,
                 opacity,
                 thresholdValues,
                 visible
-              )
+              })
 
               const newChannel = new _Channel(defaultBlendingInformation)
               newChannel.addMetadata(this[_options].metadata[i])
@@ -732,12 +735,15 @@ class VolumeImageViewer {
       tileSizes: this[_referenceTileSizes]
     })
 
+    console.log(this[_referenceExtents])
     const view = new View({
       center: getCenter(this[_referenceExtents]),
       extent: this[_referenceExtents],
       projection: this[_projection],
       resolutions: this[_tileGrid].getResolutions(),
-      rotation: this[_rotation]
+      rotation: this[_rotation],
+      smoothResolutionConstraint: true,
+      showFullExtent: true
     })
 
     // Create a rendering engine object for offscreen rendering
@@ -789,11 +795,18 @@ class VolumeImageViewer {
     const layers = []
     let rasterSourceOverview
     if (this[_options].blendingInformation !== undefined) {
-      this[_channels].forEach((channel) => {
-        if (channel.blendingInformation.visible === true) {
-          layers.push(channel.tileLayer)
-        }
+      const hasAnyChannelBeenSelected = this[_channels].some(channel => {
+        return channel.blendingInformation.visible
       })
+      if (hasAnyChannelBeenSelected) {
+        this[_channels].forEach((channel) => {
+          if (channel.blendingInformation.visible === true) {
+            layers.push(channel.tileLayer)
+          }
+        })
+      } else {
+        layers.push(this[_channels][0].tileLayer)
+      }
       rasterSourceOverview = this[_channels][0].rasterSource
     } else if (this[_channels].length !== 0) {
       layers.push(this[_channels][0].tileLayer)
@@ -815,31 +828,27 @@ class VolumeImageViewer {
       this[_controls].zoomslider = new ZoomSlider()
     }
 
+    const overviewImageLayer = new TileLayer({
+      extent: this[_referenceExtents],
+      source: rasterSourceOverview,
+      projection: this[_projection],
+      preload: 0
+    })
+
+    const overviewView = new View({
+      projection: this[_projection],
+      rotation: this[_rotation],
+      zoom: 28 /** Default max zoom */
+    })
+
+    this[_overviewMap] = new OverviewMap({
+      view: overviewView,
+      layers: [overviewImageLayer],
+      collapsed: false,
+      collapsible: false
+    })
+
     if (this[_options].controls.has('overview')) {
-      const overviewImageLayer = new TileLayer({
-        extent: this[_referenceExtents],
-        source: rasterSourceOverview,
-        projection: this[_projection],
-        preload: 0
-      })
-
-      const overviewView = new View({
-        projection: this[_projection],
-        rotation: this[_rotation],
-        zoom: 28 /** Default max zoom */
-      })
-
-      this[_overviewMap] = new OverviewMap({
-        view: overviewView,
-        layers: [overviewImageLayer],
-        collapsed: this[_options].overview.hasOwnProperty('collapsed')// eslint-disable-line
-          ? this[_options].overview.collapsed
-          : true,
-        collapsible: this[_options].overview.hasOwnProperty('collapsible')// eslint-disable-line
-          ? this[_options].overview.collapsible
-          : true
-      })
-
       this[_controls].overview = this[_overviewMap]
     }
 
@@ -847,7 +856,7 @@ class VolumeImageViewer {
     this[_map] = new Map({
       layers,
       view,
-      controls: defaultControls(),
+      controls: [],
       keyboardEventTarget: document
     })
 
@@ -1026,9 +1035,6 @@ class VolumeImageViewer {
 
         if (this[_retrieveRendered]) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
-          // we use in order: jp2, jpeg, png.
-          const jp2MediaType = 'image/jp2'
-          const jpegMediaType = 'image/jpeg'
           const pngMediaType = 'image/png'
           const transferSyntaxUID = ''
 
@@ -1038,8 +1044,6 @@ class VolumeImageViewer {
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
-              { mediaType: jp2MediaType, transferSyntaxUID },
-              { mediaType: jpegMediaType, transferSyntaxUID },
               { mediaType: pngMediaType, transferSyntaxUID }
             ]
           }
@@ -2399,7 +2403,7 @@ export { LabelImageViewer, OverviewImageViewer, VolumeImageViewer }
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Fri May 07 2021 13:33:10 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Mon May 17 2021 15:00:38 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

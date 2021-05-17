@@ -11,30 +11,29 @@ const metadata = [testCase1[0], testCase2[0], testCase3[0]]
 const dmv = require('../build/dicom-microscopy-viewer.js')
 
 describe('dmv.viewer.VolumeImageViewer', () => {
-  let viewer
-  const BIOne = new dmv.metadata.BlendingInformation(
-    opticalPathIdentifier = '1',
-    color = [0.0, 0.5, 0.5],
-    opacity = 1.0,
-    thresholdValues = [125.0, 255.0],
-    visible = true
-  )
-  const BITwo = new dmv.metadata.BlendingInformation(
-    opticalPathIdentifier = '2',
-    color = [0.5, 0.5, 0.0],
-    opacity = 1.0,
-    thresholdValues = [0.0, 255.0],
-    visible = true
-  )
-  const BIThree = new dmv.metadata.BlendingInformation(
-    opticalPathIdentifier = '3',
-    color = [1, 0.0, 0.0],
-    opacity = 1.0,
-    thresholdValues = [0.0, 255.0],
-    visible = true
-  )
+  const BIOne = new dmv.metadata.BlendingInformation({
+    opticalPathIdentifier: '1',
+    color: [0.0, 0.5, 0.5],
+    opacity: 1.0,
+    thresholdValues: [125.0, 255.0],
+    visible: true
+  })
+  const BITwo = new dmv.metadata.BlendingInformation({
+    opticalPathIdentifier: '2',
+    color: [0.5, 0.5, 0.0],
+    opacity: 1.0,
+    thresholdValues: [0.0, 255.0],
+    visible: true
+  })
+  const BIThree = new dmv.metadata.BlendingInformation({
+    opticalPathIdentifier: '3',
+    color: [1, 0.0, 0.0],
+    opacity: 1.0,
+    thresholdValues: [0.0, 255.0],
+    visible: true
+  })
 
-  viewer = new dmv.api.VLWholeSlideMicroscopyImageViewer({
+  const viewer = new dmv.api.VLWholeSlideMicroscopyImageViewer({
     client: 'test',
     metadata: metadata,
     blendingInformation: [BIOne, BITwo, BIThree]
