@@ -681,24 +681,18 @@ class VolumeImageViewer {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
           * has meter unit.
           */
-        const spacing = getPixelSpacing(image.pyramidMetadata[image.pyramidMetadata.length - 1])[0] / 10 ** 3
-        return pixelRes * spacing
+        const spacing = getPixelSpacing(
+          image.pyramidMetadata[image.pyramidMetadata.length - 1]
+        )[0]
+        return pixelRes * spacing / 10 ** 3
       }
     })
 
-    /*
-    * TODO: Register custom projection:
-    *  - http://openlayers.org/en/latest/apidoc/ol.proj.html
-    *  - http://openlayers.org/en/latest/apidoc/module-ol_proj.html#~ProjectionLike
-    * Direction cosines could be handled via projection rather
-    * than specifying a rotation
-    */
     /*
     * We need to specify the tile grid, since DICOM allows tiles to
     * have different sizes at each resolution level and a different zoom
     * factor between individual levels.
     */
-
     this[_tileGrid] = new TileGrid({
       extent: this[_referenceExtents],
       origins: this[_referenceOrigins],
@@ -707,10 +701,8 @@ class VolumeImageViewer {
       tileSizes: this[_referenceTileSizes]
     })
 
-    console.log(this[_referenceExtents])
     const view = new View({
       center: getCenter(this[_referenceExtents]),
-      extent: this[_referenceExtents],
       projection: this[_projection],
       resolutions: this[_tileGrid].getResolutions(),
       rotation: this[_rotation],
@@ -857,7 +849,6 @@ class VolumeImageViewer {
     for (const control in this[_controls]) {
       this[_map].addControl(this[_controls][control])
     }
-    this[_map].getView().fit(this[_referenceExtents])
 
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
@@ -1298,7 +1289,9 @@ class VolumeImageViewer {
       return false
     }
 
-    return !!this[_map].getLayers().getArray().find(layer => layer === channel.tileLayer)
+    return !!this[_map].getLayers().getArray().find(layer => {
+      return layer === channel.tileLayer
+    })
   }
 
   /**
@@ -1330,6 +1323,9 @@ class VolumeImageViewer {
       console.error('container must be provided for rendering images')
     }
     this[_map].setTarget(options.container)
+    const view = this[_map].getView()
+    const projection = view.getProjection()
+    view.fit(projection.getExtent(), this[_map].getSize())
 
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")
     const scaleElement = this[_controls].scale.element
@@ -2261,8 +2257,6 @@ class _NonVolumeImageViewer {
       controls: [],
       keyboardEventTarget: document
     })
-
-    this[_map].getView().fit(extent)
   }
 
   /** Renders the image in the specified viewport container.
@@ -2274,6 +2268,9 @@ class _NonVolumeImageViewer {
       console.error('container must be provided for rendering images')
     }
     this[_map].setTarget(options.container)
+    const view = this[_map].getView()
+    const projection = view.getProjection()
+    view.fit(projection.getExtent(), this[_map].getSize())
 
     this[_map].getInteractions().forEach((interaction) => {
       this[_map].removeInteraction(interaction)
