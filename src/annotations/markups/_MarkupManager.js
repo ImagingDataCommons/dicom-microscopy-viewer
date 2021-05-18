@@ -328,6 +328,13 @@ class _MarkupManager {
         white-space: nowrap;
         font-size: 17px;
         font-weight: bold;
+        text-shadow: 0px 0px 20px rgba(225,225,225,0.6),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%);
       }
       .ol-tooltip-measure { opacity: 1; }
       .ol-tooltip-static { color: ${color}; }
