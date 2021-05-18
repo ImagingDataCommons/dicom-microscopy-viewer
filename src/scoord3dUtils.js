@@ -361,14 +361,25 @@ function getFeatureScoord3dLength (feature, pyramid) {
       const scoord3dCoordinates = coordinates.map((c) =>
         geometryCoordinates2scoord3dCoordinates(c, pyramid)
       )
-      const p1 = scoord3dCoordinates[0]
-      const p2 = scoord3dCoordinates[1]
-      let xLen = p2[0] - p1[0]
-      let yLen = p2[1] - p1[1]
-      xLen *= xLen
-      yLen *= yLen
-      return Math.sqrt(xLen + yLen) * 1000
+      let length = 0
+      for (let i = 0; i < (scoord3dCoordinates.length - 1); i++) {
+        const p1 = scoord3dCoordinates[i]
+        const p2 = scoord3dCoordinates[i + 1]
+        let xLen = p2[0] - p1[0]
+        let yLen = p2[1] - p1[1]
+        xLen *= xLen
+        yLen *= yLen
+        length += Math.sqrt(xLen + yLen) * 1000
+      }
+      return length
+    } else {
+      throw new Error('ROI does not have any coordinates.')
     }
+  } else {
+    throw new Error(
+      'Calculation of length is only supported for ROIs with spatial ' +
+      'coordinates of graphic type POLYLINE.'
+    )
   }
 }
 

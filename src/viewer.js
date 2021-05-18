@@ -675,14 +675,15 @@ class VolumeImageViewer {
     */
     this[_projection] = new Projection({
       code: 'DICOM',
-      units: 'metric',
+      units: 'm',
+      global: true,
       extent: this[_referenceExtents],
       getPointResolution: (pixelRes, point) => {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
-          * has meter unit.
+          * meter unit.
           */
         const spacing = getPixelSpacing(
-          image.pyramidMetadata[image.pyramidMetadata.length - 1]
+          this[_pyramidMetadata][this[_pyramidMetadata].length - 1]
         )[0]
         return pixelRes * spacing / 10 ** 3
       }
@@ -2219,7 +2220,7 @@ class _NonVolumeImageViewer {
       extent: extent,
       getPointResolution: (pixelRes, point) => {
         /** DICOM Pixel Spacing has millimeter unit while the projection has
-         * has meter unit.
+         * meter unit.
          */
         const mmSpacing = getPixelSpacing(this[_metadata])[0]
         const spacing = mmSpacing / resizeFactor / 10 ** 3
