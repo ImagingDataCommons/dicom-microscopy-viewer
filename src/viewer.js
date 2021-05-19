@@ -825,6 +825,8 @@ class VolumeImageViewer {
       keyboardEventTarget: document
     })
 
+    view.fit(this[_projection].getExtent(), this[_map].getSize())
+
     /**
      * OpenLayer's map has default active interactions
      * https://openlayers.org/en/latest/apidoc/module-ol_interaction.html#.defaults
@@ -2258,6 +2260,8 @@ class _NonVolumeImageViewer {
       controls: [],
       keyboardEventTarget: document
     })
+
+    view.fit(projection.getExtent(), this[_map].getSize())
   }
 
   /** Renders the image in the specified viewport container.
