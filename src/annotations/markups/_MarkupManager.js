@@ -56,6 +56,7 @@ class _MarkupManager {
       });
       return;
     }
+
     this._markups.forEach((markup) => {
       this._map.addOverlay(markup.overlay);
       this._map.removeOverlay(markup.overlay);
@@ -182,6 +183,9 @@ class _MarkupManager {
 
     this._drawLink(feature);
     this._wireInternalEvents(feature);
+
+    const isVisible = this._linksVector.getVisible();
+    this.setVisible(isVisible);
 
     return markup;
   }
