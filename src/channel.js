@@ -76,6 +76,7 @@ class _Channel {
    * for setting the globalCompositeOperation value to 'lighter' during the tiles blending.
    *
    * @param {string} referenceOpticalPathIdentifier - reference optical path identifier
+   * @param {string} referenceFrameOfReferenceUID - reference frame of reference UID
    * @param {number[]} referenceExtent - reference extent array
    * @param {number[]} referenceOrigins - reference origins array
    * @param {number[]} referenceResolutions - reference resolutions array
@@ -88,7 +89,9 @@ class _Channel {
    * @param {object} renderingEngine - VolumeImageViewer offscreen rendering engine
    *
    */
-  initChannel (referenceOpticalPathIdentifier,
+  initChannel (
+    referenceOpticalPathIdentifier,
+    referenceFrameOfReferenceUID,
     referenceExtent,
     referenceOrigins,
     referenceResolutions,
@@ -109,6 +112,19 @@ class _Channel {
     */
 
     const geometryArrays = _Channel.deriveImageGeometry(this)
+
+    // Check frame of reference
+    /* To Do: different channels (monochorme images) can have different 
+    FrameOfReferenceUID, what should we do?
+    for the momnet the FrameOfReferenceUID check is disabled
+    -------------------------------
+    if (referenceFrameOfReferenceUID !== this.FrameOfReferenceUID) {
+      throw new Error(
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        ' image has different FrameOfReferenceUID respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
+      )
+    }*/
 
     // Check that all the channels have the same pyramid parameters
     if (arraysEqual(geometryArrays[0], referenceExtent) === false) {
@@ -414,9 +430,28 @@ class _Channel {
         image.microscopyImages.push(microscopyImage)
       }
     })
+
     if (image.microscopyImages.length === 0) {
-      throw new Error('No VOLUME image provided.')
+      throw new Error('No VOLUME image provided for Optioncal Path ID: ' + 
+      image.blendingInformation.opticalPathIdentifier)
     }
+
+    image.FrameOfReferenceUID = undefined
+    console.info(image.microscopyImages[0].FrameOfReferenceUID)
+    for (let i = 0; i < image.microscopyImages.length; ++i) {
+      if (image.FrameOfReferenceUID === undefined) {
+        image.FrameOfReferenceUID = image.microscopyImages[i].FrameOfReferenceUID
+      } /* To Do: different microscopyImages metadata of the same channel 
+        (monochorme image) can have different FrameOfReferenceUID, what should we do?
+        for the momnet the FrameOfReferenceUID check is disabled
+        ---------------------------------
+        else if (image.FrameOfReferenceUID !== image.microscopyImages[i].FrameOfReferenceUID) {
+        throw new Error('Optioncal Path ID ' + 
+        image.blendingInformation.opticalPathIdentifier + 
+        ' has volume microscopy images with different FrameOfReferenceUID')
+      }*/
+    }
+
     // Sort instances and optionally concatenation parts if present.
     image.microscopyImages.sort((a, b) => {
       const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns

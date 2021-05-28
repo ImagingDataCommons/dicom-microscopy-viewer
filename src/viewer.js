@@ -32,7 +32,7 @@ import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
 
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
-import { ZoomSlider } from 'ol/control'
+import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter } from 'ol/extent'
 
 import * as DICOMwebClient from 'dicomweb-client'
@@ -40,7 +40,9 @@ import dcmjs from 'dcmjs'
 
 import {
   VLWholeSlideMicroscopyImage,
-  formatMetadata
+  formatMetadata,
+  groupMonochormeMetadataInstances,
+  groupColoredMetadataInstances
 } from './metadata.js'
 import { ROI } from './roi.js'
 import {
@@ -546,89 +548,95 @@ class VolumeImageViewer {
     }
 
     // Metadata Tiles types checks for each instance
-    // look for channels
-    for (let i = 0; i < this[_options].metadata.length; ++i) {
-      const instanceMetadata = formatMetadata(this[_options].metadata[i])
-      if (instanceMetadata.SamplesPerPixel !== 1) {
-        // this is not a monochorme channel, but a color image.
-        continue
-      }
-      if (instanceMetadata.DimensionOrganizationType === '3D' || instanceMetadata.DimensionOrganizationType === '3D_TEMPORAL') {
-        // 3D data
-        // TO DO: get some example data.
-        throw new Error('Volume Image Viewer does hot hanlde 3D channel data yet.')
-      } else if (instanceMetadata.DimensionOrganizationType === 'TILED_FULL') {
-        if (instanceMetadata.TotalPixelMatrixFocalPlanes !== 1) {
-          continue
-        } else {
-          const pathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier
-          const channel = this[_channels].find(channel => {
-            return channel.blendingInformation.opticalPathIdentifier === pathIdentifier
-          })
-          if (channel) {
-            channel.addMetadata(this[_options].metadata[i])
+    // group channels by OpticalPathIdentifier
+    const channelsMicroscopyImages = groupMonochormeMetadataInstances(this[_options].metadata)
+    // do additional checks and create channel objects
+    for (let i = 0; i < channelsMicroscopyImages.length; ++i) {
+      const channelMicroscopyImages = channelsMicroscopyImages[i]
+      for (let j = 0; j < channelMicroscopyImages.length; ++j) {
+        const channelMicroscopyImage = channelMicroscopyImages[j]
+        if (channelMicroscopyImage.DimensionOrganizationType === '3D' || channelMicroscopyImage.DimensionOrganizationType === '3D_TEMPORAL') {
+          // 3D data
+          // TO DO: get some example data.
+          throw new Error('Volume Image Viewer does hot hanlde 3D channel data yet.')
+        } else if (channelMicroscopyImage.DimensionOrganizationType === 'TILED_FULL') {
+          if (channelMicroscopyImage.TotalPixelMatrixFocalPlanes !== 1) {
+            continue
           } else {
-            const blendingInformation = this[_options].blendingInformation !== undefined
-              ? this[_options].blendingInformation.find(info => {
-                  return info.opticalPathIdentifier === pathIdentifier
-                })
-              : undefined
-            if (blendingInformation !== undefined) {
-              const newChannel = new _Channel(blendingInformation)
-              newChannel.addMetadata(this[_options].metadata[i])
-              this[_channels].push(newChannel)
+            const pathIdentifier = channelMicroscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
+            const channel = this[_channels].find(channel => {
+              return channel.blendingInformation.opticalPathIdentifier === pathIdentifier
+            })
+            if (channel) {
+              channel.addMetadata(channelMicroscopyImage.originMetadata)
             } else {
-              const opticalPathIdentifier = `${pathIdentifier}`
-              const color = [...colors[i % colors.length]]
-              const opacity = 1.0
-              const thresholdValues = [0, 255]
-              const visible = false
-              const defaultBlendingInformation = new BlendingInformation({
-                opticalPathIdentifier,
-                color,
-                opacity,
-                thresholdValues,
-                visible
-              })
-
-              const newChannel = new _Channel(defaultBlendingInformation)
-              newChannel.addMetadata(this[_options].metadata[i])
-              this[_channels].push(newChannel)
+              const blendingInformation = this[_options].blendingInformation !== undefined
+                ? this[_options].blendingInformation.find(info => {
+                    return info.opticalPathIdentifier === pathIdentifier
+                  })
+                : undefined
+              if (blendingInformation !== undefined) {
+                const newChannel = new _Channel(blendingInformation)
+                newChannel.addMetadata(channelMicroscopyImage.originMetadata)
+                this[_channels].push(newChannel)
+              } else {
+                const opticalPathIdentifier = `${pathIdentifier}`
+                const color = [...colors[i % colors.length]]
+                const opacity = 1.0
+                const thresholdValues = [0, 255]
+                const visible = false
+                const defaultBlendingInformation = new BlendingInformation({
+                  opticalPathIdentifier,
+                  color,
+                  opacity,
+                  thresholdValues,
+                  visible
+                })
+  
+                const newChannel = new _Channel(defaultBlendingInformation)
+                newChannel.addMetadata(channelMicroscopyImage.originMetadata)
+                this[_channels].push(newChannel)
+              }
             }
           }
+        } else if (channelMicroscopyImage.DimensionOrganizationType === 'TILED_SPARSE') {
+          // the spatial location of each tile is explicitly encoded using information
+          // in the Per-Frame Functional Group Sequence, and the recipient shall not
+          // make any assumption about the spatial position or optical path or order of the encoded frames.
+          // TO DO: get some example data.
+          throw new Error('Volume Image Viewer does hot handle TILED_SPARSE ' +
+                          'dimension organization for blending of channels yet.')
         }
-      } else if (instanceMetadata.DimensionOrganizationType === 'TILED_SPARSE') {
-        // the spatial location of each tile is explicitly encoded using information
-        // in the Per-Frame Functional Group Sequence, and the recipient shall not
-        // make any assumption about the spatial position or optical path or order of the encoded frames.
-        // TO DO: get some example data.
-        throw new Error('Volume Image Viewer does hot handle TILED_SPARSE ' +
-                        'dimension organization for blending of channels yet.')
       }
     }
 
+    // group color images by OpticalPathIdentifier
     this[_colorImage] = {
       OpticalPathIdentifier: '',
       metadata: []
     }
-    // look for color images
-    for (let i = 0; i < this[_options].metadata.length; ++i) {
-      const instanceMetadata = formatMetadata(this[_options].metadata[i])
-      if (instanceMetadata.SamplesPerPixel === 1) {
-        // this is not a color image, but a monochorme channel.
-        continue
-      }
-      const pathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier
-      if (this[_colorImage].OpticalPathIdentifier === '') {
-        this[_colorImage].OpticalPathIdentifier = pathIdentifier
-      } else if (this[_colorImage].OpticalPathIdentifier !== pathIdentifier) {
-        console.warn('Volume Image Viewer detected more than one color image. ' +
-                     'It is possible to load and visualize only one color image at time. ' +
-                     'Please check the input metadata. Only the first detected color image will be loaded')
-        continue
+
+    const colorImagesMicroscopyImages = groupColoredMetadataInstances(this[_options].metadata)
+    
+    if (colorImagesMicroscopyImages.length > 1) {
+      console.warn('Volume Image Viewer detected more than one color image. ' +
+      'It is possible to load and visualize only one color image at time. ' +
+      'Please check the input metadata. Only the first detected color image will be loaded')
+    }
+
+    for (let i = 0; i < colorImagesMicroscopyImages.length; ++i) {
+      const colorImageMicroscopyImages = colorImagesMicroscopyImages[i]
+      if (colorImageMicroscopyImages.length === 0) {
+        continue;
       }
 
-      this[_colorImage].metadata.push(this[_options].metadata[i])
+      this[_colorImage].OpticalPathIdentifier = colorImageMicroscopyImages[0].OpticalPathSequence[0].OpticalPathIdentifier
+      for (let j = 0; j < colorImageMicroscopyImages.length; ++j) {
+        const colorImageMicroscopyImage = colorImageMicroscopyImages[j]
+        this[_colorImage].metadata.push(colorImageMicroscopyImage.originMetadata)
+      }
+       
+      break
     }
 
     /*
@@ -717,8 +725,10 @@ class VolumeImageViewer {
     // For each channel we build up the OpenLayer objects and
     // checks that the geometric assumptions are satisfied.
     this[_channels].forEach((channel) => {
+      // here image is a channel
       channel.initChannel(
-        image.opticalPathIdentifier,
+        image.blendingInformation.opticalPathIdentifier,
+        image.FrameOfReferenceUID,
         this[_referenceExtents],
         this[_referenceOrigins],
         this[_referenceResolutions],
@@ -750,13 +760,6 @@ class VolumeImageViewer {
       updateWhileInteracting: true
     })
 
-    this[_controls] = {
-      scale: new ScaleLine({
-        units: 'metric',
-        className: ''
-      })
-    }
-
     const layers = []
     let rasterSourceOverview
     if (this[_options].blendingInformation !== undefined) {
@@ -770,10 +773,14 @@ class VolumeImageViewer {
           }
         })
       } else {
+        this[_channels][0].blendingInformation.visible = true
+        this[_channels][0].tileLayer.setVisible(true)
         layers.push(this[_channels][0].tileLayer)
       }
       rasterSourceOverview = this[_channels][0].rasterSource
     } else if (this[_channels].length !== 0) {
+      this[_channels][0].blendingInformation.visible = true
+      this[_channels][0].tileLayer.setVisible(true)
       layers.push(this[_channels][0].tileLayer)
       rasterSourceOverview = this[_channels][0].rasterSource
     } else if (this[_colorImage].OpticalPathIdentifier !== '') {
@@ -784,14 +791,6 @@ class VolumeImageViewer {
     }
 
     layers.push(this[_drawingLayer])
-
-    if (this[_options].controls.has('fullscreen')) {
-      this[_controls].fullscreen = new FullScreen()
-    }
-
-    if (this[_options].controls.has('zoom')) {
-      this[_controls].zoomslider = new ZoomSlider()
-    }
 
     const overviewImageLayer = new TileLayer({
       extent: this[_referenceExtents],
@@ -812,10 +811,6 @@ class VolumeImageViewer {
       collapsed: false,
       collapsible: false
     })
-
-    if (this[_options].controls.has('overview')) {
-      this[_controls].overview = this[_overviewMap]
-    }
 
     // Creates the map with the defined layers and view and renders it.
     this[_map] = new Map({
@@ -848,6 +843,26 @@ class VolumeImageViewer {
     }
 
     this[_map].addInteraction(new MouseWheelZoom())
+
+    this[_controls] = {
+      scale: new ScaleLine({
+        units: 'metric',
+        className: ''
+      })
+    }
+
+    if (this[_options].controls.has('fullscreen')) {
+      this[_controls].fullscreen = new FullScreen()
+    }
+
+    if (this[_options].controls.has('zoom')) {
+      this[_controls].zoom = new Zoom()
+      this[_controls].zoomslider = new ZoomSlider()
+    }
+
+    if (this[_options].controls.has('overview')) {
+      this[_controls].overview = this[_overviewMap]
+    }
 
     for (const control in this[_controls]) {
       this[_map].addControl(this[_controls][control])
@@ -1241,11 +1256,11 @@ class VolumeImageViewer {
    * @param {string} opticalPathID - opticalPath of the channel
    */
   activateOpticalPath (opticalPathID) {
-    const channel = this.getOpticalPath(opticalPathID)
-    if (this._isOpticalPathActive(channel)) {
+    if (this.isOpticalPathActive(opticalPathID)) {
       throw new Error('OpticalPath ' + opticalPathID + ' already activated')
     }
 
+    const channel = this.getOpticalPath(opticalPathID)
     this[_map].getLayers().insertAt(0, channel.tileLayer)
   }
 
@@ -1253,12 +1268,27 @@ class VolumeImageViewer {
    * @param {string} opticalPathID - opticalPath of the channel
    */
   deactivateOpticalPath (opticalPathID) {
-    const channel = this.getOpticalPath(opticalPathID)
-    if (!this._isOpticalPathActive(channel)) {
+    if (!this.isOpticalPathActive(opticalPathID)) {
       throw new Error('OpticalPath ' + opticalPathID + ' already deactivated')
     }
 
+    const channel = this.getOpticalPath(opticalPathID)
     this[_map].removeLayer(channel.tileLayer)
+  }
+
+  /** Returns if the channel is being rendered
+   * @param {string} opticalPathID - opticalPath of the channel
+   * @return {boolean} active
+   */
+   isOpticalPathActive (opticalPathID) {
+   const channel = this.getOpticalPath(opticalPathID)
+    if (channel === null) {
+      return false
+    }
+
+    return !!this[_map].getLayers().getArray().find(layer => {
+      return layer === channel.tileLayer
+    })
   }
 
   /** Set the visibility of the channel to true
@@ -1281,20 +1311,6 @@ class VolumeImageViewer {
       opticalPathID: opticalPathID
     }
     this.setBlendingInformation(blendingInformation)
-  }
-
-  /** Returns if the channel is being rendered
-   * @param {object} channel
-   * @return {boolean} visible
-   */
-  _isOpticalPathActive (channel) {
-    if (channel === null) {
-      return false
-    }
-
-    return !!this[_map].getLayers().getArray().find(layer => {
-      return layer === channel.tileLayer
-    })
   }
 
   /**
