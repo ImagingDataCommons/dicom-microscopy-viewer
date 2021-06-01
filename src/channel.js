@@ -209,7 +209,6 @@ class _Channel {
     */
     const tileLoadFunction = async (tile, src) => {
       const img = tile.getImage()
-      tile.needToRerender = true
       const z = tile.tileCoord[0]
       const columns = this.pyramidMetadata[z].Columns
       const rows = this.pyramidMetadata[z].Rows
@@ -224,6 +223,8 @@ class _Channel {
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
 
         console.info(`retrieve frames ${frameNumbers}`)
+        tile.needToRerender = false
+        tile.isLoading = true
 
         if (options.retrieveRendered) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
@@ -274,6 +275,7 @@ class _Channel {
 
               const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
               tile.needToRerender = !rendered
+              tile.isLoading = false
             }
           )
         } else {
@@ -334,6 +336,7 @@ class _Channel {
 
               const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
               tile.needToRerender = !rendered
+              tile.isLoading = false
             }
           ).catch(
             () => {
@@ -371,6 +374,7 @@ class _Channel {
 
                   const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
                   tile.needToRerender = !rendered
+                  tile.isLoading = false
                 }
               )
             }
@@ -700,12 +704,10 @@ class _Channel {
         if (visuParamChanged) {
           render = true
         } else {
-          render = tile.needToRerender !== false
+          render = tile.needToRerender === true && tile.isLoading !== true
         }
-      }
-
-      if (visuParamChanged) {
-        tile.needToRerender = !render
+      } else if (visuParamChanged) {
+        tile.needToRerender = true
       }
 
       if (render) {
@@ -727,11 +729,9 @@ class _Channel {
             rows
           }
 
-          const rendered = this.renderingEngine.colorMonochomeImageFrame(frameData)
-          if (rendered) {
-            mapRerender = true
-            tile.needToRerender = !rendered
-          }
+          this.renderingEngine.colorMonochomeImageFrame(frameData)
+          mapRerender = true
+          tile.needToRerender = false
         }
       }
     }
