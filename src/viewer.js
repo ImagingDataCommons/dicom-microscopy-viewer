@@ -439,7 +439,6 @@ const _map = Symbol('map')
 const _metadata = Symbol('metadata')
 const _pyramidMetadata = Symbol('pyramidMetadata')
 const _segmentations = Symbol('segmentations')
-const _usewebgl = Symbol('usewebgl')
 const _channels = Symbol('channels')
 const _colorImage = Symbol('colorImage')
 const _renderingEngine = Symbol('renderingEngine')
@@ -452,8 +451,6 @@ const _referenceResolutions = Symbol('referenceResolutions')
 const _referenceGridSizes = Symbol('referenceGridSizes')
 const _referenceTileSizes = Symbol('referenceTileSizes')
 const _referencePixelSpacings = Symbol('referencePixelSpacings')
-const _retrieveRendered = Symbol('retrieveRendered')
-const _includeIccProfile = Symbol('includeIccProfile')
 const _annotationManager = Symbol('annotationManager')
 const _overviewMap = Symbol('overviewMap')
 
@@ -482,22 +479,16 @@ class VolumeImageViewer {
    */
   constructor (options) {
     this[_options] = options
-    if ('useWebGL' in this[_options]) {
-      this[_usewebgl] = this[_options].useWebGL
-    } else {
-      this[_usewebgl] = true
+    if (!('useWebGL' in this[_options])) {
+      this[_options].useWebGL = true
     }
 
     if (!('retrieveRendered' in this[_options])) {
-      this[_retrieveRendered] = true
-    } else {
-      this[_retrieveRendered] = this[_options].retrieveRendered
+      this[_options].retrieveRendered = true
     }
 
     if (!('includeIccProfile' in this[_options])) {
-      this[_includeIccProfile] = false
-    } else {
-      this[_includeIccProfile] = this[_options].includeIccProfile
+      this[_options].includeIccProfile = false
     }
 
     if (!('overview' in this[_options])) {
@@ -1014,7 +1005,9 @@ class VolumeImageViewer {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
 
-        if (this[_retrieveRendered]) {
+        console.info(`retrieve frames ${frameNumbers}`)
+        
+        if (this[_options].retrieveRendered) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
           const pngMediaType = 'image/png'
           const transferSyntaxUID = ''
@@ -1028,7 +1021,7 @@ class VolumeImageViewer {
               { mediaType: pngMediaType, transferSyntaxUID }
             ]
           }
-          if (this[_includeIccProfile]) {
+          if (this[_options].includeIccProfile) {
             retrieveOptions.queryParams = {
               iccprofile: 'yes'
             }
@@ -1044,7 +1037,6 @@ class VolumeImageViewer {
             }
           )
         } else {
-          console.info(`retrieve frames ${frameNumbers}`)
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
           // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
           const jlsMediaType = 'image/jls'
