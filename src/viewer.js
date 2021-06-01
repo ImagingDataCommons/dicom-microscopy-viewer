@@ -1115,12 +1115,21 @@ class VolumeImageViewer {
       }
     }
 
+    /*
+     * We use the existing TileImage source but customize it to retrieve
+     * frames (load tiles) via DICOMweb WADO-RS.
+     * NOTE: transition = 0 disable OpenLayer transition alpha opacity
+     * NOTE: it is needed a very large initial cacheSize value
+     *       otherwise, the tile caches will be cleared at each zoom
+     *       providing very bad perfomances. 
+    */
     this[_colorImage].rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
       tileGrid: this[_tileGrid],
       projection: this[_projection],
       wrapX: false,
-      transition: 0
+      transition: 0,
+      cacheSize: 1000000
     })
 
     this[_colorImage].rasterSource.setTileUrlFunction(tileUrlFunction)

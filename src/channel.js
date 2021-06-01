@@ -385,13 +385,17 @@ class _Channel {
      * We use the existing TileImage source but customize it to retrieve
      * frames (load tiles) via DICOMweb WADO-RS.
      * NOTE: transition = 0 disable OpenLayer transition alpha opacity
+     * NOTE: it is needed a very large initial cacheSize value
+     *       otherwise, the tile caches will be cleared at each zoom
+     *       providing very bad perfomances. 
     */
     this.rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
       tileGrid: tileGrid,
       projection: projection,
       wrapX: false,
-      transition: 0
+      transition: 0,
+      cacheSize: 1000000
     })
 
     this.rasterSource.setTileUrlFunction(tileUrlFunction)
@@ -401,7 +405,7 @@ class _Channel {
     this.tileLayer = new TileLayer({
       extent: tileGrid.getExtent(),
       source: this.rasterSource,
-      preload: Infinity,
+      preload: 0,
       projection: projection
     })
 
