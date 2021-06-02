@@ -1146,32 +1146,32 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel or color image given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} OpticalPathIdentifier - opticalPath of the channel
    * @return {Object} _Channel
    */
-  getOpticalPath (opticalPathID) {
+  getOpticalPath (OpticalPathIdentifier) {
     if (this[_channels].length === 0 && this[_colorImage].OpticalPathIdentifier === '') {
       throw new Error('No channels or colorImage found.')
     }
     const channel = this[_channels].find(
-      channel => channel.blendingInformation.opticalPathIdentifier === opticalPathID
+      channel => channel.blendingInformation.opticalPathIdentifier === OpticalPathIdentifier
     )
-    const colorImage = this[_colorImage].OpticalPathIdentifier === opticalPathID
+    const colorImage = this[_colorImage].OpticalPathIdentifier === OpticalPathIdentifier
       ? this[_colorImage]
       : undefined
     if (!channel && !colorImage) {
-      throw new Error('No OpticalPath with ID ' + opticalPathID + ' has been found.')
+      throw new Error('No OpticalPath with ID ' + OpticalPathIdentifier + ' has been found.')
     }
 
     return channel
   }
 
   /** Gets the channel or color image metadata given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} OpticalPathIdentifier - opticalPath of the channel
    * @return {metadata[]} array with all the instances metadata of the channel
    */
-  getOpticalPathMetadata (opticalPathID) {
-    const image = this.getOpticalPath(opticalPathID)
+  getOpticalPathMetadata (OpticalPathIdentifier) {
+    const image = this.getOpticalPath(OpticalPathIdentifier)
     return image.metadata
   }
 
@@ -1185,10 +1185,10 @@ class VolumeImageViewer {
    */
   setBlendingInformation (blendingInformation) {
     const {
-      opticalPathID
+      OpticalPathIdentifier
     } = blendingInformation
 
-    const channel = this.getOpticalPath(opticalPathID)
+    const channel = this.getOpticalPath(OpticalPathIdentifier)
     const tilesCoordRanges = this._transformViewCoordinatesInTilesCoordinates()
 
     if (channel.setBlendingInformation(blendingInformation, tilesCoordRanges)) {
@@ -1247,44 +1247,44 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel visualization/presentation parameters given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} OpticalPathIdentifier - opticalPath of the channel
    * @return {object} BlendingInformation
    */
-  getBlendingInformation (opticalPathID) {
-    const channel = this.getOpticalPath(opticalPathID)
+  getBlendingInformation (OpticalPathIdentifier) {
+    const channel = this.getOpticalPath(OpticalPathIdentifier)
     return channel.getBlendingInformation()
   }
 
   /** Adds the channel to the OpenLayer Map given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} OpticalPathIdentifier - opticalPath of the channel
    */
-  activateOpticalPath (opticalPathID) {
-    if (this.isOpticalPathActive(opticalPathID)) {
-      throw new Error('OpticalPath ' + opticalPathID + ' already activated')
+  activateOpticalPath (OpticalPathIdentifier) {
+    if (this.isOpticalPathActive(OpticalPathIdentifier)) {
+      throw new Error('OpticalPath ' + OpticalPathIdentifier + ' already activated')
     }
 
-    const channel = this.getOpticalPath(opticalPathID)
+    const channel = this.getOpticalPath(OpticalPathIdentifier)
     this[_map].getLayers().insertAt(0, channel.tileLayer)
   }
 
   /** Removes the channel to the OpenLayer Map given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} OpticalPathIdentifier - opticalPath of the channel
    */
-  deactivateOpticalPath (opticalPathID) {
-    if (!this.isOpticalPathActive(opticalPathID)) {
-      throw new Error('OpticalPath ' + opticalPathID + ' already deactivated')
+  deactivateOpticalPath (OpticalPathIdentifier) {
+    if (!this.isOpticalPathActive(OpticalPathIdentifier)) {
+      throw new Error('OpticalPath ' + OpticalPathIdentifier + ' already deactivated')
     }
 
-    const channel = this.getOpticalPath(opticalPathID)
+    const channel = this.getOpticalPath(OpticalPathIdentifier)
     this[_map].removeLayer(channel.tileLayer)
   }
 
   /** Returns if the channel is being rendered
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} OpticalPathIdentifier - opticalPath of the channel
    * @return {boolean} active
    */
-   isOpticalPathActive (opticalPathID) {
-   const channel = this.getOpticalPath(opticalPathID)
+   isOpticalPathActive (OpticalPathIdentifier) {
+   const channel = this.getOpticalPath(OpticalPathIdentifier)
     if (channel === null) {
       return false
     }
@@ -1295,23 +1295,23 @@ class VolumeImageViewer {
   }
 
   /** Set the visibility of the channel to true
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} OpticalPathIdentifier - opticalPath of the channel
    */
-  showOpticalPath (opticalPathID) {
+  showOpticalPath (OpticalPathIdentifier) {
     const blendingInformation = {
       visible: true,
-      opticalPathID: opticalPathID
+      OpticalPathIdentifier: OpticalPathIdentifier
     }
     this.setBlendingInformation(blendingInformation)
   }
 
   /** Set the visibility of the channel to false
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} OpticalPathIdentifier - opticalPath of the channel
    */
-  hideOpticalPath (opticalPathID) {
+  hideOpticalPath (OpticalPathIdentifier) {
     const blendingInformation = {
       visible: false,
-      opticalPathID: opticalPathID
+      OpticalPathIdentifier: OpticalPathIdentifier
     }
     this.setBlendingInformation(blendingInformation)
   }

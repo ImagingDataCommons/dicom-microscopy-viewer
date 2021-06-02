@@ -48,7 +48,7 @@
         const thresholdValues = [minValue, 255.];
         const blendingInformation = {
           thresholdValues : thresholdValues,
-          opticalPathID : `15`,
+          OpticalPathIdentifier : `15`,
         };
         viewer.setBlendingInformation(blendingInformation);
       }
@@ -61,18 +61,18 @@
         parseInt(hexColor.substr(5, 2), 16) / 255.];
       const blendingInformation = {
         color : color,
-        opticalPathID : `15`,
+        OpticalPathIdentifier : `15`,
       };
       viewer.setBlendingInformation(blendingInformation);
     }
 
     function updateChannelToggle() {
-      const opticalPathID = `15`;
+      const OpticalPathIdentifier = `15`;
       if(channelToggle.checked) {
-        viewer.activateOpticalPath(opticalPathID);
-        viewer.showOpticalPath(opticalPathID);
+        viewer.activateOpticalPath(OpticalPathIdentifier);
+        viewer.showOpticalPath(OpticalPathIdentifier);
       } else {
-        viewer.deactivateOpticalPath(opticalPathID);
+        viewer.deactivateOpticalPath(OpticalPathIdentifier);
       }
     }
 
