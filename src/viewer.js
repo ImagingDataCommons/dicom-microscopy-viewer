@@ -575,12 +575,14 @@ class VolumeImageViewer {
                 const color = [...colors[i % colors.length]]
                 const opacity = 1.0
                 const thresholdValues = [0, 255]
+                const limitValues = [0, 255]
                 const visible = false
                 const defaultBlendingInformation = new BlendingInformation({
                   opticalPathIdentifier,
                   color,
                   opacity,
                   thresholdValues,
+                  limitValues,
                   visible
                 })
   

@@ -25,6 +25,7 @@ class BlendingInformation {
   * @param {number[]} color
   * @param {number} opacity
   * @param {number[]} thresholdValues
+  * @param {number[]} limitValues
   * @param {boolean} visible
   */
   constructor ({
@@ -32,12 +33,14 @@ class BlendingInformation {
     color,
     opacity,
     thresholdValues,
+    limitValues,
     visible
   }) {
     this.opticalPathIdentifier = opticalPathIdentifier
     this.color = [...color]
     this.opacity = opacity
     this.thresholdValues = [...thresholdValues]
+    this.limitValues = [...limitValues]
     this.visible = visible
   }
 }
@@ -60,6 +63,7 @@ class _Channel {
  * @param {number[]} BlendingInformation.color - channel rgb color
  * @param {number} BlendingInformation.opacity - channel opacity
  * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
+ * @param {number[]} BlendingInformation.limitValues - channel min and max color fuinction values
  * @param {boolean} BlendingInformation.visible - channel visibility
  */
   constructor (blendingInformation) {
@@ -257,6 +261,7 @@ class _Channel {
               // coloring image
               const {
                 thresholdValues,
+                limitValues,
                 color,
                 opacity
               } = this.blendingInformation
@@ -267,6 +272,7 @@ class _Channel {
                 bitsAllocated,
                 pixelRepresentation,
                 thresholdValues,
+                limitValues,
                 color,
                 opacity,
                 columns,
@@ -318,6 +324,7 @@ class _Channel {
               // coloring image
               const {
                 thresholdValues,
+                limitValues,
                 color,
                 opacity
               } = this.blendingInformation
@@ -328,6 +335,7 @@ class _Channel {
                 bitsAllocated,
                 pixelRepresentation,
                 thresholdValues,
+                limitValues,
                 color,
                 opacity,
                 columns,
@@ -356,6 +364,7 @@ class _Channel {
                   // coloring image
                   const {
                     thresholdValues,
+                    limitValues,
                     color,
                     opacity
                   } = this.blendingInformation
@@ -366,6 +375,7 @@ class _Channel {
                     bitsAllocated,
                     pixelRepresentation,
                     thresholdValues,
+                    limitValues,
                     color,
                     opacity,
                     columns,
@@ -621,6 +631,7 @@ class _Channel {
    * @param {number[]} BlendingInformation.color - channel rgb color
    * @param {number} BlendingInformation.opacity - channel opacity
    * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
+   * @param {number[]} BlendingInformation.limitValues - channel min and max color function values
    * @param {boolean} BlendingInformation.visible - channel visibility
    * @param {number[]} tilesCoordRanges - array with tiles X and Y coordinates ranges and zoom level
    *
@@ -631,6 +642,7 @@ class _Channel {
       color,
       opacity,
       thresholdValues,
+      limitValues,
       visible
     } = blendingInformation
 
@@ -655,6 +667,13 @@ class _Channel {
         rerender = true
       }
       this.blendingInformation.thresholdValues = [...thresholdValues]
+    }
+    if (limitValues) {
+      if (this.blendingInformation.limitValues[0] !== limitValues[0] ||
+        this.blendingInformation.limitValues[1] !== limitValues[1]) {
+        rerender = true
+      }
+      this.blendingInformation.limitValues = [...limitValues]
     }
     if (visible !== undefined && visible !== null) {
       this.blendingInformation.visible = visible
@@ -716,13 +735,14 @@ class _Channel {
         if (samplesPerPixel === 1) {
           const columns = this.pyramidMetadata[z].Columns
           const rows = this.pyramidMetadata[z].Rows
-          const { thresholdValues, color, opacity } = this.blendingInformation
+          const { thresholdValues, limitValues, color, opacity } = this.blendingInformation
           const img = tile.getImage()
 
           // coloring images
           const frameData = {
             img,
             thresholdValues,
+            limitValues,
             color,
             opacity,
             columns,

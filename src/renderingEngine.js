@@ -226,6 +226,7 @@ class RenderingEngine {
    * @param {number} frameData.bitsAllocated - bits per pixel
    * @param {number} frameData.pixelRepresentation - pixel sign
    * @param {number[]} frameData.thresholdValues - clipping values
+   * @param {number[]} frameData.limitValues - min and max color function values
    * @param {number[]} frameData.color - rgb color
    * @param {number} frameData.opacity - opacity
    * @param {number} frameData.columns - horizontal image size
@@ -240,6 +241,7 @@ class RenderingEngine {
       bitsAllocated,
       pixelRepresentation,
       thresholdValues,
+      limitValues,
       color,
       opacity,
       columns,
@@ -298,7 +300,8 @@ class RenderingEngine {
         rows,
         color,
         opacity,
-        thresholdValues
+        thresholdValues,
+        limitValues
       )
 
       // econde back the image in png
@@ -762,11 +765,12 @@ class RenderingEngine {
    * @param {number[]} color - rgb color
    * @param {number} opacity - opacity
    * @param {number[]} thresholdValues - clipping values
+   * @param {number[]} limitValues - min and max color function values
    *
    * @returns {object} canvas
    * @private
    */
-  _render (pixelData, bitsAllocated, width, height, color, opacity, thresholdValues) {
+  _render (pixelData, bitsAllocated, width, height, color, opacity, thresholdValues, limitValues) {
     // Resize the canvas
     this.renderCanvas.width = width
     this.renderCanvas.height = height
@@ -790,7 +794,9 @@ class RenderingEngine {
     const clippingRange = [...thresholdValues]
     clippingRange[0] = Math.round(clippingRange[0] * convertFactor)
     clippingRange[1] = Math.round(clippingRange[1] * convertFactor)
-    const colorFunctionRange = [0, max]
+    const colorFunctionRange = [...limitValues]
+    colorFunctionRange[0] = Math.round(colorFunctionRange[0] * convertFactor)
+    colorFunctionRange[1] = Math.round(colorFunctionRange[1] * convertFactor)
 
     const windowCenter = (colorFunctionRange[0] + colorFunctionRange[1]) * 0.5
     const windowWidth = colorFunctionRange[1] - colorFunctionRange[0]
