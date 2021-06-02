@@ -634,17 +634,18 @@ class _Channel {
       visible
     } = blendingInformation
 
+    console.info(this.blendingInformation, blendingInformation)
     let rerender = false
     if (color) {
-      if (this.blendingInformation.color[0] !== color[0] ||
-        this.blendingInformation.color[1] !== color[1] ||
-        this.blendingInformation.color[2] !== color[2]) {
+      if (Math.abs(this.blendingInformation.color[0] - color[0]) > 1.e-6 ||
+          Math.abs(this.blendingInformation.color[1] - color[1]) > 1.e-6 ||
+          Math.abs(this.blendingInformation.color[2] - color[2]) > 1.e-6) {
         rerender = true
       }
       this.blendingInformation.color = [...color]
     }
     if (opacity) {
-      if (Math.abs(this.blendingInformation.opacity - opacity) > 1.e-3) {
+      if (Math.abs(this.blendingInformation.opacity - opacity) > 1.e-6) {
         rerender = true
       }
       this.blendingInformation.opacity = opacity
