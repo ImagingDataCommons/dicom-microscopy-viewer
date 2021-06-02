@@ -634,7 +634,6 @@ class _Channel {
       visible
     } = blendingInformation
 
-    console.info(this.blendingInformation, blendingInformation)
     let rerender = false
     if (color) {
       if (Math.abs(this.blendingInformation.color[0] - color[0]) > 1.e-6 ||
