@@ -205,7 +205,7 @@ class RenderingEngine {
   }
 
   /** Runs the offscreen render applying the channel visualization/presentation parameters
-   * to monochome images (1 color channel).
+   * to monochrome images (1 color channel).
    * The pipeline consists in 3 steps:
    * 1) decode the image if is jpeg (libJPEG-turbo), jp2/jpx (OpenJPEG) or jls (CharLS).
    *    The image type is automatically detected by checking the magic number
@@ -234,7 +234,7 @@ class RenderingEngine {
    *
    * @returns {boolean} image was colored.
    */
-  colorMonochomeImageFrame (frameData) {
+  colorMonochromeImageFrame (frameData) {
     const {
       img,
       frames,
@@ -453,7 +453,7 @@ class RenderingEngine {
     const imageTypeObject = imageType(fullEncodedBitStream)
     if (imageTypeObject === null) {
       // this is uncompressed (octet-stream), just return undefined and
-      // createURLFromRGBImage and colorMonochomeImageFrame will deal with it
+      // createURLFromRGBImage and colorMonochromeImageFrame will deal with it
       return {
         pixelData: undefined,
         decodedframeInfo: undefined,

@@ -266,7 +266,6 @@ class _Channel {
                 thresholdValues,
                 limitValues,
                 color,
-                opacity
               } = this.blendingInformation
 
               const frameData = {
@@ -277,12 +276,12 @@ class _Channel {
                 thresholdValues,
                 limitValues,
                 color,
-                opacity,
+                opacity : 1, // the opacity is actually handled at OpenLayer level
                 columns,
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
               tile.needToRerender = !rendered
               tile.isLoading = false
             }
@@ -329,7 +328,6 @@ class _Channel {
                 thresholdValues,
                 limitValues,
                 color,
-                opacity
               } = this.blendingInformation
 
               const frameData = {
@@ -340,12 +338,12 @@ class _Channel {
                 thresholdValues,
                 limitValues,
                 color,
-                opacity,
+                opacity : 1, // the opacity is actually handled at OpenLayer level
                 columns,
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
               tile.needToRerender = !rendered
               tile.isLoading = false
             }
@@ -369,7 +367,6 @@ class _Channel {
                     thresholdValues,
                     limitValues,
                     color,
-                    opacity
                   } = this.blendingInformation
 
                   const frameData = {
@@ -380,12 +377,12 @@ class _Channel {
                     thresholdValues,
                     limitValues,
                     color,
-                    opacity,
+                    opacity : 1, // the opacity is actually handled at OpenLayer level
                     columns,
                     rows
                   }
 
-                  const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
+                  const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
                   tile.needToRerender = !rendered
                   tile.isLoading = false
                 }
@@ -649,28 +646,20 @@ class _Channel {
     } = blendingInformation
 
     let rerender = false
-    if (color) {
-      if (!are1DArraysAlmostEqual(this.blendingInformation.color, color)) {
-        rerender = true
-      }
+    if (color && !are1DArraysAlmostEqual(this.blendingInformation.color, color)) {
+      rerender = true
       this.blendingInformation.color = [...color]
     }
-    if (opacity) {
-      if (!areNumbersAlmostEqual(this.blendingInformation.opacity, opacity)) {
-        rerender = true
-      }
+    if (opacity && !areNumbersAlmostEqual(this.blendingInformation.opacity, opacity)) {
       this.blendingInformation.opacity = opacity
+      this.tileLayer.setOpacity(this.blendingInformation.opacity)
     }
-    if (thresholdValues) {
-      if (!are1DArraysAlmostEqual(this.blendingInformation.thresholdValues, thresholdValues)) {
-        rerender = true
-      }
+    if (thresholdValues && !are1DArraysAlmostEqual(this.blendingInformation.thresholdValues, thresholdValues)) {
+      rerender = true
       this.blendingInformation.thresholdValues = [...thresholdValues]
     }
-    if (limitValues) {
-      if (!are1DArraysAlmostEqual(this.blendingInformation.limitValues, limitValues)) {
-        rerender = true
-      }
+    if (limitValues && !are1DArraysAlmostEqual(this.blendingInformation.limitValues, limitValues)) {
+      rerender = true
       this.blendingInformation.limitValues = [...limitValues]
     }
     if (visible !== undefined && visible !== null) {
@@ -733,7 +722,7 @@ class _Channel {
         if (samplesPerPixel === 1) {
           const columns = this.pyramidMetadata[z].Columns
           const rows = this.pyramidMetadata[z].Rows
-          const { thresholdValues, limitValues, color, opacity } = this.blendingInformation
+          const { thresholdValues, limitValues, color } = this.blendingInformation
           const img = tile.getImage()
 
           // coloring images
@@ -742,12 +731,12 @@ class _Channel {
             thresholdValues,
             limitValues,
             color,
-            opacity,
+            opacity : 1, // the opacity is actually handled at OpenLayer level
             columns,
             rows
           }
 
-          this.renderingEngine.colorMonochomeImageFrame(frameData)
+          this.renderingEngine.colorMonochromeImageFrame(frameData)
           mapRerender = true
           tile.needToRerender = false
         }
