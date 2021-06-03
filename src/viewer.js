@@ -40,9 +40,8 @@ import dcmjs from 'dcmjs'
 
 import {
   VLWholeSlideMicroscopyImage,
-  formatMetadata,
-  groupMonochormeMetadataInstances,
-  groupColoredMetadataInstances
+  groupMonochromeInstances,
+  groupColorInstances
 } from './metadata.js'
 import { ROI } from './roi.js'
 import {
@@ -483,9 +482,11 @@ class VolumeImageViewer {
       this[_options].useWebGL = true
     }
 
+    console.info ("bellaaaaaaaaaaaaaaaaaa1", this[_options].retrieveRendered)
     if (!('retrieveRendered' in this[_options])) {
       this[_options].retrieveRendered = true
     }
+    console.info ("bellaaaaaaaaaaaaaaaaaa2", this[_options].retrieveRendered)
 
     if (!('includeIccProfile' in this[_options])) {
       this[_options].includeIccProfile = false
@@ -540,7 +541,7 @@ class VolumeImageViewer {
 
     // Metadata Tiles types checks for each instance
     // group channels by OpticalPathIdentifier
-    const channelsMicroscopyImages = groupMonochormeMetadataInstances(this[_options].metadata)
+    const channelsMicroscopyImages = groupMonochromeInstances(this[_options].metadata)
     // do additional checks and create channel objects
     for (let i = 0; i < channelsMicroscopyImages.length; ++i) {
       const channelMicroscopyImages = channelsMicroscopyImages[i]
@@ -548,7 +549,6 @@ class VolumeImageViewer {
         const channelMicroscopyImage = channelMicroscopyImages[j]
         if (channelMicroscopyImage.DimensionOrganizationType === '3D' || channelMicroscopyImage.DimensionOrganizationType === '3D_TEMPORAL') {
           // 3D data
-          // TO DO: get some example data.
           throw new Error('Volume Image Viewer does hot hanlde 3D channel data yet.')
         } else if (channelMicroscopyImage.DimensionOrganizationType === 'TILED_FULL') {
           if (channelMicroscopyImage.TotalPixelMatrixFocalPlanes !== 1) {
@@ -609,7 +609,7 @@ class VolumeImageViewer {
       metadata: []
     }
 
-    const colorImagesMicroscopyImages = groupColoredMetadataInstances(this[_options].metadata)
+    const colorImagesMicroscopyImages = groupColorInstances(this[_options].metadata)
     
     if (colorImagesMicroscopyImages.length > 1) {
       console.warn('Volume Image Viewer detected more than one color image. ' +
@@ -780,7 +780,7 @@ class VolumeImageViewer {
       layers.push(this[_colorImage].tileLayer)
       rasterSourceOverview = this[_colorImage].rasterSource
     } else {
-      throw new Error('Viewer cannot find a color image or a monochorme channel to visualize.')
+      throw new Error('Viewer cannot find a color image or a monochrome channel to visualize.')
     }
 
     layers.push(this[_drawingLayer])
@@ -903,7 +903,7 @@ class VolumeImageViewer {
     })
   }
 
-  /** updates tiles rendering for monochorme channels at zoom interactions
+  /** updates tiles rendering for monochrome channels at zoom interactions
    * @param {number} zoom - applied zoom
    */
   _updateTilesRenderingAtZoom (zoom) {
@@ -923,7 +923,7 @@ class VolumeImageViewer {
     }
   }
 
-  /** updates tiles rendering for monochorme channels at panning interactions
+  /** updates tiles rendering for monochrome channels at panning interactions
    */
   _updateTilesRenderingAtPanning () {
     if (this[_channels] && this[_channels].length !== 0) {
@@ -1131,7 +1131,7 @@ class VolumeImageViewer {
       projection: this[_projection],
       wrapX: false,
       transition: 0,
-      cacheSize: 1000000
+      cacheSize: 100
     })
 
     this[_colorImage].rasterSource.setTileUrlFunction(tileUrlFunction)

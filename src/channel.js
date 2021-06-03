@@ -1,7 +1,10 @@
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js'
-import * as DICOMwebClient from 'dicomweb-client'
+import *
+ as DICOMwebClient from 'dicomweb-client'
 import {
-  arraysEqual
+  areNumbersAlmostEqual,
+  are1DArraysAlmostEqual,
+  are2DArraysAlmostEqual
 } from './utils.js'
 import {
   getPixelSpacing
@@ -56,7 +59,7 @@ class _Channel {
 /**
  * Create a channel instances which contains all the visualization/presentation
  * parameters and OpenLayer objects for a Whole Slide Microscopy Image.
- * Channel coloring is allowed only for monochorme channels (i.e SamplesPerPixel === 1).
+ * Channel coloring is allowed only for monochrome channels (i.e SamplesPerPixel === 1).
  *
  * @param {object} BlendingInformation
  * @param {string} BlendingInformation.opticalPathIdentifier - channel ID
@@ -118,7 +121,7 @@ class _Channel {
     const geometryArrays = _Channel.deriveImageGeometry(this)
 
     // Check frame of reference
-    /* To Do: different channels (monochorme images) can have different 
+    /* To Do: different channels (monochrome images) can have different 
     FrameOfReferenceUID, what should we do?
     for the momnet the FrameOfReferenceUID check is disabled
     -------------------------------
@@ -131,42 +134,42 @@ class _Channel {
     }*/
 
     // Check that all the channels have the same pyramid parameters
-    if (arraysEqual(geometryArrays[0], referenceExtent) === false) {
+    if (are2DArraysAlmostEqual(geometryArrays[0], referenceExtent) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible extent respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[1], referenceOrigins) === false) {
+    if (are2DArraysAlmostEqual(geometryArrays[1], referenceOrigins) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible origins respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[2], referenceResolutions) === false) {
+    if (are2DArraysAlmostEqual(geometryArrays[2], referenceResolutions) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible resolutions respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[3], referenceGridSizes) === false) {
+    if (are2DArraysAlmostEqual(geometryArrays[3], referenceGridSizes) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible grid sizes respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[4], referenceTileSizes) === false) {
+    if (are2DArraysAlmostEqual(geometryArrays[4], referenceTileSizes) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible tile sizes respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[5], referencePixelSpacings) === false) {
+    if (are2DArraysAlmostEqual(geometryArrays[5], referencePixelSpacings) === false) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible pixel spacings respect to the reference optical path ' +
@@ -409,7 +412,7 @@ class _Channel {
       projection: projection,
       wrapX: false,
       transition: 0,
-      cacheSize: 1000000
+      cacheSize: 100
     })
 
     this.rasterSource.setTileUrlFunction(tileUrlFunction)
@@ -456,12 +459,11 @@ class _Channel {
     }
 
     image.FrameOfReferenceUID = undefined
-    console.info(image.microscopyImages[0].FrameOfReferenceUID)
     for (let i = 0; i < image.microscopyImages.length; ++i) {
       if (image.FrameOfReferenceUID === undefined) {
         image.FrameOfReferenceUID = image.microscopyImages[i].FrameOfReferenceUID
       } /* To Do: different microscopyImages metadata of the same channel 
-        (monochorme image) can have different FrameOfReferenceUID, what should we do?
+        (monochrome image) can have different FrameOfReferenceUID, what should we do?
         for the momnet the FrameOfReferenceUID check is disabled
         ---------------------------------
         else if (image.FrameOfReferenceUID !== image.microscopyImages[i].FrameOfReferenceUID) {
@@ -648,29 +650,25 @@ class _Channel {
 
     let rerender = false
     if (color) {
-      if (Math.abs(this.blendingInformation.color[0] - color[0]) > 1.e-6 ||
-          Math.abs(this.blendingInformation.color[1] - color[1]) > 1.e-6 ||
-          Math.abs(this.blendingInformation.color[2] - color[2]) > 1.e-6) {
+      if (are1DArraysAlmostEqual(this.blendingInformation.color, color)) {
         rerender = true
       }
       this.blendingInformation.color = [...color]
     }
     if (opacity) {
-      if (Math.abs(this.blendingInformation.opacity - opacity) > 1.e-6) {
+      if (areNumbersAlmostEqual(this.blendingInformation.opacity, opacity)) {
         rerender = true
       }
       this.blendingInformation.opacity = opacity
     }
     if (thresholdValues) {
-      if (this.blendingInformation.thresholdValues[0] !== thresholdValues[0] ||
-        this.blendingInformation.thresholdValues[1] !== thresholdValues[1]) {
+      if (are1DArraysAlmostEqual(this.blendingInformation.thresholdValues, thresholdValues)) {
         rerender = true
       }
       this.blendingInformation.thresholdValues = [...thresholdValues]
     }
     if (limitValues) {
-      if (this.blendingInformation.limitValues[0] !== limitValues[0] ||
-        this.blendingInformation.limitValues[1] !== limitValues[1]) {
+      if (are1DArraysAlmostEqual(this.blendingInformation.limitValues, limitValues)) {
         rerender = true
       }
       this.blendingInformation.limitValues = [...limitValues]

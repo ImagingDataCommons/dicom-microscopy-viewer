@@ -3,8 +3,8 @@ import {
   Comprehensive3DSR,
   VLWholeSlideMicroscopyImage,
   formatMetadata,
-  groupMonochormeMetadataInstances,
-  groupColoredMetadataInstances
+  groupMonochromeInstances,
+  groupColorInstances
 } from './metadata.js'
 import { ROI } from './roi.js'
 import {
@@ -58,8 +58,8 @@ const viewer = {
  */
 const metadata = {
   formatMetadata,
-  groupMonochormeMetadataInstances,
-  groupColoredMetadataInstances,
+  groupMonochromeInstances,
+  groupColorInstances,
   VLWholeSlideMicroscopyImage,
   Comprehensive3DSR,
   BlendingInformation
