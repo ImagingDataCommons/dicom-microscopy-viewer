@@ -482,11 +482,9 @@ class VolumeImageViewer {
       this[_options].useWebGL = true
     }
 
-    console.info ("bellaaaaaaaaaaaaaaaaaa1", this[_options].retrieveRendered)
     if (!('retrieveRendered' in this[_options])) {
       this[_options].retrieveRendered = true
     }
-    console.info ("bellaaaaaaaaaaaaaaaaaa2", this[_options].retrieveRendered)
 
     if (!('includeIccProfile' in this[_options])) {
       this[_options].includeIccProfile = false

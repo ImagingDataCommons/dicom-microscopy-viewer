@@ -650,25 +650,25 @@ class _Channel {
 
     let rerender = false
     if (color) {
-      if (are1DArraysAlmostEqual(this.blendingInformation.color, color)) {
+      if (!are1DArraysAlmostEqual(this.blendingInformation.color, color)) {
         rerender = true
       }
       this.blendingInformation.color = [...color]
     }
     if (opacity) {
-      if (areNumbersAlmostEqual(this.blendingInformation.opacity, opacity)) {
+      if (!areNumbersAlmostEqual(this.blendingInformation.opacity, opacity)) {
         rerender = true
       }
       this.blendingInformation.opacity = opacity
     }
     if (thresholdValues) {
-      if (are1DArraysAlmostEqual(this.blendingInformation.thresholdValues, thresholdValues)) {
+      if (!are1DArraysAlmostEqual(this.blendingInformation.thresholdValues, thresholdValues)) {
         rerender = true
       }
       this.blendingInformation.thresholdValues = [...thresholdValues]
     }
     if (limitValues) {
-      if (are1DArraysAlmostEqual(this.blendingInformation.limitValues, limitValues)) {
+      if (!are1DArraysAlmostEqual(this.blendingInformation.limitValues, limitValues)) {
         rerender = true
       }
       this.blendingInformation.limitValues = [...limitValues]
