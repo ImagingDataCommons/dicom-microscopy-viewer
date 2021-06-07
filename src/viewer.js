@@ -594,7 +594,6 @@ class VolumeImageViewer {
           // the spatial location of each tile is explicitly encoded using information
           // in the Per-Frame Functional Group Sequence, and the recipient shall not
           // make any assumption about the spatial position or optical path or order of the encoded frames.
-          // TO DO: get some example data.
           throw new Error('Volume Image Viewer does hot handle TILED_SPARSE ' +
                           'dimension organization for blending of channels yet.')
         }
@@ -720,6 +719,7 @@ class VolumeImageViewer {
       channel.initChannel(
         image.blendingInformation.opticalPathIdentifier,
         image.FrameOfReferenceUID,
+        image.ContainerIdentifier,
         this[_referenceExtents],
         this[_referenceOrigins],
         this[_referenceResolutions],

@@ -84,6 +84,7 @@ class _Channel {
    *
    * @param {string} referenceOpticalPathIdentifier - reference optical path identifier
    * @param {string} referenceFrameOfReferenceUID - reference frame of reference UID
+   * @param {string} referenceContainerIdentifier - container identifier of reference UID
    * @param {number[]} referenceExtent - reference extent array
    * @param {number[]} referenceOrigins - reference origins array
    * @param {number[]} referenceResolutions - reference resolutions array
@@ -99,6 +100,7 @@ class _Channel {
   initChannel (
     referenceOpticalPathIdentifier,
     referenceFrameOfReferenceUID,
+    referenceContainerIdentifier,
     referenceExtent,
     referenceOrigins,
     referenceResolutions,
@@ -121,17 +123,22 @@ class _Channel {
     const geometryArrays = _Channel.deriveImageGeometry(this)
 
     // Check frame of reference
-    /* To Do: different channels (monochrome images) can have different 
-    FrameOfReferenceUID, what should we do?
-    for the momnet the FrameOfReferenceUID check is disabled
-    -------------------------------
     if (referenceFrameOfReferenceUID !== this.FrameOfReferenceUID) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has different FrameOfReferenceUID respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
-    }*/
+    }
+
+    // Check container identifier
+    if (referenceContainerIdentifier !== this.ContainerIdentifier) {
+      throw new Error(
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        ' image has different ContainerIdentifier respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
+      )
+    }
 
     // Check that all the channels have the same pyramid parameters
     if (are2DArraysAlmostEqual(geometryArrays[0], referenceExtent) === false) {
@@ -459,15 +466,22 @@ class _Channel {
     for (let i = 0; i < image.microscopyImages.length; ++i) {
       if (image.FrameOfReferenceUID === undefined) {
         image.FrameOfReferenceUID = image.microscopyImages[i].FrameOfReferenceUID
-      } /* To Do: different microscopyImages metadata of the same channel 
-        (monochrome image) can have different FrameOfReferenceUID, what should we do?
-        for the momnet the FrameOfReferenceUID check is disabled
-        ---------------------------------
-        else if (image.FrameOfReferenceUID !== image.microscopyImages[i].FrameOfReferenceUID) {
+      } else if (image.FrameOfReferenceUID !== image.microscopyImages[i].FrameOfReferenceUID) {
         throw new Error('Optioncal Path ID ' + 
         image.blendingInformation.opticalPathIdentifier + 
         ' has volume microscopy images with different FrameOfReferenceUID')
-      }*/
+      }
+    }
+
+    image.ContainerIdentifier = undefined
+    for (let i = 0; i < image.microscopyImages.length; ++i) {
+      if (image.ContainerIdentifier === undefined) {
+        image.ContainerIdentifier = image.microscopyImages[i].ContainerIdentifier
+      } else if (image.ContainerIdentifier !== image.microscopyImages[i].ContainerIdentifier) {
+        throw new Error('Optioncal Path ID ' + 
+        image.blendingInformation.opticalPathIdentifier + 
+        ' has volume microscopy images with different ContainerIdentifier')
+      }
     }
 
     // Sort instances and optionally concatenation parts if present.
