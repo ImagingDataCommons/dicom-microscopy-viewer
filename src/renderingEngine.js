@@ -790,6 +790,7 @@ class RenderingEngine {
         'The pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
       )
     }
+
     const convertFactor = max / 255.0
     const clippingRange = [...thresholdValues]
     clippingRange[0] = Math.round(clippingRange[0] * convertFactor)

@@ -76,10 +76,7 @@
       }
     }
 
-    //const url = 'http://localhost:8080/dcm4chee-arc/aets/DCM4CHEE/rs'; // enable for testing locally
     const url = 'http://34.68.90.36/'; 
-    // TO DO: this example will not work unitl we update teh data in http://34.68.90.36/
-    // with https://github.com/MGHComputationalPathology/slim/issues/22#issuecomment-854919111
     const client = new DICOMwebClient.api.DICOMwebClient({url});
     const studyInstanceUID = '1.3.6.1.4.1.5962.99.1.3456320082.756362073.1622659023442.3.0';
     const seriesInstanceUIDOne = '1.3.6.1.4.1.5962.1.1.0.0.0.1595262375.18986.1';
