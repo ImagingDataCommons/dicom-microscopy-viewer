@@ -475,6 +475,7 @@ class VolumeImageViewer {
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
    * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used
+   * @param {number} [options.tilesCacheSize=1000] - initial cache size for a TileImage
    */
   constructor (options) {
     this[_options] = options
@@ -488,6 +489,10 @@ class VolumeImageViewer {
 
     if (!('includeIccProfile' in this[_options])) {
       this[_options].includeIccProfile = false
+    }
+
+    if (!('tilesCacheSize' in this[_options])) {
+      this[_options].tilesCacheSize = 1000
     }
 
     if (!('overview' in this[_options])) {
@@ -601,32 +606,26 @@ class VolumeImageViewer {
     }
 
     // group color images by opticalPathIdentifier
-    this[_colorImage] = {
-      opticalPathIdentifier: '',
-      metadata: []
-    }
-
     const colorImagesMicroscopyImages = groupColorInstances(this[_options].metadata)
-    
     if (colorImagesMicroscopyImages.length > 1) {
       console.warn('Volume Image Viewer detected more than one color image. ' +
       'It is possible to load and visualize only one color image at time. ' +
-      'Please check the input metadata. Only the first detected color image will be loaded')
-    }
-
-    for (let i = 0; i < colorImagesMicroscopyImages.length; ++i) {
-      const colorImageMicroscopyImages = colorImagesMicroscopyImages[i]
+      'Please check the input metadata. Only the first detected color image will be loaded.')
+    } else if (colorImagesMicroscopyImages.length !== 0) {
+      const colorImageMicroscopyImages = colorImagesMicroscopyImages[0]
       if (colorImageMicroscopyImages.length === 0) {
-        continue;
+        throw new Error('The first detected color image has no metadata available.')
       }
 
-      this[_colorImage].opticalPathIdentifier = colorImageMicroscopyImages[0].OpticalPathSequence[0].OpticalPathIdentifier
-      for (let j = 0; j < colorImageMicroscopyImages.length; ++j) {
-        const colorImageMicroscopyImage = colorImageMicroscopyImages[j]
+      this[_colorImage] = {
+        opticalPathIdentifier: colorImageMicroscopyImages[0].OpticalPathSequence[0].OpticalPathIdentifier,
+        metadata: []
+      }
+
+      for (let i = 0; i < colorImageMicroscopyImages.length; ++i) {
+        const colorImageMicroscopyImage = colorImageMicroscopyImages[i]
         this[_colorImage].metadata.push(colorImageMicroscopyImage.originMetadata)
       }
-       
-      break
     }
 
     /*
@@ -641,7 +640,7 @@ class VolumeImageViewer {
     *    regridding/reprojection over the data (i.e. registration).
     *    This, at the moment, is out of scope.
     */
-    if (this[_channels].length === 0 && this[_colorImage].opticalPathIdentifier === '') {
+    if (this[_channels].length === 0 && this[_colorImage] === undefined) {
       throw new Error('No channels or colorImage found.')
     }
 
@@ -774,7 +773,7 @@ class VolumeImageViewer {
       this[_channels][0].tileLayer.setVisible(true)
       layers.push(this[_channels][0].tileLayer)
       rasterSourceOverview = this[_channels][0].rasterSource
-    } else if (this[_colorImage].opticalPathIdentifier !== '') {
+    } else if (this[_colorImage] !== undefined) {
       layers.push(this[_colorImage].tileLayer)
       rasterSourceOverview = this[_colorImage].rasterSource
     } else {
@@ -948,7 +947,7 @@ class VolumeImageViewer {
   /** init unique Open Layer objects
    */
   _initColorImage () {
-    if (this[_colorImage].opticalPathIdentifier === '') {
+    if (this[_colorImage] === undefined) {
       return
     }
     /*
@@ -1129,7 +1128,7 @@ class VolumeImageViewer {
       projection: this[_projection],
       wrapX: false,
       transition: 0,
-      cacheSize: 100
+      cacheSize: this[_options].tilesCacheSize
     })
 
     this[_colorImage].rasterSource.setTileUrlFunction(tileUrlFunction)
@@ -1148,20 +1147,31 @@ class VolumeImageViewer {
    * @return {Object} _Channel
    */
   getOpticalPath (opticalPathIdentifier) {
-    if (this[_channels].length === 0 && this[_colorImage].opticalPathIdentifier === '') {
+    if (this[_channels].length === 0 && this[_colorImage] === undefined) {
       throw new Error('No channels or colorImage found.')
     }
-    const channel = this[_channels].find(
-      channel => channel.blendingInformation.opticalPathIdentifier === opticalPathIdentifier
-    )
-    const colorImage = this[_colorImage].opticalPathIdentifier === opticalPathIdentifier
-      ? this[_colorImage]
-      : undefined
-    if (!channel && !colorImage) {
-      throw new Error('No OpticalPath with ID ' + opticalPathIdentifier + ' has been found.')
+    
+    let channel = undefined
+    if (this[_channels].length !== 0) {
+      channel = this[_channels].find(
+        channel => channel.blendingInformation.opticalPathIdentifier === opticalPathIdentifier
+      )
+    }
+    
+    let colorImage = undefined
+    if (this[_colorImage] !== undefined) {
+      colorImage = this[_colorImage].opticalPathIdentifier === opticalPathIdentifier
+        ? this[_colorImage]
+        : undefined
     }
 
-    return channel
+    if (channel) {
+      return channel
+    } else if (colorImage) {
+      return colorImage
+    } else {
+      throw new Error('No OpticalPath with ID ' + opticalPathIdentifier + ' has been found.')
+    }
   }
 
   /** Gets the channel or color image metadata given an id

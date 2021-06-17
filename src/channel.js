@@ -141,42 +141,42 @@ class _Channel {
     }
 
     // Check that all the channels have the same pyramid parameters
-    if (are2DArraysAlmostEqual(geometryArrays[0], referenceExtent) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[0], referenceExtent)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible extent respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (are2DArraysAlmostEqual(geometryArrays[1], referenceOrigins) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[1], referenceOrigins)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible origins respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (are2DArraysAlmostEqual(geometryArrays[2], referenceResolutions) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[2], referenceResolutions)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible resolutions respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (are2DArraysAlmostEqual(geometryArrays[3], referenceGridSizes) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[3], referenceGridSizes)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible grid sizes respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (are2DArraysAlmostEqual(geometryArrays[4], referenceTileSizes) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[4], referenceTileSizes)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible tile sizes respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (are2DArraysAlmostEqual(geometryArrays[5], referencePixelSpacings) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[5], referencePixelSpacings)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible pixel spacings respect to the reference optical path ' +
@@ -416,7 +416,7 @@ class _Channel {
       projection: projection,
       wrapX: false,
       transition: 0,
-      cacheSize: 100
+      cacheSize: options.tilesCacheSize
     })
 
     this.rasterSource.setTileUrlFunction(tileUrlFunction)
@@ -462,22 +462,18 @@ class _Channel {
       image.blendingInformation.opticalPathIdentifier)
     }
 
-    image.FrameOfReferenceUID = undefined
+    image.FrameOfReferenceUID = image.microscopyImages[0].FrameOfReferenceUID
     for (let i = 0; i < image.microscopyImages.length; ++i) {
-      if (image.FrameOfReferenceUID === undefined) {
-        image.FrameOfReferenceUID = image.microscopyImages[i].FrameOfReferenceUID
-      } else if (image.FrameOfReferenceUID !== image.microscopyImages[i].FrameOfReferenceUID) {
+      if (image.FrameOfReferenceUID !== image.microscopyImages[i].FrameOfReferenceUID) {
         throw new Error('Optioncal Path ID ' + 
         image.blendingInformation.opticalPathIdentifier + 
         ' has volume microscopy images with different FrameOfReferenceUID')
       }
     }
 
-    image.ContainerIdentifier = undefined
+    image.ContainerIdentifier = image.microscopyImages[0].ContainerIdentifier
     for (let i = 0; i < image.microscopyImages.length; ++i) {
-      if (image.ContainerIdentifier === undefined) {
-        image.ContainerIdentifier = image.microscopyImages[i].ContainerIdentifier
-      } else if (image.ContainerIdentifier !== image.microscopyImages[i].ContainerIdentifier) {
+      if (image.ContainerIdentifier !== image.microscopyImages[i].ContainerIdentifier) {
         throw new Error('Optioncal Path ID ' + 
         image.blendingInformation.opticalPathIdentifier + 
         ' has volume microscopy images with different ContainerIdentifier')
