@@ -337,11 +337,13 @@ function mapSlideCoordToPixelCoord (options) {
   return applyInverseTransform({ coordinate: point, affine: affine })
 }
 
-/** checks if arrays are equal. The arrays can have dimensionality either 1 or 2.
+/** checks if 2D arrays are equal.
  * @param {number[]} array a
  * @param {number[]} array b
+ * @param {number} eps
+ * @returns {boolean} check
  */
-function arraysEqual (a, b) {
+function are2DArraysAlmostEqual (a, b, eps = 1.e-6) {
   if (a === b) return true
   if (a == null || b == null) return false
   if (a.length !== b.length) return false
@@ -349,10 +351,40 @@ function arraysEqual (a, b) {
   for (let i = 0; i < a.length; ++i) {
     if (a[i].length !== b[i].length) return false
     for (let j = 0; j < a[i].length; ++j) {
-      if (a[i][j] !== b[i][j]) return false
+      if (!areNumbersAlmostEqual(a[i][j], b[i][j], eps)) {
+        return false
+      }
     }
   }
   return true
+}
+
+/** checks if 1D arrays are equal.
+ * @param {number[]} array a
+ * @param {number[]} array b
+ * @param {number} eps
+ * @returns {boolean} check
+ */
+function are1DArraysAlmostEqual (a, b, eps = 1.e-6) {
+  if (a == null || b == null) return false
+  if (a.length !== b.length) return false
+
+  for (let i = 0; i < a.length; ++i) {
+    if (!areNumbersAlmostEqual(a[i], b[i], eps)) {
+      return false
+    }
+  }
+  return true
+}
+
+/** checks if two numbers are equal.
+ * @param {number} a
+ * @param {number} b
+ * @param {number} eps
+ * @returns {boolean} check
+ */
+function areNumbersAlmostEqual (a, b, eps = 1.e-6) {
+  return Math.abs(a - b) < eps
 }
 
 /**
@@ -466,7 +498,9 @@ export {
   generateUID,
   mapPixelCoordToSlideCoord,
   mapSlideCoordToPixelCoord,
-  arraysEqual,
+  areNumbersAlmostEqual,
+  are1DArraysAlmostEqual,
+  are2DArraysAlmostEqual,
   doContentItemsMatch,
   areCodedConceptsEqual,
   getContentItemNameCodedConcept

@@ -205,7 +205,7 @@ class RenderingEngine {
   }
 
   /** Runs the offscreen render applying the channel visualization/presentation parameters
-   * to monochome images (1 color channel).
+   * to monochrome images (1 color channel).
    * The pipeline consists in 3 steps:
    * 1) decode the image if is jpeg (libJPEG-turbo), jp2/jpx (OpenJPEG) or jls (CharLS).
    *    The image type is automatically detected by checking the magic number
@@ -226,6 +226,7 @@ class RenderingEngine {
    * @param {number} frameData.bitsAllocated - bits per pixel
    * @param {number} frameData.pixelRepresentation - pixel sign
    * @param {number[]} frameData.thresholdValues - clipping values
+   * @param {number[]} frameData.limitValues - min and max color function values
    * @param {number[]} frameData.color - rgb color
    * @param {number} frameData.opacity - opacity
    * @param {number} frameData.columns - horizontal image size
@@ -233,13 +234,14 @@ class RenderingEngine {
    *
    * @returns {boolean} image was colored.
    */
-  colorMonochomeImageFrame (frameData) {
+  colorMonochromeImageFrame (frameData) {
     const {
       img,
       frames,
       bitsAllocated,
       pixelRepresentation,
       thresholdValues,
+      limitValues,
       color,
       opacity,
       columns,
@@ -298,7 +300,8 @@ class RenderingEngine {
         rows,
         color,
         opacity,
-        thresholdValues
+        thresholdValues,
+        limitValues
       )
 
       // econde back the image in png
@@ -450,7 +453,7 @@ class RenderingEngine {
     const imageTypeObject = imageType(fullEncodedBitStream)
     if (imageTypeObject === null) {
       // this is uncompressed (octet-stream), just return undefined and
-      // createURLFromRGBImage and colorMonochomeImageFrame will deal with it
+      // createURLFromRGBImage and colorMonochromeImageFrame will deal with it
       return {
         pixelData: undefined,
         decodedframeInfo: undefined,
@@ -762,11 +765,12 @@ class RenderingEngine {
    * @param {number[]} color - rgb color
    * @param {number} opacity - opacity
    * @param {number[]} thresholdValues - clipping values
+   * @param {number[]} limitValues - min and max color function values
    *
    * @returns {object} canvas
    * @private
    */
-  _render (pixelData, bitsAllocated, width, height, color, opacity, thresholdValues) {
+  _render (pixelData, bitsAllocated, width, height, color, opacity, thresholdValues, limitValues) {
     // Resize the canvas
     this.renderCanvas.width = width
     this.renderCanvas.height = height
@@ -786,11 +790,14 @@ class RenderingEngine {
         'The pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
       )
     }
+
     const convertFactor = max / 255.0
     const clippingRange = [...thresholdValues]
     clippingRange[0] = Math.round(clippingRange[0] * convertFactor)
     clippingRange[1] = Math.round(clippingRange[1] * convertFactor)
-    const colorFunctionRange = [0, max]
+    const colorFunctionRange = [...limitValues]
+    colorFunctionRange[0] = Math.round(colorFunctionRange[0] * convertFactor)
+    colorFunctionRange[1] = Math.round(colorFunctionRange[1] * convertFactor)
 
     const windowCenter = (colorFunctionRange[0] + colorFunctionRange[1]) * 0.5
     const windowWidth = colorFunctionRange[1] - colorFunctionRange[0]

@@ -67,7 +67,7 @@
     "dicomweb-client": "^0.5.2",
     "image-type": "^4.1.0",
     "mathjs": "^9.4",
-    "ol": "^6.5"
+    "ol": "^6.5.0"
   },
   "config": {
     "puppeteer_skip_chromium_download": false

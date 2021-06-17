@@ -113,6 +113,76 @@ function formatMetadata (metadata) {
   return dataset
 }
 
+/** Struct DICOM metadata of monochrome slides in groups by OpticalPathIdentifier.
+ *
+ * @param {Object[]} metadata
+ * 
+ * @returns {Object[]} groups of VLWholeSlideMicroscopyImages
+ * @memberof metadata
+ */
+function groupMonochromeInstances(metadataArray) {
+  const channels = []
+  for (let i = 0; i < metadataArray.length; ++i) {
+    const microscopyImage = new VLWholeSlideMicroscopyImage({ metadata: metadataArray[i] })
+    if (microscopyImage.ImageType[2] !== 'VOLUME') {
+      continue
+    }
+
+    if (microscopyImage.SamplesPerPixel === 1 &&
+        microscopyImage.PhotometricInterpretation === 'MONOCHROME2') {
+      // this is a monochrome channel
+      const pathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
+      const channel = channels.find(channel => {
+        return channel[0].OpticalPathSequence[0].OpticalPathIdentifier === pathIdentifier
+      })
+  
+      if (channel) {
+        channel.push(microscopyImage)
+      } else {
+        channels.push([microscopyImage])
+      }
+    }
+  }
+
+  return channels
+}
+
+/** Struct DICOM metadata of colored slides in groups by OpticalPathIdentifier.
+ *
+ * @param {Object[]} metadata
+ * 
+ * @returns {Object[]} groups of VLWholeSlideMicroscopyImages
+ * @memberof metadata
+ */
+ function groupColorInstances(metadataArray) {
+  const colorImages = []
+  for (let i = 0; i < metadataArray.length; ++i) {
+    const microscopyImage = new VLWholeSlideMicroscopyImage({ metadata: metadataArray[i] })
+    if (microscopyImage.ImageType[2] !== 'VOLUME') {
+      continue
+    }
+
+    if (microscopyImage.SamplesPerPixel !== 1 &&
+        (microscopyImage.PhotometricInterpretation === 'RGB' ||
+        microscopyImage.PhotometricInterpretation === 'YBR_*')) {
+      //this is a color channel
+      const pathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
+      const colorImage = colorImages.find(colorImage => {
+        return colorImage[0].OpticalPathSequence[0].OpticalPathIdentifier === pathIdentifier
+      })
+  
+      if (colorImage) {
+        colorImage.push(microscopyImage)
+      } else {
+        colorImages.push([microscopyImage])
+      }
+    }
+  }
+
+  return colorImages
+}
+
+
 /** DICOM VL Whole Slide Microscopy Image instance
  * (without Pixel Data or any other bulk data).
  *
@@ -134,6 +204,7 @@ class VLWholeSlideMicroscopyImage {
     }
 
     Object.assign(this, dataset)
+    this.originMetadata = options.metadata
   }
 }
 
@@ -163,6 +234,8 @@ class Comprehensive3DSR {
 export {
   Comprehensive3DSR,
   formatMetadata,
+  groupMonochromeInstances,
+  groupColorInstances,
   getFrameMapping,
   VLWholeSlideMicroscopyImage
 }

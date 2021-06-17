@@ -2,7 +2,9 @@ import EVENTS from './events.js'
 import {
   Comprehensive3DSR,
   VLWholeSlideMicroscopyImage,
-  formatMetadata
+  formatMetadata,
+  groupMonochromeInstances,
+  groupColorInstances
 } from './metadata.js'
 import { ROI } from './roi.js'
 import {
@@ -56,6 +58,8 @@ const viewer = {
  */
 const metadata = {
   formatMetadata,
+  groupMonochromeInstances,
+  groupColorInstances,
   VLWholeSlideMicroscopyImage,
   Comprehensive3DSR,
   BlendingInformation

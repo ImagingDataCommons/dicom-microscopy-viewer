@@ -282,7 +282,7 @@ class _Channel {
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
               tile.needToRerender = !rendered
             }
           )
@@ -343,7 +343,7 @@ class _Channel {
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
               tile.needToRerender = !rendered
             }
           ).catch(
@@ -380,7 +380,7 @@ class _Channel {
                     rows
                   }
 
-                  const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
+                  const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
                   tile.needToRerender = !rendered
                 }
               )
@@ -715,7 +715,7 @@ class _Channel {
             rows
           }
 
-          const rendered = this.renderingEngine.colorMonochomeImageFrame(frameData)
+          const rendered = this.renderingEngine.colorMonochromeImageFrame(frameData)
           if (rendered) {
             mapRerender = true
             tile.needToRerender = !rendered

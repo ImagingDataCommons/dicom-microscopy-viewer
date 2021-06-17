@@ -1,7 +1,10 @@
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js'
-import * as DICOMwebClient from 'dicomweb-client'
+import *
+ as DICOMwebClient from 'dicomweb-client'
 import {
-  arraysEqual
+  areNumbersAlmostEqual,
+  are1DArraysAlmostEqual,
+  are2DArraysAlmostEqual
 } from './utils.js'
 import {
   getPixelSpacing
@@ -25,6 +28,7 @@ class BlendingInformation {
   * @param {number[]} color
   * @param {number} opacity
   * @param {number[]} thresholdValues
+  * @param {number[]} limitValues
   * @param {boolean} visible
   */
   constructor ({
@@ -32,12 +36,14 @@ class BlendingInformation {
     color,
     opacity,
     thresholdValues,
+    limitValues,
     visible
   }) {
     this.opticalPathIdentifier = opticalPathIdentifier
     this.color = [...color]
     this.opacity = opacity
     this.thresholdValues = [...thresholdValues]
+    this.limitValues = [...limitValues]
     this.visible = visible
   }
 }
@@ -53,13 +59,14 @@ class _Channel {
 /**
  * Create a channel instances which contains all the visualization/presentation
  * parameters and OpenLayer objects for a Whole Slide Microscopy Image.
- * Channel coloring is allowed only for monochorme channels (i.e SamplesPerPixel === 1).
+ * Channel coloring is allowed only for monochrome channels (i.e SamplesPerPixel === 1).
  *
  * @param {object} BlendingInformation
  * @param {string} BlendingInformation.opticalPathIdentifier - channel ID
  * @param {number[]} BlendingInformation.color - channel rgb color
  * @param {number} BlendingInformation.opacity - channel opacity
  * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
+ * @param {number[]} BlendingInformation.limitValues - channel min and max color fuinction values
  * @param {boolean} BlendingInformation.visible - channel visibility
  */
   constructor (blendingInformation) {
@@ -76,6 +83,8 @@ class _Channel {
    * for setting the globalCompositeOperation value to 'lighter' during the tiles blending.
    *
    * @param {string} referenceOpticalPathIdentifier - reference optical path identifier
+   * @param {string} referenceFrameOfReferenceUID - reference frame of reference UID
+   * @param {string} referenceContainerIdentifier - container identifier of reference UID
    * @param {number[]} referenceExtent - reference extent array
    * @param {number[]} referenceOrigins - reference origins array
    * @param {number[]} referenceResolutions - reference resolutions array
@@ -88,7 +97,10 @@ class _Channel {
    * @param {object} renderingEngine - VolumeImageViewer offscreen rendering engine
    *
    */
-  initChannel (referenceOpticalPathIdentifier,
+  initChannel (
+    referenceOpticalPathIdentifier,
+    referenceFrameOfReferenceUID,
+    referenceContainerIdentifier,
     referenceExtent,
     referenceOrigins,
     referenceResolutions,
@@ -110,43 +122,61 @@ class _Channel {
 
     const geometryArrays = _Channel.deriveImageGeometry(this)
 
+    // Check frame of reference
+    if (referenceFrameOfReferenceUID !== this.FrameOfReferenceUID) {
+      throw new Error(
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        ' image has different FrameOfReferenceUID respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
+      )
+    }
+
+    // Check container identifier
+    if (referenceContainerIdentifier !== this.ContainerIdentifier) {
+      throw new Error(
+        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
+        ' image has different ContainerIdentifier respect to the reference optical path ' +
+        referenceOpticalPathIdentifier
+      )
+    }
+
     // Check that all the channels have the same pyramid parameters
-    if (arraysEqual(geometryArrays[0], referenceExtent) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[0], referenceExtent)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible extent respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[1], referenceOrigins) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[1], referenceOrigins)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible origins respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[2], referenceResolutions) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[2], referenceResolutions)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible resolutions respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[3], referenceGridSizes) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[3], referenceGridSizes)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible grid sizes respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[4], referenceTileSizes) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[4], referenceTileSizes)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible tile sizes respect to the reference optical path ' +
         referenceOpticalPathIdentifier
       )
     }
-    if (arraysEqual(geometryArrays[5], referencePixelSpacings) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[5], referencePixelSpacings)) {
       throw new Error(
         'Optical path ' + this.blendingInformation.opticalPathIdentifier +
         ' image has incompatible pixel spacings respect to the reference optical path ' +
@@ -193,7 +223,6 @@ class _Channel {
     */
     const tileLoadFunction = async (tile, src) => {
       const img = tile.getImage()
-      tile.needToRerender = true
       const z = tile.tileCoord[0]
       const columns = this.pyramidMetadata[z].Columns
       const rows = this.pyramidMetadata[z].Rows
@@ -206,6 +235,10 @@ class _Channel {
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src)
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
+
+        console.info(`retrieve frames ${frameNumbers}`)
+        tile.needToRerender = false
+        tile.isLoading = true
 
         if (options.retrieveRendered) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
@@ -238,8 +271,8 @@ class _Channel {
               // coloring image
               const {
                 thresholdValues,
+                limitValues,
                 color,
-                opacity
               } = this.blendingInformation
 
               const frameData = {
@@ -248,18 +281,19 @@ class _Channel {
                 bitsAllocated,
                 pixelRepresentation,
                 thresholdValues,
+                limitValues,
                 color,
-                opacity,
+                opacity : 1, // the opacity is actually handled at OpenLayer level
                 columns,
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
               tile.needToRerender = !rendered
+              tile.isLoading = false
             }
           )
         } else {
-          console.info(`retrieve frames ${frameNumbers}`)
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.3.3.2.html
           // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
 
@@ -299,8 +333,8 @@ class _Channel {
               // coloring image
               const {
                 thresholdValues,
+                limitValues,
                 color,
-                opacity
               } = this.blendingInformation
 
               const frameData = {
@@ -309,14 +343,16 @@ class _Channel {
                 bitsAllocated,
                 pixelRepresentation,
                 thresholdValues,
+                limitValues,
                 color,
-                opacity,
+                opacity : 1, // the opacity is actually handled at OpenLayer level
                 columns,
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
               tile.needToRerender = !rendered
+              tile.isLoading = false
             }
           ).catch(
             () => {
@@ -336,8 +372,8 @@ class _Channel {
                   // coloring image
                   const {
                     thresholdValues,
+                    limitValues,
                     color,
-                    opacity
                   } = this.blendingInformation
 
                   const frameData = {
@@ -346,14 +382,16 @@ class _Channel {
                     bitsAllocated,
                     pixelRepresentation,
                     thresholdValues,
+                    limitValues,
                     color,
-                    opacity,
+                    opacity : 1, // the opacity is actually handled at OpenLayer level
                     columns,
                     rows
                   }
 
-                  const rendered = renderingEngine.colorMonochomeImageFrame(frameData)
+                  const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
                   tile.needToRerender = !rendered
+                  tile.isLoading = false
                 }
               )
             }
@@ -368,13 +406,17 @@ class _Channel {
      * We use the existing TileImage source but customize it to retrieve
      * frames (load tiles) via DICOMweb WADO-RS.
      * NOTE: transition = 0 disable OpenLayer transition alpha opacity
+     * NOTE: it is needed a very large initial cacheSize value
+     *       otherwise, the tile caches will be cleared at each zoom
+     *       providing very bad perfomances. 
     */
     this.rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
       tileGrid: tileGrid,
       projection: projection,
       wrapX: false,
-      transition: 0
+      transition: 0,
+      cacheSize: options.tilesCacheSize
     })
 
     this.rasterSource.setTileUrlFunction(tileUrlFunction)
@@ -384,7 +426,7 @@ class _Channel {
     this.tileLayer = new TileLayer({
       extent: tileGrid.getExtent(),
       source: this.rasterSource,
-      preload: Infinity,
+      preload: 0,
       projection: projection
     })
 
@@ -414,9 +456,30 @@ class _Channel {
         image.microscopyImages.push(microscopyImage)
       }
     })
+
     if (image.microscopyImages.length === 0) {
-      throw new Error('No VOLUME image provided.')
+      throw new Error('No VOLUME image provided for Optioncal Path ID: ' + 
+      image.blendingInformation.opticalPathIdentifier)
     }
+
+    image.FrameOfReferenceUID = image.microscopyImages[0].FrameOfReferenceUID
+    for (let i = 0; i < image.microscopyImages.length; ++i) {
+      if (image.FrameOfReferenceUID !== image.microscopyImages[i].FrameOfReferenceUID) {
+        throw new Error('Optioncal Path ID ' + 
+        image.blendingInformation.opticalPathIdentifier + 
+        ' has volume microscopy images with different FrameOfReferenceUID')
+      }
+    }
+
+    image.ContainerIdentifier = image.microscopyImages[0].ContainerIdentifier
+    for (let i = 0; i < image.microscopyImages.length; ++i) {
+      if (image.ContainerIdentifier !== image.microscopyImages[i].ContainerIdentifier) {
+        throw new Error('Optioncal Path ID ' + 
+        image.blendingInformation.opticalPathIdentifier + 
+        ' has volume microscopy images with different ContainerIdentifier')
+      }
+    }
+
     // Sort instances and optionally concatenation parts if present.
     image.microscopyImages.sort((a, b) => {
       const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns
@@ -577,6 +640,7 @@ class _Channel {
    * @param {number[]} BlendingInformation.color - channel rgb color
    * @param {number} BlendingInformation.opacity - channel opacity
    * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
+   * @param {number[]} BlendingInformation.limitValues - channel min and max color function values
    * @param {boolean} BlendingInformation.visible - channel visibility
    * @param {number[]} tilesCoordRanges - array with tiles X and Y coordinates ranges and zoom level
    *
@@ -587,30 +651,26 @@ class _Channel {
       color,
       opacity,
       thresholdValues,
+      limitValues,
       visible
     } = blendingInformation
 
     let rerender = false
-    if (color) {
-      if (this.blendingInformation.color[0] !== color[0] ||
-        this.blendingInformation.color[1] !== color[1] ||
-        this.blendingInformation.color[2] !== color[2]) {
-        rerender = true
-      }
+    if (color && !are1DArraysAlmostEqual(this.blendingInformation.color, color)) {
+      rerender = true
       this.blendingInformation.color = [...color]
     }
-    if (opacity) {
-      if (Math.abs(this.blendingInformation.opacity - opacity) > 1.e-3) {
-        rerender = true
-      }
+    if (opacity && !areNumbersAlmostEqual(this.blendingInformation.opacity, opacity)) {
       this.blendingInformation.opacity = opacity
+      this.tileLayer.setOpacity(this.blendingInformation.opacity)
     }
-    if (thresholdValues) {
-      if (this.blendingInformation.thresholdValues[0] !== thresholdValues[0] ||
-        this.blendingInformation.thresholdValues[1] !== thresholdValues[1]) {
-        rerender = true
-      }
+    if (thresholdValues && !are1DArraysAlmostEqual(this.blendingInformation.thresholdValues, thresholdValues)) {
+      rerender = true
       this.blendingInformation.thresholdValues = [...thresholdValues]
+    }
+    if (limitValues && !are1DArraysAlmostEqual(this.blendingInformation.limitValues, limitValues)) {
+      rerender = true
+      this.blendingInformation.limitValues = [...limitValues]
     }
     if (visible !== undefined && visible !== null) {
       this.blendingInformation.visible = visible
@@ -660,12 +720,10 @@ class _Channel {
         if (visuParamChanged) {
           render = true
         } else {
-          render = tile.needToRerender !== false
+          render = tile.needToRerender === true && tile.isLoading !== true
         }
-      }
-
-      if (visuParamChanged) {
-        tile.needToRerender = !render
+      } else if (visuParamChanged) {
+        tile.needToRerender = true
       }
 
       if (render) {
@@ -674,24 +732,23 @@ class _Channel {
         if (samplesPerPixel === 1) {
           const columns = this.pyramidMetadata[z].Columns
           const rows = this.pyramidMetadata[z].Rows
-          const { thresholdValues, color, opacity } = this.blendingInformation
+          const { thresholdValues, limitValues, color } = this.blendingInformation
           const img = tile.getImage()
 
           // coloring images
           const frameData = {
             img,
             thresholdValues,
+            limitValues,
             color,
-            opacity,
+            opacity : 1, // the opacity is actually handled at OpenLayer level
             columns,
             rows
           }
 
-          const rendered = this.renderingEngine.colorMonochomeImageFrame(frameData)
-          if (rendered) {
-            mapRerender = true
-            tile.needToRerender = !rendered
-          }
+          this.renderingEngine.colorMonochromeImageFrame(frameData)
+          mapRerender = true
+          tile.needToRerender = false
         }
       }
     }
