@@ -164,7 +164,7 @@ function groupMonochromeInstances(metadataArray) {
 
     if (microscopyImage.SamplesPerPixel !== 1 &&
         (microscopyImage.PhotometricInterpretation === 'RGB' ||
-        microscopyImage.PhotometricInterpretation === 'YBR_*')) {
+        microscopyImage.PhotometricInterpretation.includes('YBR'))) {
       //this is a color channel
       const pathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
       const colorImage = colorImages.find(colorImage => {
