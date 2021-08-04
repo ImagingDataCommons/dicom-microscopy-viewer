@@ -588,7 +588,7 @@ class VolumeImageViewer {
                   limitValues,
                   visible
                 })
-  
+
                 const newChannel = new _Channel(defaultBlendingInformation)
                 newChannel.addMetadata(channelMicroscopyImage.originMetadata)
                 this[_channels].push(newChannel)
@@ -1005,7 +1005,7 @@ class VolumeImageViewer {
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
 
         console.info(`retrieve frames ${frameNumbers}`)
-        
+
         if (this[_options].retrieveRendered) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
           const pngMediaType = 'image/png'
@@ -1120,7 +1120,7 @@ class VolumeImageViewer {
      * NOTE: transition = 0 disable OpenLayer transition alpha opacity
      * NOTE: it is needed a very large initial cacheSize value
      *       otherwise, the tile caches will be cleared at each zoom
-     *       providing very bad perfomances. 
+     *       providing very bad perfomances.
     */
     this[_colorImage].rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
@@ -1150,15 +1150,15 @@ class VolumeImageViewer {
     if (this[_channels].length === 0 && this[_colorImage] === undefined) {
       throw new Error('No channels or colorImage found.')
     }
-    
-    let channel = undefined
+
+    let channel
     if (this[_channels].length !== 0) {
       channel = this[_channels].find(
         channel => channel.blendingInformation.opticalPathIdentifier === opticalPathIdentifier
       )
     }
-    
-    let colorImage = undefined
+
+    let colorImage
     if (this[_colorImage] !== undefined) {
       colorImage = this[_colorImage].opticalPathIdentifier === opticalPathIdentifier
         ? this[_colorImage]
@@ -1291,8 +1291,8 @@ class VolumeImageViewer {
    * @param {string} opticalPathIdentifier - opticalPath of the channel
    * @return {boolean} active
    */
-   isOpticalPathActive (opticalPathIdentifier) {
-   const channel = this.getOpticalPath(opticalPathIdentifier)
+  isOpticalPathActive (opticalPathIdentifier) {
+    const channel = this.getOpticalPath(opticalPathIdentifier)
     if (channel === null) {
       return false
     }

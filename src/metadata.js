@@ -116,11 +116,11 @@ function formatMetadata (metadata) {
 /** Struct DICOM metadata of monochrome slides in groups by OpticalPathIdentifier.
  *
  * @param {Object[]} metadata
- * 
+ *
  * @returns {Object[]} groups of VLWholeSlideMicroscopyImages
  * @memberof metadata
  */
-function groupMonochromeInstances(metadataArray) {
+function groupMonochromeInstances (metadataArray) {
   const channels = []
   for (let i = 0; i < metadataArray.length; ++i) {
     const microscopyImage = new VLWholeSlideMicroscopyImage({ metadata: metadataArray[i] })
@@ -135,7 +135,7 @@ function groupMonochromeInstances(metadataArray) {
       const channel = channels.find(channel => {
         return channel[0].OpticalPathSequence[0].OpticalPathIdentifier === pathIdentifier
       })
-  
+
       if (channel) {
         channel.push(microscopyImage)
       } else {
@@ -150,11 +150,11 @@ function groupMonochromeInstances(metadataArray) {
 /** Struct DICOM metadata of colored slides in groups by OpticalPathIdentifier.
  *
  * @param {Object[]} metadata
- * 
+ *
  * @returns {Object[]} groups of VLWholeSlideMicroscopyImages
  * @memberof metadata
  */
- function groupColorInstances(metadataArray) {
+function groupColorInstances (metadataArray) {
   const colorImages = []
   for (let i = 0; i < metadataArray.length; ++i) {
     const microscopyImage = new VLWholeSlideMicroscopyImage({ metadata: metadataArray[i] })
@@ -165,12 +165,12 @@ function groupMonochromeInstances(metadataArray) {
     if (microscopyImage.SamplesPerPixel !== 1 &&
         (microscopyImage.PhotometricInterpretation === 'RGB' ||
         microscopyImage.PhotometricInterpretation.includes('YBR'))) {
-      //this is a color channel
+      // this is a color channel
       const pathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
       const colorImage = colorImages.find(colorImage => {
         return colorImage[0].OpticalPathSequence[0].OpticalPathIdentifier === pathIdentifier
       })
-  
+
       if (colorImage) {
         colorImage.push(microscopyImage)
       } else {
@@ -181,7 +181,6 @@ function groupMonochromeInstances(metadataArray) {
 
   return colorImages
 }
-
 
 /** DICOM VL Whole Slide Microscopy Image instance
  * (without Pixel Data or any other bulk data).

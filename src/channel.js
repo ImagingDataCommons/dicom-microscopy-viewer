@@ -1,6 +1,6 @@
 import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js'
 import *
- as DICOMwebClient from 'dicomweb-client'
+as DICOMwebClient from 'dicomweb-client'
 import {
   areNumbersAlmostEqual,
   are1DArraysAlmostEqual,
@@ -272,7 +272,7 @@ class _Channel {
               const {
                 thresholdValues,
                 limitValues,
-                color,
+                color
               } = this.blendingInformation
 
               const frameData = {
@@ -283,7 +283,7 @@ class _Channel {
                 thresholdValues,
                 limitValues,
                 color,
-                opacity : 1, // the opacity is actually handled at OpenLayer level
+                opacity: 1, // handled by OpenLayers
                 columns,
                 rows
               }
@@ -334,7 +334,7 @@ class _Channel {
               const {
                 thresholdValues,
                 limitValues,
-                color,
+                color
               } = this.blendingInformation
 
               const frameData = {
@@ -345,7 +345,7 @@ class _Channel {
                 thresholdValues,
                 limitValues,
                 color,
-                opacity : 1, // the opacity is actually handled at OpenLayer level
+                opacity: 1, // handled by OpenLayers
                 columns,
                 rows
               }
@@ -364,7 +364,10 @@ class _Channel {
                 sopInstanceUID,
                 frameNumbers,
                 mediaTypes: [
-                  { mediaType: octetStreamMediaType, transferSyntaxUID: octetStreamTransferSyntaxUID }
+                  {
+                    mediaType: octetStreamMediaType,
+                    transferSyntaxUID: octetStreamTransferSyntaxUID
+                  }
                 ]
               }
               options.client.retrieveInstanceFrames(retrieveOptions).then(
@@ -373,7 +376,7 @@ class _Channel {
                   const {
                     thresholdValues,
                     limitValues,
-                    color,
+                    color
                   } = this.blendingInformation
 
                   const frameData = {
@@ -384,7 +387,7 @@ class _Channel {
                     thresholdValues,
                     limitValues,
                     color,
-                    opacity : 1, // the opacity is actually handled at OpenLayer level
+                    opacity: 1, // handled by OpenLayers
                     columns,
                     rows
                   }
@@ -408,7 +411,7 @@ class _Channel {
      * NOTE: transition = 0 disable OpenLayer transition alpha opacity
      * NOTE: it is needed a very large initial cacheSize value
      *       otherwise, the tile caches will be cleared at each zoom
-     *       providing very bad perfomances. 
+     *       providing very bad perfomances.
     */
     this.rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
@@ -458,15 +461,15 @@ class _Channel {
     })
 
     if (image.microscopyImages.length === 0) {
-      throw new Error('No VOLUME image provided for Optioncal Path ID: ' + 
+      throw new Error('No VOLUME image provided for Optioncal Path ID: ' +
       image.blendingInformation.opticalPathIdentifier)
     }
 
     image.FrameOfReferenceUID = image.microscopyImages[0].FrameOfReferenceUID
     for (let i = 0; i < image.microscopyImages.length; ++i) {
       if (image.FrameOfReferenceUID !== image.microscopyImages[i].FrameOfReferenceUID) {
-        throw new Error('Optioncal Path ID ' + 
-        image.blendingInformation.opticalPathIdentifier + 
+        throw new Error('Optioncal Path ID ' +
+        image.blendingInformation.opticalPathIdentifier +
         ' has volume microscopy images with different FrameOfReferenceUID')
       }
     }
@@ -474,8 +477,8 @@ class _Channel {
     image.ContainerIdentifier = image.microscopyImages[0].ContainerIdentifier
     for (let i = 0; i < image.microscopyImages.length; ++i) {
       if (image.ContainerIdentifier !== image.microscopyImages[i].ContainerIdentifier) {
-        throw new Error('Optioncal Path ID ' + 
-        image.blendingInformation.opticalPathIdentifier + 
+        throw new Error('Optioncal Path ID ' +
+        image.blendingInformation.opticalPathIdentifier +
         ' has volume microscopy images with different ContainerIdentifier')
       }
     }
@@ -741,7 +744,7 @@ class _Channel {
             thresholdValues,
             limitValues,
             color,
-            opacity : 1, // the opacity is actually handled at OpenLayer level
+            opacity: 1, // handled by OpenLayers
             columns,
             rows
           }
