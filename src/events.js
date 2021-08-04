@@ -1,4 +1,4 @@
-const PROJECT_NAME = 'dicommicroscopyviewer';
+const PROJECT_NAME = 'dicommicroscopyviewer'
 
 /**
  *  Enumerates custom events for dicom-microscopy-viewer. Events are captured,
@@ -16,7 +16,7 @@ const EVENTS = {
   ROI_SELECTED: `${PROJECT_NAME}_roi_selected`,
   ROI_MODIFIED: `${PROJECT_NAME}_roi_modified`,
   MOVE_STARTED: `${PROJECT_NAME}_move_started`,
-  MOVE_ENDED: `${PROJECT_NAME}_move_ended`,
-};
+  MOVE_ENDED: `${PROJECT_NAME}_move_ended`
+}
 
-export default EVENTS;
+export default EVENTS

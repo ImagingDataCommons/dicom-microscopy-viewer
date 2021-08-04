@@ -16,14 +16,21 @@
     <noscript>
       You need to enable JavaScript to run this app.
     </noscript>
-
+    <script src="https://unpkg.com/@cornerstonejs/codec-libjpeg-turbo/dist/libjpegturbowasm.js"></script>
+    <script src="https://unpkg.com/@cornerstonejs/codec-openjpeg/dist/openjpegwasm.js"></script>
+    <script src="https://unpkg.com/@cornerstonejs/codec-charls/dist/charlsjs.js"></script>
+    
     <script src="https://unpkg.com/dicomweb-client"></script>
     <script src="https://unpkg.com/dicom-microscopy-viewer"></script>
+    <!-- enable for testing locally
+    <script src="../../node_modules/dicomweb-client/build/dicomweb-client.js"></script>
+    <script src="../../build/dicom-microscopy-viewer.js"></script>
+    !-->
     <script>
     const url = 'https://server.dcmjs.org/dcm4chee-arc/aets/DCM4CHEE/rs';
     const client = new DICOMwebClient.api.DICOMwebClient({url});
-    const studyInstanceUID = '1.2.392.200140.2.1.1.1.2.799008771.2448.1519719572.518';
-    const seriesInstanceUID = '1.2.392.200140.2.1.1.1.3.799008771.2448.1519719572.519';
+    const studyInstanceUID = '1.2.392.200140.2.1.1.1.2.799008771.2156.1519721160.421';
+    const seriesInstanceUID = '1.2.392.200140.2.1.1.1.3.799008771.2156.1519721160.422';
     const searchInstanceOptions = {
       studyInstanceUID,
       seriesInstanceUID
@@ -37,24 +44,24 @@
           seriesInstanceUID,
           sopInstanceUID,
         };
+
         const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-          const imageType = metadata[0]["00080008"]["Value"];
-          if (imageType[2] === "VOLUME") {
+          const image = DICOMMicroscopyViewer.metadata.formatMetadata(metadata[0]);
+          if (image.ImageType[2] === "VOLUME") {
             return(metadata[0]);
           }
         });
+
         promises.push(promise);
       }
+
       return(Promise.all(promises));
     }).then(metadata => {
-      metadata = metadata.filter(m => m);
-
-      // Note: We are using retrieveRendered: false because dcm4chee does not yet
-      // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
       const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
         client,
         metadata,
-        retrieveRendered: false
+        controls: ['overview'],
+        retrieveRendered: true
       });
 
       var container = document.getElementById('root');
@@ -71,7 +78,7 @@
         </p>
         <a href="../">Go back to the Examples page</a>
       </div>
-      <div id="root"></div>
+      <div id="root" style="height:1000px; width:1000px"></div>
     </div>
   </body>
 </html>

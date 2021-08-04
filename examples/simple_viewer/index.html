@@ -6,8 +6,15 @@
     <title>DICOM WSI Viewer</title>
     <meta charset="utf-8" />
     <link type="text/css" rel="stylesheet" href="styles/main.css">
-    <script type="text/javascript" src="https://unpkg.com/dicomweb-client@latest"></script>
-    <script type="text/javascript" src="https://unpkg.com/dicom-microscopy-viewer@latest"></script>
+    <script src="https://unpkg.com/@cornerstonejs/codec-libjpeg-turbo/dist/libjpegturbowasm.js"></script>
+    <script src="https://unpkg.com/@cornerstonejs/codec-openjpeg/dist/openjpegwasm.js"></script>
+    <script src="https://unpkg.com/@cornerstonejs/codec-charls/dist/charlsjs.js"></script>
+    
+    <script src="https://unpkg.com/dicomweb-client"></script>
+    <script src="https://unpkg.com/dicom-microscopy-viewer"></script>
+    <!-- enable for testing locally
+    <script src="../../node_modules/dicomweb-client/build/dicomweb-client.js"></script>
+    <script src="../../build/dicom-microscopy-viewer.js"></script>!-->
     <script type="text/javascript" src="scripts/dicomdict.js"></script>
     <script type="text/javascript" src="scripts/metadata.js"></script>
 
@@ -275,39 +282,37 @@
           }
         };
         client.searchForInstances(searchInstanceOptions).then((instances) => {
-          const promises = [];
+          const promises = []
           for (let i = 0; i < instances.length; i++) {
+            const seriesInstanceUID = instances[i]["0020000E"]["Value"][0];
             const sopInstanceUID = instances[i]["00080018"]["Value"][0];
             const retrieveInstanceOptions = {
               studyInstanceUID,
               seriesInstanceUID,
               sopInstanceUID,
             };
+
             const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-              if (!metadata) {
-                console.error(`no metadata received for image ${sopInstanceUID}`)
-                return null;
-              }
-              const imageType = metadata[0]["00080008"]["Value"];
-              if ( imageType[2] === "VOLUME") {
+              const image = DICOMMicroscopyViewer.metadata.formatMetadata(metadata[0]);
+              if (image.ImageType[2] === "VOLUME") {
                 return(metadata[0]);
               }
             });
+
             promises.push(promise);
           }
+
           return(Promise.all(promises));
         }).then(metadata => {
-          metadata = metadata.filter(m => m);
+
           const controls = [];
           try {
-            // Note: We are using retrieveRendered: false because dcm4chee does not yet
-            // support this functionality. See https://github.com/dcm4che/dcm4chee-arc-light/issues/1617
             const viewer = new DICOMMicroscopyViewer.api.VLWholeSlideMicroscopyImageViewer({
               client,
               metadata,
               controls,
               useWebGL: true,
-              retrieveRendered: false
+              retrieveRendered: true
             });
             viewer.render({container: 'activeViewport'});
           } catch(err) {

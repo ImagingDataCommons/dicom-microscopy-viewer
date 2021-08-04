@@ -26,15 +26,16 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>import { cross, inv, multiply } from 'mathjs'
+            <pre class="prettyprint source linenums"><code>import { inv, multiply } from 'mathjs'
+import { getPointResolution } from 'ol/proj'
 
-
-/** Generates a UUID-derived DICOM UID with root `2.25`.
+/**
+ * Generates a UUID-derived DICOM UID with root `2.25`.
  *
  * @returns {string} Unique identifier
  * @private
  */
-function generateUID() {
+function generateUID () {
   /**
    * A UUID can be represented as a single integer value.
    * http://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_B.2.html
@@ -47,175 +48,491 @@ function generateUID() {
    * of the sixteen octets (octet 0).
    */
   // FIXME: This is not a valid UUID!
-  let uid = '2.25.' + Math.floor(1 + Math.random() * 9);
+  let uid = '2.25.' + Math.floor(1 + Math.random() * 9)
   while (uid.length &lt; 44) {
-    uid += Math.floor(1 + Math.random() * 10);
+    uid += Math.floor(1 + Math.random() * 10)
   }
-  return uid;
+  return uid
 }
 
+/**
+ * Creates a rotation matrix.
+ *
+ * @param {Object} options - Options
+ * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
+ * @returns {number[][]} 2x2 rotation matrix
+ */
+function createRotationMatrix (options) {
+  if (!('orientation' in options)) {
+    throw new Error('Option "orientation" is required.')
+  }
+  const orientation = options.orientation
+  const rowDirection = orientation.slice(0, 3)
+  const columnDirection = orientation.slice(3, 6)
+  return [
+    [rowDirection[0], columnDirection[0]],
+    [rowDirection[1], columnDirection[1]],
+    [rowDirection[2], columnDirection[3]]
+  ]
+}
 
-/** Maps 2D (Column, Row) image coordinate in the Total Pixel Matrix
+/**
+ * Computes the rotation of the image with respect to the frame of reference.
+ *
+ * @param {Object} options - Options
+ * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
+ * @param {boolean} options.inDegrees - Whether angle should be returned in degrees instead of radians
+ * @returns {number} Angle
+ */
+function computeRotation (options) {
+  const rot = createRotationMatrix({ orientation: options.orientation })
+  const angle = Math.atan2(-rot[0][1], rot[0][0])
+  let inDegrees = false
+  if ('inDegrees' in options) {
+    inDegrees = true
+  }
+  if (inDegrees) {
+    return angle / (Math.PI / 180)
+  } else {
+    return angle
+  }
+}
+
+/**
+ * Builds an affine transformation matrix to map coordinates in the Total
+ * Pixel Matrix into the slide coordinate system.
+ *
+ * @param {Object} options - Options
+ * @param {number[]} options.offset - X and Y offset of the image in the slide coordinate system
+ * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
+ * @param {number[]} options.spacing - Spacing between pixel rows and columns of the Total Pixel Matrix
+ * @returns {number[][]} 3x3 affine transformation matrix
+ */
+function buildTransform (options) {
+  // X and Y Offset in Slide Coordinate System
+  if (!('offset' in options)) {
+    throw new Error('Option "offset" is required.')
+  }
+  if (!Array.isArray(options.offset)) {
+    throw new Error('Option "offset" must be an array.')
+  }
+  if (options.offset.length !== 2) {
+    throw new Error('Option "offset" must be an array with 2 elements.')
+  }
+
+  // Image Orientation Slide with direction cosines for Row and Column direction
+  if (!('orientation' in options)) {
+    throw new Error('Option "orientation" is required.')
+  }
+  if (!Array.isArray(options.orientation)) {
+    throw new Error('Option "orientation" must be an array.')
+  }
+  if (options.orientation.length !== 6) {
+    throw new Error('Option "orientation" must be an array with 6 elements.')
+  }
+
+  // Pixel Spacing along the Row and Column direction
+  if (!('spacing' in options)) {
+    throw new Error('Option "spacing" is required.')
+  }
+  if (!Array.isArray(options.spacing)) {
+    throw new Error('Option "spacing" must be an array.')
+  }
+  if (options.spacing.length !== 2) {
+    throw new Error('Option "spacing" must be an array with 2 elements.')
+  }
+
+  const orientation = options.orientation
+  const offset = options.offset
+  const spacing = options.spacing
+  return [
+    [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
+    [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
+    [0, 0, 1]
+  ]
+}
+
+/**
+ * Applies an affine transformation to a coordinate in the Total Pixel Matrix
+ * to map it into the slide coordinate system.
+ *
+ * @param {Object} options - Options
+ * @params {number[]} options.coordinate - (Row, Column) position in the Total Pixel Matrix
+ * @params {number[][]} options.affine - 3x3 affine transformation matrix
+ * @returns {number[]} (X, Y) position in the slide coordinate system
+ */
+function applyTransform (options) {
+  if (!('coordinate' in options)) {
+    throw new Error('Option "coordinate" is required.')
+  }
+  if (!Array.isArray(options.coordinate)) {
+    throw new Error('Option "coordinate" must be an array.')
+  }
+  if (options.coordinate.length !== 2) {
+    throw new Error('Option "coordinate" must be an array with 2 elements.')
+  }
+
+  if (!('affine' in options)) {
+    throw new Error('Option "affine" is required.')
+  }
+  if (!Array.isArray(options.affine)) {
+    throw new Error('Option "affine" must be an array.')
+  }
+  if (options.affine.length !== 3) {
+    throw new Error('Option "affine" must be a 3x3 array.')
+  }
+  if (!Array.isArray(options.affine[0])) {
+    throw new Error('Option "affine" must be a 3x3 array.')
+  }
+  if (options.affine[0].length !== 3 || options.affine[1].length !== 3) {
+    throw new Error('Option "affine" must be a 3x3 array.')
+  }
+
+  const coordinate = options.coordinate
+  const affine = options.affine
+  const imageCoordinate = [[coordinate[0]], [coordinate[1]], [1]]
+
+  const slideCoordinate = multiply(affine, imageCoordinate)
+
+  const x = Number(slideCoordinate[0][0].toFixed(4))
+  const y = Number(slideCoordinate[1][0].toFixed(4))
+  return [x, y]
+}
+
+/**
+ * Builds an affine transformation matrix to map coordinates in the slide
+ * coordinate system into the Total Pixel Matrix.
+ *
+ * @param {number[]} options.offset - X and Y offset of the image in the slide coordinate system
+ * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
+ * @param {number[]} options.spacing - Spacing between pixel rows and columns of the Total Pixel Matrix
+ * @returns {number[][]} 3x3 affine transformation matrix
+ */
+function buildInverseTransform (options) {
+  // X and Y Offset in Slide Coordinate System
+  if (!('offset' in options)) {
+    throw new Error('Option "offset" is required.')
+  }
+  if (!Array.isArray(options.offset)) {
+    throw new Error('Option "offset" must be an array.')
+  }
+  if (options.offset.length !== 2) {
+    throw new Error('Option "offset" must be an array with 2 elements.')
+  }
+
+  // Image Orientation Slide with direction cosines for Row and Column direction
+  if (!('orientation' in options)) {
+    throw new Error('Option "orientation" is required.')
+  }
+  if (!Array.isArray(options.orientation)) {
+    throw new Error('Option "orientation" must be an array.')
+  }
+  if (options.orientation.length !== 6) {
+    throw new Error('Option "orientation" must be an array with 6 elements.')
+  }
+
+  // Pixel Spacing along the Row and Column direction
+  if (!('spacing' in options)) {
+    throw new Error('Option "spacing" is required.')
+  }
+  if (!Array.isArray(options.spacing)) {
+    throw new Error('Option "spacing" must be an array.')
+  }
+  if (options.spacing.length !== 2) {
+    throw new Error('Option "spacing" must be an array with 2 elements.')
+  }
+
+  const orientation = options.orientation
+  const offset = options.offset
+  const spacing = options.spacing
+  const m = [
+    [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
+    [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
+    [0, 0, 1]
+  ]
+  return inv(m)
+}
+
+/**
+ * Applies an affine transformation to a coordinate in the slide coordinate
+ * system to map it into the Total Pixel Matrix.
+ *
+ * @param {Object} options - Options
+ * @params {number[]} options.coordinate - (X, Y) position in the slide coordinate system
+ * @params {number[][]} options.affine - 3x3 affine transformation matrix
+ * @returns {number[]} (Row, Column) position in the Total Pixel Matrix
+ */
+function applyInverseTransform (options) {
+  if (!('coordinate' in options)) {
+    throw new Error('Option "coordinate" is required.')
+  }
+  if (!Array.isArray(options.coordinate)) {
+    throw new Error('Option "coordinate" must be an array.')
+  }
+  if (options.coordinate.length !== 2) {
+    throw new Error('Option "coordinate" must be an array with 2 elements.')
+  }
+
+  if (!('affine' in options)) {
+    throw new Error('Option "affine" is required.')
+  }
+  if (!Array.isArray(options.affine)) {
+    throw new Error('Option "affine" must be an array.')
+  }
+  if (options.affine.length !== 3) {
+    throw new Error('Option "affine" must be a 3x3 array.')
+  }
+  if (!Array.isArray(options.affine[0])) {
+    throw new Error('Option "affine" must be a 3x3 array.')
+  }
+  if (options.affine[0].length !== 3 || options.affine[1].length !== 3) {
+    throw new Error('Option "affine" must be a 3x3 array.')
+  }
+
+  const coordinate = options.coordinate
+  const affine = options.affine
+
+  const slideCoordinate = [[coordinate[0]], [coordinate[1]], [1]]
+
+  const pixelCoordinate = multiply(affine, slideCoordinate)
+
+  const row = Number(pixelCoordinate[1][0].toFixed(4))
+  const col = Number(pixelCoordinate[0][0].toFixed(4))
+  return [col, row]
+}
+
+/**
+ * Maps 2D (Column, Row) image coordinate in the Total Pixel Matrix
  * to 3D (X, Y, Z) slide coordinates in the Frame of Reference.
  *
  * @param {Object} options - Options
- * @param {Array} options.offset - X and Y offset in the slide coordinate system
- * @param {Array} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
- * @param {Array} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
- * @param {Array} options.piont - Column and Row position of the point in the Total Pixel Matrix
- * @returns {Array} X, Y and Z position of the point in the slide coordinate system
+ * @param {number[]} options.offset - X and Y offset in the slide coordinate system
+ * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
+ * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
+ * @param {number[]} options.point - Column and Row position of the point in the Total Pixel Matrix
+ * @returns {number[]} X, Y and Z position of the point in the slide coordinate system
  * @memberof utils
  */
-function mapPixelCoordToSlideCoord(options) {
-    // X and Y Offset in Slide Coordinate System
-    if (!('offset' in options) ) {
-        throw new Error('Option "offset" is required.');
-    }
-    if (!(Array.isArray(options.offset))) {
-        throw new Error('Option "offset" must be an array.');
-    }
-    if (options.offset.length !== 2) {
-        throw new Error('Option "offset" must be an array with 2 elements.');
-    }
-    const offset = options.offset;
+function mapPixelCoordToSlideCoord (options) {
+  if (!('point' in options)) {
+    throw new Error('Option "point" is required.')
+  }
+  if (!Array.isArray(options.point)) {
+    throw new Error('Option "point" must be an array.')
+  }
+  if (options.point.length !== 2) {
+    throw new Error('Option "point" must be an array with 2 elements.')
+  }
+  const point = options.point
 
-    // Image Orientation Slide with direction cosines for Row and Column direction
-    if (!('orientation' in options) ) {
-        throw new Error('Option "orientation" is required.');
-    }
-    if (!(Array.isArray(options.orientation))) {
-        throw new Error('Option "orientation" must be an array.');
-    }
-    if (options.orientation.length !== 6) {
-        throw new Error('Option "orientation" must be an array with 6 elements.');
-    }
-    const orientation = options.orientation;
-
-    // Pixel Spacing along the Row and Column direction
-    if (!('spacing' in options) ) {
-        throw new Error('Option "spacing" is required.');
-    }
-    if (!(Array.isArray(options.spacing))) {
-        throw new Error('Option "spacing" must be an array.');
-    }
-    if (options.spacing.length !== 2) {
-        throw new Error('Option "spacing" must be an array with 2 elements.');
-    }
-    const spacing = options.spacing;
-
-    // Row and Column position in the Total Pixel Matrix
-    if (!('point' in options) ) {
-        throw new Error('Option "point" is required.');
-    }
-    if (!(Array.isArray(options.point))) {
-        throw new Error('Option "point" must be an array.');
-    }
-    if (options.point.length !== 2) {
-        throw new Error('Option "point" must be an array with 2 elements.');
-    }
-    const point = options.point;
-
-    const m = [
-      [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
-      [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
-      [0, 0, 1]
-    ];
-
-    const vImage = [
-        [point[0]],
-        [point[1]],
-        [1]
-    ];
-
-    const vSlide = multiply(m, vImage);
-
-    const x = Number(vSlide[0][0].toFixed(4));
-    const y = Number(vSlide[1][0].toFixed(4));
-    return [x, y];
+  const affine = buildTransform({
+    orientation: options.orientation,
+    offset: options.offset,
+    spacing: options.spacing
+  })
+  return applyTransform({ coordinate: point, affine: affine })
 }
 
-
-/** Maps 3D (X, Y, Z) slide coordinate in to the Frame of Reference to
+/**
+ * Maps 3D (X, Y, Z) slide coordinate in to the Frame of Reference to
  * 2D (Column, Row) image coordinate in the Total Pixel Matrix.
  *
  * @param {Object} options - Options
- * @param {Array} options.offset - X and Y offset in the slide coordinate system
- * @param {Array} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
- * @param {Array} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
- * @param {Array} options.piont - X, Y and Z position of the point in the slide coordinate system
- * @returns {Array} Column and Row position of the point in the Total Pixel Matrix
+ * @param {number[]} options.offset - X and Y offset in the slide coordinate system
+ * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
+ * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
+ * @param {number[]} options.point - X, Y and Z position of the point in the slide coordinate system
+ * @returns {number[]} Column and Row position of the point in the Total Pixel Matrix
  * @memberof utils
  */
-function mapSlideCoordToPixelCoord(options) {
-    // X and Y Offset in Slide Coordinate System
-    if (!('offset' in options) ) {
-        throw new Error('Option "offset" is required.');
-    }
-    if (!(Array.isArray(options.offset))) {
-        throw new Error('Option "offset" must be an array.');
-    }
-    if (options.offset.length !== 2) {
-        throw new Error('Option "offset" must be an array with 2 elements.');
-    }
-    const offset = options.offset;
+function mapSlideCoordToPixelCoord (options) {
+  if (!('point' in options)) {
+    throw new Error('Option "point" is required.')
+  }
+  if (!Array.isArray(options.point)) {
+    throw new Error('Option "point" must be an array.')
+  }
+  if (options.point.length !== 2) {
+    throw new Error('Option "point" must be an array with 2 elements.')
+  }
+  const point = options.point
+  const affine = buildInverseTransform({
+    orientation: options.orientation,
+    offset: options.offset,
+    spacing: options.spacing
+  })
 
-    // Image Orientation Slide with direction cosines for Row and Column direction
-    if (!('orientation' in options) ) {
-        throw new Error('Option "orientation" is required.');
-    }
-    if (!(Array.isArray(options.orientation))) {
-        throw new Error('Option "orientation" must be an array.');
-    }
-    if (options.orientation.length !== 6) {
-        throw new Error('Option "orientation" must be an array with 6 elements.');
-    }
-    const orientation = options.orientation;
-
-    // Pixel Spacing along the Row and Column direction
-    if (!('spacing' in options) ) {
-        throw new Error('Option "spacing" is required.');
-    }
-    if (!(Array.isArray(options.spacing))) {
-        throw new Error('Option "spacing" must be an array.');
-    }
-    if (options.spacing.length !== 2) {
-        throw new Error('Option "spacing" must be an array with 2 elements.');
-    }
-    const spacing = options.spacing;
-
-    // X and Y coordinate in the Slide Coordinate System
-    if (!('point' in options) ) {
-        throw new Error('Option "point" is required.');
-    }
-    if (!(Array.isArray(options.point))) {
-        throw new Error('Option "point" must be an array.');
-    }
-    if (options.point.length !== 2) {
-        throw new Error('Option "point" must be an array with 2 elements.');
-    }
-    const point = options.point;
-
-    const m = [
-      [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
-      [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
-      [0, 0, 1]
-    ];
-    const mInverted = inv(m);
-
-    const vSlide = [
-        [point[0]],
-        [point[1]],
-        [1]
-    ];
-
-    const vImage = multiply(mInverted, vSlide);
-
-    const row = Number(vImage[1][0].toFixed(4));
-    const col = Number(vImage[0][0].toFixed(4));
-    return [col, row];
+  return applyInverseTransform({ coordinate: point, affine: affine })
 }
 
-export { generateUID, mapPixelCoordToSlideCoord, mapSlideCoordToPixelCoord };
+/** checks if 2D arrays are equal.
+ * @param {number[]} array a
+ * @param {number[]} array b
+ * @param {number} eps
+ * @returns {boolean} check
+ */
+function are2DArraysAlmostEqual (a, b, eps = 1.e-6) {
+  if (a === b) return true
+  if (a == null || b == null) return false
+  if (a.length !== b.length) return false
+
+  for (let i = 0; i &lt; a.length; ++i) {
+    if (a[i].length !== b[i].length) return false
+    for (let j = 0; j &lt; a[i].length; ++j) {
+      if (!areNumbersAlmostEqual(a[i][j], b[i][j], eps)) {
+        return false
+      }
+    }
+  }
+  return true
+}
+
+/** checks if 1D arrays are equal.
+ * @param {number[]} array a
+ * @param {number[]} array b
+ * @param {number} eps
+ * @returns {boolean} check
+ */
+function are1DArraysAlmostEqual (a, b, eps = 1.e-6) {
+  if (a == null || b == null) return false
+  if (a.length !== b.length) return false
+
+  for (let i = 0; i &lt; a.length; ++i) {
+    if (!areNumbersAlmostEqual(a[i], b[i], eps)) {
+      return false
+    }
+  }
+  return true
+}
+
+/** checks if two numbers are equal.
+ * @param {number} a
+ * @param {number} b
+ * @param {number} eps
+ * @returns {boolean} check
+ */
+function areNumbersAlmostEqual (a, b, eps = 1.e-6) {
+  return Math.abs(a - b) &lt; eps
+}
+
+/**
+ * Get view unit suffix.
+ *
+ * @param {object} view Map view
+ * @returns {string} unit suffix
+ */
+function getUnitSuffix (view) {
+  const UnitsEnum = { METERS: 'm' }
+  const DEFAULT_DPI = 25.4 / 0.28
+
+  const center = view.getCenter()
+  const projection = view.getProjection()
+  const resolution = view.getResolution()
+
+  const pointResolutionUnits = UnitsEnum.METERS
+
+  let pointResolution = getPointResolution(
+    projection,
+    resolution,
+    center,
+    pointResolutionUnits
+  )
+
+  const DEFAULT_MIN_WIDTH = 65
+  const minWidth = (DEFAULT_MIN_WIDTH * DEFAULT_DPI) / DEFAULT_DPI
+
+  const nominalCount = minWidth * pointResolution
+  let suffix = ''
+
+  if (nominalCount &lt; 0.001) {
+    suffix = 'μm'
+    pointResolution *= 1000000
+  } else if (nominalCount &lt; 1) {
+    suffix = 'mm'
+    pointResolution *= 1000
+  } else if (nominalCount &lt; 1000) {
+    suffix = 'm'
+  } else {
+    suffix = 'km'
+    pointResolution /= 1000
+  }
+
+  return suffix
+}
+
+/**
+ * Get name coded concept from content item.
+ *
+ * @param {object} contentItem
+ * @returns {object} The concept name coded concept
+ */
+const getContentItemNameCodedConcept = (contentItem) =>
+  contentItem.ConceptNameCodeSequence[0]
+
+/**
+ *
+ * @param {object} codedConcept1
+ * @param {object} codedConcept2
+ * @returns {boolean} true if content items equal and false otherwise
+ */
+const areCodedConceptsEqual = (codedConcept1, codedConcept2) => {
+  if (
+    codedConcept2.CodeValue === codedConcept1.CodeValue &amp;&amp;
+    codedConcept2.CodingSchemeDesignator ===
+      codedConcept1.CodingSchemeDesignator
+  ) {
+    if (
+      codedConcept2.CodingSchemeVersion &amp;&amp;
+      codedConcept1.CodingSchemeVersion
+    ) {
+      return (
+        codedConcept2.CodingSchemeVersion === codedConcept1.CodingSchemeVersion
+      )
+    }
+    return true
+  }
+  return false
+}
+
+/**
+ * Check wether two content items match.
+ *
+ * @param {object} contentItem1
+ * @param {object} contentItem2
+ * @returns {boolean} true if content items match and false otherwise
+ */
+const doContentItemsMatch = (contentItem1, contentItem2) => {
+  const contentItem1NameCodedConcept = getContentItemNameCodedConcept(
+    contentItem1
+  )
+  const contentItem2NameCodedConcept = getContentItemNameCodedConcept(
+    contentItem2
+  )
+  return contentItem1NameCodedConcept.equals
+    ? contentItem1NameCodedConcept.equals(contentItem2NameCodedConcept)
+    : areCodedConceptsEqual(
+      contentItem1NameCodedConcept,
+      contentItem2NameCodedConcept
+    )
+}
+
+export {
+  getUnitSuffix,
+  applyInverseTransform,
+  applyTransform,
+  buildInverseTransform,
+  buildTransform,
+  computeRotation,
+  generateUID,
+  mapPixelCoordToSlideCoord,
+  mapSlideCoordToPixelCoord,
+  areNumbersAlmostEqual,
+  are1DArraysAlmostEqual,
+  are2DArraysAlmostEqual,
+  doContentItemsMatch,
+  areCodedConceptsEqual,
+  getContentItemNameCodedConcept
+}
 </code></pre>
         </article>
     </section>
@@ -226,13 +543,13 @@ export { generateUID, mapPixelCoordToSlideCoord, mapSlideCoordToPixelCoord };
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Sun Nov 29 2020 13:38:48 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed Aug 04 2021 17:58:47 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

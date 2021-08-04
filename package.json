@@ -1,18 +1,34 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.23.0",
+  "version": "0.31.0",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "./src/dicom-microscopy-viewer.js",
+  "standard": {
+    "ignore": [
+      "/build/*",
+      "/docs/*",
+      "/examples/simple_viewer/scripts/metadata.js",
+      "/examples/simple_viewer/scripts/dicomdict.js",
+      "/src/annotations/_AnnotationManager.test.js",
+      "/src/annotations/markups/_MarkupManager.test.js",
+      "/src/dictionary.js",
+      "/src/__mocks__/*",
+      "/test/*"
+    ]
+  },
   "scripts": {
     "test:unit": "jest",
-    "test": "npm run build && mochify",
+    "test": "npm run build && standard && mochify",
     "webdriver": "mochify --wd",
     "start": "rollup -c -w",
     "build": "rollup -c",
     "prepublishOnly": "npm run build",
     "watch": "rollup -c -w",
     "generateStaticSite": "npm run build && cp -R ./build ./examples",
-    "generateDocs": "jsdoc -c ./jsdoc_conf.json"
+    "generateDocs": "jsdoc -c ./jsdoc_conf.json",
+    "fmt": "standard 'src/*.js' --fix",
+    "lint": "standard 'src/*.js'",
+    "clean": "rm -rf ./build"
   },
   "repository": {
     "type": "git",
@@ -36,19 +52,24 @@
     "babel-jest": "26.6.3",
     "chai": "4.2.0",
     "jest": "26.6.3",
-    "mocha": "5.2.0",
-    "mochify": "6.6.0",
+    "mocha": "^8.4.0",
+    "mochify": "^7.1.0",
     "rollup": "0.63.2",
     "rollup-plugin-commonjs": "8.3.0",
     "rollup-plugin-json": "3.1.0",
     "rollup-plugin-node-builtins": "2.1.2",
     "rollup-plugin-node-resolve": "3.4.0",
-    "rollup-plugin-postcss": "2.9.0"
+    "rollup-plugin-postcss": "^1.6.3",
+    "standard": "^16.0.3"
   },
   "dependencies": {
     "dcmjs": "^0.18.2",
     "dicomweb-client": "^0.5.2",
-    "mathjs": "^7.1",
-    "ol": "^6.5"
+    "image-type": "^4.1.0",
+    "mathjs": "^9.4",
+    "ol": "^6.6.1"
+  },
+  "config": {
+    "puppeteer_skip_chromium_download": false
   }
 }
