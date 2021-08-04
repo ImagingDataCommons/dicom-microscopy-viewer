@@ -16,6 +16,7 @@ describe('dmv.viewer.VolumeImageViewer', () => {
     color: [0.0, 0.5, 0.5],
     opacity: 1.0,
     thresholdValues: [125.0, 255.0],
+    limitValues: [0.0, 255.0],
     visible: true
   })
   const BITwo = new dmv.metadata.BlendingInformation({
@@ -23,6 +24,7 @@ describe('dmv.viewer.VolumeImageViewer', () => {
     color: [0.5, 0.5, 0.0],
     opacity: 1.0,
     thresholdValues: [0.0, 255.0],
+    limitValues: [0.0, 255.0],
     visible: true
   })
   const BIThree = new dmv.metadata.BlendingInformation({
@@ -30,6 +32,7 @@ describe('dmv.viewer.VolumeImageViewer', () => {
     color: [1, 0.0, 0.0],
     opacity: 1.0,
     thresholdValues: [0.0, 255.0],
+    limitValues: [0.0, 255.0],
     visible: true
   })
 
@@ -58,7 +61,13 @@ describe('dmv.viewer.VolumeImageViewer', () => {
     }
 
     viewer.setBlendingInformation(blendingInformation)
-    assert.deepEqual(thresholdValues, viewer.getBlendingInformation(blendingInformation.opticalPathID).thresholdValues)
+    const retrievedBlendingInformation = viewer.getBlendingInformation(
+      blendingInformation.opticalPathID
+    )
+    assert.deepEqual(
+      thresholdValues,
+      retrievedBlendingInformation.thresholdValues
+    )
   })
 
   it('sets optical path opacity', () => {
@@ -69,21 +78,26 @@ describe('dmv.viewer.VolumeImageViewer', () => {
     }
 
     viewer.setBlendingInformation(blendingInformation)
-    assert.deepEqual(opacity, viewer.getBlendingInformation(blendingInformation.opticalPathID).opacity)
+    const retrievedBlendingInformation = viewer.getBlendingInformation(
+      blendingInformation.opticalPathID
+    )
+    assert.deepEqual(opacity, retrievedBlendingInformation.opacity)
   })
 
   it('hides optical path', () => {
     const opticalPathID = '1'
 
     viewer.hideOpticalPath(opticalPathID)
-    assert.deepEqual(false, viewer.getBlendingInformation(opticalPathID).visible)
+    const blendingInformation = viewer.getBlendingInformation(opticalPathID)
+    assert.deepEqual(false, blendingInformation.visible)
   })
 
   it('shows optical path', () => {
     const opticalPathID = '1'
 
     viewer.showOpticalPath(opticalPathID)
-    assert.deepEqual(true, viewer.getBlendingInformation(opticalPathID).visible)
+    const blendingInformation = viewer.getBlendingInformation(opticalPathID)
+    assert.deepEqual(true, blendingInformation.visible)
   })
 
   it('throws an Error if activates optical path identifier 4', () => {
