@@ -922,10 +922,6 @@ class VolumeImageViewer {
     }
   }
 
-  getTest () {
-    return groupColorInstances(this[_options].metadata)
-  }
-
   /** updates tiles rendering for monochrome channels at panning interactions
    */
   _updateTilesRenderingAtPanning () {

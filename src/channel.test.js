@@ -43,7 +43,6 @@ describe('dmv.viewer.VolumeImageViewer', () => {
   })
 
   it('sets optical path color', () => {
-    // expect(viewer.getTest()).toBe(1);
     const color = [1.0, 0.0, 0.0]
     const blendingInformation = {
       color: color,
