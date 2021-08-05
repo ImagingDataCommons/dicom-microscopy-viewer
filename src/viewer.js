@@ -611,7 +611,9 @@ class VolumeImageViewer {
       console.warn('Volume Image Viewer detected more than one color image. ' +
       'It is possible to load and visualize only one color image at time. ' +
       'Please check the input metadata. Only the first detected color image will be loaded.')
-    } else if (colorImagesMicroscopyImages.length !== 0) {
+    }
+
+    if (colorImagesMicroscopyImages.length >= 1) {
       const colorImageMicroscopyImages = colorImagesMicroscopyImages[0]
       if (colorImageMicroscopyImages.length === 0) {
         throw new Error('The first detected color image has no metadata available.')
@@ -752,7 +754,7 @@ class VolumeImageViewer {
 
     const layers = []
     let rasterSourceOverview
-    if (this[_options].blendingInformation !== undefined) {
+    if (this[_options].blendingInformation !== undefined && this[_channels].length > 0) {
       const hasAnyChannelBeenSelected = this[_channels].some(channel => {
         return channel.blendingInformation.visible
       })

@@ -350,7 +350,7 @@
         },
         "00280004": {
             "Value": [
-                "YBR_FULL_422"
+                "MONOCHROME2"
             ],
             "vr": "CS"
         },
