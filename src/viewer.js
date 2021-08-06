@@ -231,7 +231,7 @@ function _getOpenLayersStyle (styleOptions) {
  * @param {object} properties.marker - ROI marker (this is used while we don't have presentation states)
  * @param {boolean} optSilent - Opt silent update
  */
-function _addROIPropertiesToFeature(feature, properties, opt_silent) {
+function _addROIPropertiesToFeature(feature, properties, optSilent) {
   const {
     Label,
     Measurements,
@@ -257,7 +257,7 @@ function _addROIPropertiesToFeature(feature, properties, opt_silent) {
   }
 
   if (properties[PresentationState]) {
-    feature.set(PresentationState, properties[PresentationState], opt_silent);
+    feature.set(PresentationState, properties[PresentationState], optSilent);
   }
 }
 
