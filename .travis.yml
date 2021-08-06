@@ -7,4 +7,4 @@ sudo: false
 script:
   - npm install
   - npm run build
-  - npm test -- --allow-chrome-as-root
+  - npm test

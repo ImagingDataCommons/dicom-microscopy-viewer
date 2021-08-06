@@ -1,9 +1,4 @@
-const chai = require('chai')
-const assert = require('assert')
-
-chai.should()
-
-const dmv = require('../build/dicom-microscopy-viewer.js')
+const utils = require('./utils')
 
 const computeRotationParams = [
   {
@@ -25,7 +20,7 @@ const computeRotationParams = [
       orientation: [1, 0, 0, 0, -1, 0],
       inDegrees: true
     },
-    expectedOutput: 0
+    expectedOutput: -0
   },
   {
     inputs: {
@@ -276,29 +271,29 @@ const mapSlideCoordToPixelCoordParams = [
   }
 ]
 
-describe('dmv.utils.computeRotation', () => {
+describe('utils.computeRotation', () => {
   computeRotationParams.forEach(params => {
     it('should compute correct rotation angle', () => {
-      const output = dmv.utils.computeRotation(params.inputs)
-      assert.deepEqual(output, params.expectedOutput)
+      const output = utils.computeRotation(params.inputs)
+      expect(output).toEqual(params.expectedOutput)
     })
   })
 })
 
-describe('dmv.utils.mapPixelCoordToSlideCoord', () => {
+describe('utils.mapPixelCoordToSlideCoord', () => {
   mapPixelCoordToSlideCoordParams.forEach(params => {
     it('should map pixel point to slide point', () => {
-      const output = dmv.utils.mapPixelCoordToSlideCoord(params.inputs)
-      assert.deepEqual(output, params.expectedOutput)
+      const output = utils.mapPixelCoordToSlideCoord(params.inputs)
+      expect(output).toEqual(params.expectedOutput)
     })
   })
 })
 
-describe('dmv.utils.mapSlideCoordToPixelCoord', () => {
+describe('utils.mapSlideCoordToPixelCoord', () => {
   mapSlideCoordToPixelCoordParams.forEach(params => {
     it('should map slide point to pixel point', () => {
-      const output = dmv.utils.mapSlideCoordToPixelCoord(params.inputs)
-      assert.deepEqual(output, params.expectedOutput)
+      const output = utils.mapSlideCoordToPixelCoord(params.inputs)
+      expect(output).toEqual(params.expectedOutput)
     })
   })
 })
