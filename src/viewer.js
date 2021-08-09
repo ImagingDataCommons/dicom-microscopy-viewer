@@ -334,19 +334,8 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
   }
 
   const measurements = feature.get(Enums.InternalProperties.Measurements) || []
-
-  let area, length;
-  try {
-    area = getFeatureScoord3dArea(feature, pyramid)
-  } catch {
-    area = 0;
-  }
-  
-  try {
-    length = getFeatureScoord3dLength(feature, pyramid)
-  } catch {
-    length = 0;
-  }
+  const area = getFeatureScoord3dArea(feature, pyramid)
+  const length = getFeatureScoord3dLength(feature, pyramid)
 
   if (!area && !length) return
 
