@@ -372,6 +372,8 @@ function getFeatureScoord3dLength (feature, pyramid) {
         length += Math.sqrt(xLen + yLen) * 1000
       }
       return length
+    } else {
+      throw new Error('ROI does not have any coordinates.')
     }
   }
 }
