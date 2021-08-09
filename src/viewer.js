@@ -347,7 +347,9 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
   const area = getFeatureScoord3dArea(feature, pyramid)
   const length = getFeatureScoord3dLength(feature, pyramid)
 
-  if (!area && !length) return
+  if (area == null && length == null) {
+    return
+  }
 
   const unitSuffixToMeaningMap = {
     μm: 'micrometer',
