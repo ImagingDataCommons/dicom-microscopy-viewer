@@ -364,7 +364,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
   const unitCodedConceptValue = unitSuffix
   const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
 
-  if (area) {
+  if (area != null) {
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Area',
@@ -382,7 +382,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     })
   }
 
-  if (length) {
+  if (length != null) {
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Length',
@@ -400,18 +400,20 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     })
   }
 
-  const index = measurements.findIndex((m) =>
-    doContentItemsMatch(m, measurement)
-  )
+  if (measurement) {
+    const index = measurements.findIndex((m) => (
+      doContentItemsMatch(m, measurement)
+    ))
 
-  if (index > -1) {
-    measurements[index] = measurement
-  } else {
-    measurements.push(measurement)
+    if (index > -1) {
+      measurements[index] = measurement
+    } else {
+      measurements.push(measurement)
+    }
+
+    feature.set(Enums.InternalProperties.Measurements, measurements)
+    console.debug(`Measurements of feature (${feature.getId()}):`, measurements)
   }
-
-  feature.set(Enums.InternalProperties.Measurements, measurements)
-  console.debug(`Measurements of feature (${feature.getId()}):`, measurements)
 }
 
 /**

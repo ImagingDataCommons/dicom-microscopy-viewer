@@ -18,7 +18,6 @@ import TileLayer from 'ol/layer/Tile'
  * @class
  * @memberof channel
  */
-
 class BlendingInformation {
   /*
   * An interface class to set/get the visualization/presentation
