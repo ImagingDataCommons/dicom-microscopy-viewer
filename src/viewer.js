@@ -477,12 +477,12 @@ class VolumeImageViewer {
    *
    * @param {object} options
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
-   * @param {object[]} options.metadata - An array of DICOM JSON metadata objects,
-   *        the array is full dicom metadata (all the instances) and the Library has to take care of determining which
-   *        instances represent channels (optical paths) and internally build a lookup table upon Library object construction
+   * @param {object[]} options.metadata - An array of DICOM JSON metadata objects or formatted image metadata objects created via "formatMetadata()".
+   *        The array shall contain the metadata of all image instances that should be displayed.
+   *        The constructor automatically determines which instances represent monochromatic channels (optical paths).
    * @param {object[]} options.blendingInformation - An array containing blending information for the channels with the
-   *        standard visualization parameters already setup by an external APPs
-   * @param {object} options.styleOptions - Default style options for annotations
+   *        standard visualization parameters already setup by an external application.
+   * @param {object} options.styleOptions - Default style options for annotations.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
@@ -554,106 +554,130 @@ class VolumeImageViewer {
       throw new Error('Input metadata has no instances.')
     }
 
-    // Metadata Tiles types checks for each instance
-    // group channels by OpticalPathIdentifier
-    const channelsMicroscopyImages = groupMonochromeInstances(this[_options].metadata)
-    // do additional checks and create channel objects
-    for (let i = 0; i < channelsMicroscopyImages.length; ++i) {
-      const channelMicroscopyImages = channelsMicroscopyImages[i]
-      for (let j = 0; j < channelMicroscopyImages.length; ++j) {
-        const channelMicroscopyImage = channelMicroscopyImages[j]
-        if (channelMicroscopyImage.DimensionOrganizationType === '3D' || channelMicroscopyImage.DimensionOrganizationType === '3D_TEMPORAL') {
-          // 3D data
-          throw new Error('Volume Image Viewer does hot hanlde 3D channel data yet.')
-        } else if (channelMicroscopyImage.DimensionOrganizationType === 'TILED_FULL') {
-          if (channelMicroscopyImage.TotalPixelMatrixFocalPlanes !== 1) {
+    // Group channels by OpticalPathIdentifier
+    const groups = groupMonochromeInstances(this[_options].metadata)
+    // Perform additional checks and create channel objects
+    for (let i = 0; i < groups.length; ++i) {
+      for (let j = 0; j < groups[i].length; ++j) {
+        const channelImage = groups[i][j]
+        if (
+          channelImage.DimensionOrganizationType === '3D' ||
+          channelImage.DimensionOrganizationType === '3D_TEMPORAL'
+        ) {
+          throw new Error(
+            'Volume Image Viewer does hot hanlde 3D channel data yet.'
+          )
+        } else if (channelImage.DimensionOrganizationType === 'TILED_FULL') {
+          if (channelImage.TotalPixelMatrixFocalPlanes !== 1) {
             continue
           } else {
-            const pathIdentifier = channelMicroscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
+            const opticalPathIdentifier = (
+              channelImage
+                .OpticalPathSequence[0]
+                .OpticalPathIdentifier
+            )
             const channel = this[_channels].find(channel => {
-              return channel.blendingInformation.opticalPathIdentifier === pathIdentifier
+              const currentOpticalPathIdentifier = (
+                channel
+                  .blendingInformation
+                  .opticalPathIdentifier
+              )
+              return currentOpticalPathIdentifier === opticalPathIdentifier
             })
             if (channel) {
-              channel.addMetadata(channelMicroscopyImage.originMetadata)
+              channel.addMetadata(channelImage)
             } else {
-              const blendingInformation = this[_options].blendingInformation !== undefined
-                ? this[_options].blendingInformation.find(info => {
-                    return info.opticalPathIdentifier === pathIdentifier
-                  })
-                : undefined
+              const blendingInformation = (
+                this[_options].blendingInformation !== undefined
+                  ? this[_options].blendingInformation.find(info => (
+                      info.opticalPathIdentifier === opticalPathIdentifier
+                    ))
+                  : undefined
+              )
               if (blendingInformation !== undefined) {
                 const newChannel = new _Channel(blendingInformation)
-                newChannel.addMetadata(channelMicroscopyImage.originMetadata)
+                newChannel.addMetadata(channelImage)
                 this[_channels].push(newChannel)
               } else {
-                const opticalPathIdentifier = `${pathIdentifier}`
-                const color = [...colors[i % colors.length]]
-                const opacity = 1.0
-                const thresholdValues = [0, 255]
-                const limitValues = [0, 255]
-                const visible = false
                 const defaultBlendingInformation = new BlendingInformation({
-                  opticalPathIdentifier,
-                  color,
-                  opacity,
-                  thresholdValues,
-                  limitValues,
-                  visible
+                  opticalPathIdentifier: `${opticalPathIdentifier}`,
+                  color: [...colors[i % colors.length]],
+                  opacity: 1.0,
+                  thresholdValues: [0, 255],
+                  limitValues: [0, 255],
+                  visible: false
                 })
 
                 const newChannel = new _Channel(defaultBlendingInformation)
-                newChannel.addMetadata(channelMicroscopyImage.originMetadata)
+                newChannel.addMetadata(channelImage)
                 this[_channels].push(newChannel)
               }
             }
           }
-        } else if (channelMicroscopyImage.DimensionOrganizationType === 'TILED_SPARSE') {
-          // the spatial location of each tile is explicitly encoded using information
-          // in the Per-Frame Functional Group Sequence, and the recipient shall not
-          // make any assumption about the spatial position or optical path or order of the encoded frames.
-          throw new Error('Volume Image Viewer does hot handle TILED_SPARSE ' +
-                          'dimension organization for blending of channels yet.')
+        } else if (channelImage.DimensionOrganizationType === 'TILED_SPARSE') {
+          /*
+           * The spatial location of each tile is explicitly encoded using
+           * information in the Per-Frame Functional Group Sequence, and the
+           * recipient shall not make any assumption about the spatial position
+           * or optical path or order of the encoded frames.
+           */
+          throw new Error(
+            'Volume Image Viewer does hot handle TILED_SPARSE ' +
+            'dimension organization for blending of channels yet.'
+          )
         }
       }
     }
 
-    // group color images by opticalPathIdentifier
-    const colorImagesMicroscopyImages = groupColorInstances(this[_options].metadata)
+    // Group color images by opticalPathIdentifier
+    const colorImagesMicroscopyImages = groupColorInstances(
+      this[_options].metadata
+    )
     if (colorImagesMicroscopyImages.length > 1) {
-      console.warn('Volume Image Viewer detected more than one color image. ' +
-      'It is possible to load and visualize only one color image at time. ' +
-      'Please check the input metadata. Only the first detected color image will be loaded.')
+      console.warn(
+        'Volume Image Viewer detected more than one color image. ' +
+        'It is possible to load and visualize only one color image at time. ' +
+        'Please check the input metadata. ' +
+        'Only the first detected color image will be loaded.'
+      )
     }
 
     if (colorImagesMicroscopyImages.length >= 1) {
       const colorImageMicroscopyImages = colorImagesMicroscopyImages[0]
       if (colorImageMicroscopyImages.length === 0) {
-        throw new Error('The first detected color image has no metadata available.')
+        throw new Error(
+          'The first detected color image has no metadata available.'
+        )
       }
 
       this[_colorImage] = {
-        opticalPathIdentifier: colorImageMicroscopyImages[0].OpticalPathSequence[0].OpticalPathIdentifier,
+        opticalPathIdentifier: (
+          colorImageMicroscopyImages[0]
+            .OpticalPathSequence[0]
+            .OpticalPathIdentifier
+        ),
         metadata: []
       }
 
       for (let i = 0; i < colorImageMicroscopyImages.length; ++i) {
         const colorImageMicroscopyImage = colorImageMicroscopyImages[i]
-        this[_colorImage].metadata.push(colorImageMicroscopyImage.originMetadata)
+        this[_colorImage].metadata.push(colorImageMicroscopyImage)
       }
     }
 
     /*
-    * For blending we have to make some assumptions
-    * 1) all channels should have the same origins, resolutions, grid sizes,
-    *    tile sizes and pixel spacings (i.e. same TileGrid).
-    *    These are arrays with number of element equal to nlevel (levels of the pyramid).
-    *    All channels should have the same nlevel value.
-    * 2) given (1), we calculcate the tileGrid, projection and rotation objects using
-    *    the metadata of the first channel and use them for all the channels.
-    * 3) If the parameters in (1) are different, it means that we have to perfom
-    *    regridding/reprojection over the data (i.e. registration).
-    *    This, at the moment, is out of scope.
-    */
+     * For blending we have to make some assumptions
+     * 1) all channels should have the same origins, resolutions, grid sizes,
+     *    tile sizes and pixel spacings (i.e. same TileGrid).
+     *    These are arrays with number of element equal the number of pyramid
+     *    levels. All channels shall have the same number of levels.
+     * 2) given (1), we calculcate the tileGrid, projection and rotation objects
+     *    using the metadata of the first channel and subsequently apply them to
+     *    all the other channels.
+     * 3) If the parameters in (1) are different, it means that we have to
+     *    perfom regridding/reprojection over the data (i.e. registration).
+     *    This, at the moment, is out of scope.
+     */
     if (this[_channels].length === 0 && this[_colorImage] === undefined) {
       throw new Error('No channels or colorImage found.')
     }
@@ -674,25 +698,27 @@ class VolumeImageViewer {
     this[_referenceTileSizes] = [...geometryArrays[4]]
     this[_referencePixelSpacings] = [...geometryArrays[5]]
 
-    // We assume the first channel as the reference one for all the pyramid parameters.
-    // All the other channels have to have the same parameters.
+    /*
+     * We assume the first channel as the reference one for all the pyramid
+     * parameters. All other channels have to have the same parameters.
+     */
     this[_pyramidMetadata] = [...image.pyramidMetadata]
 
     this[_rotation] = _getRotation(image.pyramidBaseMetadata)
 
     /*
-    * Specify projection to prevent default automatic projection
-    * with the default Mercator projection.
-    */
+     * Specify projection to prevent default automatic projection
+     * with the default Mercator projection.
+     */
     this[_projection] = new Projection({
       code: 'DICOM',
       units: 'm',
       global: true,
       extent: this[_referenceExtents],
       getPointResolution: (pixelRes, point) => {
-        /** DICOM Pixel Spacing has millimeter unit while the projection has
-          * meter unit.
-          */
+        /* DICOM Pixel Spacing has millimeter unit while the projection has
+         * meter unit.
+         */
         const spacing = getPixelSpacing(
           this[_pyramidMetadata][this[_pyramidMetadata].length - 1]
         )[0]
