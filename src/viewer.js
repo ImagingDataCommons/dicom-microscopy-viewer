@@ -354,7 +354,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
   const unitCodedConceptValue = unitSuffix
   const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
 
-  if (area) {
+  if (area != null) {
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Area',
@@ -372,7 +372,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     })
   }
 
-  if (length) {
+  if (length != null) {
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Length',
