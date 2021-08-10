@@ -200,9 +200,9 @@ with Image Type VOLUME.</div>
                 </td>
             
 
-            <td class="description last">An array of DICOM JSON metadata objects,
-       the array is full dicom metadata (all the instances) and the Library has to take care of determining which
-       instances represent channels (optical paths) and internally build a lookup table upon Library object construction</td>
+            <td class="description last">An array of DICOM JSON metadata objects or formatted image metadata objects created via "formatMetadata()".
+       The array shall contain the metadata of all image instances that should be displayed.
+       The constructor automatically determines which instances represent monochromatic channels (optical paths).</td>
         </tr>
 
     
@@ -238,7 +238,7 @@ with Image Type VOLUME.</div>
             
 
             <td class="description last">An array containing blending information for the channels with the
-       standard visualization parameters already setup by an external APPs</td>
+       standard visualization parameters already setup by an external application.</td>
         </tr>
 
     
@@ -273,7 +273,7 @@ with Image Type VOLUME.</div>
                 </td>
             
 
-            <td class="description last">Default style options for annotations</td>
+            <td class="description last">Default style options for annotations.</td>
         </tr>
 
     
@@ -516,7 +516,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line480">line 480</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line484">line 484</a>
     </li></ul></dd>
     
 
@@ -610,7 +610,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2167">line 2167</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2197">line 2197</a>
     </li></ul></dd>
     
 
@@ -672,7 +672,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2176">line 2176</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2206">line 2206</a>
     </li></ul></dd>
     
 
@@ -744,7 +744,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1600">line 1600</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1630">line 1630</a>
     </li></ul></dd>
     
 
@@ -816,7 +816,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1609">line 1609</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1639">line 1639</a>
     </li></ul></dd>
     
 
@@ -878,7 +878,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1591">line 1591</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1621">line 1621</a>
     </li></ul></dd>
     
 
@@ -940,7 +940,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1920">line 1920</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1950">line 1950</a>
     </li></ul></dd>
     
 
@@ -1002,7 +1002,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1872">line 1872</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1902">line 1902</a>
     </li></ul></dd>
     
 
@@ -1074,7 +1074,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1618">line 1618</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1648">line 1648</a>
     </li></ul></dd>
     
 
@@ -1136,7 +1136,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1951">line 1951</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1981">line 1981</a>
     </li></ul></dd>
     
 
@@ -1198,7 +1198,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1343">line 1343</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1373">line 1373</a>
     </li></ul></dd>
     
 
@@ -1278,7 +1278,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line951">line 951</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line981">line 981</a>
     </li></ul></dd>
     
 
@@ -1366,7 +1366,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1212">line 1212</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1242">line 1242</a>
     </li></ul></dd>
     
 
@@ -1476,7 +1476,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line927">line 927</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line957">line 957</a>
     </li></ul></dd>
     
 
@@ -1613,7 +1613,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line908">line 908</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line938">line 938</a>
     </li></ul></dd>
     
 
@@ -1750,7 +1750,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1802">line 1802</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1832">line 1832</a>
     </li></ul></dd>
     
 
@@ -1887,7 +1887,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1713">line 1713</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1743">line 1743</a>
     </li></ul></dd>
     
 
@@ -2427,7 +2427,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1456">line 1456</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1486">line 1486</a>
     </li></ul></dd>
     
 
@@ -2564,7 +2564,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1880">line 1880</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1910">line 1910</a>
     </li></ul></dd>
     
 
@@ -2701,7 +2701,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1271">line 1271</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1301">line 1301</a>
     </li></ul></dd>
     
 
@@ -2838,7 +2838,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1752">line 1752</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1782">line 1782</a>
     </li></ul></dd>
     
 
@@ -2975,7 +2975,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1844">line 1844</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1874">line 1874</a>
     </li></ul></dd>
     
 
@@ -3112,7 +3112,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1627">line 1627</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1657">line 1657</a>
     </li></ul></dd>
     
 
@@ -3488,7 +3488,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2036">line 2036</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2066">line 2066</a>
     </li></ul></dd>
     
 
@@ -3648,7 +3648,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1996">line 1996</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2026">line 2026</a>
     </li></ul></dd>
     
 
@@ -3808,7 +3808,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1973">line 1973</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2003">line 2003</a>
     </li></ul></dd>
     
 
@@ -4017,7 +4017,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2107">line 2107</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2137">line 2137</a>
     </li></ul></dd>
     
 
@@ -4105,7 +4105,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1831">line 1831</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1861">line 1861</a>
     </li></ul></dd>
     
 
@@ -4211,7 +4211,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1739">line 1739</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1769">line 1769</a>
     </li></ul></dd>
     
 
@@ -4317,7 +4317,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1578">line 1578</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1608">line 1608</a>
     </li></ul></dd>
     
 
@@ -4423,7 +4423,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1907">line 1907</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1937">line 1937</a>
     </li></ul></dd>
     
 
@@ -4560,7 +4560,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1283">line 1283</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1313">line 1313</a>
     </li></ul></dd>
     
 
@@ -4648,7 +4648,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1789">line 1789</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1819">line 1819</a>
     </li></ul></dd>
     
 
@@ -4754,7 +4754,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1859">line 1859</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1889">line 1889</a>
     </li></ul></dd>
     
 
@@ -4860,7 +4860,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1700">line 1700</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1730">line 1730</a>
     </li></ul></dd>
     
 
@@ -4966,7 +4966,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1929">line 1929</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1959">line 1959</a>
     </li></ul></dd>
     
 
@@ -5125,7 +5125,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1263">line 1263</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1293">line 1293</a>
     </li></ul></dd>
     
 
@@ -5284,7 +5284,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1151">line 1151</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1181">line 1181</a>
     </li></ul></dd>
     
 
@@ -5443,7 +5443,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1183">line 1183</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1213">line 1213</a>
     </li></ul></dd>
     
 
@@ -5602,7 +5602,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1961">line 1961</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1991">line 1991</a>
     </li></ul></dd>
     
 
@@ -5761,7 +5761,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1321">line 1321</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1351">line 1351</a>
     </li></ul></dd>
     
 
@@ -5850,7 +5850,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2146">line 2146</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2176">line 2176</a>
     </li></ul></dd>
     
 
@@ -5987,7 +5987,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1296">line 1296</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1326">line 1326</a>
     </li></ul></dd>
     
 
@@ -6097,7 +6097,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2017">line 2017</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2047">line 2047</a>
     </li></ul></dd>
     
 
@@ -6207,7 +6207,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2137">line 2137</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2167">line 2167</a>
     </li></ul></dd>
     
 
@@ -6362,7 +6362,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2116">line 2116</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2146">line 2146</a>
     </li></ul></dd>
     
 
@@ -6551,7 +6551,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1353">line 1353</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1383">line 1383</a>
     </li></ul></dd>
     
 
@@ -6639,7 +6639,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1334">line 1334</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1364">line 1364</a>
     </li></ul></dd>
     
 
@@ -6935,7 +6935,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1196">line 1196</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1226">line 1226</a>
     </li></ul></dd>
     
 
@@ -7311,7 +7311,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2091">line 2091</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2121">line 2121</a>
     </li></ul></dd>
     
 
@@ -7448,7 +7448,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1310">line 1310</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1340">line 1340</a>
     </li></ul></dd>
     
 
@@ -7537,7 +7537,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2156">line 2156</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2186">line 2186</a>
     </li></ul></dd>
     
 
@@ -7625,7 +7625,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1685">line 1685</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1715">line 1715</a>
     </li></ul></dd>
     
 
@@ -7970,7 +7970,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2067">line 2067</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2097">line 2097</a>
     </li></ul></dd>
     
 
@@ -8022,7 +8022,7 @@ with Image Type VOLUME.</div>
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Thu Aug 05 2021 16:24:39 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Tue Aug 10 2021 08:59:30 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>
