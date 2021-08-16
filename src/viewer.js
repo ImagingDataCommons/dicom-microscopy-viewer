@@ -2248,14 +2248,11 @@ class _NonVolumeImageViewer {
     const imageLoadFunction = (image, src) => {
       console.info('load image')
       const mediaType = 'image/png'
-      const queryParams = {
-        viewport: [
-          this[_metadata].TotalPixelMatrixRows,
-          this[_metadata].TotalPixelMatrixColumns
-        ].join(',')
+      const queryParams = {}
+      if (resizeFactor !== 1) {
+        queryParams.viewport = [width, height].join(',')
       }
-      // We make this optional because a) not all archives currently support
-      // this query parameter and b) because ICC Profiles can be large and
+      // We make this optional because ICC Profiles can be large and
       // their inclusion can result in significant overhead.
       if (options.includeIccProfile) {
         queryParams.iccprofile = 'yes'
