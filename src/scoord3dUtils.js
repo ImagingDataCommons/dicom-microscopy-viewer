@@ -238,8 +238,8 @@ function getFeatureArea (feature) {
  */
 function getPixelSpacing (metadata) {
   if(!metadata.SharedFunctionalGroupsSequence ) return metadata.PixelSpacing;
-  const functionalGroup = metadata.SharedFunctionalGroupsSequence[0];
-  const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
+  const functionalGroup = metadata.SharedFunctionalGroupsSequence[0]
+  const pixelMeasures = functionalGroup.PixelMeasuresSequence[0]
   return pixelMeasures.PixelSpacing
 }
 

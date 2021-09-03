@@ -180,7 +180,11 @@ function groupColorInstances (metadata) {
         console.log('Microscopy slide missing optical path identifier');
         microscopyImage.OpticalPathSequence = [{OpticalPathIdentifier:'1'}];
       }
-      const opticalPathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier;
+      const opticalPathIdentifier = (
+        microscopyImage
+          .OpticalPathSequence[0]
+          .OpticalPathIdentifier
+      )
       const colorImage = colorImages.find(images => {
         const currentOpticalPathIdentifier = images[0].OpticalPathSequence[0].OpticalPathIdentifier;
         return currentOpticalPathIdentifier === opticalPathIdentifier

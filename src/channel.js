@@ -488,10 +488,8 @@ class _Channel {
     image.FrameOfReferenceUID = image.metadata[0].FrameOfReferenceUID
     for (let i = 0; i < image.metadata.length; ++i) {
       if (image.FrameOfReferenceUID !== image.metadata[i].FrameOfReferenceUID) {
-        const msg = `Optical Path ID ${image.opticalPathIdentifier} ` +
-        ` has volume microscopy images with FrameOfReferenceUID=${image.metadata[i].FrameOfReferenceUID}!=${image.FrameOfReferenceUID}`;
-        console.warn(msg);
-        // throw new Error(msg);
+        throw new Error(`Optical Path ID ${image.opticalPathIdentifier} ` +
+        ` has volume microscopy images with FrameOfReferenceUID=${image.metadata[i].FrameOfReferenceUID}!=${image.FrameOfReferenceUID}`);
       }
     }
 
