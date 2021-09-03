@@ -173,6 +173,10 @@ function groupColorInstances (metadata) {
         microscopyImage.PhotometricInterpretation.includes('YBR')
       )
     ) {
+      if( ! microscopyImage.OpticalPathSequence ) {
+        console.log('Microscopy slide missing optical path identifier');
+        microscopyImage.OpticalPathSequence = [{OpticalPathIdentifier:'1'}];
+      }
       const opticalPathIdentifier = (
         microscopyImage
           .OpticalPathSequence[0]

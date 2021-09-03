@@ -4,7 +4,9 @@
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "./src/dicom-microscopy-viewer.js",
   "standard": {
-    "env": [ "jest" ],
+    "env": [
+      "jest"
+    ],
     "ignore": [
       "/build/*",
       "/docs/*",
