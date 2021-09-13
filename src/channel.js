@@ -1,6 +1,6 @@
-import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js'
+import { getFrameMapping } from './metadata.js'
 import *
- as DICOMwebClient from 'dicomweb-client'
+as DICOMwebClient from 'dicomweb-client'
 import {
   areNumbersAlmostEqual,
   are1DArraysAlmostEqual,
@@ -18,7 +18,6 @@ import TileLayer from 'ol/layer/Tile'
  * @class
  * @memberof channel
  */
-
 class BlendingInformation {
   /*
   * An interface class to set/get the visualization/presentation
@@ -119,68 +118,75 @@ class _Channel {
     * determine the image pyramid structure, i.e. the size and resolution
     * images at the different pyramid levels.
     */
-
     const geometryArrays = _Channel.deriveImageGeometry(this)
-
+    const opticalPathIdentifier = this.blendingInformation.opticalPathIdentifier
     // Check frame of reference
     if (referenceFrameOfReferenceUID !== this.FrameOfReferenceUID) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has different FrameOfReferenceUID respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has different FrameOfReferenceUID with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
 
     // Check container identifier
     if (referenceContainerIdentifier !== this.ContainerIdentifier) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has different ContainerIdentifier respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has different ContainerIdentifier with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
 
     // Check that all the channels have the same pyramid parameters
     if (!are2DArraysAlmostEqual(geometryArrays[0], referenceExtent)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible extent respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has an incompatible extent with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
     if (!are2DArraysAlmostEqual(geometryArrays[1], referenceOrigins)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible origins respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible origins with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
     if (!are2DArraysAlmostEqual(geometryArrays[2], referenceResolutions)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible resolutions respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible resolutions with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
     if (!are2DArraysAlmostEqual(geometryArrays[3], referenceGridSizes)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible grid sizes respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible grid sizes with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
     if (!are2DArraysAlmostEqual(geometryArrays[4], referenceTileSizes)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible tile sizes respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible tile sizes with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
     if (!are2DArraysAlmostEqual(geometryArrays[5], referencePixelSpacings)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible pixel spacings respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible pixel spacings with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
 
@@ -197,7 +203,6 @@ class _Channel {
        * viewport. Note that this is in contrast to the nomenclature used
        * by Openlayers.
        */
-
       const z = tileCoord[0]
       const y = tileCoord[1] + 1
       const x = tileCoord[2] + 1
@@ -226,9 +231,9 @@ class _Channel {
       const z = tile.tileCoord[0]
       const columns = this.pyramidMetadata[z].Columns
       const rows = this.pyramidMetadata[z].Rows
-      const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel // number of colors for pixel
-      const bitsAllocated = this.pyramidMetadata[z].BitsAllocated // memory for pixel
-      const pixelRepresentation = this.pyramidMetadata[z].PixelRepresentation // 0 unsigned, 1 signed
+      const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel
+      const bitsAllocated = this.pyramidMetadata[z].BitsAllocated
+      const pixelRepresentation = this.pyramidMetadata[z].PixelRepresentation
 
       if (src !== null && samplesPerPixel === 1) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src)
@@ -241,12 +246,13 @@ class _Channel {
         tile.isLoading = true
 
         if (options.retrieveRendered) {
-          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
-          // we use in order: jp2, jpeg.
-          // we could add png, but at the moment we don't have a png decoder library and we would have to draw
-          // to a canvas, retieve the imageData and then recompat the array from a RGBA to a 1 component array
-          // for the offscreen rendering engine, which provides poor perfomances.
-
+          /*
+           * We could use PNG, but at the moment we don't have a PNG decoder
+           * library and thus would have to draw to a canvas, retrieve the
+           * imageData and then recompat the array from a RGBA to a 1 component
+           * array for the offscreen rendering engine, which would result in
+           * poor perfomance.
+           */
           const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
           const jpegMediaType = 'image/jpeg' // decoded with libJPEG-turbo
           const transferSyntaxUID = ''
@@ -272,7 +278,7 @@ class _Channel {
               const {
                 thresholdValues,
                 limitValues,
-                color,
+                color
               } = this.blendingInformation
 
               const frameData = {
@@ -283,20 +289,19 @@ class _Channel {
                 thresholdValues,
                 limitValues,
                 color,
-                opacity : 1, // the opacity is actually handled at OpenLayer level
+                opacity: 1, // handled by OpenLayers
                 columns,
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(
+                frameData
+              )
               tile.needToRerender = !rendered
               tile.isLoading = false
             }
           )
         } else {
-          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.3.3.2.html
-          // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
-
           const jlsMediaType = 'image/jls' // decoded with CharLS
           const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
           const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
@@ -318,13 +323,34 @@ class _Channel {
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
-              { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUIDlossless },
-              { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUID },
-              { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUIDlossless },
-              { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUID },
-              { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUIDlossless },
-              { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUID },
-              { mediaType: jpegMediaType, transferSyntaxUID: jpegTransferSyntaxUID }
+              {
+                mediaType: jlsMediaType,
+                transferSyntaxUID: jlsTransferSyntaxUIDlossless
+              },
+              {
+                mediaType: jlsMediaType,
+                transferSyntaxUID: jlsTransferSyntaxUID
+              },
+              {
+                mediaType: jp2MediaType,
+                transferSyntaxUID: jp2TransferSyntaxUIDlossless
+              },
+              {
+                mediaType: jp2MediaType,
+                transferSyntaxUID: jp2TransferSyntaxUID
+              },
+              {
+                mediaType: jpxMediaType,
+                transferSyntaxUID: jpxTransferSyntaxUIDlossless
+              },
+              {
+                mediaType: jpxMediaType,
+                transferSyntaxUID: jpxTransferSyntaxUID
+              },
+              {
+                mediaType: jpegMediaType,
+                transferSyntaxUID: jpegTransferSyntaxUID
+              }
             ]
           }
 
@@ -334,7 +360,7 @@ class _Channel {
               const {
                 thresholdValues,
                 limitValues,
-                color,
+                color
               } = this.blendingInformation
 
               const frameData = {
@@ -345,12 +371,14 @@ class _Channel {
                 thresholdValues,
                 limitValues,
                 color,
-                opacity : 1, // the opacity is actually handled at OpenLayer level
+                opacity: 1, // handled by OpenLayers
                 columns,
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(
+                frameData
+              )
               tile.needToRerender = !rendered
               tile.isLoading = false
             }
@@ -364,7 +392,10 @@ class _Channel {
                 sopInstanceUID,
                 frameNumbers,
                 mediaTypes: [
-                  { mediaType: octetStreamMediaType, transferSyntaxUID: octetStreamTransferSyntaxUID }
+                  {
+                    mediaType: octetStreamMediaType,
+                    transferSyntaxUID: octetStreamTransferSyntaxUID
+                  }
                 ]
               }
               options.client.retrieveInstanceFrames(retrieveOptions).then(
@@ -373,7 +404,7 @@ class _Channel {
                   const {
                     thresholdValues,
                     limitValues,
-                    color,
+                    color
                   } = this.blendingInformation
 
                   const frameData = {
@@ -384,12 +415,14 @@ class _Channel {
                     thresholdValues,
                     limitValues,
                     color,
-                    opacity : 1, // the opacity is actually handled at OpenLayer level
+                    opacity: 1, // handled by OpenLayers
                     columns,
                     rows
                   }
 
-                  const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
+                  const rendered = renderingEngine.colorMonochromeImageFrame(
+                    frameData
+                  )
                   tile.needToRerender = !rendered
                   tile.isLoading = false
                 }
@@ -408,7 +441,7 @@ class _Channel {
      * NOTE: transition = 0 disable OpenLayer transition alpha opacity
      * NOTE: it is needed a very large initial cacheSize value
      *       otherwise, the tile caches will be cleared at each zoom
-     *       providing very bad perfomances. 
+     *       providing very bad perfomances.
     */
     this.rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
@@ -449,39 +482,31 @@ class _Channel {
    * @static
    */
   static deriveImageGeometry (image) {
-    image.microscopyImages = []
-    image.metadata.forEach(m => {
-      const microscopyImage = new VLWholeSlideMicroscopyImage({ metadata: m })
-      if (microscopyImage.ImageType[2] === 'VOLUME') {
-        image.microscopyImages.push(microscopyImage)
-      }
-    })
-
-    if (image.microscopyImages.length === 0) {
-      throw new Error('No VOLUME image provided for Optioncal Path ID: ' + 
+    if (image.metadata.length === 0) {
+      throw new Error('No VOLUME image provided for Optioncal Path ID: ' +
       image.blendingInformation.opticalPathIdentifier)
     }
 
-    image.FrameOfReferenceUID = image.microscopyImages[0].FrameOfReferenceUID
-    for (let i = 0; i < image.microscopyImages.length; ++i) {
-      if (image.FrameOfReferenceUID !== image.microscopyImages[i].FrameOfReferenceUID) {
-        throw new Error('Optioncal Path ID ' + 
-        image.blendingInformation.opticalPathIdentifier + 
+    image.FrameOfReferenceUID = image.metadata[0].FrameOfReferenceUID
+    for (let i = 0; i < image.metadata.length; ++i) {
+      if (image.FrameOfReferenceUID !== image.metadata[i].FrameOfReferenceUID) {
+        throw new Error('Optioncal Path ID ' +
+        image.blendingInformation.opticalPathIdentifier +
         ' has volume microscopy images with different FrameOfReferenceUID')
       }
     }
 
-    image.ContainerIdentifier = image.microscopyImages[0].ContainerIdentifier
-    for (let i = 0; i < image.microscopyImages.length; ++i) {
-      if (image.ContainerIdentifier !== image.microscopyImages[i].ContainerIdentifier) {
-        throw new Error('Optioncal Path ID ' + 
-        image.blendingInformation.opticalPathIdentifier + 
+    image.ContainerIdentifier = image.metadata[0].ContainerIdentifier
+    for (let i = 0; i < image.metadata.length; ++i) {
+      if (image.ContainerIdentifier !== image.metadata[i].ContainerIdentifier) {
+        throw new Error('Optioncal Path ID ' +
+        image.blendingInformation.opticalPathIdentifier +
         ' has volume microscopy images with different ContainerIdentifier')
       }
     }
 
     // Sort instances and optionally concatenation parts if present.
-    image.microscopyImages.sort((a, b) => {
+    image.metadata.sort((a, b) => {
       const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns
       if (sizeDiff === 0) {
         if (a.ConcatenationFrameOffsetNumber !== undefined) {
@@ -494,11 +519,11 @@ class _Channel {
 
     image.pyramidMetadata = []
     image.pyramidFrameMappings = []
-    const frameMappings = image.microscopyImages.map(m => getFrameMapping(m))
-    for (let i = 0; i < image.microscopyImages.length; i++) {
-      const cols = image.microscopyImages[i].TotalPixelMatrixColumns
-      const rows = image.microscopyImages[i].TotalPixelMatrixRows
-      const numberOfFrames = image.microscopyImages[i].NumberOfFrames
+    const frameMappings = image.metadata.map(m => getFrameMapping(m))
+    for (let i = 0; i < image.metadata.length; i++) {
+      const cols = image.metadata[i].TotalPixelMatrixColumns
+      const rows = image.metadata[i].TotalPixelMatrixRows
+      const numberOfFrames = image.metadata[i].NumberOfFrames
       /*
        * Instances may be broken down into multiple concatentation parts.
        * Therefore, we have to re-assemble instance metadata.
@@ -518,25 +543,25 @@ class _Channel {
         // Update with information obtained from current concatentation part.
         Object.assign(image.pyramidFrameMappings[index], frameMappings[i])
         image.pyramidMetadata[index].NumberOfFrames += numberOfFrames
-        if ('PerFrameFunctionalGroupsSequence' in image.microscopyImages[index]) {
+        if ('PerFrameFunctionalGroupsSequence' in image.metadata[index]) {
           image.pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
-            ...image.microscopyImages[i].PerFrameFunctionalGroupsSequence
+            ...image.metadata[i].PerFrameFunctionalGroupsSequence
           )
         }
-        if (!('SOPInstanceUIDOfConcatenationSource' in image.microscopyImages[i])) {
+        if (!('SOPInstanceUIDOfConcatenationSource' in image.metadata[i])) {
           throw new Error(
             'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
             'for concatenation parts.'
           )
         }
-        const sopInstanceUID = image.microscopyImages[i].SOPInstanceUIDOfConcatenationSource
+        const sopInstanceUID = image.metadata[i].SOPInstanceUIDOfConcatenationSource
         image.pyramidMetadata[index].SOPInstanceUID = sopInstanceUID
         delete image.pyramidMetadata[index].SOPInstanceUIDOfConcatenationSource
         delete image.pyramidMetadata[index].ConcatenationUID
         delete image.pyramidMetadata[index].InConcatenationNumber
         delete image.pyramidMetadata[index].ConcatenationFrameOffsetNumber
       } else {
-        image.pyramidMetadata.push(image.microscopyImages[i])
+        image.pyramidMetadata.push(image.metadata[i])
         image.pyramidFrameMappings.push(frameMappings[i])
       }
     }
@@ -549,7 +574,7 @@ class _Channel {
     /*
      * Collect relevant information from DICOM metadata for each pyramid
      * level to construct the Openlayers map.
-    */
+     */
     const imageTileSizes = []
     const imageGridSizes = []
     const imageResolutions = []
@@ -624,7 +649,9 @@ class _Channel {
    * @param {object} metadata
    */
   addMetadata (metadata) {
-    this.metadata.push(metadata)
+    if (metadata.ImageType[2] === 'VOLUME') {
+      this.metadata.push(metadata)
+    }
   }
 
   /** Gets the channel visualization/presentation parameters
@@ -741,7 +768,7 @@ class _Channel {
             thresholdValues,
             limitValues,
             color,
-            opacity : 1, // the opacity is actually handled at OpenLayer level
+            opacity: 1, // handled by OpenLayers
             columns,
             rows
           }

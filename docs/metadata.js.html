@@ -47,7 +47,7 @@ function getFrameMapping (metadata) {
    * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
    * of the standard. Older datasets are equivalent to "TILED_SPARSE"
    * even though they may not have a value or a different value.
-  */
+   */
   const dimensionOrganizationType = metadata.DimensionOrganizationType || 'TILED_SPARSE'
   const tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns)
   const frameMapping = {}
@@ -141,6 +141,91 @@ function formatMetadata (metadata) {
   return dataset
 }
 
+/** Group DICOM metadata of monochrome slides by Optical Path Identifier.
+ *
+ * @param {Object[]} metadata - DICOM JSON objects representing metadata of VL Whole Slide Microscopy Image instances.
+ *
+ * @returns {Object[]} Groups of formatted VLWholeSlideMicroscopyImage instances
+ * @memberof metadata
+ */
+function groupMonochromeInstances (metadata) {
+  const channels = []
+  for (let i = 0; i &lt; metadata.length; ++i) {
+    const microscopyImage = new VLWholeSlideMicroscopyImage({
+      metadata: metadata[i]
+    })
+    if (microscopyImage.ImageType[2] !== 'VOLUME') {
+      continue
+    }
+
+    if (microscopyImage.SamplesPerPixel === 1 &amp;&amp;
+        microscopyImage.PhotometricInterpretation === 'MONOCHROME2') {
+      // this is a monochrome channel
+      const pathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
+      const channel = channels.find(channel => {
+        return channel[0].OpticalPathSequence[0].OpticalPathIdentifier === pathIdentifier
+      })
+
+      if (channel) {
+        channel.push(microscopyImage)
+      } else {
+        channels.push([microscopyImage])
+      }
+    }
+  }
+
+  return channels
+}
+
+/** Group DICOM metadata of color images slides by Optical Path Identifier.
+ *
+ * @param {Object[]} metadata
+ *
+ * @returns {Object[]} groups of VLWholeSlideMicroscopyImages
+ * @memberof metadata
+ */
+function groupColorInstances (metadata) {
+  const colorImages = []
+  for (let i = 0; i &lt; metadata.length; ++i) {
+    const microscopyImage = new VLWholeSlideMicroscopyImage({
+      metadata: metadata[i]
+    })
+    if (microscopyImage.ImageType[2] !== 'VOLUME') {
+      continue
+    }
+
+    if (
+      microscopyImage.SamplesPerPixel !== 1 &amp;&amp;
+      (
+        microscopyImage.PhotometricInterpretation === 'RGB' ||
+        microscopyImage.PhotometricInterpretation.includes('YBR')
+      )
+    ) {
+      const opticalPathIdentifier = (
+        microscopyImage
+          .OpticalPathSequence[0]
+          .OpticalPathIdentifier
+      )
+      const colorImage = colorImages.find(images => {
+        const currentOpticalPathIdentifier = (
+          images[0]
+            .OpticalPathSequence[0]
+            .OpticalPathIdentifier
+        )
+        return currentOpticalPathIdentifier === opticalPathIdentifier
+      })
+
+      if (colorImage) {
+        colorImage.push(microscopyImage)
+      } else {
+        colorImages.push([microscopyImage])
+      }
+    }
+  }
+
+  return colorImages
+}
+
 /** DICOM VL Whole Slide Microscopy Image instance
  * (without Pixel Data or any other bulk data).
  *
@@ -150,14 +235,20 @@ function formatMetadata (metadata) {
 class VLWholeSlideMicroscopyImage {
   /**
      * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
+     * @params {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
      */
   constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+    let dataset
+    if ('StudyInstanceUID' in options.metadata) {
+      // Has already been formatted
+      dataset = options.metadata
+    } else {
+      dataset = formatMetadata(options.metadata)
+    }
     if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
       throw new Error(
         'Cannot construct VL Whole Slide Microscopy Image instance ' +
-          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+        `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
       )
     }
 
@@ -191,6 +282,8 @@ class Comprehensive3DSR {
 export {
   Comprehensive3DSR,
   formatMetadata,
+  groupMonochromeInstances,
+  groupColorInstances,
   getFrameMapping,
   VLWholeSlideMicroscopyImage
 }
@@ -204,13 +297,13 @@ export {
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#arraysEqual">arraysEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Tue May 18 2021 22:22:46 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Mon Aug 16 2021 15:45:17 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

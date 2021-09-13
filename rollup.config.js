@@ -32,7 +32,7 @@ export default {
      * skip certain warnings
      * https://github.com/openlayers/openlayers/issues/10245
      */
-    if (warning.code === 'THIS_IS_UNDEFINED') {
+    if (warning.code === 'THIS_IS_UNDEFINED' || warning.code === 'EVAL') {
       return
     }
     superOnWarn(warning)

@@ -26,10 +26,13 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>import { VLWholeSlideMicroscopyImage, getFrameMapping } from './metadata.js'
-import * as DICOMwebClient from 'dicomweb-client'
+            <pre class="prettyprint source linenums"><code>import { getFrameMapping } from './metadata.js'
+import *
+as DICOMwebClient from 'dicomweb-client'
 import {
-  arraysEqual
+  areNumbersAlmostEqual,
+  are1DArraysAlmostEqual,
+  are2DArraysAlmostEqual
 } from './utils.js'
 import {
   getPixelSpacing
@@ -43,7 +46,6 @@ import TileLayer from 'ol/layer/Tile'
  * @class
  * @memberof channel
  */
-
 class BlendingInformation {
   /*
   * An interface class to set/get the visualization/presentation
@@ -53,6 +55,7 @@ class BlendingInformation {
   * @param {number[]} color
   * @param {number} opacity
   * @param {number[]} thresholdValues
+  * @param {number[]} limitValues
   * @param {boolean} visible
   */
   constructor ({
@@ -60,12 +63,14 @@ class BlendingInformation {
     color,
     opacity,
     thresholdValues,
+    limitValues,
     visible
   }) {
     this.opticalPathIdentifier = opticalPathIdentifier
     this.color = [...color]
     this.opacity = opacity
     this.thresholdValues = [...thresholdValues]
+    this.limitValues = [...limitValues]
     this.visible = visible
   }
 }
@@ -81,13 +86,14 @@ class _Channel {
 /**
  * Create a channel instances which contains all the visualization/presentation
  * parameters and OpenLayer objects for a Whole Slide Microscopy Image.
- * Channel coloring is allowed only for monochorme channels (i.e SamplesPerPixel === 1).
+ * Channel coloring is allowed only for monochrome channels (i.e SamplesPerPixel === 1).
  *
  * @param {object} BlendingInformation
  * @param {string} BlendingInformation.opticalPathIdentifier - channel ID
  * @param {number[]} BlendingInformation.color - channel rgb color
  * @param {number} BlendingInformation.opacity - channel opacity
  * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
+ * @param {number[]} BlendingInformation.limitValues - channel min and max color fuinction values
  * @param {boolean} BlendingInformation.visible - channel visibility
  */
   constructor (blendingInformation) {
@@ -104,6 +110,8 @@ class _Channel {
    * for setting the globalCompositeOperation value to 'lighter' during the tiles blending.
    *
    * @param {string} referenceOpticalPathIdentifier - reference optical path identifier
+   * @param {string} referenceFrameOfReferenceUID - reference frame of reference UID
+   * @param {string} referenceContainerIdentifier - container identifier of reference UID
    * @param {number[]} referenceExtent - reference extent array
    * @param {number[]} referenceOrigins - reference origins array
    * @param {number[]} referenceResolutions - reference resolutions array
@@ -116,7 +124,10 @@ class _Channel {
    * @param {object} renderingEngine - VolumeImageViewer offscreen rendering engine
    *
    */
-  initChannel (referenceOpticalPathIdentifier,
+  initChannel (
+    referenceOpticalPathIdentifier,
+    referenceFrameOfReferenceUID,
+    referenceContainerIdentifier,
     referenceExtent,
     referenceOrigins,
     referenceResolutions,
@@ -135,50 +146,75 @@ class _Channel {
     * determine the image pyramid structure, i.e. the size and resolution
     * images at the different pyramid levels.
     */
-
     const geometryArrays = _Channel.deriveImageGeometry(this)
+    const opticalPathIdentifier = this.blendingInformation.opticalPathIdentifier
+    // Check frame of reference
+    if (referenceFrameOfReferenceUID !== this.FrameOfReferenceUID) {
+      throw new Error(
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has different FrameOfReferenceUID with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
+      )
+    }
+
+    // Check container identifier
+    if (referenceContainerIdentifier !== this.ContainerIdentifier) {
+      throw new Error(
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has different ContainerIdentifier with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
+      )
+    }
 
     // Check that all the channels have the same pyramid parameters
-    if (arraysEqual(geometryArrays[0], referenceExtent) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[0], referenceExtent)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible extent respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has an incompatible extent with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (arraysEqual(geometryArrays[1], referenceOrigins) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[1], referenceOrigins)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible origins respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible origins with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (arraysEqual(geometryArrays[2], referenceResolutions) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[2], referenceResolutions)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible resolutions respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible resolutions with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (arraysEqual(geometryArrays[3], referenceGridSizes) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[3], referenceGridSizes)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible grid sizes respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible grid sizes with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (arraysEqual(geometryArrays[4], referenceTileSizes) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[4], referenceTileSizes)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible tile sizes respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible tile sizes with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (arraysEqual(geometryArrays[5], referencePixelSpacings) === false) {
+    if (!are2DArraysAlmostEqual(geometryArrays[5], referencePixelSpacings)) {
       throw new Error(
-        'Optical path ' + this.blendingInformation.opticalPathIdentifier +
-        ' image has incompatible pixel spacings respect to the reference optical path ' +
-        referenceOpticalPathIdentifier
+        `Image with optical path "${opticalPathIdentifier}"` +
+        'has incompatible pixel spacings with respect to the reference ' +
+        'image with optical path ' +
+        `"${referenceOpticalPathIdentifier}".`
       )
     }
 
@@ -195,7 +231,6 @@ class _Channel {
        * viewport. Note that this is in contrast to the nomenclature used
        * by Openlayers.
        */
-
       const z = tileCoord[0]
       const y = tileCoord[1] + 1
       const x = tileCoord[2] + 1
@@ -221,13 +256,12 @@ class _Channel {
     */
     const tileLoadFunction = async (tile, src) => {
       const img = tile.getImage()
-      tile.needToRerender = true
       const z = tile.tileCoord[0]
       const columns = this.pyramidMetadata[z].Columns
       const rows = this.pyramidMetadata[z].Rows
-      const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel // number of colors for pixel
-      const bitsAllocated = this.pyramidMetadata[z].BitsAllocated // memory for pixel
-      const pixelRepresentation = this.pyramidMetadata[z].PixelRepresentation // 0 unsigned, 1 signed
+      const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel
+      const bitsAllocated = this.pyramidMetadata[z].BitsAllocated
+      const pixelRepresentation = this.pyramidMetadata[z].PixelRepresentation
 
       if (src !== null &amp;&amp; samplesPerPixel === 1) {
         const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src)
@@ -235,13 +269,18 @@ class _Channel {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
 
-        if (options.retrieveRendered) {
-          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
-          // we use in order: jp2, jpeg.
-          // we could add png, but at the moment we don't have a png decoder library and we would have to draw
-          // to a canvas, retieve the imageData and then recompat the array from a RGBA to a 1 component array
-          // for the offscreen rendering engine, which provides poor perfomances.
+        console.info(`retrieve frames ${frameNumbers}`)
+        tile.needToRerender = false
+        tile.isLoading = true
 
+        if (options.retrieveRendered) {
+          /*
+           * We could use PNG, but at the moment we don't have a PNG decoder
+           * library and thus would have to draw to a canvas, retrieve the
+           * imageData and then recompat the array from a RGBA to a 1 component
+           * array for the offscreen rendering engine, which would result in
+           * poor perfomance.
+           */
           const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
           const jpegMediaType = 'image/jpeg' // decoded with libJPEG-turbo
           const transferSyntaxUID = ''
@@ -266,8 +305,8 @@ class _Channel {
               // coloring image
               const {
                 thresholdValues,
-                color,
-                opacity
+                limitValues,
+                color
               } = this.blendingInformation
 
               const frameData = {
@@ -276,21 +315,21 @@ class _Channel {
                 bitsAllocated,
                 pixelRepresentation,
                 thresholdValues,
+                limitValues,
                 color,
-                opacity,
+                opacity: 1, // handled by OpenLayers
                 columns,
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(
+                frameData
+              )
               tile.needToRerender = !rendered
+              tile.isLoading = false
             }
           )
         } else {
-          console.info(`retrieve frames ${frameNumbers}`)
-          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.3.3.2.html
-          // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
-
           const jlsMediaType = 'image/jls' // decoded with CharLS
           const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
           const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
@@ -312,13 +351,34 @@ class _Channel {
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
-              { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUIDlossless },
-              { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUID },
-              { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUIDlossless },
-              { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUID },
-              { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUIDlossless },
-              { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUID },
-              { mediaType: jpegMediaType, transferSyntaxUID: jpegTransferSyntaxUID }
+              {
+                mediaType: jlsMediaType,
+                transferSyntaxUID: jlsTransferSyntaxUIDlossless
+              },
+              {
+                mediaType: jlsMediaType,
+                transferSyntaxUID: jlsTransferSyntaxUID
+              },
+              {
+                mediaType: jp2MediaType,
+                transferSyntaxUID: jp2TransferSyntaxUIDlossless
+              },
+              {
+                mediaType: jp2MediaType,
+                transferSyntaxUID: jp2TransferSyntaxUID
+              },
+              {
+                mediaType: jpxMediaType,
+                transferSyntaxUID: jpxTransferSyntaxUIDlossless
+              },
+              {
+                mediaType: jpxMediaType,
+                transferSyntaxUID: jpxTransferSyntaxUID
+              },
+              {
+                mediaType: jpegMediaType,
+                transferSyntaxUID: jpegTransferSyntaxUID
+              }
             ]
           }
 
@@ -327,8 +387,8 @@ class _Channel {
               // coloring image
               const {
                 thresholdValues,
-                color,
-                opacity
+                limitValues,
+                color
               } = this.blendingInformation
 
               const frameData = {
@@ -337,14 +397,18 @@ class _Channel {
                 bitsAllocated,
                 pixelRepresentation,
                 thresholdValues,
+                limitValues,
                 color,
-                opacity,
+                opacity: 1, // handled by OpenLayers
                 columns,
                 rows
               }
 
-              const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
+              const rendered = renderingEngine.colorMonochromeImageFrame(
+                frameData
+              )
               tile.needToRerender = !rendered
+              tile.isLoading = false
             }
           ).catch(
             () => {
@@ -356,7 +420,10 @@ class _Channel {
                 sopInstanceUID,
                 frameNumbers,
                 mediaTypes: [
-                  { mediaType: octetStreamMediaType, transferSyntaxUID: octetStreamTransferSyntaxUID }
+                  {
+                    mediaType: octetStreamMediaType,
+                    transferSyntaxUID: octetStreamTransferSyntaxUID
+                  }
                 ]
               }
               options.client.retrieveInstanceFrames(retrieveOptions).then(
@@ -364,8 +431,8 @@ class _Channel {
                   // coloring image
                   const {
                     thresholdValues,
-                    color,
-                    opacity
+                    limitValues,
+                    color
                   } = this.blendingInformation
 
                   const frameData = {
@@ -374,14 +441,18 @@ class _Channel {
                     bitsAllocated,
                     pixelRepresentation,
                     thresholdValues,
+                    limitValues,
                     color,
-                    opacity,
+                    opacity: 1, // handled by OpenLayers
                     columns,
                     rows
                   }
 
-                  const rendered = renderingEngine.colorMonochromeImageFrame(frameData)
+                  const rendered = renderingEngine.colorMonochromeImageFrame(
+                    frameData
+                  )
                   tile.needToRerender = !rendered
+                  tile.isLoading = false
                 }
               )
             }
@@ -396,13 +467,17 @@ class _Channel {
      * We use the existing TileImage source but customize it to retrieve
      * frames (load tiles) via DICOMweb WADO-RS.
      * NOTE: transition = 0 disable OpenLayer transition alpha opacity
+     * NOTE: it is needed a very large initial cacheSize value
+     *       otherwise, the tile caches will be cleared at each zoom
+     *       providing very bad perfomances.
     */
     this.rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
       tileGrid: tileGrid,
       projection: projection,
       wrapX: false,
-      transition: 0
+      transition: 0,
+      cacheSize: options.tilesCacheSize
     })
 
     this.rasterSource.setTileUrlFunction(tileUrlFunction)
@@ -412,7 +487,7 @@ class _Channel {
     this.tileLayer = new TileLayer({
       extent: tileGrid.getExtent(),
       source: this.rasterSource,
-      preload: Infinity,
+      preload: 0,
       projection: projection
     })
 
@@ -435,18 +510,31 @@ class _Channel {
    * @static
    */
   static deriveImageGeometry (image) {
-    image.microscopyImages = []
-    image.metadata.forEach(m => {
-      const microscopyImage = new VLWholeSlideMicroscopyImage({ metadata: m })
-      if (microscopyImage.ImageType[2] === 'VOLUME') {
-        image.microscopyImages.push(microscopyImage)
-      }
-    })
-    if (image.microscopyImages.length === 0) {
-      throw new Error('No VOLUME image provided.')
+    if (image.metadata.length === 0) {
+      throw new Error('No VOLUME image provided for Optioncal Path ID: ' +
+      image.blendingInformation.opticalPathIdentifier)
     }
+
+    image.FrameOfReferenceUID = image.metadata[0].FrameOfReferenceUID
+    for (let i = 0; i &lt; image.metadata.length; ++i) {
+      if (image.FrameOfReferenceUID !== image.metadata[i].FrameOfReferenceUID) {
+        throw new Error('Optioncal Path ID ' +
+        image.blendingInformation.opticalPathIdentifier +
+        ' has volume microscopy images with different FrameOfReferenceUID')
+      }
+    }
+
+    image.ContainerIdentifier = image.metadata[0].ContainerIdentifier
+    for (let i = 0; i &lt; image.metadata.length; ++i) {
+      if (image.ContainerIdentifier !== image.metadata[i].ContainerIdentifier) {
+        throw new Error('Optioncal Path ID ' +
+        image.blendingInformation.opticalPathIdentifier +
+        ' has volume microscopy images with different ContainerIdentifier')
+      }
+    }
+
     // Sort instances and optionally concatenation parts if present.
-    image.microscopyImages.sort((a, b) => {
+    image.metadata.sort((a, b) => {
       const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns
       if (sizeDiff === 0) {
         if (a.ConcatenationFrameOffsetNumber !== undefined) {
@@ -459,11 +547,11 @@ class _Channel {
 
     image.pyramidMetadata = []
     image.pyramidFrameMappings = []
-    const frameMappings = image.microscopyImages.map(m => getFrameMapping(m))
-    for (let i = 0; i &lt; image.microscopyImages.length; i++) {
-      const cols = image.microscopyImages[i].TotalPixelMatrixColumns
-      const rows = image.microscopyImages[i].TotalPixelMatrixRows
-      const numberOfFrames = image.microscopyImages[i].NumberOfFrames
+    const frameMappings = image.metadata.map(m => getFrameMapping(m))
+    for (let i = 0; i &lt; image.metadata.length; i++) {
+      const cols = image.metadata[i].TotalPixelMatrixColumns
+      const rows = image.metadata[i].TotalPixelMatrixRows
+      const numberOfFrames = image.metadata[i].NumberOfFrames
       /*
        * Instances may be broken down into multiple concatentation parts.
        * Therefore, we have to re-assemble instance metadata.
@@ -483,25 +571,25 @@ class _Channel {
         // Update with information obtained from current concatentation part.
         Object.assign(image.pyramidFrameMappings[index], frameMappings[i])
         image.pyramidMetadata[index].NumberOfFrames += numberOfFrames
-        if ('PerFrameFunctionalGroupsSequence' in image.microscopyImages[index]) {
+        if ('PerFrameFunctionalGroupsSequence' in image.metadata[index]) {
           image.pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
-            ...image.microscopyImages[i].PerFrameFunctionalGroupsSequence
+            ...image.metadata[i].PerFrameFunctionalGroupsSequence
           )
         }
-        if (!('SOPInstanceUIDOfConcatenationSource' in image.microscopyImages[i])) {
+        if (!('SOPInstanceUIDOfConcatenationSource' in image.metadata[i])) {
           throw new Error(
             'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
             'for concatenation parts.'
           )
         }
-        const sopInstanceUID = image.microscopyImages[i].SOPInstanceUIDOfConcatenationSource
+        const sopInstanceUID = image.metadata[i].SOPInstanceUIDOfConcatenationSource
         image.pyramidMetadata[index].SOPInstanceUID = sopInstanceUID
         delete image.pyramidMetadata[index].SOPInstanceUIDOfConcatenationSource
         delete image.pyramidMetadata[index].ConcatenationUID
         delete image.pyramidMetadata[index].InConcatenationNumber
         delete image.pyramidMetadata[index].ConcatenationFrameOffsetNumber
       } else {
-        image.pyramidMetadata.push(image.microscopyImages[i])
+        image.pyramidMetadata.push(image.metadata[i])
         image.pyramidFrameMappings.push(frameMappings[i])
       }
     }
@@ -514,7 +602,7 @@ class _Channel {
     /*
      * Collect relevant information from DICOM metadata for each pyramid
      * level to construct the Openlayers map.
-    */
+     */
     const imageTileSizes = []
     const imageGridSizes = []
     const imageResolutions = []
@@ -589,7 +677,9 @@ class _Channel {
    * @param {object} metadata
    */
   addMetadata (metadata) {
-    this.metadata.push(metadata)
+    if (metadata.ImageType[2] === 'VOLUME') {
+      this.metadata.push(metadata)
+    }
   }
 
   /** Gets the channel visualization/presentation parameters
@@ -605,6 +695,7 @@ class _Channel {
    * @param {number[]} BlendingInformation.color - channel rgb color
    * @param {number} BlendingInformation.opacity - channel opacity
    * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
+   * @param {number[]} BlendingInformation.limitValues - channel min and max color function values
    * @param {boolean} BlendingInformation.visible - channel visibility
    * @param {number[]} tilesCoordRanges - array with tiles X and Y coordinates ranges and zoom level
    *
@@ -615,30 +706,26 @@ class _Channel {
       color,
       opacity,
       thresholdValues,
+      limitValues,
       visible
     } = blendingInformation
 
     let rerender = false
-    if (color) {
-      if (this.blendingInformation.color[0] !== color[0] ||
-        this.blendingInformation.color[1] !== color[1] ||
-        this.blendingInformation.color[2] !== color[2]) {
-        rerender = true
-      }
+    if (color &amp;&amp; !are1DArraysAlmostEqual(this.blendingInformation.color, color)) {
+      rerender = true
       this.blendingInformation.color = [...color]
     }
-    if (opacity) {
-      if (Math.abs(this.blendingInformation.opacity - opacity) > 1.e-3) {
-        rerender = true
-      }
+    if (opacity &amp;&amp; !areNumbersAlmostEqual(this.blendingInformation.opacity, opacity)) {
       this.blendingInformation.opacity = opacity
+      this.tileLayer.setOpacity(this.blendingInformation.opacity)
     }
-    if (thresholdValues) {
-      if (this.blendingInformation.thresholdValues[0] !== thresholdValues[0] ||
-        this.blendingInformation.thresholdValues[1] !== thresholdValues[1]) {
-        rerender = true
-      }
+    if (thresholdValues &amp;&amp; !are1DArraysAlmostEqual(this.blendingInformation.thresholdValues, thresholdValues)) {
+      rerender = true
       this.blendingInformation.thresholdValues = [...thresholdValues]
+    }
+    if (limitValues &amp;&amp; !are1DArraysAlmostEqual(this.blendingInformation.limitValues, limitValues)) {
+      rerender = true
+      this.blendingInformation.limitValues = [...limitValues]
     }
     if (visible !== undefined &amp;&amp; visible !== null) {
       this.blendingInformation.visible = visible
@@ -688,12 +775,10 @@ class _Channel {
         if (visuParamChanged) {
           render = true
         } else {
-          render = tile.needToRerender !== false
+          render = tile.needToRerender === true &amp;&amp; tile.isLoading !== true
         }
-      }
-
-      if (visuParamChanged) {
-        tile.needToRerender = !render
+      } else if (visuParamChanged) {
+        tile.needToRerender = true
       }
 
       if (render) {
@@ -702,24 +787,23 @@ class _Channel {
         if (samplesPerPixel === 1) {
           const columns = this.pyramidMetadata[z].Columns
           const rows = this.pyramidMetadata[z].Rows
-          const { thresholdValues, color, opacity } = this.blendingInformation
+          const { thresholdValues, limitValues, color } = this.blendingInformation
           const img = tile.getImage()
 
           // coloring images
           const frameData = {
             img,
             thresholdValues,
+            limitValues,
             color,
-            opacity,
+            opacity: 1, // handled by OpenLayers
             columns,
             rows
           }
 
-          const rendered = this.renderingEngine.colorMonochromeImageFrame(frameData)
-          if (rendered) {
-            mapRerender = true
-            tile.needToRerender = !rendered
-          }
+          this.renderingEngine.colorMonochromeImageFrame(frameData)
+          mapRerender = true
+          tile.needToRerender = false
         }
       }
     }
@@ -739,13 +823,13 @@ export { _Channel, BlendingInformation }
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#arraysEqual">arraysEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Tue May 18 2021 22:22:46 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Mon Aug 16 2021 15:45:17 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

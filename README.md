@@ -109,19 +109,27 @@ Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-micros
 npm install dicom-microscopy-viewer
 ```
 
-## Building and testing
+## Building & Testing
 
-Build and test code locally:
+Build code locally:
 
 ```None
 git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
 cd ~/dicom-microscopy-viewer
 npm install
 npm run build
+```
+
+test code locally:
+
+```None
+git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
+cd ~/dicom-microscopy-viewer
+npm install
 npm test
 ```
 
-We use [rollup](https://rollupjs.org/guide/en) for bundling and [mochify](https://github.com/mantoni/mochify.js) for testing (based on [mocha](https://mochajs.org/) and [chai](http://www.chaijs.com/)).
+We use [rollup](https://rollupjs.org/guide/en) for bundling and [Jest](https://github.com/facebook/jest) for testing.
 
 Build the documentation:
 

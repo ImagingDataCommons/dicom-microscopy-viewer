@@ -19,7 +19,7 @@ function getFrameMapping (metadata) {
    * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
    * of the standard. Older datasets are equivalent to "TILED_SPARSE"
    * even though they may not have a value or a different value.
-  */
+   */
   const dimensionOrganizationType = metadata.DimensionOrganizationType || 'TILED_SPARSE'
   const tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns)
   const frameMapping = {}
@@ -113,17 +113,19 @@ function formatMetadata (metadata) {
   return dataset
 }
 
-/** Struct DICOM metadata of monochrome slides in groups by OpticalPathIdentifier.
+/** Group DICOM metadata of monochrome slides by Optical Path Identifier.
  *
- * @param {Object[]} metadata
- * 
- * @returns {Object[]} groups of VLWholeSlideMicroscopyImages
+ * @param {Object[]} metadata - DICOM JSON objects representing metadata of VL Whole Slide Microscopy Image instances.
+ *
+ * @returns {Object[]} Groups of formatted VLWholeSlideMicroscopyImage instances
  * @memberof metadata
  */
-function groupMonochromeInstances(metadataArray) {
+function groupMonochromeInstances (metadata) {
   const channels = []
-  for (let i = 0; i < metadataArray.length; ++i) {
-    const microscopyImage = new VLWholeSlideMicroscopyImage({ metadata: metadataArray[i] })
+  for (let i = 0; i < metadata.length; ++i) {
+    const microscopyImage = new VLWholeSlideMicroscopyImage({
+      metadata: metadata[i]
+    })
     if (microscopyImage.ImageType[2] !== 'VOLUME') {
       continue
     }
@@ -135,7 +137,7 @@ function groupMonochromeInstances(metadataArray) {
       const channel = channels.find(channel => {
         return channel[0].OpticalPathSequence[0].OpticalPathIdentifier === pathIdentifier
       })
-  
+
       if (channel) {
         channel.push(microscopyImage)
       } else {
@@ -147,30 +149,44 @@ function groupMonochromeInstances(metadataArray) {
   return channels
 }
 
-/** Struct DICOM metadata of colored slides in groups by OpticalPathIdentifier.
+/** Group DICOM metadata of color images slides by Optical Path Identifier.
  *
  * @param {Object[]} metadata
- * 
+ *
  * @returns {Object[]} groups of VLWholeSlideMicroscopyImages
  * @memberof metadata
  */
- function groupColorInstances(metadataArray) {
+function groupColorInstances (metadata) {
   const colorImages = []
-  for (let i = 0; i < metadataArray.length; ++i) {
-    const microscopyImage = new VLWholeSlideMicroscopyImage({ metadata: metadataArray[i] })
+  for (let i = 0; i < metadata.length; ++i) {
+    const microscopyImage = new VLWholeSlideMicroscopyImage({
+      metadata: metadata[i]
+    })
     if (microscopyImage.ImageType[2] !== 'VOLUME') {
       continue
     }
 
-    if (microscopyImage.SamplesPerPixel !== 1 &&
-        (microscopyImage.PhotometricInterpretation === 'RGB' ||
-        microscopyImage.PhotometricInterpretation.includes('YBR'))) {
-      //this is a color channel
-      const pathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
-      const colorImage = colorImages.find(colorImage => {
-        return colorImage[0].OpticalPathSequence[0].OpticalPathIdentifier === pathIdentifier
+    if (
+      microscopyImage.SamplesPerPixel !== 1 &&
+      (
+        microscopyImage.PhotometricInterpretation === 'RGB' ||
+        microscopyImage.PhotometricInterpretation.includes('YBR')
+      )
+    ) {
+      const opticalPathIdentifier = (
+        microscopyImage
+          .OpticalPathSequence[0]
+          .OpticalPathIdentifier
+      )
+      const colorImage = colorImages.find(images => {
+        const currentOpticalPathIdentifier = (
+          images[0]
+            .OpticalPathSequence[0]
+            .OpticalPathIdentifier
+        )
+        return currentOpticalPathIdentifier === opticalPathIdentifier
       })
-  
+
       if (colorImage) {
         colorImage.push(microscopyImage)
       } else {
@@ -182,7 +198,6 @@ function groupMonochromeInstances(metadataArray) {
   return colorImages
 }
 
-
 /** DICOM VL Whole Slide Microscopy Image instance
  * (without Pixel Data or any other bulk data).
  *
@@ -192,19 +207,24 @@ function groupMonochromeInstances(metadataArray) {
 class VLWholeSlideMicroscopyImage {
   /**
      * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
+     * @params {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
      */
   constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+    let dataset
+    if ('StudyInstanceUID' in options.metadata) {
+      // Has already been formatted
+      dataset = options.metadata
+    } else {
+      dataset = formatMetadata(options.metadata)
+    }
     if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
       throw new Error(
         'Cannot construct VL Whole Slide Microscopy Image instance ' +
-          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+        `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
       )
     }
 
     Object.assign(this, dataset)
-    this.originMetadata = options.metadata
   }
 }
 

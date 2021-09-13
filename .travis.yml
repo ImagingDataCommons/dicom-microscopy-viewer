@@ -1,10 +1,10 @@
 language: node_js
 node_js:
-  - "8"
+  - node
 
 sudo: false
 
 script:
   - npm install
   - npm run build
-  - npm test -- --allow-chrome-as-root
+  - npm test

@@ -1,20 +1,17 @@
-const chai = require('chai')
-const assert = require('assert')
-
-chai.should()
-
-const testCase1 = require('./data/testCase1.json')
-const testCase2 = require('./data/testCase2.json')
-const testCase3 = require('./data/testCase3.json')
+const testCase1 = require('../test/data/testCase1.json')
+const testCase2 = require('../test/data/testCase2.json')
+const testCase3 = require('../test/data/testCase3.json')
 const testCases = [testCase1, testCase2, testCase3]
 
-const dmv = require('../build/dicom-microscopy-viewer.js')
+const dmv = require('./dicom-microscopy-viewer.js')
+
+jest.mock('./renderingEngine')
 
 describe('dmv.viewer.VolumeImageViewer', () => {
   let viewer
   testCases.forEach((metadata, index) => {
     console.log(`run test case #${index + 1}`)
-    before(() => {
+    beforeAll(() => {
       viewer = new dmv.api.VLWholeSlideMicroscopyImageViewer({
         client: 'test',
         metadata: metadata
@@ -99,7 +96,7 @@ describe('dmv.viewer.VolumeImageViewer', () => {
     })
 
     it('should return [] if there is no drawing', () => {
-      assert.deepEqual(viewer.getAllROIs(), [])
+      expect(viewer.getAllROIs()).toEqual([])
     })
 
     it('should add property to ROI upon construction', () => {
@@ -107,16 +104,15 @@ describe('dmv.viewer.VolumeImageViewer', () => {
         scoord3d: point,
         properties: { foo: 'bar' }
       })
-      assert.deepEqual(
-        roi.properties,
+      expect(roi.properties).toEqual(
         {
           foo: 'bar',
           measurements: [],
           evaluations: []
         }
       )
-      assert.deepEqual(roi.measurements, [])
-      assert.deepEqual(roi.evaluations, [])
+      expect(roi.measurements).toEqual([])
+      expect(roi.evaluations).toEqual([])
     })
 
     it('should add evaluation to ROI upon construction', () => {
@@ -139,60 +135,55 @@ describe('dmv.viewer.VolumeImageViewer', () => {
           evaluations: [evaluation]
         }
       })
-      assert.deepEqual(
-        roi.properties,
+      expect(roi.properties).toEqual(
         {
           measurements: [],
           evaluations: [evaluation]
         }
       )
-      assert.deepEqual(roi.measurements, [])
-      assert.deepEqual(roi.evaluations, [evaluation])
+      expect(roi.measurements).toEqual([])
+      expect(roi.evaluations).toEqual([evaluation])
     })
 
     it('should add property to ROI upon construction', () => {
-      const roi = new dmv.roi.ROI({
-        scoord3d : point,
-      });
-      assert.deepEqual(
-        roi.properties,
+      const roi = new dmv.roi.ROI({ scoord3d: point })
+      expect(roi.properties).toEqual(
         {
           measurements: [],
-          evaluations: [],
+          evaluations: []
         }
-      );
-      assert.deepEqual(roi.measurements, [])
-      assert.deepEqual(roi.evaluations, [])
+      )
+      expect(roi.measurements).toEqual([])
+      expect(roi.evaluations).toEqual([])
     })
     it('should add evaluation to ROI upon construction', () => {
       const evaluation = {
         ConceptNameCodeSequence: [{
           CodeValue: '121071',
           CodeMeaning: 'Finding',
-          CodingSchemeDesignator: 'DCM',
+          CodingSchemeDesignator: 'DCM'
         }],
         ConceptCodeSequence: [{
           CodeValue: '108369006',
           CodingSchemeDesignator: 'SCT',
           CodeMeaning: 'Tumor'
         }],
-        ValueType: 'CODE',
+        ValueType: 'CODE'
       }
       const roi = new dmv.roi.ROI({
-        scoord3d : point,
-        properties : {
-          'evaluations': [evaluation]
+        scoord3d: point,
+        properties: {
+          evaluations: [evaluation]
         }
-      });
-      assert.deepEqual(
-        roi.properties,
+      })
+      expect(roi.properties).toEqual(
         {
-          'measurements': [],
-          'evaluations': [evaluation]
+          measurements: [],
+          evaluations: [evaluation]
         }
-      );
-      assert.deepEqual(roi.measurements, [])
-      assert.deepEqual(roi.evaluations, [evaluation])
+      )
+      expect(roi.measurements).toEqual([])
+      expect(roi.evaluations).toEqual([evaluation])
     })
 
     it('should add measurement to ROI upon construction', () => {
@@ -216,15 +207,14 @@ describe('dmv.viewer.VolumeImageViewer', () => {
         scoord3d: point,
         properties: { measurements: [measurement] }
       })
-      assert.deepEqual(
-        roi.properties,
+      expect(roi.properties).toEqual(
         {
           measurements: [measurement],
           evaluations: []
         }
       )
-      assert.deepEqual(roi.measurements, [measurement])
-      assert.deepEqual(roi.evaluations, [])
+      expect(roi.measurements).toEqual([measurement])
+      expect(roi.evaluations).toEqual([])
     })
 
     it('should add measurement to ROI after construction', () => {
@@ -244,120 +234,95 @@ describe('dmv.viewer.VolumeImageViewer', () => {
         }],
         ValueType: 'CODE'
       }
-      const roi = new dmv.roi.ROI({
-        scoord3d: point
-      })
-      assert.deepEqual(
-        roi.properties,
+      const roi = new dmv.roi.ROI({ scoord3d: point })
+      expect(roi.properties).toEqual(
         {
           measurements: [],
           evaluations: []
         }
       )
-      assert.deepEqual(roi.measurements, [])
-      assert.deepEqual(roi.evaluations, [])
+      expect(roi.measurements).toEqual([])
+      expect(roi.evaluations).toEqual([])
       roi.addMeasurement(measurement)
-      assert.deepEqual(
-        roi.properties,
+      expect(roi.properties).toEqual(
         {
           measurements: [measurement],
           evaluations: []
         }
       )
-      assert.deepEqual(roi.measurements, [measurement])
-      assert.deepEqual(roi.evaluations, [])
+      expect(roi.measurements).toEqual([measurement])
+      expect(roi.evaluations).toEqual([])
     })
 
     it('should create a Point ROI and return it back successfuly', () => {
-      const roi = new dmv.roi.ROI({
-        scoord3d: point
-      })
+      const roi = new dmv.roi.ROI({ scoord3d: point })
       viewer.addROI(roi)
-      assert.deepEqual(
-        viewer.getROI(roi.uid).scoord3d.graphicData,
+      expect(viewer.getROI(roi.uid).scoord3d.graphicData).toEqual(
         point.graphicData
       )
-      assert.deepEqual(
-        viewer.getROI(roi.uid).properties,
+      expect(viewer.getROI(roi.uid).properties).toEqual(
         {
           measurements: [],
           evaluations: []
         }
       )
-      assert.deepEqual(
-        viewer.getROI(roi.uid).measurements,
-        []
-      )
-      assert.deepEqual(
-        viewer.getROI(roi.uid).evaluations,
-        []
-      )
+      expect(viewer.getROI(roi.uid).measurements).toEqual([])
+      expect(viewer.getROI(roi.uid).evaluations).toEqual([])
     })
 
     it('should create a Box ROI and return it back successfuly', () => {
-      const roi = new dmv.roi.ROI({
-        scoord3d : box,
-      });
-      viewer.addROI(roi);
+      const roi = new dmv.roi.ROI({ scoord3d: box })
+      viewer.addROI(roi)
       const measurement = {
         ConceptNameCodeSequence: [{
           CodeValue: '410668003',
           CodeMeaning: 'Length',
-          CodingSchemeDesignator: 'DCM',
+          CodingSchemeDesignator: 'DCM'
         }],
         MeasuredValueSequence: [{
           MeasurementUnitsCodeSequence: [{
             CodeValue: 'mm',
             CodeMeaning: 'millimeter',
-            CodingSchemeDesignator: 'UCUM',
+            CodingSchemeDesignator: 'UCUM'
           }],
           NumericValue: 5
         }],
-        ValueType: 'CODE',
+        ValueType: 'CODE'
       }
       viewer.addROIMeasurement(roi.uid, measurement)
       const evaluation = {
         ConceptNameCodeSequence: [{
           CodeValue: '121071',
           CodeMeaning: 'Finding',
-          CodingSchemeDesignator: 'DCM',
+          CodingSchemeDesignator: 'DCM'
         }],
         ConceptCodeSequence: [{
           CodeValue: '108369006',
           CodingSchemeDesignator: 'SCT',
           CodeMeaning: 'Tumor'
         }],
-        ValueType: 'CODE',
+        ValueType: 'CODE'
       }
       viewer.addROIEvaluation(roi.uid, evaluation)
-      assert.deepEqual(
-        viewer.getROI(roi.uid).scoord3d.graphicData,
-        box.graphicData
-      );
-      assert.deepEqual(
-        viewer.getROI(roi.uid).properties,
+      expect(viewer.getROI(roi.uid).scoord3d.graphicData).toEqual(box.graphicData)
+      expect(viewer.getROI(roi.uid).properties).toEqual(
         {
-          'measurements': [measurement],
-          'evaluations': [evaluation],
+          measurements: [measurement],
+          evaluations: [evaluation]
         }
-      );
-      assert.deepEqual(
-        viewer.getROI(roi.uid).measurements,
+      )
+      expect(viewer.getROI(roi.uid).measurements).toEqual(
         [measurement]
-      );
-      assert.deepEqual(
-        viewer.getROI(roi.uid).evaluations,
+      )
+      expect(viewer.getROI(roi.uid).evaluations).toEqual(
         [evaluation]
-      );
+      )
     })
 
     it('should create a Polygon ROI and return it back successfuly', () => {
-      const roi = new dmv.roi.ROI({
-        scoord3d: polygon
-      })
+      const roi = new dmv.roi.ROI({ scoord3d: polygon })
       viewer.addROI(roi)
-      assert.deepEqual(
-        viewer.getROI(roi.uid).scoord3d.graphicData,
+      expect(viewer.getROI(roi.uid).scoord3d.graphicData).toEqual(
         polygon.graphicData
       )
     })
@@ -367,51 +332,42 @@ describe('dmv.viewer.VolumeImageViewer', () => {
         scoord3d: freehandPolygon
       })
       viewer.addROI(roi)
-      assert.deepEqual(
-        viewer.getROI(roi.uid).scoord3d.graphicData,
+      expect(viewer.getROI(roi.uid).scoord3d.graphicData).toEqual(
         freehandPolygon.graphicData
       )
     })
 
     it('should create a Line ROI and return it back successfuly', () => {
-      const roi = new dmv.roi.ROI({
-        scoord3d: line
-      })
+      const roi = new dmv.roi.ROI({ scoord3d: line })
       viewer.addROI(roi)
-      assert.deepEqual(
-        viewer.getROI(roi.uid).scoord3d.graphicData,
+      expect(viewer.getROI(roi.uid).scoord3d.graphicData).toEqual(
         line.graphicData
       )
     })
 
     it('should create a FreehandLine ROI and return it back successfuly', () => {
-      const roi = new dmv.roi.ROI({
-        scoord3d: freeHandLine
-      })
+      const roi = new dmv.roi.ROI({ scoord3d: freeHandLine })
       viewer.addROI(roi)
-      assert.deepEqual(
-        viewer.getROI(roi.uid).scoord3d.graphicData,
+      expect(viewer.getROI(roi.uid).scoord3d.graphicData).toEqual(
         freeHandLine.graphicData
       )
     })
 
     it('should return all ROIs created up to now', () => {
       const rois = viewer.getAllROIs()
-      assert.equal(rois.length, 6)
+      expect(rois.length).toEqual(6)
     })
 
     it('should be able to remove the point ROI', () => {
       let rois = viewer.getAllROIs()
-      assert.equal(rois.length, 6)
-      assert.deepEqual(
-        viewer.getROI(rois[0].uid).scoord3d.graphicData,
+      expect(rois.length).toEqual(6)
+      expect(viewer.getROI(rois[0].uid).scoord3d.graphicData).toEqual(
         point.graphicData
       )
       viewer.removeROI(rois[0].uid)
       rois = viewer.getAllROIs()
-      assert.equal(rois.length, 5)
-      assert.deepEqual(
-        viewer.getROI(rois[0].uid).scoord3d.graphicData,
+      expect(rois.length).toEqual(5)
+      expect(viewer.getROI(rois[0].uid).scoord3d.graphicData).toEqual(
         box.graphicData
       )
     })
@@ -421,42 +377,42 @@ describe('dmv.viewer.VolumeImageViewer', () => {
         scoord3d: ellipse
       })
       viewer.addROI(roi)
-      assert.deepEqual(
-        viewer.getROI(roi.uid).scoord3d.graphicData[0],
+      expect(viewer.getROI(roi.uid).scoord3d.graphicData[0]).toEqual(
         ellipse.graphicData[0]
       )
-      assert.deepEqual(
-        viewer.getROI(roi.uid).scoord3d.graphicData[1],
+      expect(viewer.getROI(roi.uid).scoord3d.graphicData[1]).toEqual(
         ellipse.graphicData[1]
       )
     })
 
     it('should remove all ROIs', () => {
       viewer.removeAllROIs()
-      assert.deepEqual(viewer.getAllROIs(), [])
+      expect(viewer.getAllROIs()).toEqual([])
     })
 
     it('should throw an error if uid of ROI is undefined', () => {
-      assert.throws(function () {
+      expect(() => {
         const roi = new dmv.roi.ROI({
           scoord3d: point,
           uid: undefined,
           properties: {}
         })
-      },
-      Error
+        expect(roi).toBeFalsy()
+      }).toThrow(
+        Error
       )
     })
 
     it('should throw an error if uid of ROI is null', () => {
-      assert.throws(function () {
+      expect(() => {
         const roi = new dmv.roi.ROI({
           scoord3d: point,
           uid: null,
           properties: {}
         })
-      },
-      Error
+        expect(roi).toBeFalsy()
+      }).toThrow(
+        Error
       )
     })
   })

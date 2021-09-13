@@ -60,7 +60,7 @@ import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
 
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
-import { ZoomSlider } from 'ol/control'
+import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter } from 'ol/extent'
 
 import * as DICOMwebClient from 'dicomweb-client'
@@ -68,7 +68,8 @@ import dcmjs from 'dcmjs'
 
 import {
   VLWholeSlideMicroscopyImage,
-  formatMetadata
+  groupMonochromeInstances,
+  groupColorInstances
 } from './metadata.js'
 import { ROI } from './roi.js'
 import {
@@ -364,7 +365,9 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
   const area = getFeatureScoord3dArea(feature, pyramid)
   const length = getFeatureScoord3dLength(feature, pyramid)
 
-  if (!area &amp;&amp; !length) return
+  if (area == null &amp;&amp; length == null) {
+    return
+  }
 
   const unitSuffixToMeaningMap = {
     μm: 'micrometer',
@@ -415,18 +418,20 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     })
   }
 
-  const index = measurements.findIndex((m) =>
-    doContentItemsMatch(m, measurement)
-  )
+  if (measurement) {
+    const index = measurements.findIndex((m) => (
+      doContentItemsMatch(m, measurement)
+    ))
 
-  if (index > -1) {
-    measurements[index] = measurement
-  } else {
-    measurements.push(measurement)
+    if (index > -1) {
+      measurements[index] = measurement
+    } else {
+      measurements.push(measurement)
+    }
+
+    feature.set(Enums.InternalProperties.Measurements, measurements)
+    console.debug(`Measurements of feature (${feature.getId()}):`, measurements)
   }
-
-  feature.set(Enums.InternalProperties.Measurements, measurements)
-  console.debug(`Measurements of feature (${feature.getId()}):`, measurements)
 }
 
 /**
@@ -465,7 +470,6 @@ const _map = Symbol('map')
 const _metadata = Symbol('metadata')
 const _pyramidMetadata = Symbol('pyramidMetadata')
 const _segmentations = Symbol('segmentations')
-const _usewebgl = Symbol('usewebgl')
 const _channels = Symbol('channels')
 const _colorImage = Symbol('colorImage')
 const _renderingEngine = Symbol('renderingEngine')
@@ -478,8 +482,6 @@ const _referenceResolutions = Symbol('referenceResolutions')
 const _referenceGridSizes = Symbol('referenceGridSizes')
 const _referenceTileSizes = Symbol('referenceTileSizes')
 const _referencePixelSpacings = Symbol('referencePixelSpacings')
-const _retrieveRendered = Symbol('retrieveRendered')
-const _includeIccProfile = Symbol('includeIccProfile')
 const _annotationManager = Symbol('annotationManager')
 const _overviewMap = Symbol('overviewMap')
 
@@ -495,35 +497,34 @@ class VolumeImageViewer {
    *
    * @param {object} options
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
-   * @param {object[]} options.metadata - An array of DICOM JSON metadata objects,
-   *        the array is full dicom metadata (all the instances) and the Library has to take care of determining which
-   *        instances represent channels (optical paths) and internally build a lookup table upon Library object construction
+   * @param {object[]} options.metadata - An array of DICOM JSON metadata objects or formatted image metadata objects created via "formatMetadata()".
+   *        The array shall contain the metadata of all image instances that should be displayed.
+   *        The constructor automatically determines which instances represent monochromatic channels (optical paths).
    * @param {object[]} options.blendingInformation - An array containing blending information for the channels with the
-   *        standard visualization parameters already setup by an external APPs
-   * @param {object} options.styleOptions - Default style options for annotations
+   *        standard visualization parameters already setup by an external application.
+   * @param {object} options.styleOptions - Default style options for annotations.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
    * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used
+   * @param {number} [options.tilesCacheSize=1000] - initial cache size for a TileImage
    */
   constructor (options) {
     this[_options] = options
-    if ('useWebGL' in this[_options]) {
-      this[_usewebgl] = this[_options].useWebGL
-    } else {
-      this[_usewebgl] = true
+    if (!('useWebGL' in this[_options])) {
+      this[_options].useWebGL = true
     }
 
     if (!('retrieveRendered' in this[_options])) {
-      this[_retrieveRendered] = true
-    } else {
-      this[_retrieveRendered] = this[_options].retrieveRendered
+      this[_options].retrieveRendered = true
     }
 
     if (!('includeIccProfile' in this[_options])) {
-      this[_includeIccProfile] = false
-    } else {
-      this[_includeIccProfile] = this[_options].includeIccProfile
+      this[_options].includeIccProfile = false
+    }
+
+    if (!('tilesCacheSize' in this[_options])) {
+      this[_options].tilesCacheSize = 1000
     }
 
     if (!('overview' in this[_options])) {
@@ -573,105 +574,131 @@ class VolumeImageViewer {
       throw new Error('Input metadata has no instances.')
     }
 
-    // Metadata Tiles types checks for each instance
-    // look for channels
-    for (let i = 0; i &lt; this[_options].metadata.length; ++i) {
-      const instanceMetadata = formatMetadata(this[_options].metadata[i])
-      if (instanceMetadata.SamplesPerPixel !== 1) {
-        // this is not a monochorme channel, but a color image.
-        continue
-      }
-      if (instanceMetadata.DimensionOrganizationType === '3D' || instanceMetadata.DimensionOrganizationType === '3D_TEMPORAL') {
-        // 3D data
-        // TO DO: get some example data.
-        throw new Error('Volume Image Viewer does hot hanlde 3D channel data yet.')
-      } else if (instanceMetadata.DimensionOrganizationType === 'TILED_FULL') {
-        if (instanceMetadata.TotalPixelMatrixFocalPlanes !== 1) {
-          continue
-        } else {
-          const pathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier
-          const channel = this[_channels].find(channel => {
-            return channel.blendingInformation.opticalPathIdentifier === pathIdentifier
-          })
-          if (channel) {
-            channel.addMetadata(this[_options].metadata[i])
+    // Group channels by OpticalPathIdentifier
+    const groups = groupMonochromeInstances(this[_options].metadata)
+    // Perform additional checks and create channel objects
+    for (let i = 0; i &lt; groups.length; ++i) {
+      for (let j = 0; j &lt; groups[i].length; ++j) {
+        const channelImage = groups[i][j]
+        if (
+          channelImage.DimensionOrganizationType === '3D' ||
+          channelImage.DimensionOrganizationType === '3D_TEMPORAL'
+        ) {
+          throw new Error(
+            'Volume Image Viewer does hot hanlde 3D channel data yet.'
+          )
+        } else if (channelImage.DimensionOrganizationType === 'TILED_FULL') {
+          if (channelImage.TotalPixelMatrixFocalPlanes !== 1) {
+            continue
           } else {
-            const blendingInformation = this[_options].blendingInformation !== undefined
-              ? this[_options].blendingInformation.find(info => {
-                  return info.opticalPathIdentifier === pathIdentifier
-                })
-              : undefined
-            if (blendingInformation !== undefined) {
-              const newChannel = new _Channel(blendingInformation)
-              newChannel.addMetadata(this[_options].metadata[i])
-              this[_channels].push(newChannel)
+            const opticalPathIdentifier = (
+              channelImage
+                .OpticalPathSequence[0]
+                .OpticalPathIdentifier
+            )
+            const channel = this[_channels].find(channel => {
+              const currentOpticalPathIdentifier = (
+                channel
+                  .blendingInformation
+                  .opticalPathIdentifier
+              )
+              return currentOpticalPathIdentifier === opticalPathIdentifier
+            })
+            if (channel) {
+              channel.addMetadata(channelImage)
             } else {
-              const opticalPathIdentifier = `${pathIdentifier}`
-              const color = [...colors[i % colors.length]]
-              const opacity = 1.0
-              const thresholdValues = [0, 255]
-              const visible = false
-              const defaultBlendingInformation = new BlendingInformation({
-                opticalPathIdentifier,
-                color,
-                opacity,
-                thresholdValues,
-                visible
-              })
+              const blendingInformation = (
+                this[_options].blendingInformation !== undefined
+                  ? this[_options].blendingInformation.find(info => (
+                      info.opticalPathIdentifier === opticalPathIdentifier
+                    ))
+                  : undefined
+              )
+              if (blendingInformation !== undefined) {
+                const newChannel = new _Channel(blendingInformation)
+                newChannel.addMetadata(channelImage)
+                this[_channels].push(newChannel)
+              } else {
+                const defaultBlendingInformation = new BlendingInformation({
+                  opticalPathIdentifier: `${opticalPathIdentifier}`,
+                  color: [...colors[i % colors.length]],
+                  opacity: 1.0,
+                  thresholdValues: [0, 255],
+                  limitValues: [0, 255],
+                  visible: false
+                })
 
-              const newChannel = new _Channel(defaultBlendingInformation)
-              newChannel.addMetadata(this[_options].metadata[i])
-              this[_channels].push(newChannel)
+                const newChannel = new _Channel(defaultBlendingInformation)
+                newChannel.addMetadata(channelImage)
+                this[_channels].push(newChannel)
+              }
             }
           }
+        } else if (channelImage.DimensionOrganizationType === 'TILED_SPARSE') {
+          /*
+           * The spatial location of each tile is explicitly encoded using
+           * information in the Per-Frame Functional Group Sequence, and the
+           * recipient shall not make any assumption about the spatial position
+           * or optical path or order of the encoded frames.
+           */
+          throw new Error(
+            'Volume Image Viewer does hot handle TILED_SPARSE ' +
+            'dimension organization for blending of channels yet.'
+          )
         }
-      } else if (instanceMetadata.DimensionOrganizationType === 'TILED_SPARSE') {
-        // the spatial location of each tile is explicitly encoded using information
-        // in the Per-Frame Functional Group Sequence, and the recipient shall not
-        // make any assumption about the spatial position or optical path or order of the encoded frames.
-        // TO DO: get some example data.
-        throw new Error('Volume Image Viewer does hot handle TILED_SPARSE ' +
-                        'dimension organization for blending of channels yet.')
       }
     }
 
-    this[_colorImage] = {
-      OpticalPathIdentifier: '',
-      metadata: []
+    // Group color images by opticalPathIdentifier
+    const colorImagesMicroscopyImages = groupColorInstances(
+      this[_options].metadata
+    )
+    if (colorImagesMicroscopyImages.length > 1) {
+      console.warn(
+        'Volume Image Viewer detected more than one color image. ' +
+        'It is possible to load and visualize only one color image at time. ' +
+        'Please check the input metadata. ' +
+        'Only the first detected color image will be loaded.'
+      )
     }
-    // look for color images
-    for (let i = 0; i &lt; this[_options].metadata.length; ++i) {
-      const instanceMetadata = formatMetadata(this[_options].metadata[i])
-      if (instanceMetadata.SamplesPerPixel === 1) {
-        // this is not a color image, but a monochorme channel.
-        continue
-      }
-      const pathIdentifier = instanceMetadata.OpticalPathSequence[0].OpticalPathIdentifier
-      if (this[_colorImage].OpticalPathIdentifier === '') {
-        this[_colorImage].OpticalPathIdentifier = pathIdentifier
-      } else if (this[_colorImage].OpticalPathIdentifier !== pathIdentifier) {
-        console.warn('Volume Image Viewer detected more than one color image. ' +
-                     'It is possible to load and visualize only one color image at time. ' +
-                     'Please check the input metadata. Only the first detected color image will be loaded')
-        continue
+
+    if (colorImagesMicroscopyImages.length >= 1) {
+      const colorImageMicroscopyImages = colorImagesMicroscopyImages[0]
+      if (colorImageMicroscopyImages.length === 0) {
+        throw new Error(
+          'The first detected color image has no metadata available.'
+        )
       }
 
-      this[_colorImage].metadata.push(this[_options].metadata[i])
+      this[_colorImage] = {
+        opticalPathIdentifier: (
+          colorImageMicroscopyImages[0]
+            .OpticalPathSequence[0]
+            .OpticalPathIdentifier
+        ),
+        metadata: []
+      }
+
+      for (let i = 0; i &lt; colorImageMicroscopyImages.length; ++i) {
+        const colorImageMicroscopyImage = colorImageMicroscopyImages[i]
+        this[_colorImage].metadata.push(colorImageMicroscopyImage)
+      }
     }
 
     /*
-    * For blending we have to make some assumptions
-    * 1) all channels should have the same origins, resolutions, grid sizes,
-    *    tile sizes and pixel spacings (i.e. same TileGrid).
-    *    These are arrays with number of element equal to nlevel (levels of the pyramid).
-    *    All channels should have the same nlevel value.
-    * 2) given (1), we calculcate the tileGrid, projection and rotation objects using
-    *    the metadata of the first channel and use them for all the channels.
-    * 3) If the parameters in (1) are different, it means that we have to perfom
-    *    regridding/reprojection over the data (i.e. registration).
-    *    This, at the moment, is out of scope.
-    */
-    if (this[_channels].length === 0 &amp;&amp; this[_colorImage].OpticalPathIdentifier === '') {
+     * For blending we have to make some assumptions
+     * 1) all channels should have the same origins, resolutions, grid sizes,
+     *    tile sizes and pixel spacings (i.e. same TileGrid).
+     *    These are arrays with number of element equal the number of pyramid
+     *    levels. All channels shall have the same number of levels.
+     * 2) given (1), we calculcate the tileGrid, projection and rotation objects
+     *    using the metadata of the first channel and subsequently apply them to
+     *    all the other channels.
+     * 3) If the parameters in (1) are different, it means that we have to
+     *    perfom regridding/reprojection over the data (i.e. registration).
+     *    This, at the moment, is out of scope.
+     */
+    if (this[_channels].length === 0 &amp;&amp; this[_colorImage] === undefined) {
       throw new Error('No channels or colorImage found.')
     }
 
@@ -691,25 +718,27 @@ class VolumeImageViewer {
     this[_referenceTileSizes] = [...geometryArrays[4]]
     this[_referencePixelSpacings] = [...geometryArrays[5]]
 
-    // We assume the first channel as the reference one for all the pyramid parameters.
-    // All the other channels have to have the same parameters.
+    /*
+     * We assume the first channel as the reference one for all the pyramid
+     * parameters. All other channels have to have the same parameters.
+     */
     this[_pyramidMetadata] = [...image.pyramidMetadata]
 
     this[_rotation] = _getRotation(image.pyramidBaseMetadata)
 
     /*
-    * Specify projection to prevent default automatic projection
-    * with the default Mercator projection.
-    */
+     * Specify projection to prevent default automatic projection
+     * with the default Mercator projection.
+     */
     this[_projection] = new Projection({
       code: 'DICOM',
       units: 'm',
       global: true,
       extent: this[_referenceExtents],
       getPointResolution: (pixelRes, point) => {
-        /** DICOM Pixel Spacing has millimeter unit while the projection has
-          * meter unit.
-          */
+        /* DICOM Pixel Spacing has millimeter unit while the projection has
+         * meter unit.
+         */
         const spacing = getPixelSpacing(
           this[_pyramidMetadata][this[_pyramidMetadata].length - 1]
         )[0]
@@ -745,8 +774,11 @@ class VolumeImageViewer {
     // For each channel we build up the OpenLayer objects and
     // checks that the geometric assumptions are satisfied.
     this[_channels].forEach((channel) => {
+      // here image is a channel
       channel.initChannel(
-        image.opticalPathIdentifier,
+        image.blendingInformation.opticalPathIdentifier,
+        image.FrameOfReferenceUID,
+        image.ContainerIdentifier,
         this[_referenceExtents],
         this[_referenceOrigins],
         this[_referenceResolutions],
@@ -778,16 +810,9 @@ class VolumeImageViewer {
       updateWhileInteracting: true
     })
 
-    this[_controls] = {
-      scale: new ScaleLine({
-        units: 'metric',
-        className: ''
-      })
-    }
-
     const layers = []
     let rasterSourceOverview
-    if (this[_options].blendingInformation !== undefined) {
+    if (this[_options].blendingInformation !== undefined &amp;&amp; this[_channels].length > 0) {
       const hasAnyChannelBeenSelected = this[_channels].some(channel => {
         return channel.blendingInformation.visible
       })
@@ -798,28 +823,24 @@ class VolumeImageViewer {
           }
         })
       } else {
+        this[_channels][0].blendingInformation.visible = true
+        this[_channels][0].tileLayer.setVisible(true)
         layers.push(this[_channels][0].tileLayer)
       }
       rasterSourceOverview = this[_channels][0].rasterSource
     } else if (this[_channels].length !== 0) {
+      this[_channels][0].blendingInformation.visible = true
+      this[_channels][0].tileLayer.setVisible(true)
       layers.push(this[_channels][0].tileLayer)
       rasterSourceOverview = this[_channels][0].rasterSource
-    } else if (this[_colorImage].OpticalPathIdentifier !== '') {
+    } else if (this[_colorImage] !== undefined) {
       layers.push(this[_colorImage].tileLayer)
       rasterSourceOverview = this[_colorImage].rasterSource
     } else {
-      throw new Error('Viewer cannot find a color image or a monochorme channel to visualize.')
+      throw new Error('Viewer cannot find a color image or a monochrome channel to visualize.')
     }
 
     layers.push(this[_drawingLayer])
-
-    if (this[_options].controls.has('fullscreen')) {
-      this[_controls].fullscreen = new FullScreen()
-    }
-
-    if (this[_options].controls.has('zoom')) {
-      this[_controls].zoomslider = new ZoomSlider()
-    }
 
     const overviewImageLayer = new TileLayer({
       extent: this[_referenceExtents],
@@ -841,10 +862,6 @@ class VolumeImageViewer {
       collapsible: false
     })
 
-    if (this[_options].controls.has('overview')) {
-      this[_controls].overview = this[_overviewMap]
-    }
-
     // Creates the map with the defined layers and view and renders it.
     this[_map] = new Map({
       layers,
@@ -852,6 +869,8 @@ class VolumeImageViewer {
       controls: [],
       keyboardEventTarget: document
     })
+
+    view.fit(this[_projection].getExtent(), this[_map].getSize())
 
     /**
      * OpenLayer's map has default active interactions
@@ -874,6 +893,26 @@ class VolumeImageViewer {
     }
 
     this[_map].addInteraction(new MouseWheelZoom())
+
+    this[_controls] = {
+      scale: new ScaleLine({
+        units: 'metric',
+        className: ''
+      })
+    }
+
+    if (this[_options].controls.has('fullscreen')) {
+      this[_controls].fullscreen = new FullScreen()
+    }
+
+    if (this[_options].controls.has('zoom')) {
+      this[_controls].zoom = new Zoom()
+      this[_controls].zoomslider = new ZoomSlider()
+    }
+
+    if (this[_options].controls.has('overview')) {
+      this[_controls].overview = this[_overviewMap]
+    }
 
     for (const control in this[_controls]) {
       this[_map].addControl(this[_controls][control])
@@ -921,7 +960,7 @@ class VolumeImageViewer {
     })
   }
 
-  /** updates tiles rendering for monochorme channels at zoom interactions
+  /** updates tiles rendering for monochrome channels at zoom interactions
    * @param {number} zoom - applied zoom
    */
   _updateTilesRenderingAtZoom (zoom) {
@@ -941,7 +980,7 @@ class VolumeImageViewer {
     }
   }
 
-  /** updates tiles rendering for monochorme channels at panning interactions
+  /** updates tiles rendering for monochrome channels at panning interactions
    */
   _updateTilesRenderingAtPanning () {
     if (this[_channels] &amp;&amp; this[_channels].length !== 0) {
@@ -968,7 +1007,7 @@ class VolumeImageViewer {
   /** init unique Open Layer objects
    */
   _initColorImage () {
-    if (this[_colorImage].OpticalPathIdentifier === '') {
+    if (this[_colorImage] === undefined) {
       return
     }
     /*
@@ -1025,7 +1064,9 @@ class VolumeImageViewer {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
 
-        if (this[_retrieveRendered]) {
+        console.info(`retrieve frames ${frameNumbers}`)
+
+        if (this[_options].retrieveRendered) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
           const pngMediaType = 'image/png'
           const transferSyntaxUID = ''
@@ -1039,7 +1080,7 @@ class VolumeImageViewer {
               { mediaType: pngMediaType, transferSyntaxUID }
             ]
           }
-          if (this[_includeIccProfile]) {
+          if (this[_options].includeIccProfile) {
             retrieveOptions.queryParams = {
               iccprofile: 'yes'
             }
@@ -1055,7 +1096,6 @@ class VolumeImageViewer {
             }
           )
         } else {
-          console.info(`retrieve frames ${frameNumbers}`)
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
           // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
           const jlsMediaType = 'image/jls'
@@ -1134,12 +1174,21 @@ class VolumeImageViewer {
       }
     }
 
+    /*
+     * We use the existing TileImage source but customize it to retrieve
+     * frames (load tiles) via DICOMweb WADO-RS.
+     * NOTE: transition = 0 disable OpenLayer transition alpha opacity
+     * NOTE: it is needed a very large initial cacheSize value
+     *       otherwise, the tile caches will be cleared at each zoom
+     *       providing very bad perfomances.
+    */
     this[_colorImage].rasterSource = new TileImage({
       crossOrigin: 'Anonymous',
       tileGrid: this[_tileGrid],
       projection: this[_projection],
       wrapX: false,
-      transition: 0
+      transition: 0,
+      cacheSize: this[_options].tilesCacheSize
     })
 
     this[_colorImage].rasterSource.setTileUrlFunction(tileUrlFunction)
@@ -1154,32 +1203,43 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel or color image given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} opticalPathIdentifier - opticalPath of the channel
    * @return {Object} _Channel
    */
-  getOpticalPath (opticalPathID) {
-    if (this[_channels].length === 0 &amp;&amp; this[_colorImage].OpticalPathIdentifier === '') {
+  getOpticalPath (opticalPathIdentifier) {
+    if (this[_channels].length === 0 &amp;&amp; this[_colorImage] === undefined) {
       throw new Error('No channels or colorImage found.')
     }
-    const channel = this[_channels].find(
-      channel => channel.blendingInformation.opticalPathIdentifier === opticalPathID
-    )
-    const colorImage = this[_colorImage].OpticalPathIdentifier === opticalPathID
-      ? this[_colorImage]
-      : undefined
-    if (!channel &amp;&amp; !colorImage) {
-      throw new Error('No OpticalPath with ID ' + opticalPathID + ' has been found.')
+
+    let channel
+    if (this[_channels].length !== 0) {
+      channel = this[_channels].find(
+        channel => channel.blendingInformation.opticalPathIdentifier === opticalPathIdentifier
+      )
     }
 
-    return channel
+    let colorImage
+    if (this[_colorImage] !== undefined) {
+      colorImage = this[_colorImage].opticalPathIdentifier === opticalPathIdentifier
+        ? this[_colorImage]
+        : undefined
+    }
+
+    if (channel) {
+      return channel
+    } else if (colorImage) {
+      return colorImage
+    } else {
+      throw new Error('No OpticalPath with ID ' + opticalPathIdentifier + ' has been found.')
+    }
   }
 
   /** Gets the channel or color image metadata given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} opticalPathIdentifier - opticalPath of the channel
    * @return {metadata[]} array with all the instances metadata of the channel
    */
-  getOpticalPathMetadata (opticalPathID) {
-    const image = this.getOpticalPath(opticalPathID)
+  getOpticalPathMetadata (opticalPathIdentifier) {
+    const image = this.getOpticalPath(opticalPathIdentifier)
     return image.metadata
   }
 
@@ -1193,10 +1253,10 @@ class VolumeImageViewer {
    */
   setBlendingInformation (blendingInformation) {
     const {
-      opticalPathID
+      opticalPathIdentifier
     } = blendingInformation
 
-    const channel = this.getOpticalPath(opticalPathID)
+    const channel = this.getOpticalPath(opticalPathIdentifier)
     const tilesCoordRanges = this._transformViewCoordinatesInTilesCoordinates()
 
     if (channel.setBlendingInformation(blendingInformation, tilesCoordRanges)) {
@@ -1255,65 +1315,44 @@ class VolumeImageViewer {
   }
 
   /** Gets the channel visualization/presentation parameters given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} opticalPathIdentifier - opticalPath of the channel
    * @return {object} BlendingInformation
    */
-  getBlendingInformation (opticalPathID) {
-    const channel = this.getOpticalPath(opticalPathID)
+  getBlendingInformation (opticalPathIdentifier) {
+    const channel = this.getOpticalPath(opticalPathIdentifier)
     return channel.getBlendingInformation()
   }
 
   /** Adds the channel to the OpenLayer Map given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} opticalPathIdentifier - opticalPath of the channel
    */
-  activateOpticalPath (opticalPathID) {
-    const channel = this.getOpticalPath(opticalPathID)
-    if (this._isOpticalPathActive(channel)) {
-      throw new Error('OpticalPath ' + opticalPathID + ' already activated')
+  activateOpticalPath (opticalPathIdentifier) {
+    if (this.isOpticalPathActive(opticalPathIdentifier)) {
+      throw new Error('OpticalPath ' + opticalPathIdentifier + ' already activated')
     }
 
+    const channel = this.getOpticalPath(opticalPathIdentifier)
     this[_map].getLayers().insertAt(0, channel.tileLayer)
   }
 
   /** Removes the channel to the OpenLayer Map given an id
-   * @param {string} opticalPathID - opticalPath of the channel
+   * @param {string} opticalPathIdentifier - opticalPath of the channel
    */
-  deactivateOpticalPath (opticalPathID) {
-    const channel = this.getOpticalPath(opticalPathID)
-    if (!this._isOpticalPathActive(channel)) {
-      throw new Error('OpticalPath ' + opticalPathID + ' already deactivated')
+  deactivateOpticalPath (opticalPathIdentifier) {
+    if (!this.isOpticalPathActive(opticalPathIdentifier)) {
+      throw new Error('OpticalPath ' + opticalPathIdentifier + ' already deactivated')
     }
 
+    const channel = this.getOpticalPath(opticalPathIdentifier)
     this[_map].removeLayer(channel.tileLayer)
   }
 
-  /** Set the visibility of the channel to true
-   * @param {string} opticalPathID - opticalPath of the channel
-   */
-  showOpticalPath (opticalPathID) {
-    const blendingInformation = {
-      visible: true,
-      opticalPathID: opticalPathID
-    }
-    this.setBlendingInformation(blendingInformation)
-  }
-
-  /** Set the visibility of the channel to false
-   * @param {string} opticalPathID - opticalPath of the channel
-   */
-  hideOpticalPath (opticalPathID) {
-    const blendingInformation = {
-      visible: false,
-      opticalPathID: opticalPathID
-    }
-    this.setBlendingInformation(blendingInformation)
-  }
-
   /** Returns if the channel is being rendered
-   * @param {object} channel
-   * @return {boolean} visible
+   * @param {string} opticalPathIdentifier - opticalPath of the channel
+   * @return {boolean} active
    */
-  _isOpticalPathActive (channel) {
+  isOpticalPathActive (opticalPathIdentifier) {
+    const channel = this.getOpticalPath(opticalPathIdentifier)
     if (channel === null) {
       return false
     }
@@ -1321,6 +1360,28 @@ class VolumeImageViewer {
     return !!this[_map].getLayers().getArray().find(layer => {
       return layer === channel.tileLayer
     })
+  }
+
+  /** Set the visibility of the channel to true
+   * @param {string} opticalPathIdentifier - opticalPath of the channel
+   */
+  showOpticalPath (opticalPathIdentifier) {
+    const blendingInformation = {
+      visible: true,
+      opticalPathIdentifier: opticalPathIdentifier
+    }
+    this.setBlendingInformation(blendingInformation)
+  }
+
+  /** Set the visibility of the channel to false
+   * @param {string} opticalPathIdentifier - opticalPath of the channel
+   */
+  hideOpticalPath (opticalPathIdentifier) {
+    const blendingInformation = {
+      visible: false,
+      opticalPathIdentifier: opticalPathIdentifier
+    }
+    this.setBlendingInformation(blendingInformation)
   }
 
   /**
@@ -2215,14 +2276,11 @@ class _NonVolumeImageViewer {
     const imageLoadFunction = (image, src) => {
       console.info('load image')
       const mediaType = 'image/png'
-      const queryParams = {
-        viewport: [
-          this[_metadata].TotalPixelMatrixRows,
-          this[_metadata].TotalPixelMatrixColumns
-        ].join(',')
+      const queryParams = {}
+      if (resizeFactor !== 1) {
+        queryParams.viewport = [width, height].join(',')
       }
-      // We make this optional because a) not all archives currently support
-      // this query parameter and b) because ICC Profiles can be large and
+      // We make this optional because ICC Profiles can be large and
       // their inclusion can result in significant overhead.
       if (options.includeIccProfile) {
         queryParams.iccprofile = 'yes'
@@ -2286,6 +2344,8 @@ class _NonVolumeImageViewer {
       controls: [],
       keyboardEventTarget: document
     })
+
+    view.fit(projection.getExtent(), this[_map].getSize())
   }
 
   /** Renders the image in the specified viewport container.
@@ -2395,13 +2455,13 @@ export { LabelImageViewer, OverviewImageViewer, VolumeImageViewer }
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#arraysEqual">arraysEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Tue May 18 2021 22:22:46 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Mon Aug 16 2021 15:45:17 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

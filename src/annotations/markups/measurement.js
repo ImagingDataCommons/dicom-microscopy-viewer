@@ -13,9 +13,9 @@ import {
  * @return {string} The formatted measure of this feature
  */
 export const format = (feature, units, pyramid) => {
-  const length = getFeatureScoord3dLength(feature, pyramid)
   const area = getFeatureScoord3dArea(feature, pyramid)
-  const value = length || area
+  const length = getFeatureScoord3dLength(feature, pyramid)
+  const value = length || area || 0
   return length
     ? `${value.toFixed(2)} ${units}`
     : `${value.toFixed(2)} ${units}²`
