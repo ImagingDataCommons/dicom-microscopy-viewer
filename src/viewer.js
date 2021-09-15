@@ -41,7 +41,7 @@ import dcmjs from 'dcmjs'
 import {
   VLWholeSlideMicroscopyImage,
   groupMonochromeInstances,
-  groupColorInstances
+  groupColorInstances,
 } from './metadata.js'
 import { ROI } from './roi.js'
 import {
@@ -573,11 +573,7 @@ class VolumeImageViewer {
           if (channelImage.TotalPixelMatrixFocalPlanes !== 1) {
             continue
           } else {
-            const opticalPathIdentifier = (
-              channelImage
-                .OpticalPathSequence[0]
-                .OpticalPathIdentifier
-            )
+            const opticalPathIdentifier = channelImage.OpticalPathSequence[0].OpticalPathIdentifier;
             const channel = this[_channels].find(channel => {
               const currentOpticalPathIdentifier = (
                 channel
@@ -653,11 +649,7 @@ class VolumeImageViewer {
       }
 
       this[_colorImage] = {
-        opticalPathIdentifier: (
-          colorImageMicroscopyImages[0]
-            .OpticalPathSequence[0]
-            .OpticalPathIdentifier
-        ),
+        opticalPathIdentifier: colorImageMicroscopyImages[0].OpticalPathSequence[0].OpticalPathIdentifier,
         metadata: []
       }
 
@@ -1020,9 +1012,9 @@ class VolumeImageViewer {
       let url = this[_options].client.wadoURL +
         '/studies/' + this[_colorImage].pyramidMetadata[z].StudyInstanceUID +
         '/series/' + this[_colorImage].pyramidMetadata[z].SeriesInstanceUID +
-        '/instances/' + path
-      if (this[_options].retrieveRendered) {
-        url = url + '/rendered'
+        '/instances/' + path;
+      if ( this[_options].retrieveRendered) {
+        url = url + '/rendered'; 
       }
       return url
     }
@@ -1045,8 +1037,6 @@ class VolumeImageViewer {
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src)
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
-
-        console.info(`retrieve frames ${frameNumbers}`)
 
         if (this[_options].retrieveRendered) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
@@ -1397,6 +1387,7 @@ class VolumeImageViewer {
     this[_map].setTarget(options.container)
     const view = this[_map].getView()
     const projection = view.getProjection()
+    console.warn("render 2 fit", projection.getExtent());
     view.fit(projection.getExtent(), this[_map].getSize())
 
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")
@@ -2358,6 +2349,7 @@ class _NonVolumeImageViewer {
     this[_map].setTarget(options.container)
     const view = this[_map].getView()
     const projection = view.getProjection()
+    console.warn("render fit", projection.getExtent());
     view.fit(projection.getExtent(), this[_map].getSize())
 
     this[_map].getInteractions().forEach((interaction) => {

@@ -4,7 +4,6 @@ import { default as Circle, default as CircleGeometry } from 'ol/geom/Circle'// 
 import { default as PolygonGeometry, fromCircle } from 'ol/geom/Polygon'// eslint-disable-line
 import { default as PointGeometry } from 'ol/geom/Point'// eslint-disable-line
 import { default as LineStringGeometry } from 'ol/geom/LineString'// eslint-disable-line
-
 import {
   applyInverseTransform,
   applyTransform,
@@ -233,8 +232,8 @@ function getFeatureArea (feature) {
  */
 function getPixelSpacing (metadata) {
   if(!metadata.SharedFunctionalGroupsSequence ) return metadata.PixelSpacing;
-  const functionalGroup = metadata.SharedFunctionalGroupsSequence[0]
-  const pixelMeasures = functionalGroup.PixelMeasuresSequence[0]
+  const functionalGroup = metadata.SharedFunctionalGroupsSequence[0];
+  const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
   return pixelMeasures.PixelSpacing
 }
 
@@ -300,7 +299,7 @@ function coordinateFormatGeometry2Scoord3d (coordinates, pyramid) {
  */
 function geometryCoordinates2scoord3dCoordinates (coordinates, pyramid) {
   return coordinateFormatGeometry2Scoord3d(
-    [coordinates[0], coordinates[1], coordinates[2]],
+    [coordinates[0], coordinates[1], coordinates[2] || 0],
     pyramid
   )
 }

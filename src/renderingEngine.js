@@ -245,8 +245,8 @@ class RenderingEngine {
       color,
       opacity,
       columns,
-      rows
-    } = frameData
+      rows,
+    } = frameData;
 
     const signed = pixelRepresentation === 1
     if (frames) {
@@ -463,7 +463,13 @@ class RenderingEngine {
     const mediaType = imageTypeObject.mime
     let pixelData
     let decodedframeInfo
-    if (mediaType === 'image/jpeg') {
+    if (mediaType === 'image/png' || mediaType==='image/jpeg') {
+      return {
+        pixelData: undefined,
+        decodedframeInfo: undefined,
+        mediaType
+      }
+    } else if (mediaType === 'image/jpeg') {
       if (!jpegDecoder) {
         throw new Error(
           'jpegDecoder was not initialized.'
@@ -493,12 +499,6 @@ class RenderingEngine {
       const { decodedPixelData, frameInfo } = this._decodeInternal(jlsDecoder, fullEncodedBitStream)
       pixelData = decodedPixelData.slice(0)
       decodedframeInfo = frameInfo
-    } else if (mediaType === 'image/png') {
-      return {
-        pixelData: undefined,
-        decodedframeInfo: undefined,
-        mediaType
-      }
     } else {
       throw new Error(
         'The media type ' + mediaType + ' is not supported by the offscreen render.'

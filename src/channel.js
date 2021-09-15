@@ -241,7 +241,6 @@ class _Channel {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
 
-        console.info(`retrieve frames ${frameNumbers}`)
         tile.needToRerender = false
         tile.isLoading = true
 
@@ -490,8 +489,10 @@ class _Channel {
     image.FrameOfReferenceUID = image.metadata[0].FrameOfReferenceUID
     for (let i = 0; i < image.metadata.length; ++i) {
       if (image.FrameOfReferenceUID !== image.metadata[i].FrameOfReferenceUID) {
-        throw new Error(`Optical Path ID ${image.opticalPathIdentifier} ` +
-        ` has volume microscopy images with FrameOfReferenceUID=${image.metadata[i].FrameOfReferenceUID}!=${image.FrameOfReferenceUID}`);
+        const msg = `Optical Path ID ${image.opticalPathIdentifier} ` +
+        ` has volume microscopy images with FrameOfReferenceUID=${image.metadata[i].FrameOfReferenceUID}!=${image.FrameOfReferenceUID}`;
+        console.warn(msg);
+        // throw new Error(msg);
       }
     }
 
