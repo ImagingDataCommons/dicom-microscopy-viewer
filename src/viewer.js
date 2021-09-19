@@ -824,7 +824,9 @@ class VolumeImageViewer {
     const overviewView = new View({
       projection: this[_projection],
       rotation: this[_rotation],
-      zoom: 28 /** Default max zoom */
+      zoom: 0,
+      minZoom: 0,
+      maxZoom: 0
     })
 
     this[_overviewMap] = new OverviewMap({
@@ -1036,7 +1038,7 @@ class VolumeImageViewer {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
 
-        console.info(`retrieve frames ${frameNumbers}`)
+        console.info(`get tile (${tile.tileCoord})`)
 
         if (this[_options].retrieveRendered) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
