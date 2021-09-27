@@ -301,7 +301,8 @@ class _Channel {
             }
           )
         } else {
-          const jlsMediaType = 'image/jls' // decoded with CharLS
+          const jpegMediaType = 'image/jpeg' // decoded with libJPEG-turbo
+          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
           const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
           const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
           const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
@@ -310,9 +311,7 @@ class _Channel {
           const jpxMediaType = 'image/jpx' // decoded with OpenJPEG
           const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
           const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-          const jpegMediaType = 'image/jpeg' // decoded with libJPEG-turbo
-          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-
+          
           const octetStreamMediaType = 'application/octet-stream'
           const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
 
@@ -322,6 +321,10 @@ class _Channel {
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
+              {
+                mediaType: jpegMediaType,
+                transferSyntaxUID: jpegTransferSyntaxUID
+              },
               {
                 mediaType: jlsMediaType,
                 transferSyntaxUID: jlsTransferSyntaxUIDlossless
@@ -346,10 +349,6 @@ class _Channel {
                 mediaType: jpxMediaType,
                 transferSyntaxUID: jpxTransferSyntaxUID
               },
-              {
-                mediaType: jpegMediaType,
-                transferSyntaxUID: jpegTransferSyntaxUID
-              }
             ]
           }
 

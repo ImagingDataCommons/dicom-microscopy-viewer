@@ -1070,6 +1070,8 @@ class VolumeImageViewer {
         } else {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
           // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
+          const jpegMediaType = 'image/jpeg'
+          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
           const jlsMediaType = 'image/jls'
           const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
           const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
@@ -1079,9 +1081,7 @@ class VolumeImageViewer {
           const jpxMediaType = 'image/jpx'
           const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
           const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-          const jpegMediaType = 'image/jpeg'
-          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-
+          
           const octetStreamMediaType = 'application/octet-stream'
           const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
 
@@ -1091,13 +1091,13 @@ class VolumeImageViewer {
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
+              { mediaType: jpegMediaType, transferSyntaxUID: jpegTransferSyntaxUID },
               { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUIDlossless },
               { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUID },
               { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUIDlossless },
               { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUID },
               { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUIDlossless },
               { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUID },
-              { mediaType: jpegMediaType, transferSyntaxUID: jpegTransferSyntaxUID }
             ]
           }
           this[_options].client.retrieveInstanceFrames(retrieveOptions).then(
