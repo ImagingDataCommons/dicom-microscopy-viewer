@@ -162,7 +162,10 @@ function groupColorInstances (metadata) {
     const microscopyImage = new VLWholeSlideMicroscopyImage({
       metadata: metadata[i]
     })
-    if (microscopyImage.ImageType[2] !== 'VOLUME') {
+    if (
+      microscopyImage.ImageType[2] === 'LABEL' ||
+      microscopyImage.ImageType[2] === 'OVERVIEW'
+    ) {
       continue
     }
 

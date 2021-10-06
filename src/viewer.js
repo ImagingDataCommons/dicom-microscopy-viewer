@@ -999,7 +999,6 @@ class VolumeImageViewer {
        */
 
       const z = tileCoord[0]
-      console.debug('Pyramid level:', z)
       const y = tileCoord[1] + 1
       const x = tileCoord[2] + 1
       const index = x + '-' + y
