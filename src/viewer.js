@@ -65,6 +65,7 @@ import {
 import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
+import LineString from 'ol/geom/LineString'
 
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
@@ -419,6 +420,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
 /**
  * Updates the style of a feature.
  *
+ * @param {Feature} feature - Feature
  * @param {object} styleOptions - Style options
  * @param {object} styleOptions.stroke - Style options for the outline of the geometry
  * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
@@ -427,7 +429,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
  * @param {number[]} styleOptions.fill.color - RGBA color of the body
  * @param {object} styleOptions.image - Style options for image
  */
-function _setFeatureStyle (feature, styleOptions) {
+function _setFeatureStyle (feature, styleOptions, optSilent = false) {
   if (styleOptions !== undefined) {
     const style = _getOpenLayersStyle(styleOptions)
     feature.setStyle(style)
@@ -437,7 +439,7 @@ function _setFeatureStyle (feature, styleOptions) {
      * This allows them to take priority over styling since OpenLayers swaps the styles
      * completely in case of a setStyle happens.
      */
-    feature.set(Enums.InternalProperties.StyleOptions, styleOptions)
+    feature.set(Enums.InternalProperties.StyleOptions, styleOptions, optSilent)
   }
 }
 
@@ -894,7 +896,10 @@ class VolumeImageViewer {
 
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
-      pyramid: this[_pyramidMetadata]
+      pyramid: this[_pyramidMetadata],
+      features: this[_features],
+      drawingLayer: this[_drawingLayer],
+      drawingSource: this[_drawingSource]
     })
 
     // This updates the tiles offscreen rendering when zoom is applied to the view.
@@ -1567,6 +1572,8 @@ class VolumeImageViewer {
     this[_interactions].draw = new Draw(drawOptions)
     const container = this[_map].getTargetElement()
 
+    this[_annotationManager].setDraw(this[_interactions].draw);
+
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_START, (event) => {
       event.feature.setProperties(builtInDrawOptions, true)
       event.feature.setId(generateUID())
@@ -1577,7 +1584,7 @@ class VolumeImageViewer {
         options[Enums.InternalProperties.StyleOptions]
       )
 
-      this[_annotationManager].onDrawStart(event)
+      this[_annotationManager].onDrawStart(event, options, _setFeatureStyle)
 
       _wireMeasurementsAndQualitativeEvaluationsEvents(
         this[_map],
@@ -1930,7 +1937,22 @@ class VolumeImageViewer {
     const modifyOptions = {
       features: this[_features], // TODO: or source, i.e. 'drawings'???
       insertVertexCondition: ({ feature }) =>
-        feature && feature.get('vertexEnabled') === true
+        feature && feature.get('vertexEnabled') === true,
+        // condition: ({ coordinate }) => {
+        //   const feature = this[_drawingSource].getClosestFeatureToCoordinate(coordinate);
+        //   const { cantModify } = feature ? feature.getProperties() : {};
+        //   if (cantModify) {
+        //     const longAxisID = feature.getId().split('short-axis-')[1];
+        //     const longAxisFeature = this[_drawingSource].getFeatureById(longAxisID);
+        //     const geometry = feature.getGeometry();
+        //     debugger
+        //     const intersects = longAxisFeature && longAxisFeature.getGeometry().intersectsExtent(geometry.getExtent());
+        //     console.debug('intersects')
+        //     return intersects;
+        //   }
+
+        //   return true;
+        // }
     }
 
     /**
@@ -1944,6 +1966,10 @@ class VolumeImageViewer {
     }
 
     this[_interactions].modify = new Modify(modifyOptions)
+
+    this[_interactions].modify.on('change', event => {
+      console.debug('modfiy change');
+    });
 
     this[_map].addInteraction(this[_interactions].modify)
   }
