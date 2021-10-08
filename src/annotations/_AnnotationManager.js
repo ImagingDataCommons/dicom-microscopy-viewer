@@ -234,9 +234,6 @@ class _AnnotationManager {
             // TODO: deal with existent short axis (avoid changing it every time, keep length and positions)
             const existentShortAxisGeometry = existentShortAxisFeature.getGeometry();
             existentShortAxisGeometry.setCoordinates(shortAxisCoordinates);
-    
-            existentShortAxisFeature.setGeometry(existentShortAxisGeometry);
-
             return;
           }
 

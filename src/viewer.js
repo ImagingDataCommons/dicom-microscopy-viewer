@@ -1937,22 +1937,7 @@ class VolumeImageViewer {
     const modifyOptions = {
       features: this[_features], // TODO: or source, i.e. 'drawings'???
       insertVertexCondition: ({ feature }) =>
-        feature && feature.get('vertexEnabled') === true,
-        // condition: ({ coordinate }) => {
-        //   const feature = this[_drawingSource].getClosestFeatureToCoordinate(coordinate);
-        //   const { cantModify } = feature ? feature.getProperties() : {};
-        //   if (cantModify) {
-        //     const longAxisID = feature.getId().split('short-axis-')[1];
-        //     const longAxisFeature = this[_drawingSource].getFeatureById(longAxisID);
-        //     const geometry = feature.getGeometry();
-        //     debugger
-        //     const intersects = longAxisFeature && longAxisFeature.getGeometry().intersectsExtent(geometry.getExtent());
-        //     console.debug('intersects')
-        //     return intersects;
-        //   }
-
-        //   return true;
-        // }
+        feature && feature.get('vertexEnabled') === true
     }
 
     /**
