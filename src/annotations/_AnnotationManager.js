@@ -26,6 +26,7 @@ import {
 } from "../utils";
 import Modify from "ol/interaction/Modify";
 import setHandlesPosition from "./setHandlesPosition";
+import Draw from "ol/interaction/Draw";
 
 const { Marker, Markup } = Enums;
 
@@ -179,81 +180,101 @@ class _AnnotationManager {
       longAxisFeature.setProperties({ isLongAxis: true }, true);
 
       const interactions = this.map.getInteractions();
-      const modify = interactions.getArray().find(i => i instanceof Modify);
-      const onModifyHandler = event => {
+      const modify = interactions.getArray().find((i) => i instanceof Modify);
+      const onModifyHandler = (event) => {
         const { coordinate } = event.mapBrowserEvent;
-        const feature = this.drawingSource.getClosestFeatureToCoordinate(coordinate);
+        const feature =
+          this.drawingSource.getClosestFeatureToCoordinate(coordinate);
         const geometry = feature.getGeometry();
         const previousCoordinates = geometry.getCoordinates();
         geometry.setProperties({ previousCoordinates }, true);
       };
-      modify.on('modifystart', onModifyHandler);
-      modify.on('modifyend', onModifyHandler);
+      modify.on("modifystart", onModifyHandler);
+      modify.on("modifyend", onModifyHandler);
 
-      this.map.on('pointerdrag', event => {
+      const onFeatureChangeHandler = (event) => {
+        const longAxisGeometry = event.target;
+
+        const [startPoints, endPoints] = longAxisGeometry.getCoordinates();
+        const start = { x: startPoints[0], y: startPoints[1] };
+        const end = { x: endPoints[0], y: endPoints[1] };
+        const perpendicularAxis = getPerpendicularAxis({ start, end });
+
+        const shortAxisCoordinates = [
+          [perpendicularAxis.start.x, perpendicularAxis.start.y],
+          [perpendicularAxis.end.x, perpendicularAxis.end.y],
+        ];
+
+        const id = `short-axis-${longAxisFeature.getId()}`;
+        const existentShortAxisFeature = features
+          .getArray()
+          .find((f) => f.getId() === id);
+
+        if (existentShortAxisFeature) {
+          // TODO: deal with existent short axis (avoid changing it every time, keep length and positions)
+          const existentShortAxisGeometry =
+          existentShortAxisFeature.getGeometry();
+          const previousCoordinates = existentShortAxisGeometry.getCoordinates();
+          existentShortAxisGeometry.setProperties({ previousCoordinates }, true);
+          existentShortAxisGeometry.setCoordinates(shortAxisCoordinates);
+          return;
+        }
+
+        const shortAxisGeometry = new LineString(shortAxisCoordinates);
+        shortAxisGeometry.setCoordinates(shortAxisCoordinates);
+
+        const shortAxisFeature = new Feature({
+          geometry: shortAxisGeometry,
+          name: "Line",
+        });
+        shortAxisFeature.setId(id);
+        shortAxisFeature.setProperties({ isShortAxis: true }, true);
+
+        _setFeatureStyle(
+          shortAxisFeature,
+          options[Enums.InternalProperties.StyleOptions]
+        );
+
+        features.push(shortAxisFeature);
+      };
+
+      longAxisFeature
+            .getGeometry()
+            .on(Enums.FeatureGeometryEvents.CHANGE, onFeatureChangeHandler);
+
+      const draw = interactions.getArray().find((i) => i instanceof Draw);
+      const onDrawEndHandler = (event) => {
+        longAxisFeature
+          .getGeometry()
+          .un(Enums.FeatureGeometryEvents.CHANGE, onFeatureChangeHandler);
+      };
+      draw.on("drawend", onDrawEndHandler);
+
+      this.map.on("pointerdrag", (event) => {
         const coordinate = event.coordinate;
-        const feature = this.drawingSource.getClosestFeatureToCoordinate(coordinate);
+
+        const handle = { x: coordinate[0], y: coordinate[1] };
+
+        const feature =
+          this.drawingSource.getClosestFeatureToCoordinate(coordinate);
         const { isLongAxis, isShortAxis } = feature.getProperties();
 
         if (isLongAxis) {
           const shortAxisFeatureId = `short-axis-${feature.getId()}`;
-          const shortAxisFeature = this.drawingSource.getFeatureById(shortAxisFeatureId);
-          setHandlesPosition({ x: 0, y: 0 }, event, feature, shortAxisFeature);
+          const shortAxisFeature =
+            this.drawingSource.getFeatureById(shortAxisFeatureId);
+          setHandlesPosition(handle, event, feature, shortAxisFeature);
           return;
         }
 
         if (isShortAxis) {
-          const longAxisFeatureId = feature.getId().split('short-axis-')[1];
-          const longAxisFeature = this.drawingSource.getFeatureById(longAxisFeatureId);
-          setHandlesPosition({ x: 0, y: 0 }, event, longAxisFeature, feature);
+          const longAxisFeatureId = feature.getId().split("short-axis-")[1];
+          const longAxisFeature =
+            this.drawingSource.getFeatureById(longAxisFeatureId);
+          setHandlesPosition(handle, event, longAxisFeature, feature);
           return;
         }
       });
-
-      longAxisFeature
-        .getGeometry()
-        .on(Enums.FeatureGeometryEvents.CHANGE, (event) => {
-          const longAxisGeometry = event.target;
-
-          const [startPoints, endPoints] = longAxisGeometry.getCoordinates();
-          const start = { x: startPoints[0], y: startPoints[1] };
-          const end = { x: endPoints[0], y: endPoints[1] };
-          const perpendicularAxis = getPerpendicularAxis({ start, end });
-
-          const shortAxisCoordinates = [
-            [perpendicularAxis.start.x, perpendicularAxis.start.y],
-            [perpendicularAxis.end.x, perpendicularAxis.end.y],
-          ];
-
-          const id = `short-axis-${longAxisFeature.getId()}`;
-          const existentShortAxisFeature = features
-            .getArray()
-            .find((f) => f.getId() === id);
-
-          if (existentShortAxisFeature) {
-            // TODO: deal with existent short axis (avoid changing it every time, keep length and positions)
-            const existentShortAxisGeometry = existentShortAxisFeature.getGeometry();
-            existentShortAxisGeometry.setCoordinates(shortAxisCoordinates);
-            return;
-          }
-
-          const shortAxisGeometry = new LineString(shortAxisCoordinates);
-          shortAxisGeometry.setCoordinates(shortAxisCoordinates);
-
-          const shortAxisFeature = new Feature({
-            geometry: shortAxisGeometry,
-            name: "Line",
-          });
-          shortAxisFeature.setId(id);
-          shortAxisFeature.setProperties({ isShortAxis: true }, true);
-
-          _setFeatureStyle(
-            shortAxisFeature,
-            options[Enums.InternalProperties.StyleOptions]
-          );
-
-          features.push(shortAxisFeature);
-        });
     }
   }
 
