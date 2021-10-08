@@ -27,6 +27,7 @@ import {
 import Modify from "ol/interaction/Modify";
 import setHandlesPosition from "./setHandlesPosition";
 import Draw from "ol/interaction/Draw";
+import moveBidirectionalHandles from "./moveBidirectionalHandles";
 
 const { Marker, Markup } = Enums;
 
@@ -263,7 +264,7 @@ class _AnnotationManager {
           const shortAxisFeatureId = `short-axis-${feature.getId()}`;
           const shortAxisFeature =
             this.drawingSource.getFeatureById(shortAxisFeatureId);
-          setHandlesPosition(handle, event, feature, shortAxisFeature);
+          moveBidirectionalHandles(handle, event, feature, shortAxisFeature);
           return;
         }
 
@@ -271,7 +272,7 @@ class _AnnotationManager {
           const longAxisFeatureId = feature.getId().split("short-axis-")[1];
           const longAxisFeature =
             this.drawingSource.getFeatureById(longAxisFeatureId);
-          setHandlesPosition(handle, event, longAxisFeature, feature);
+          moveBidirectionalHandles(handle, event, longAxisFeature, feature);
           return;
         }
       });

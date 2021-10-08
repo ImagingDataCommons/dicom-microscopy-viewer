@@ -1,3 +1,44 @@
+// Based on  http://stackoverflow.com/questions/849211/shortest-distance-between-a-point-and-a-line-segment
+export const sqr = (x) => {
+  return x * x;
+};
+
+export const dist2 = (v, w) => {
+  return sqr(v.x - w.x) + sqr(v.y - w.y);
+};
+
+export const distanceToPointSquared = (lineSegment, point) => {
+  const l2 = dist2(lineSegment.start, lineSegment.end);
+
+  if (l2 === 0) {
+    return dist2(point, lineSegment.start);
+  }
+  const t =
+    ((point.x - lineSegment.start.x) *
+      (lineSegment.end.x - lineSegment.start.x) +
+      (point.y - lineSegment.start.y) *
+        (lineSegment.end.y - lineSegment.start.y)) /
+    l2;
+
+  if (t < 0) {
+    return dist2(point, lineSegment.start);
+  }
+  if (t > 1) {
+    return dist2(point, lineSegment.end);
+  }
+
+  const pt = {
+    x: lineSegment.start.x + t * (lineSegment.end.x - lineSegment.start.x),
+    y: lineSegment.start.y + t * (lineSegment.end.y - lineSegment.start.y),
+  };
+
+  return dist2(point, pt);
+};
+
+export const distanceToPoint = (lineSegment, point) => {
+  return Math.sqrt(distanceToPointSquared(lineSegment, point));
+};
+
 // Returns intersection points of two lines
 export const intersectLine = (lineSegment1, lineSegment2) => {
   const intersectionPoint = {};
