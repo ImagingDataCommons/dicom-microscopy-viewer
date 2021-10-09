@@ -9,9 +9,7 @@ export default function (
   longAxisFeature,
   shortAxisFeature
 ) {
-  let movedPoint;
   let outOfBounds;
-  let result;
   let intersection;
   let d1;
   let d2;
@@ -61,41 +59,14 @@ export default function (
     y: shortAxisCoordinates[1][1],
   };
 
-  const pointerCoordinate = {
-    x: handle.x,
-    y: handle.y,
-  };
-
   const dataHandles = { start, end, shortAxisEnd, shortAxisStart };
 
   if (isLongAxisStartHandleChange) {
     console.debug("long start");
-
-    result = moveLongAxisStartHandle(
-      handle,
-      shortAxisGeometry,
-      longAxisGeometry
-    );
-
-    // if (result) {
-    //   handle.x = pointerCoordinate.x;
-    //   handle.y = pointerCoordinate.y;
-    // } else {
-    //   pointerCoordinate.x = handle.x;
-    //   pointerCoordinate.y = handle.y;
-    // }
+    moveLongAxisStartHandle(handle, shortAxisGeometry, longAxisGeometry);
   } else if (isLongAxisEndHandleChange) {
     console.debug("long end");
-
-    result = moveLongAxisEndHandle(handle, shortAxisGeometry, longAxisGeometry);
-
-    // if (result) {
-    //   handle.x = pointerCoordinate.x;
-    //   handle.y = pointerCoordinate.y;
-    // } else {
-    //   pointerCoordinate.x = handle.x;
-    //   pointerCoordinate.y = handle.y;
-    // }
+    moveLongAxisEndHandle(handle, shortAxisGeometry, longAxisGeometry);
   } else if (isShortAxisStartHandleChange) {
     console.debug("short start");
     outOfBounds = false;
@@ -114,8 +85,8 @@ export default function (
       y: dataHandles.shortAxisEnd.y,
     };
     shortAxis.end = {
-      x: pointerCoordinate.x,
-      y: pointerCoordinate.y,
+      x: handle.x,
+      y: handle.y,
     };
 
     intersection = intersectLine(longAxis, shortAxis);
@@ -135,19 +106,8 @@ export default function (
       }
     }
 
-    movedPoint = false;
-
     if (!outOfBounds) {
-      movedPoint = moveShortAxisStartHandle(
-        handle,
-        shortAxisGeometry,
-        longAxisGeometry
-      );
-
-      // if (!movedPoint) {
-      //   pointerCoordinate.x = dataHandles.shortAxisStart.x;
-      //   pointerCoordinate.y = dataHandles.shortAxisStart.y;
-      // }
+      moveShortAxisStartHandle(handle, shortAxisGeometry, longAxisGeometry);
     }
   } else if (isShortAxisEndHandleChange) {
     console.debug("short end");
@@ -167,8 +127,8 @@ export default function (
       y: dataHandles.shortAxisStart.y,
     };
     shortAxis.end = {
-      x: pointerCoordinate.x,
-      y: pointerCoordinate.y,
+      x: handle.x,
+      y: handle.y,
     };
 
     intersection = intersectLine(longAxis, shortAxis);
@@ -188,19 +148,8 @@ export default function (
       }
     }
 
-    movedPoint = false;
-
     if (!outOfBounds) {
-      movedPoint = moveShortAxisEndHandle(
-        handle,
-        shortAxisGeometry,
-        longAxisGeometry
-      );
-
-      // if (!movedPoint) {
-      //   pointerCoordinate.x = dataHandles.shortAxisEnd.x;
-      //   pointerCoordinate.y = dataHandles.shortAxisEnd.y;
-      // }
+      moveShortAxisEndHandle(handle, shortAxisGeometry, longAxisGeometry);
     }
   }
 }
