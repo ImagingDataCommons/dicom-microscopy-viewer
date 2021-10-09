@@ -4,27 +4,34 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
   const shortAxisCoords = shortAxisGeometry.getCoordinates();
   const longAxisCoords = longAxisGeometry.getCoordinates();
 
-  const start = { x: longAxisCoords[0][0], y: longAxisCoords[0][1] };
-  const end = { x: longAxisCoords[1][0], y: longAxisCoords[1][1] };
-
-  const shortAxisStart = {
-    x: shortAxisCoords[0][0],
-    y: shortAxisCoords[0][1],
+  const longAxis = {
+    start: {
+      x: longAxisCoords[0][0],
+      y: longAxisCoords[0][1],
+    },
+    end: {
+      x: longAxisCoords[1][0],
+      y: longAxisCoords[1][1],
+    },
   };
-  const shortAxisEnd = {
-    x: shortAxisCoords[1][0],
-    y: shortAxisCoords[1][1],
+  const shortAxis = {
+    start: {
+      x: shortAxisCoords[0][0],
+      y: shortAxisCoords[0][1],
+    },
+    end: {
+      x: shortAxisCoords[1][0],
+      y: shortAxisCoords[1][1],
+    },
   };
-
-  const bidirectional = { start, end, shortAxisEnd, shortAxisStart };
 
   const fudgeFactor = 1;
 
-  const fixedPoint = shortAxisEnd;
+  const fixedPoint = shortAxis.end;
   const movedPoint = handle;
 
-  const distanceFromFixed = distanceToPoint(bidirectional, fixedPoint);
-  const distanceFromMoved = distanceToPoint(bidirectional, movedPoint);
+  const distanceFromFixed = distanceToPoint(longAxis, fixedPoint);
+  const distanceFromMoved = distanceToPoint(longAxis, movedPoint);
 
   const distanceBetweenPoints = distance(fixedPoint, movedPoint);
 
@@ -34,51 +41,50 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
     return false;
   }
 
-  const length = distance(start, end);
+  const length = distance(longAxis.start, longAxis.end);
 
   if (length === 0) {
     return false;
   }
 
-  const dx = (start.x - end.x) / length;
-  const dy = (start.y - end.y) / length;
+  const dx = (longAxis.start.x - longAxis.end.x) / length;
+  const dy = (longAxis.start.y - longAxis.end.y) / length;
 
   const adjustedLineP1 = {
-    x: start.x - fudgeFactor * dx,
-    y: start.y - fudgeFactor * dy,
+    x: longAxis.start.x - fudgeFactor * dx,
+    y: longAxis.start.y - fudgeFactor * dy,
   };
   const adjustedLineP2 = {
-    x: end.x + fudgeFactor * dx,
-    y: end.y + fudgeFactor * dy,
+    x: longAxis.end.x + fudgeFactor * dx,
+    y: longAxis.end.y + fudgeFactor * dy,
   };
 
-  shortAxisStart.x = movedPoint.x;
-  shortAxisStart.y = movedPoint.y;
-  shortAxisEnd.x = movedPoint.x - total * dy;
-  shortAxisEnd.y = movedPoint.y + total * dx;
-
-  const longAxis = { start, end };
-  const shortAxis = { start: shortAxisStart, end: shortAxisEnd };
+  shortAxis.start.x = movedPoint.x;
+  shortAxis.start.y = movedPoint.y;
+  shortAxis.end.x = movedPoint.x - total * dy;
+  shortAxis.end.y = movedPoint.y + total * dx;
 
   const intersection = intersectLine(longAxis, shortAxis);
 
   if (!intersection) {
-    if (distance(movedPoint, start) > distance(movedPoint, end)) {
-      shortAxisStart.x = adjustedLineP2.x + distanceFromMoved * dy;
-      shortAxisStart.y = adjustedLineP2.y - distanceFromMoved * dx;
-      shortAxisEnd.x = shortAxisStart.x - total * dy;
-      shortAxisEnd.y = shortAxisStart.y + total * dx;
+    if (
+      distance(movedPoint, longAxis.start) > distance(movedPoint, longAxis.end)
+    ) {
+      shortAxis.start.x = adjustedLineP2.x + distanceFromMoved * dy;
+      shortAxis.start.y = adjustedLineP2.y - distanceFromMoved * dx;
+      shortAxis.end.x = shortAxis.start.x - total * dy;
+      shortAxis.end.y = shortAxis.start.y + total * dx;
     } else {
-      shortAxisStart.x = adjustedLineP1.x + distanceFromMoved * dy;
-      shortAxisStart.y = adjustedLineP1.y - distanceFromMoved * dx;
-      shortAxisEnd.x = shortAxisStart.x - total * dy;
-      shortAxisEnd.y = shortAxisStart.y + total * dx;
+      shortAxis.start.x = adjustedLineP1.x + distanceFromMoved * dy;
+      shortAxis.start.y = adjustedLineP1.y - distanceFromMoved * dx;
+      shortAxis.end.x = shortAxis.start.x - total * dy;
+      shortAxis.end.y = shortAxis.start.y + total * dx;
     }
   }
 
   shortAxisGeometry.setCoordinates([
-    [shortAxisStart.x, shortAxisStart.y],
-    [shortAxisEnd.x, shortAxisEnd.y],
+    [shortAxis.start.x, shortAxis.start.y],
+    [shortAxis.end.x, shortAxis.end.y],
   ]);
 
   return true;
