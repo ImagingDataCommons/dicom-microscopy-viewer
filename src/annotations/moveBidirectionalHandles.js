@@ -7,7 +7,8 @@ import moveShortAxisStartHandle from "./moveShortAxisStartHandle";
 export default function (
   handle = { x: 0, y: 0 },
   longAxisFeature,
-  shortAxisFeature
+  shortAxisFeature,
+  currentFeature
 ) {
   let outOfBounds;
   let intersection;
@@ -20,29 +21,23 @@ export default function (
   const longAxisCoords = longAxisGeometry.getCoordinates();
   const shortAxisCoords = shortAxisGeometry.getCoordinates();
 
-  const shortAxisGeometryProperties = shortAxisGeometry.getProperties();
-  const prevShortAxisGeometryCoords =
-    shortAxisGeometryProperties.prevCoords || shortAxisCoords;
-
-  const longAxisGeometryProperties = longAxisGeometry.getProperties();
-  const prevLongAxisGeometryCoords =
-    longAxisGeometryProperties.prevCoords || longAxisCoords;
+  const currentFeatureProperties = currentFeature.getProperties();
 
   let isShortAxisStartHandleChange =
-    shortAxisCoords[0][0] !== prevShortAxisGeometryCoords[0][0] ||
-    shortAxisCoords[0][1] !== prevShortAxisGeometryCoords[0][1];
+    currentFeatureProperties.isShortAxis === true &&
+    currentFeatureProperties.axisHandle === "start";
 
   let isShortAxisEndHandleChange =
-    shortAxisCoords[1][0] !== prevShortAxisGeometryCoords[1][0] ||
-    shortAxisCoords[1][1] !== prevShortAxisGeometryCoords[1][1];
+    currentFeatureProperties.isShortAxis === true &&
+    currentFeatureProperties.axisHandle === "end";
 
   let isLongAxisStartHandleChange =
-    longAxisCoords[0][0] !== prevLongAxisGeometryCoords[0][0] ||
-    longAxisCoords[0][1] !== prevLongAxisGeometryCoords[0][1];
+    currentFeatureProperties.isLongAxis === true &&
+    currentFeatureProperties.axisHandle === "start";
 
   let isLongAxisEndHandleChange =
-    longAxisCoords[1][0] !== prevLongAxisGeometryCoords[1][0] ||
-    longAxisCoords[1][1] !== prevLongAxisGeometryCoords[1][1];
+    currentFeatureProperties.isLongAxis === true &&
+    currentFeatureProperties.axisHandle === "end";
 
   const longAxis = {};
   const shortAxis = {};

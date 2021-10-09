@@ -27,6 +27,7 @@ import Modify from "ol/interaction/Modify";
 import Draw from "ol/interaction/Draw";
 import moveBidirectionalHandles from "./moveBidirectionalHandles";
 import getShortAxis from "./getShortAxis";
+import { distance } from "./mathUtils";
 
 const { Marker, Markup } = Enums;
 
@@ -256,12 +257,31 @@ class _AnnotationManager {
         const feature =
           this.drawingSource.getClosestFeatureToCoordinate(handleCoordinate);
         const { isLongAxis, isShortAxis } = feature.getProperties();
+        const featureCoords = feature.getGeometry().getCoordinates();
+
+        const start = {
+          x: featureCoords[0][0],
+          y: featureCoords[0][1],
+        };
+        const end = {
+          x: featureCoords[1][0],
+          y: featureCoords[1][1],
+        };
+
+        const distanceStart = distance(handle, start);
+        const distanceEnd = distance(handle, end);
+        feature.setProperties(
+          {
+            axisHandle: distanceStart < distanceEnd ? "start" : "end",
+          },
+          true
+        );
 
         if (isLongAxis) {
           const shortAxisFeatureId = `short-axis-${feature.getId()}`;
           const shortAxisFeature =
             this.drawingSource.getFeatureById(shortAxisFeatureId);
-          moveBidirectionalHandles(handle, feature, shortAxisFeature);
+          moveBidirectionalHandles(handle, feature, shortAxisFeature, feature);
           return;
         }
 
@@ -269,7 +289,7 @@ class _AnnotationManager {
           const longAxisFeatureId = feature.getId().split("short-axis-")[1];
           const longAxisFeature =
             this.drawingSource.getFeatureById(longAxisFeatureId);
-          moveBidirectionalHandles(handle, longAxisFeature, feature);
+          moveBidirectionalHandles(handle, longAxisFeature, feature, feature);
           return;
         }
       });
