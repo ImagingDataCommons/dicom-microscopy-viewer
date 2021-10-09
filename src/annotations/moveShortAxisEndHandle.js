@@ -1,38 +1,30 @@
 import { distance, distanceToPoint, intersectLine } from "./mathUtils";
 
-// Move perpendicular line end point
-export default function (pointerEventData, shortAxisGeometry, longAxisGeometry) {
-  const [shortAxisStartCoords, shortAxisEndCoords] =
-    shortAxisGeometry.getCoordinates();
-  const [longAxisStartCoords, longAxisEndCoords] =
-    longAxisGeometry.getCoordinates();
+export default function (handle, shortAxisGeometry, longAxisGeometry) {
+  const shortAxisCoords = shortAxisGeometry.getCoordinates();
+  const longAxisCoords = longAxisGeometry.getCoordinates();
 
-  const start = { x: longAxisStartCoords[0], y: longAxisStartCoords[1] };
-  const end = { x: longAxisEndCoords[0], y: longAxisEndCoords[1] };
+  const start = { x: longAxisCoords[0][0], y: longAxisCoords[0][1] };
+  const end = { x: longAxisCoords[1][0], y: longAxisCoords[1][1] };
 
   const perpendicularStart = {
-    x: shortAxisStartCoords[0],
-    y: shortAxisStartCoords[1],
+    x: shortAxisCoords[0][0],
+    y: shortAxisCoords[0][1],
   };
   const perpendicularEnd = {
-    x: shortAxisEndCoords[0],
-    y: shortAxisEndCoords[1],
+    x: shortAxisCoords[1][0],
+    y: shortAxisCoords[1][1],
   };
 
-  const dataHandles = { start, end, perpendicularEnd, perpendicularStart };
-
-  const pointerCoordinate = {
-    x: pointerEventData.coordinate[0],
-    y: pointerEventData.coordinate[1],
-  };
+  const bidirectional = { start, end, perpendicularEnd, perpendicularStart };
 
   const fudgeFactor = 1;
 
   const fixedPoint = perpendicularStart;
-  const movedPoint = pointerCoordinate;
+  const movedPoint = handle;
 
-  const distanceFromFixed = distanceToPoint(dataHandles, fixedPoint);
-  const distanceFromMoved = distanceToPoint(dataHandles, movedPoint);
+  const distanceFromFixed = distanceToPoint(bidirectional, fixedPoint);
+  const distanceFromMoved = distanceToPoint(bidirectional, movedPoint);
 
   const distanceBetweenPoints = distance(fixedPoint, movedPoint);
 
@@ -100,10 +92,9 @@ export default function (pointerEventData, shortAxisGeometry, longAxisGeometry) 
     }
   }
 
-  shortAxisGeometry.setProperties({ previousCoordinates: shortAxisGeometry.getCoordinates() }, true);
   shortAxisGeometry.setCoordinates([
     [perpendicularStart.x, perpendicularStart.y],
-    [perpendicularEnd.x, perpendicularEnd.y]
+    [perpendicularEnd.x, perpendicularEnd.y],
   ]);
 
   return true;

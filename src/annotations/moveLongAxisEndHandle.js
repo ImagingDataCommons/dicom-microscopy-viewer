@@ -1,27 +1,19 @@
 import { distance, intersectLine } from "./mathUtils";
 
-// Move long-axis end point
-export default function (pointerEventData, shortAxisGeometry, longAxisGeometry) {
-  const [shortAxisStartCoords, shortAxisEndCoords] =
-    shortAxisGeometry.getCoordinates();
-  const [longAxisStartCoords, longAxisEndCoords] =
-    longAxisGeometry.getCoordinates();
+export default function (handle, shortAxisGeometry, longAxisGeometry) {
+  const shortAxisCoords = shortAxisGeometry.getCoordinates();
+  const longAxisCoords = longAxisGeometry.getCoordinates();
 
-  const start = { x: longAxisStartCoords[0], y: longAxisStartCoords[1] };
-  const end = { x: longAxisEndCoords[0], y: longAxisEndCoords[1] };
+  const start = { x: longAxisCoords[0][0], y: longAxisCoords[0][1] };
+  const end = { x: longAxisCoords[1][0], y: longAxisCoords[1][1] };
 
   const perpendicularStart = {
-    x: shortAxisStartCoords[0],
-    y: shortAxisStartCoords[1],
+    x: shortAxisCoords[0][0],
+    y: shortAxisCoords[0][1],
   };
   const perpendicularEnd = {
-    x: shortAxisEndCoords[0],
-    y: shortAxisEndCoords[1],
-  };
-
-  const pointerCoordinate = {
-    x: pointerEventData.coordinate[0],
-    y: pointerEventData.coordinate[1],
+    x: shortAxisCoords[1][0],
+    y: shortAxisCoords[1][1],
   };
 
   const longLine = {
@@ -55,20 +47,20 @@ export default function (pointerEventData, shortAxisGeometry, longAxisGeometry) 
   const distanceFromPerpendicularP2 = distance(perpendicularEnd, intersection);
 
   const distanceToLineP2 = distance(start, intersection);
-  const newLineLength = distance(start, pointerCoordinate);
+  const newLineLength = distance(start, handle);
 
   if (newLineLength <= distanceToLineP2) {
     return false;
   }
 
-  const dx = (start.x - pointerCoordinate.x) / newLineLength;
-  const dy = (start.y - pointerCoordinate.y) / newLineLength;
+  const dx = (start.x - handle.x) / newLineLength;
+  const dy = (start.y - handle.y) / newLineLength;
 
   const k = distanceToLineP2 / newLineLength;
 
   const newIntersection = {
-    x: start.x + (pointerCoordinate.x - start.x) * k,
-    y: start.y + (pointerCoordinate.y - start.y) * k,
+    x: start.x + (handle.x - start.x) * k,
+    y: start.y + (handle.y - start.y) * k,
   };
 
   perpendicularStart.x = newIntersection.x + distanceFromPerpendicularP1 * dy;
@@ -77,10 +69,9 @@ export default function (pointerEventData, shortAxisGeometry, longAxisGeometry) 
   perpendicularEnd.x = newIntersection.x - distanceFromPerpendicularP2 * dy;
   perpendicularEnd.y = newIntersection.y + distanceFromPerpendicularP2 * dx;
 
-  shortAxisGeometry.setProperties({ previousCoordinates: shortAxisGeometry.getCoordinates() }, true);
   shortAxisGeometry.setCoordinates([
     [perpendicularStart.x, perpendicularStart.y],
-    [perpendicularEnd.x, perpendicularEnd.y]
+    [perpendicularEnd.x, perpendicularEnd.y],
   ]);
 
   return true;

@@ -1,7 +1,6 @@
 import dcmjs from "dcmjs";
 import Feature from "ol/Feature";
 import LineString from "ol/geom/LineString";
-import Circle from "ol/geom/Circle";
 
 import _MarkupManager from "./markups/_MarkupManager";
 
@@ -25,9 +24,9 @@ import {
   getContentItemNameCodedConcept,
 } from "../utils";
 import Modify from "ol/interaction/Modify";
-import setHandlesPosition from "./setHandlesPosition";
 import Draw from "ol/interaction/Draw";
 import moveBidirectionalHandles from "./moveBidirectionalHandles";
+import getPerpendicularAxis from "./getPerpendicularAxis";
 
 const { Marker, Markup } = Enums;
 
@@ -187,8 +186,8 @@ class _AnnotationManager {
         const feature =
           this.drawingSource.getClosestFeatureToCoordinate(coordinate);
         const geometry = feature.getGeometry();
-        const previousCoordinates = geometry.getCoordinates();
-        geometry.setProperties({ previousCoordinates }, true);
+        const prevCoords = geometry.getCoordinates();
+        geometry.setProperties({ prevCoords }, true);
       };
       modify.on("modifystart", onModifyHandler);
       modify.on("modifyend", onModifyHandler);
@@ -212,11 +211,10 @@ class _AnnotationManager {
           .find((f) => f.getId() === id);
 
         if (existentShortAxisFeature) {
-          // TODO: deal with existent short axis (avoid changing it every time, keep length and positions)
           const existentShortAxisGeometry =
-          existentShortAxisFeature.getGeometry();
-          const previousCoordinates = existentShortAxisGeometry.getCoordinates();
-          existentShortAxisGeometry.setProperties({ previousCoordinates }, true);
+            existentShortAxisFeature.getGeometry();
+          const prevCoords = existentShortAxisGeometry.getCoordinates();
+          existentShortAxisGeometry.setProperties({ prevCoords }, true);
           existentShortAxisGeometry.setCoordinates(shortAxisCoordinates);
           return;
         }
@@ -240,8 +238,8 @@ class _AnnotationManager {
       };
 
       longAxisFeature
-            .getGeometry()
-            .on(Enums.FeatureGeometryEvents.CHANGE, onFeatureChangeHandler);
+        .getGeometry()
+        .on(Enums.FeatureGeometryEvents.CHANGE, onFeatureChangeHandler);
 
       const draw = interactions.getArray().find((i) => i instanceof Draw);
       const onDrawEndHandler = (event) => {
@@ -252,19 +250,18 @@ class _AnnotationManager {
       draw.on("drawend", onDrawEndHandler);
 
       this.map.on("pointerdrag", (event) => {
-        const coordinate = event.coordinate;
-
-        const handle = { x: coordinate[0], y: coordinate[1] };
+        const handleCoordinate = event.coordinate;
+        const handle = { x: handleCoordinate[0], y: handleCoordinate[1] };
 
         const feature =
-          this.drawingSource.getClosestFeatureToCoordinate(coordinate);
+          this.drawingSource.getClosestFeatureToCoordinate(handleCoordinate);
         const { isLongAxis, isShortAxis } = feature.getProperties();
 
         if (isLongAxis) {
           const shortAxisFeatureId = `short-axis-${feature.getId()}`;
           const shortAxisFeature =
             this.drawingSource.getFeatureById(shortAxisFeatureId);
-          moveBidirectionalHandles(handle, event, feature, shortAxisFeature);
+          moveBidirectionalHandles(handle, feature, shortAxisFeature);
           return;
         }
 
@@ -272,7 +269,7 @@ class _AnnotationManager {
           const longAxisFeatureId = feature.getId().split("short-axis-")[1];
           const longAxisFeature =
             this.drawingSource.getFeatureById(longAxisFeatureId);
-          moveBidirectionalHandles(handle, event, longAxisFeature, feature);
+          moveBidirectionalHandles(handle, longAxisFeature, feature);
           return;
         }
       });
@@ -299,67 +296,3 @@ class _AnnotationManager {
 }
 
 export default _AnnotationManager;
-
-const getPerpendicularAxis = (line, imageMetadata = {}) => {
-  // getPixelSpacing (metadata) from scoord utils (image metadata)
-  const getLineVector = (
-    columnPixelSpacing,
-    rowPixelSpacing,
-    startPoint,
-    endPoint
-  ) => {
-    const dx = (startPoint.x - endPoint.x) * columnPixelSpacing;
-    const dy = (startPoint.y - endPoint.y) * rowPixelSpacing;
-    const length = Math.sqrt(dx * dx + dy * dy);
-    const vectorX = dx / length;
-    const vectorY = dy / length;
-
-    return {
-      x: vectorX,
-      y: vectorY,
-      length,
-    };
-  };
-
-  let startX, startY, endX, endY;
-
-  const { start, end } = line;
-  const { columnPixelSpacing = 1, rowPixelSpacing = 1 } = imageMetadata;
-
-  if (start.x === end.x && start.y === end.y) {
-    startX = start.x;
-    startY = start.y;
-    endX = end.x;
-    endY = end.y;
-  } else {
-    // Mid point of long-axis line
-    const mid = {
-      x: (start.x + end.x) / 2,
-      y: (start.y + end.y) / 2,
-    };
-
-    // Inclination of the perpendicular line
-    const vector = getLineVector(
-      columnPixelSpacing,
-      rowPixelSpacing,
-      start,
-      end
-    );
-
-    const perpendicularLineLength = vector.length / 2;
-    const rowMultiplier = perpendicularLineLength / (2 * rowPixelSpacing);
-    const columnMultiplier = perpendicularLineLength / (2 * columnPixelSpacing);
-
-    startX = mid.x + columnMultiplier * vector.y;
-    startY = mid.y - rowMultiplier * vector.x;
-    endX = mid.x - columnMultiplier * vector.y;
-    endY = mid.y + rowMultiplier * vector.x;
-  }
-
-  const perpendicular = { start: {}, end: {} };
-  perpendicular.start.x = startX;
-  perpendicular.start.y = startY;
-  perpendicular.end.x = endX;
-  perpendicular.end.y = endY;
-  return perpendicular;
-};
