@@ -1,4 +1,4 @@
-const getPerpendicularAxis = (line, imageMetadata = {}) => {
+const getShortAxis = (line, imageMetadata = {}) => {
   // getPixelSpacing (metadata) from scoord utils (image metadata)
   const getLineVector = (
     columnPixelSpacing,
@@ -30,13 +30,13 @@ const getPerpendicularAxis = (line, imageMetadata = {}) => {
     endX = end.x;
     endY = end.y;
   } else {
-    // Mid point of long-axis line
+    // Mid point of long axis
     const mid = {
       x: (start.x + end.x) / 2,
       y: (start.y + end.y) / 2,
     };
 
-    // Inclination of the perpendicular line
+    // Inclination of the short axis
     const vector = getLineVector(
       columnPixelSpacing,
       rowPixelSpacing,
@@ -44,9 +44,9 @@ const getPerpendicularAxis = (line, imageMetadata = {}) => {
       end
     );
 
-    const perpendicularLineLength = vector.length / 2;
-    const rowMultiplier = perpendicularLineLength / (2 * rowPixelSpacing);
-    const columnMultiplier = perpendicularLineLength / (2 * columnPixelSpacing);
+    const shortAxisLength = vector.length / 2;
+    const rowMultiplier = shortAxisLength / (2 * rowPixelSpacing);
+    const columnMultiplier = shortAxisLength / (2 * columnPixelSpacing);
 
     startX = mid.x + columnMultiplier * vector.y;
     startY = mid.y - rowMultiplier * vector.x;
@@ -54,12 +54,12 @@ const getPerpendicularAxis = (line, imageMetadata = {}) => {
     endY = mid.y + rowMultiplier * vector.x;
   }
 
-  const perpendicular = { start: {}, end: {} };
-  perpendicular.start.x = startX;
-  perpendicular.start.y = startY;
-  perpendicular.end.x = endX;
-  perpendicular.end.y = endY;
-  return perpendicular;
+  const shortAxis = { start: {}, end: {} };
+  shortAxis.start.x = startX;
+  shortAxis.start.y = startY;
+  shortAxis.end.x = endX;
+  shortAxis.end.y = endY;
+  return shortAxis;
 };
 
-export default getPerpendicularAxis;
+export default getShortAxis;

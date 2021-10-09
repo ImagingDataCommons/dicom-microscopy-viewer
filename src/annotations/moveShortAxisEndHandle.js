@@ -35,6 +35,7 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
   }
 
   const length = distance(start, end);
+  
   const dx = (start.x - end.x) / length;
   const dy = (start.y - end.y) / length;
 

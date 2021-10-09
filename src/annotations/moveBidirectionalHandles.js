@@ -17,49 +17,49 @@ export default function (
   const longAxisGeometry = longAxisFeature.getGeometry();
   const shortAxisGeometry = shortAxisFeature.getGeometry();
 
-  const longAxisCoordinates = longAxisGeometry.getCoordinates();
-  const shortAxisCoordinates = shortAxisGeometry.getCoordinates();
+  const longAxisCoords = longAxisGeometry.getCoordinates();
+  const shortAxisCoords = shortAxisGeometry.getCoordinates();
 
   const shortAxisGeometryProperties = shortAxisGeometry.getProperties();
-  const prevShortAxisGeometryCoordinates =
-    shortAxisGeometryProperties.prevCoords || shortAxisCoordinates;
+  const prevShortAxisGeometryCoords =
+    shortAxisGeometryProperties.prevCoords || shortAxisCoords;
 
   const longAxisGeometryProperties = longAxisGeometry.getProperties();
-  const prevLongAxisGeometryCoordinates =
-    longAxisGeometryProperties.prevCoords || longAxisCoordinates;
+  const prevLongAxisGeometryCoords =
+    longAxisGeometryProperties.prevCoords || longAxisCoords;
 
   let isShortAxisStartHandleChange =
-    shortAxisCoordinates[0][0] !== prevShortAxisGeometryCoordinates[0][0] ||
-    shortAxisCoordinates[0][1] !== prevShortAxisGeometryCoordinates[0][1];
+    shortAxisCoords[0][0] !== prevShortAxisGeometryCoords[0][0] ||
+    shortAxisCoords[0][1] !== prevShortAxisGeometryCoords[0][1];
 
   let isShortAxisEndHandleChange =
-    shortAxisCoordinates[1][0] !== prevShortAxisGeometryCoordinates[1][0] ||
-    shortAxisCoordinates[1][1] !== prevShortAxisGeometryCoordinates[1][1];
+    shortAxisCoords[1][0] !== prevShortAxisGeometryCoords[1][0] ||
+    shortAxisCoords[1][1] !== prevShortAxisGeometryCoords[1][1];
 
   let isLongAxisStartHandleChange =
-    longAxisCoordinates[0][0] !== prevLongAxisGeometryCoordinates[0][0] ||
-    longAxisCoordinates[0][1] !== prevLongAxisGeometryCoordinates[0][1];
+    longAxisCoords[0][0] !== prevLongAxisGeometryCoords[0][0] ||
+    longAxisCoords[0][1] !== prevLongAxisGeometryCoords[0][1];
 
   let isLongAxisEndHandleChange =
-    longAxisCoordinates[1][0] !== prevLongAxisGeometryCoordinates[1][0] ||
-    longAxisCoordinates[1][1] !== prevLongAxisGeometryCoordinates[1][1];
+    longAxisCoords[1][0] !== prevLongAxisGeometryCoords[1][0] ||
+    longAxisCoords[1][1] !== prevLongAxisGeometryCoords[1][1];
 
   const longAxis = {};
   const shortAxis = {};
 
-  const start = { x: longAxisCoordinates[0][0], y: longAxisCoordinates[0][1] };
-  const end = { x: longAxisCoordinates[1][0], y: longAxisCoordinates[1][1] };
+  const start = { x: longAxisCoords[0][0], y: longAxisCoords[0][1] };
+  const end = { x: longAxisCoords[1][0], y: longAxisCoords[1][1] };
 
   const shortAxisStart = {
-    x: shortAxisCoordinates[0][0],
-    y: shortAxisCoordinates[0][1],
+    x: shortAxisCoords[0][0],
+    y: shortAxisCoords[0][1],
   };
   const shortAxisEnd = {
-    x: shortAxisCoordinates[1][0],
-    y: shortAxisCoordinates[1][1],
+    x: shortAxisCoords[1][0],
+    y: shortAxisCoords[1][1],
   };
 
-  const dataHandles = { start, end, shortAxisEnd, shortAxisStart };
+  const bidirectional = { start, end, shortAxisEnd, shortAxisStart };
 
   if (isLongAxisStartHandleChange) {
     console.debug("long start");
@@ -72,17 +72,17 @@ export default function (
     outOfBounds = false;
 
     longAxis.start = {
-      x: dataHandles.start.x,
-      y: dataHandles.start.y,
+      x: bidirectional.start.x,
+      y: bidirectional.start.y,
     };
     longAxis.end = {
-      x: dataHandles.end.x,
-      y: dataHandles.end.y,
+      x: bidirectional.end.x,
+      y: bidirectional.end.y,
     };
 
     shortAxis.start = {
-      x: dataHandles.shortAxisEnd.x,
-      y: dataHandles.shortAxisEnd.y,
+      x: bidirectional.shortAxisEnd.x,
+      y: bidirectional.shortAxisEnd.y,
     };
     shortAxis.end = {
       x: handle.x,
@@ -92,14 +92,14 @@ export default function (
     intersection = intersectLine(longAxis, shortAxis);
     if (!intersection) {
       shortAxis.end = {
-        x: dataHandles.shortAxisStart.x,
-        y: dataHandles.shortAxisStart.y,
+        x: bidirectional.shortAxisStart.x,
+        y: bidirectional.shortAxisStart.y,
       };
 
       intersection = intersectLine(longAxis, shortAxis);
 
-      d1 = distance(intersection, dataHandles.start);
-      d2 = distance(intersection, dataHandles.end);
+      d1 = distance(intersection, bidirectional.start);
+      d2 = distance(intersection, bidirectional.end);
 
       if (!intersection || d1 < 3 || d2 < 3) {
         outOfBounds = true;
@@ -114,17 +114,17 @@ export default function (
     outOfBounds = false;
 
     longAxis.start = {
-      x: dataHandles.start.x,
-      y: dataHandles.start.y,
+      x: bidirectional.start.x,
+      y: bidirectional.start.y,
     };
     longAxis.end = {
-      x: dataHandles.end.x,
-      y: dataHandles.end.y,
+      x: bidirectional.end.x,
+      y: bidirectional.end.y,
     };
 
     shortAxis.start = {
-      x: dataHandles.shortAxisStart.x,
-      y: dataHandles.shortAxisStart.y,
+      x: bidirectional.shortAxisStart.x,
+      y: bidirectional.shortAxisStart.y,
     };
     shortAxis.end = {
       x: handle.x,
@@ -134,14 +134,14 @@ export default function (
     intersection = intersectLine(longAxis, shortAxis);
     if (!intersection) {
       shortAxis.end = {
-        x: dataHandles.shortAxisEnd.x,
-        y: dataHandles.shortAxisEnd.y,
+        x: bidirectional.shortAxisEnd.x,
+        y: bidirectional.shortAxisEnd.y,
       };
 
       intersection = intersectLine(longAxis, shortAxis);
 
-      d1 = distance(intersection, dataHandles.start);
-      d2 = distance(intersection, dataHandles.end);
+      d1 = distance(intersection, bidirectional.start);
+      d2 = distance(intersection, bidirectional.end);
 
       if (!intersection || d1 < 3 || d2 < 3) {
         outOfBounds = true;

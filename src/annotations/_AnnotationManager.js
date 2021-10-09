@@ -26,7 +26,7 @@ import {
 import Modify from "ol/interaction/Modify";
 import Draw from "ol/interaction/Draw";
 import moveBidirectionalHandles from "./moveBidirectionalHandles";
-import getPerpendicularAxis from "./getPerpendicularAxis";
+import getShortAxis from "./getShortAxis";
 
 const { Marker, Markup } = Enums;
 
@@ -198,11 +198,11 @@ class _AnnotationManager {
         const [startPoints, endPoints] = longAxisGeometry.getCoordinates();
         const start = { x: startPoints[0], y: startPoints[1] };
         const end = { x: endPoints[0], y: endPoints[1] };
-        const perpendicularAxis = getPerpendicularAxis({ start, end });
+        const shortAxis = getShortAxis({ start, end });
 
         const shortAxisCoordinates = [
-          [perpendicularAxis.start.x, perpendicularAxis.start.y],
-          [perpendicularAxis.end.x, perpendicularAxis.end.y],
+          [shortAxis.start.x, shortAxis.start.y],
+          [shortAxis.end.x, shortAxis.end.y],
         ];
 
         const id = `short-axis-${longAxisFeature.getId()}`;
