@@ -7,44 +7,22 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
   const start = { x: longAxisCoords[0][0], y: longAxisCoords[0][1] };
   const end = { x: longAxisCoords[1][0], y: longAxisCoords[1][1] };
 
-  const perpendicularStart = {
+  const shortAxisStart = {
     x: shortAxisCoords[0][0],
     y: shortAxisCoords[0][1],
   };
-  const perpendicularEnd = {
+  const shortAxisEnd = {
     x: shortAxisCoords[1][0],
     y: shortAxisCoords[1][1],
   };
 
-  const longLine = {
-    start: {
-      x: start.x,
-      y: start.y,
-    },
-    end: {
-      x: end.x,
-      y: end.y,
-    },
-  };
+  const longAxis = { start, end };
+  const shortAxis = { start: shortAxisStart, end: shortAxisEnd };
 
-  const perpendicularLine = {
-    start: {
-      x: perpendicularStart.x,
-      y: perpendicularStart.y,
-    },
-    end: {
-      x: perpendicularEnd.x,
-      y: perpendicularEnd.y,
-    },
-  };
+  const intersection = intersectLine(longAxis, shortAxis);
 
-  const intersection = intersectLine(longLine, perpendicularLine);
-
-  const distanceFromPerpendicularP1 = distance(
-    perpendicularStart,
-    intersection
-  );
-  const distanceFromPerpendicularP2 = distance(perpendicularEnd, intersection);
+  const distanceFromShortAxisP1 = distance(shortAxisStart, intersection);
+  const distanceFromShortAxisP2 = distance(shortAxisEnd, intersection);
 
   const distanceToLineP2 = distance(end, intersection);
   const newLineLength = distance(end, handle);
@@ -63,15 +41,15 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
     y: end.y + (handle.y - end.y) * k,
   };
 
-  perpendicularStart.x = newIntersection.x - distanceFromPerpendicularP1 * dy;
-  perpendicularStart.y = newIntersection.y + distanceFromPerpendicularP1 * dx;
+  shortAxisStart.x = newIntersection.x - distanceFromShortAxisP1 * dy;
+  shortAxisStart.y = newIntersection.y + distanceFromShortAxisP1 * dx;
 
-  perpendicularEnd.x = newIntersection.x + distanceFromPerpendicularP2 * dy;
-  perpendicularEnd.y = newIntersection.y - distanceFromPerpendicularP2 * dx;
+  shortAxisEnd.x = newIntersection.x + distanceFromShortAxisP2 * dy;
+  shortAxisEnd.y = newIntersection.y - distanceFromShortAxisP2 * dx;
 
   shortAxisGeometry.setCoordinates([
-    [perpendicularStart.x, perpendicularStart.y],
-    [perpendicularEnd.x, perpendicularEnd.y],
+    [shortAxisStart.x, shortAxisStart.y],
+    [shortAxisEnd.x, shortAxisEnd.y],
   ]);
 
   return true;

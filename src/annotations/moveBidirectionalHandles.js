@@ -46,17 +46,17 @@ export default function (
     longAxisCoordinates[1][0] !== prevLongAxisGeometryCoordinates[1][0] ||
     longAxisCoordinates[1][1] !== prevLongAxisGeometryCoordinates[1][1];
 
-  const longLine = {};
-  const perpendicularLine = {};
+  const longAxis = {};
+  const shortAxis = {};
 
   const start = { x: longAxisCoordinates[0][0], y: longAxisCoordinates[0][1] };
   const end = { x: longAxisCoordinates[1][0], y: longAxisCoordinates[1][1] };
 
-  const perpendicularStart = {
+  const shortAxisStart = {
     x: shortAxisCoordinates[0][0],
     y: shortAxisCoordinates[0][1],
   };
-  const perpendicularEnd = {
+  const shortAxisEnd = {
     x: shortAxisCoordinates[1][0],
     y: shortAxisCoordinates[1][1],
   };
@@ -66,7 +66,7 @@ export default function (
     y: handle.y,
   };
 
-  const dataHandles = { start, end, perpendicularEnd, perpendicularStart };
+  const dataHandles = { start, end, shortAxisEnd, shortAxisStart };
 
   if (isLongAxisStartHandleChange) {
     console.debug("long start");
@@ -100,32 +100,32 @@ export default function (
     console.debug("short start");
     outOfBounds = false;
 
-    longLine.start = {
+    longAxis.start = {
       x: dataHandles.start.x,
       y: dataHandles.start.y,
     };
-    longLine.end = {
+    longAxis.end = {
       x: dataHandles.end.x,
       y: dataHandles.end.y,
     };
 
-    perpendicularLine.start = {
-      x: dataHandles.perpendicularEnd.x,
-      y: dataHandles.perpendicularEnd.y,
+    shortAxis.start = {
+      x: dataHandles.shortAxisEnd.x,
+      y: dataHandles.shortAxisEnd.y,
     };
-    perpendicularLine.end = {
+    shortAxis.end = {
       x: pointerCoordinate.x,
       y: pointerCoordinate.y,
     };
 
-    intersection = intersectLine(longLine, perpendicularLine);
+    intersection = intersectLine(longAxis, shortAxis);
     if (!intersection) {
-      perpendicularLine.end = {
-        x: dataHandles.perpendicularStart.x,
-        y: dataHandles.perpendicularStart.y,
+      shortAxis.end = {
+        x: dataHandles.shortAxisStart.x,
+        y: dataHandles.shortAxisStart.y,
       };
 
-      intersection = intersectLine(longLine, perpendicularLine);
+      intersection = intersectLine(longAxis, shortAxis);
 
       d1 = distance(intersection, dataHandles.start);
       d2 = distance(intersection, dataHandles.end);
@@ -145,40 +145,40 @@ export default function (
       );
 
       // if (!movedPoint) {
-      //   pointerCoordinate.x = dataHandles.perpendicularStart.x;
-      //   pointerCoordinate.y = dataHandles.perpendicularStart.y;
+      //   pointerCoordinate.x = dataHandles.shortAxisStart.x;
+      //   pointerCoordinate.y = dataHandles.shortAxisStart.y;
       // }
     }
   } else if (isShortAxisEndHandleChange) {
     console.debug("short end");
     outOfBounds = false;
 
-    longLine.start = {
+    longAxis.start = {
       x: dataHandles.start.x,
       y: dataHandles.start.y,
     };
-    longLine.end = {
+    longAxis.end = {
       x: dataHandles.end.x,
       y: dataHandles.end.y,
     };
 
-    perpendicularLine.start = {
-      x: dataHandles.perpendicularStart.x,
-      y: dataHandles.perpendicularStart.y,
+    shortAxis.start = {
+      x: dataHandles.shortAxisStart.x,
+      y: dataHandles.shortAxisStart.y,
     };
-    perpendicularLine.end = {
+    shortAxis.end = {
       x: pointerCoordinate.x,
       y: pointerCoordinate.y,
     };
 
-    intersection = intersectLine(longLine, perpendicularLine);
+    intersection = intersectLine(longAxis, shortAxis);
     if (!intersection) {
-      perpendicularLine.end = {
-        x: dataHandles.perpendicularEnd.x,
-        y: dataHandles.perpendicularEnd.y,
+      shortAxis.end = {
+        x: dataHandles.shortAxisEnd.x,
+        y: dataHandles.shortAxisEnd.y,
       };
 
-      intersection = intersectLine(longLine, perpendicularLine);
+      intersection = intersectLine(longAxis, shortAxis);
 
       d1 = distance(intersection, dataHandles.start);
       d2 = distance(intersection, dataHandles.end);
@@ -198,8 +198,8 @@ export default function (
       );
 
       // if (!movedPoint) {
-      //   pointerCoordinate.x = dataHandles.perpendicularEnd.x;
-      //   pointerCoordinate.y = dataHandles.perpendicularEnd.y;
+      //   pointerCoordinate.x = dataHandles.shortAxisEnd.x;
+      //   pointerCoordinate.y = dataHandles.shortAxisEnd.y;
       // }
     }
   }

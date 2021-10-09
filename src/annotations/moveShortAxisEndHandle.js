@@ -7,20 +7,20 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
   const start = { x: longAxisCoords[0][0], y: longAxisCoords[0][1] };
   const end = { x: longAxisCoords[1][0], y: longAxisCoords[1][1] };
 
-  const perpendicularStart = {
+  const shortAxisStart = {
     x: shortAxisCoords[0][0],
     y: shortAxisCoords[0][1],
   };
-  const perpendicularEnd = {
+  const shortAxisEnd = {
     x: shortAxisCoords[1][0],
     y: shortAxisCoords[1][1],
   };
 
-  const bidirectional = { start, end, perpendicularEnd, perpendicularStart };
+  const bidirectional = { start, end, shortAxisEnd, shortAxisStart };
 
   const fudgeFactor = 1;
 
-  const fixedPoint = perpendicularStart;
+  const fixedPoint = shortAxisStart;
   const movedPoint = handle;
 
   const distanceFromFixed = distanceToPoint(bidirectional, fixedPoint);
@@ -47,54 +47,33 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
     y: end.y + fudgeFactor * dy,
   };
 
-  perpendicularStart.x = movedPoint.x + total * dy;
-  perpendicularStart.y = movedPoint.y - total * dx;
-  perpendicularEnd.x = movedPoint.x;
-  perpendicularEnd.y = movedPoint.y;
-  perpendicularEnd.locked = false;
-  perpendicularStart.locked = false;
+  shortAxisStart.x = movedPoint.x + total * dy;
+  shortAxisStart.y = movedPoint.y - total * dx;
+  shortAxisEnd.x = movedPoint.x;
+  shortAxisEnd.y = movedPoint.y;
 
-  const longLine = {
-    start: {
-      x: start.x,
-      y: start.y,
-    },
-    end: {
-      x: end.x,
-      y: end.y,
-    },
-  };
+  const longAxis = { start, end };
+  const shortAxis = { start: shortAxisStart, end: shortAxisEnd };
 
-  const perpendicularLine = {
-    start: {
-      x: perpendicularStart.x,
-      y: perpendicularStart.y,
-    },
-    end: {
-      x: perpendicularEnd.x,
-      y: perpendicularEnd.y,
-    },
-  };
-
-  const intersection = intersectLine(longLine, perpendicularLine);
+  const intersection = intersectLine(longAxis, shortAxis);
 
   if (!intersection) {
     if (distance(movedPoint, start) > distance(movedPoint, end)) {
-      perpendicularEnd.x = adjustedLineP2.x - distanceFromMoved * dy;
-      perpendicularEnd.y = adjustedLineP2.y + distanceFromMoved * dx;
-      perpendicularStart.x = perpendicularEnd.x + total * dy;
-      perpendicularStart.y = perpendicularEnd.y - total * dx;
+      shortAxisEnd.x = adjustedLineP2.x - distanceFromMoved * dy;
+      shortAxisEnd.y = adjustedLineP2.y + distanceFromMoved * dx;
+      shortAxisStart.x = shortAxisEnd.x + total * dy;
+      shortAxisStart.y = shortAxisEnd.y - total * dx;
     } else {
-      perpendicularEnd.x = adjustedLineP1.x - distanceFromMoved * dy;
-      perpendicularEnd.y = adjustedLineP1.y + distanceFromMoved * dx;
-      perpendicularStart.x = perpendicularEnd.x + total * dy;
-      perpendicularStart.y = perpendicularEnd.y - total * dx;
+      shortAxisEnd.x = adjustedLineP1.x - distanceFromMoved * dy;
+      shortAxisEnd.y = adjustedLineP1.y + distanceFromMoved * dx;
+      shortAxisStart.x = shortAxisEnd.x + total * dy;
+      shortAxisStart.y = shortAxisEnd.y - total * dx;
     }
   }
 
   shortAxisGeometry.setCoordinates([
-    [perpendicularStart.x, perpendicularStart.y],
-    [perpendicularEnd.x, perpendicularEnd.y],
+    [shortAxisStart.x, shortAxisStart.y],
+    [shortAxisEnd.x, shortAxisEnd.y],
   ]);
 
   return true;
