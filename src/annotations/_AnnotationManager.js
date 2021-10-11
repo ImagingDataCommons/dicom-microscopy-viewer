@@ -42,7 +42,7 @@ class _AnnotationManager {
       pyramid,
       markupManager,
       features,
-      drawingSource,
+      drawingSource
     };
 
     /** Markups */
@@ -167,11 +167,11 @@ class _AnnotationManager {
     this.draw = drawInteraction;
   }
 
-  onDrawEnd(event) {
-    this[Marker.Arrow].onDrawEnd(event);
-    this[Markup.Measurement].onDrawEnd(event);
-    this[Markup.TextEvaluation].onDrawEnd(event);
-    this.props.markupManager.onDrawEnd(event);
+  onDrawEnd(event, options, _setFeatureStyle) {
+    this[Marker.Arrow].onDrawEnd(event, options, _setFeatureStyle);
+    this[Markup.Measurement].onDrawEnd(event, options, _setFeatureStyle);
+    this[Markup.TextEvaluation].onDrawEnd(event, options, _setFeatureStyle);
+    this.props.markupManager.onDrawEnd(event, options, _setFeatureStyle);
   }
 
   onDrawAbort(event) {

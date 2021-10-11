@@ -1598,7 +1598,7 @@ class VolumeImageViewer {
     })
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
-      this[_annotationManager].onDrawEnd(event)
+      this[_annotationManager].onDrawEnd(event, options, _setFeatureStyle)
       publish(
         container,
         EVENT.ROI_DRAWN,

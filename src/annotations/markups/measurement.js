@@ -1,10 +1,10 @@
-import Enums from '../../enums'
-import { getUnitSuffix } from '../../utils'
+import Enums from "../../enums";
+import { getUnitSuffix } from "../../utils";
 import {
   getFeatureScoord3dArea,
-  getFeatureScoord3dLength
-} from '../../scoord3dUtils.js'
-import bidirectional from './bidirectional/bidirectional'
+  getFeatureScoord3dLength,
+} from "../../scoord3dUtils.js";
+import bidirectional from "./bidirectional/bidirectional";
 
 /**
  * Format measure output.
@@ -14,21 +14,13 @@ import bidirectional from './bidirectional/bidirectional'
  * @return {string} The formatted measure of this feature
  */
 export const format = (feature, units, pyramid) => {
-  const area = getFeatureScoord3dArea(feature, pyramid)
-  const length = getFeatureScoord3dLength(feature, pyramid)
-  const value = length || area || 0
-
-  const { bidirectional } = feature.getProperties();
-  if (bidirectional === true) {
-    return length
-    ? `Bidirectional ${value.toFixed(2)} ${units}`
-    : `Bidirectional ${value.toFixed(2)} ${units}²`
-  }
-
+  const area = getFeatureScoord3dArea(feature, pyramid);
+  const length = getFeatureScoord3dLength(feature, pyramid);
+  const value = length || area || 0;
   return length
     ? `${value.toFixed(2)} ${units}`
-    : `${value.toFixed(2)} ${units}²`
-}
+    : `${value.toFixed(2)} ${units}²`;
+};
 
 /**
  * Checks if feature has measurement markup properties.
@@ -37,7 +29,7 @@ export const format = (feature, units, pyramid) => {
  * @returns {boolean} true if feature has measurement markup properties
  */
 const _isMeasurement = (feature) =>
-  Enums.Markup.Measurement === feature.get(Enums.InternalProperties.Markup)
+  Enums.Markup.Measurement === feature.get(Enums.InternalProperties.Markup);
 
 /**
  * Measurement markup definition.
@@ -49,7 +41,13 @@ const _isMeasurement = (feature) =>
  * @param {object} dependencies.pyramid Pyramid metadata
  * @param {object} dependencies.markupManager MarkupManager shared instance
  */
-const MeasurementMarkup = ({ map, features, drawingSource, pyramid, markupManager }) => {
+const MeasurementMarkup = ({
+  map,
+  features,
+  drawingSource,
+  pyramid,
+  markupManager,
+}) => {
   return {
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
@@ -65,32 +63,44 @@ const MeasurementMarkup = ({ map, features, drawingSource, pyramid, markupManage
     },
     onFailure: (uid) => {
       if (uid) {
-        markupManager.remove(uid)
+        markupManager.remove(uid);
       }
     },
     onRemove: (feature) => {
       if (_isMeasurement(feature)) {
-        const featureId = feature.getId()
-        markupManager.remove(featureId)
+        const featureId = feature.getId();
+        markupManager.remove(featureId);
       }
     },
     onDrawStart: (event, drawingOptions, setFeatureStyle) => {
       const { feature } = event;
       if (_isMeasurement(feature)) {
-        markupManager.create({ feature })
-        bidirectional.onDrawStart(event, { 
-          features, 
-          drawingOptions, 
-          setFeatureStyle, 
-          drawingSource, 
-          map 
+        markupManager.create({ feature });
+        bidirectional.onDrawStart(event, {
+          features,
+          pyramid,
+          drawingOptions,
+          setFeatureStyle,
+          drawingSource,
+          markupManager,
+          map,
         });
       }
     },
     onUpdate: (feature) => {},
-    onDrawEnd: ({ feature }) => {},
-    onDrawAbort: ({ feature }) => {}
-  }
-}
+    onDrawEnd: (event, drawingOptions, setFeatureStyle) => {
+      bidirectional.onDrawEnd(event, {
+        features,
+        pyramid,
+        drawingOptions,
+        setFeatureStyle,
+        drawingSource,
+        markupManager,
+        map,
+      });
+    },
+    onDrawAbort: ({ feature }) => {},
+  };
+};
 
-export default MeasurementMarkup
+export default MeasurementMarkup;

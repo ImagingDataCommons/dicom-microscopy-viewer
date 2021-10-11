@@ -35,7 +35,7 @@ class _MarkupManager {
       source: new VectorSource({ features: this._links })
     })
 
-    this._markupsOverlay = new Overlay({ element: this._styleTag })
+    this._markupsOverlay = new Overlay({ element: this._styleTag, stopEvent: true })
     this._map.addOverlay(this._markupsOverlay)
     this._map.addLayer(this._linksVector)
   }
@@ -167,7 +167,7 @@ class _MarkupManager {
     markup.overlay = new Overlay({
       className: 'markup-container',
       positioning: 'center-center',
-      stopEvent: false,
+      stopEvent: true,
       dragging: false,
       position: position || spacedCoordinate,
       element: markup.element,
