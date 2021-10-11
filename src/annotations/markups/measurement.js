@@ -4,6 +4,7 @@ import {
   getFeatureScoord3dArea,
   getFeatureScoord3dLength
 } from '../../scoord3dUtils.js'
+import bidirectional from './bidirectional/bidirectional'
 
 /**
  * Format measure output.
@@ -16,6 +17,14 @@ export const format = (feature, units, pyramid) => {
   const area = getFeatureScoord3dArea(feature, pyramid)
   const length = getFeatureScoord3dLength(feature, pyramid)
   const value = length || area || 0
+
+  const { bidirectional } = feature.getProperties();
+  if (bidirectional === true) {
+    return length
+    ? `Bidirectional ${value.toFixed(2)} ${units}`
+    : `Bidirectional ${value.toFixed(2)} ${units}²`
+  }
+
   return length
     ? `${value.toFixed(2)} ${units}`
     : `${value.toFixed(2)} ${units}²`
@@ -35,10 +44,12 @@ const _isMeasurement = (feature) =>
  *
  * @param {object} dependencies Shared dependencies
  * @param {object} dependencies.map Viewer's map instance
+ * @param {array} dependencies.features Viewer's features
+ * @param {object} dependencies.drawingSource Viewer's drawing source
  * @param {object} dependencies.pyramid Pyramid metadata
  * @param {object} dependencies.markupManager MarkupManager shared instance
  */
-const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
+const MeasurementMarkup = ({ map, features, drawingSource, pyramid, markupManager }) => {
   return {
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
@@ -63,9 +74,17 @@ const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
         markupManager.remove(featureId)
       }
     },
-    onDrawStart: ({ feature }) => {
+    onDrawStart: (event, drawingOptions, setFeatureStyle) => {
+      const { feature } = event;
       if (_isMeasurement(feature)) {
         markupManager.create({ feature })
+        bidirectional.onDrawStart(event, { 
+          features, 
+          drawingOptions, 
+          setFeatureStyle, 
+          drawingSource, 
+          map 
+        });
       }
     },
     onUpdate: (feature) => {},
