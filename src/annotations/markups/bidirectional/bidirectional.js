@@ -9,6 +9,8 @@ import getShortAxis from "./getShortAxis";
 import { distance } from "./mathUtils";
 import { getFeatureScoord3dLength } from "../../../scoord3dUtils.js";
 
+const SHORT_AXIS_ID_PREFIX = "short-axis-";
+
 const bidirectional = {
   onDrawStart: (
     event,
@@ -22,8 +24,6 @@ const bidirectional = {
       map,
     }
   ) => {
-    const SHORT_AXIS_ID_PREFIX = "short-axis-";
-
     if (
       drawingOptions.geometryType === Enums.GeometryType.Line &&
       drawingOptions[Enums.InternalProperties.Bidirectional] === true
@@ -166,7 +166,15 @@ const bidirectional = {
       });
     }
   },
-  onDrawEnd: () => {}
+  onDrawEnd: () => {},
+  onRemove: (feature, { drawingSource, features }) => {
+    const { isLongAxis } = feature.getProperties();
+    if (isLongAxis) {
+      const shortAxisFeatureId = SHORT_AXIS_ID_PREFIX + feature.getId();
+      const shortAxisFeature = drawingSource.getFeatureById(shortAxisFeatureId);
+      features.remove(shortAxisFeature);
+    }
+  },
 };
 
 export default bidirectional;

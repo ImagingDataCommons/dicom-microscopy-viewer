@@ -70,6 +70,13 @@ const MeasurementMarkup = ({
       if (_isMeasurement(feature)) {
         const featureId = feature.getId();
         markupManager.remove(featureId);
+        bidirectional.onRemove(feature, {
+          features,
+          pyramid,
+          drawingSource,
+          markupManager,
+          map,
+        });
       }
     },
     onDrawStart: (event, drawingOptions, setFeatureStyle) => {
