@@ -198,7 +198,7 @@ function coordinateFormatScoord3d2Geometry (coordinates, pyramid) {
  * @returns {array} coordinates with offset
  * @private
  */
-function coordinateWithOffset (feature, offset = 700) {
+function coordinateWithOffset (feature, offset) {
   const geometry = feature.getGeometry()
   const coordinates = geometry.getLastCoordinate()
   const [x, y] = coordinates

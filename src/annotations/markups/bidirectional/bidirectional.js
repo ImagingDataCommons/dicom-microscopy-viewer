@@ -8,6 +8,7 @@ import moveBidirectionalHandles from "./moveBidirectionalHandles";
 import getShortAxis from "./getShortAxis";
 import { distance } from "./mathUtils";
 import { getFeatureScoord3dLength } from "../../../scoord3dUtils.js";
+import Polygon from "ol/geom/Polygon";
 
 const SHORT_AXIS_ID_PREFIX = "short-axis-";
 
@@ -34,6 +35,26 @@ const bidirectional = {
 
       const interactions = map.getInteractions();
 
+      const updateMarkupPosition = (shortAxisFeature, longAxisFeature) => {
+        const longAxisGeometry = longAxisFeature.getGeometry();
+        const shortAxisLength = getFeatureScoord3dLength(
+          shortAxisFeature,
+          pyramid
+        );
+        const longAxisLength = getFeatureScoord3dLength(
+          longAxisFeature,
+          pyramid
+        );
+        const L = `L ${longAxisLength.toFixed(2)}`;
+        const W = ` W ${shortAxisLength.toFixed(2)}`;
+        const value = `${L}\n${W}`;
+        markupManager.update({
+          feature: longAxisFeature,
+          value,
+          coordinate: longAxisGeometry.getLastCoordinate(),
+        });
+      };
+      
       const onFeatureChangeHandler = (event) => {
         const longAxisGeometry = event.target;
 
@@ -56,24 +77,7 @@ const bidirectional = {
           const existentShortAxisGeometry =
             existentShortAxisFeature.getGeometry();
           existentShortAxisGeometry.setCoordinates(shortAxisCoordinates);
-
-          const shortAxisLength = getFeatureScoord3dLength(
-            existentShortAxisFeature,
-            pyramid
-          );
-          const longAxisLength = getFeatureScoord3dLength(
-            longAxisFeature,
-            pyramid
-          );
-          const L = `L ${longAxisLength.toFixed(2)}`;
-          const W = ` W ${shortAxisLength.toFixed(2)}`;
-          const value = `${L}\n${W}`;
-          markupManager.update({
-            feature: longAxisFeature,
-            value,
-            coordinate: longAxisGeometry.getLastCoordinate(),
-          });
-
+          updateMarkupPosition(existentShortAxisFeature, longAxisFeature);
           return;
         }
 
@@ -85,18 +89,7 @@ const bidirectional = {
         shortAxisFeature.setProperties({ isShortAxis: true }, true);
 
         shortAxisFeature.on(Enums.FeatureGeometryEvents.CHANGE, () => {
-          const shortAxisLength = getFeatureScoord3dLength(
-            shortAxisFeature,
-            pyramid
-          );
-          const longAxisLength = getFeatureScoord3dLength(
-            longAxisFeature,
-            pyramid
-          );
-          const L = `L ${longAxisLength.toFixed(2)}`;
-          const W = ` W ${shortAxisLength.toFixed(2)}`;
-          const value = `${L}\n${W}`;
-          markupManager.update({ feature: longAxisFeature, value });
+          updateMarkupPosition(shortAxisFeature, longAxisFeature);
         });
 
         setFeatureStyle(
@@ -150,6 +143,7 @@ const bidirectional = {
           const shortAxisFeatureId = SHORT_AXIS_ID_PREFIX + feature.getId();
           const shortAxisFeature =
             drawingSource.getFeatureById(shortAxisFeatureId);
+            updateMarkupPosition(shortAxisFeature, feature);
           moveBidirectionalHandles(handle, feature, shortAxisFeature, feature);
           return;
         }
@@ -160,6 +154,7 @@ const bidirectional = {
             .split(SHORT_AXIS_ID_PREFIX)[1];
           const longAxisFeature =
             drawingSource.getFeatureById(longAxisFeatureId);
+            updateMarkupPosition(feature, longAxisFeature);
           moveBidirectionalHandles(handle, longAxisFeature, feature, feature);
           return;
         }

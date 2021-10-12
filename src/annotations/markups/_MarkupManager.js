@@ -14,6 +14,8 @@ import { getUnitSuffix } from '../../utils'
 import { coordinateWithOffset } from '../../scoord3dUtils'
 import defaultStyles from '../styles'
 
+const DEFAULT_MARKUP_OFFSET = 70;
+
 class _MarkupManager {
   constructor ({ map, pyramid, formatters, onClick, onStyle } = {}) {
     this._map = map
@@ -81,6 +83,15 @@ class _MarkupManager {
    */
   get (id) {
     return this._markups.get(id)
+  }
+
+  /**
+   * Returns all markup overlays
+   *
+   * @return {array} The markup overlays
+   */
+  getOverlays() {
+    return Array.from(this._markups.values()).map(v => v.overlay);
   }
 
   /**
@@ -161,7 +172,11 @@ class _MarkupManager {
     element.className = 'ol-tooltip ol-tooltip-measure'
     element.innerText = value
 
-    const spacedCoordinate = coordinateWithOffset(feature)
+    const spacedCoordinate = coordinateWithOffset(feature, DEFAULT_MARKUP_OFFSET)
+
+    element.onpointerdown = event => {
+      event.stopPropagation();
+    }
 
     markup.element = element
     markup.overlay = new Overlay({
@@ -204,6 +219,11 @@ class _MarkupManager {
       Enums.FeatureGeometryEvents.CHANGE,
       ({ target: geometry }) => {
         if (this.has(id)) {
+          const { isShortAxis, isLongAxis } = feature.getProperties();
+          if (isShortAxis, isLongAxis) {
+            return;
+          }
+
           const view = this._map.getView()
           const unitSuffix = getUnitSuffix(view)
           const format = this._getFormatter(feature)
@@ -213,7 +233,6 @@ class _MarkupManager {
             value: output,
             coordinate: geometry.getLastCoordinate()
           })
-          this._drawLink(feature)
         }
       }
     )
@@ -269,7 +288,7 @@ class _MarkupManager {
       }
     })
 
-    this._map.on(Enums.MapEvents.POINTER_UP, () => {
+    markup.element.addEventListener(Enums.HTMLElementEvents.MOUSE_UP, () => { 
       const markup = this.get(id)
       if (
         markup &&
@@ -279,7 +298,7 @@ class _MarkupManager {
         dragPan.setActive(true)
         markup.overlay.set(dragProperty, false)
       }
-    })
+    });
   }
 
   onDrawAbort ({ feature }) {
@@ -390,10 +409,12 @@ class _MarkupManager {
     }
 
     if (coordinate) {
-      markup.overlay.setPosition(coordinateWithOffset(feature))
+      const padding = (markup.element.offsetWidth + markup.element.offsetHeight) / 2;
+      markup.overlay.setPosition(coordinateWithOffset(feature, DEFAULT_MARKUP_OFFSET + padding))
     }
 
     this._markups.set(id, markup)
+    this._drawLink(feature)
   }
 
   /**

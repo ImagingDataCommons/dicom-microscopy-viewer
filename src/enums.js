@@ -34,6 +34,8 @@ export const MapEvents = {
 
 export const HTMLElementEvents = {
   MOUSE_DOWN: "mousedown",
+  MOUSE_UP: "mouseup",
+  MOUSE_MOVE: "mousemove",
 };
 
 export const InteractionEvents = {
