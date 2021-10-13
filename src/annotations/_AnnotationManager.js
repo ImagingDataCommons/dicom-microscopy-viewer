@@ -50,6 +50,9 @@ class _AnnotationManager {
 
     /** Markers */
     this[Marker.Arrow] = ArrowMarker(this.props);
+
+    /** Init */
+    this[Markup.Measurement].onInit();
   }
 
   /**
@@ -160,10 +163,6 @@ class _AnnotationManager {
     this[Marker.Arrow].onDrawStart(event, options, _setFeatureStyle);
     this[Markup.Measurement].onDrawStart(event, options, _setFeatureStyle);
     this[Markup.TextEvaluation].onDrawStart(event, options, _setFeatureStyle);
-  }
-
-  setDraw(drawInteraction) {
-    this.draw = drawInteraction;
   }
 
   onDrawEnd(event, options, _setFeatureStyle) {

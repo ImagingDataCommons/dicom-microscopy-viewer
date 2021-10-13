@@ -25,7 +25,6 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
     },
   };
 
-
   const fudgeFactor = 1;
 
   const fixedPoint = shortAxis.start;

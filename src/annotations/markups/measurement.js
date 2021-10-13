@@ -34,21 +34,19 @@ const _isMeasurement = (feature) =>
 /**
  * Measurement markup definition.
  *
- * @param {object} dependencies Shared dependencies
- * @param {object} dependencies.map Viewer's map instance
- * @param {array} dependencies.features Viewer's features
- * @param {object} dependencies.drawingSource Viewer's drawing source
- * @param {object} dependencies.pyramid Pyramid metadata
- * @param {object} dependencies.markupManager MarkupManager shared instance
+ * @param {object} viewerProperties Shared viewerProperties
+ * @param {object} viewerProperties.map Viewer's map instance
+ * @param {object} viewerProperties.drawingSource Viewer's drawing source
+ * @param {object} viewerProperties.pyramid Pyramid metadata
+ * @param {object} viewerProperties.markupManager MarkupManager shared instance
  */
-const MeasurementMarkup = ({
-  map,
-  features,
-  drawingSource,
-  pyramid,
-  markupManager,
-}) => {
+const MeasurementMarkup = (viewerProperties) => {
+  const { map, pyramid, markupManager } = viewerProperties;
+
   return {
+    onInit: () => {
+      bidirectional.onInit(viewerProperties);
+    },
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
         const view = map.getView();
@@ -70,13 +68,7 @@ const MeasurementMarkup = ({
       if (_isMeasurement(feature)) {
         const featureId = feature.getId();
         markupManager.remove(featureId);
-        bidirectional.onRemove(feature, {
-          features,
-          pyramid,
-          drawingSource,
-          markupManager,
-          map,
-        });
+        bidirectional.onRemove(feature, viewerProperties);
       }
     },
     onDrawStart: (event, drawingOptions, setFeatureStyle) => {
@@ -84,26 +76,18 @@ const MeasurementMarkup = ({
       if (_isMeasurement(feature)) {
         markupManager.create({ feature });
         bidirectional.onDrawStart(event, {
-          features,
-          pyramid,
-          drawingOptions,
           setFeatureStyle,
-          drawingSource,
-          markupManager,
-          map,
+          drawingOptions,
+          ...viewerProperties,
         });
       }
     },
     onUpdate: (feature) => {},
     onDrawEnd: (event, drawingOptions, setFeatureStyle) => {
       bidirectional.onDrawEnd(event, {
-        features,
-        pyramid,
         drawingOptions,
         setFeatureStyle,
-        drawingSource,
-        markupManager,
-        map,
+        ...viewerProperties,
       });
     },
     onDrawAbort: ({ feature }) => {},

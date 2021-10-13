@@ -1570,8 +1570,6 @@ class VolumeImageViewer {
     this[_interactions].draw = new Draw(drawOptions)
     const container = this[_map].getTargetElement()
 
-    this[_annotationManager].setDraw(this[_interactions].draw);
-
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_START, (event) => {
       event.feature.setProperties(builtInDrawOptions, true)
       event.feature.setId(generateUID())

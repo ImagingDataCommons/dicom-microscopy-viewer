@@ -27,10 +27,20 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
     },
   };
 
-  let intersection = intersectLine(longAxis, shortAxis);
-  if (!intersection) {
-    longAxisGeometry.setCoordinates(lastValidCoords);
-  }
+  // const newLongAxis = {
+  //   start: { x: longAxisCoords[0][0], y: longAxisCoords[0][1] },
+  //   end: handle,
+  // };
+
+  // const intersection = intersectLine(newLongAxis, shortAxis);
+  // if (!intersection) {
+  //   longAxisGeometry.setCoordinates(lastValidCoords);
+  //   return;
+  // }
+
+  const intersection = intersectLine(longAxis, shortAxis);
+
+  console.debug('Has intersection');
 
   const distanceToLineP2 = distance(longAxis.start, intersection);
   const newLineLength = distance(longAxis.start, handle);

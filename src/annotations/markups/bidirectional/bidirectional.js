@@ -12,6 +12,45 @@ const isDrawingBidirectional = (drawingOptions) =>
   drawingOptions[Enums.InternalProperties.Bidirectional] === true;
 
 const bidirectional = {
+  onInit: (viewerProperties) => {
+    const { drawingSource, map } = viewerProperties;
+
+    /**
+     * This is used to avoid changing features while
+     * dragging because of getClosestFeatureToCoordinate call
+     */
+    let draggedFeature = null;
+    map.on("pointerup", () => (draggedFeature = null));
+
+    map.on(Enums.MapEvents.POINTER_DRAG, (event) => {
+      const handleCoordinate = event.coordinate;
+      const handle = { x: handleCoordinate[0], y: handleCoordinate[1] };
+
+      if (draggedFeature === null) {
+        draggedFeature =
+          drawingSource.getClosestFeatureToCoordinate(handleCoordinate);
+      }
+
+      const { isLongAxis, isShortAxis } = draggedFeature.getProperties();
+
+      if (isLongAxis) {
+        const shortAxisFeatureId = getShortAxisId(draggedFeature);
+        const shortAxisFeature =
+          drawingSource.getFeatureById(shortAxisFeatureId);
+        updateMarkup(shortAxisFeature, draggedFeature, viewerProperties);
+        moveBidirectionalHandles(handle, draggedFeature, viewerProperties);
+        return;
+      }
+
+      if (isShortAxis) {
+        const longAxisFeatureId = getLongAxisId(draggedFeature);
+        const longAxisFeature = drawingSource.getFeatureById(longAxisFeatureId);
+        updateMarkup(draggedFeature, longAxisFeature, viewerProperties);
+        moveBidirectionalHandles(handle, draggedFeature, viewerProperties);
+        return;
+      }
+    });
+  },
   onDrawStart: (event, viewerProperties) => {
     const { drawingOptions, drawingSource, map } = viewerProperties;
 
@@ -22,7 +61,7 @@ const bidirectional = {
 
       const interactions = map.getInteractions();
 
-      const onLongAxisFeatureGeometryChange = (event) => {
+      const onLongAxisFeatureGeometryChange = () => {
         const shortAxisCoords = getShortAxisCoords(longAxisFeature);
 
         const id = getShortAxisId(longAxisFeature);
@@ -55,33 +94,6 @@ const bidirectional = {
           );
       };
       draw.on(Enums.InteractionEvents.DRAW_END, onDrawEndHandler);
-
-      map.on(Enums.MapEvents.POINTER_DRAG, (event) => {
-        const handleCoordinate = event.coordinate;
-        const handle = { x: handleCoordinate[0], y: handleCoordinate[1] };
-
-        const draggedFeature =
-          drawingSource.getClosestFeatureToCoordinate(handleCoordinate);
-        const { isLongAxis, isShortAxis } = draggedFeature.getProperties();
-
-        if (isLongAxis) {
-          const shortAxisFeatureId = getShortAxisId(draggedFeature);
-          const shortAxisFeature =
-            drawingSource.getFeatureById(shortAxisFeatureId);
-          updateMarkup(shortAxisFeature, draggedFeature, viewerProperties);
-          moveBidirectionalHandles(handle, draggedFeature, viewerProperties);
-          return;
-        }
-
-        if (isShortAxis) {
-          const longAxisFeatureId = getLongAxisId(draggedFeature);
-          const longAxisFeature =
-            drawingSource.getFeatureById(longAxisFeatureId);
-          updateMarkup(draggedFeature, longAxisFeature, viewerProperties);
-          moveBidirectionalHandles(handle, draggedFeature, viewerProperties);
-          return;
-        }
-      });
     }
   },
   onDrawEnd: () => {},
