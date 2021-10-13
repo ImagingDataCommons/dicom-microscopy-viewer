@@ -1,4 +1,12 @@
-const getShortAxis = (line, imageMetadata = {}) => {
+const getShortAxisCoords = (longAxisFeature, imageMetadata = {}) => {
+  const longAxisGeometry = longAxisFeature.getGeometry();
+  const [startPoints, endPoints] = longAxisGeometry.getCoordinates();
+
+  const line = {
+    start: { x: startPoints[0], y: startPoints[1] },
+    end: { x: endPoints[0], y: endPoints[1] },
+  };
+
   // getPixelSpacing (metadata) from scoord utils (image metadata)
   const getLineVector = (
     columnPixelSpacing,
@@ -59,7 +67,13 @@ const getShortAxis = (line, imageMetadata = {}) => {
   shortAxis.start.y = startY;
   shortAxis.end.x = endX;
   shortAxis.end.y = endY;
-  return shortAxis;
+
+  const shortAxisCoords = [
+    [shortAxis.start.x, shortAxis.start.y],
+    [shortAxis.end.x, shortAxis.end.y],
+  ];
+
+  return shortAxisCoords;
 };
 
-export default getShortAxis;
+export default getShortAxisCoords;

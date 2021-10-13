@@ -897,8 +897,6 @@ class VolumeImageViewer {
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
       pyramid: this[_pyramidMetadata],
-      features: this[_features],
-      drawingLayer: this[_drawingLayer],
       drawingSource: this[_drawingSource]
     })
 

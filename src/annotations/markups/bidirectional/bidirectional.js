@@ -1,30 +1,17 @@
-import LineString from "ol/geom/LineString";
-import Modify from "ol/interaction/Modify";
 import Draw from "ol/interaction/Draw";
-import Feature from "ol/Feature";
 
 import Enums from "../../../enums";
 import moveBidirectionalHandles from "./moveBidirectionalHandles";
-import getShortAxis from "./getShortAxis";
-import { distance } from "./mathUtils";
-import { getFeatureScoord3dLength } from "../../../scoord3dUtils.js";
-import Polygon from "ol/geom/Polygon";
-
-const SHORT_AXIS_ID_PREFIX = "short-axis-";
+import getShortAxisCoords from "./getShortAxisCoords";
+import createAndAddShortAxisFeature from "./createAndAddShortAxisFeature";
+import updateMarkup from "./updateMarkup";
+import { getShortAxisId, getLongAxisId } from "./id";
+import updateLastHandleChanged from "./updateLastHandleChanged";
 
 const bidirectional = {
-  onDrawStart: (
-    event,
-    {
-      features,
-      drawingOptions,
-      pyramid,
-      markupManager,
-      setFeatureStyle,
-      drawingSource,
-      map,
-    }
-  ) => {
+  onDrawStart: (event, viewerProperties) => {
+    const { drawingOptions, drawingSource, map } = viewerProperties;
+
     if (
       drawingOptions.geometryType === Enums.GeometryType.Line &&
       drawingOptions[Enums.InternalProperties.Bidirectional] === true
@@ -35,80 +22,37 @@ const bidirectional = {
 
       const interactions = map.getInteractions();
 
-      const updateMarkupPosition = (shortAxisFeature, longAxisFeature) => {
-        const longAxisGeometry = longAxisFeature.getGeometry();
-        const shortAxisLength = getFeatureScoord3dLength(
-          shortAxisFeature,
-          pyramid
-        );
-        const longAxisLength = getFeatureScoord3dLength(
-          longAxisFeature,
-          pyramid
-        );
-        const L = `L ${longAxisLength.toFixed(2)}`;
-        const W = ` W ${shortAxisLength.toFixed(2)}`;
-        const value = `${L}\n${W}`;
-        markupManager.update({
-          feature: longAxisFeature,
-          value,
-          coordinate: longAxisGeometry.getLastCoordinate(),
-        });
-      };
-      
-      const onFeatureChangeHandler = (event) => {
-        const longAxisGeometry = event.target;
+      const onLongAxisFeatureGeometryChange = (event) => {
+        const shortAxisCoords = getShortAxisCoords(longAxisFeature);
 
-        const [startPoints, endPoints] = longAxisGeometry.getCoordinates();
-        const start = { x: startPoints[0], y: startPoints[1] };
-        const end = { x: endPoints[0], y: endPoints[1] };
-        const shortAxis = getShortAxis({ start, end });
+        const id = getShortAxisId(longAxisFeature);
+        const shortAxisFeature = drawingSource.getFeatureById(id);
 
-        const shortAxisCoordinates = [
-          [shortAxis.start.x, shortAxis.start.y],
-          [shortAxis.end.x, shortAxis.end.y],
-        ];
-
-        const id = SHORT_AXIS_ID_PREFIX + longAxisFeature.getId();
-        const existentShortAxisFeature = features
-          .getArray()
-          .find((f) => f.getId() === id);
-
-        if (existentShortAxisFeature) {
-          const existentShortAxisGeometry =
-            existentShortAxisFeature.getGeometry();
-          existentShortAxisGeometry.setCoordinates(shortAxisCoordinates);
-          updateMarkupPosition(existentShortAxisFeature, longAxisFeature);
+        if (shortAxisFeature) {
+          const shortAxisGeometry = shortAxisFeature.getGeometry();
+          shortAxisGeometry.setCoordinates(shortAxisCoords);
+          updateMarkup(shortAxisFeature, longAxisFeature, viewerProperties);
           return;
         }
 
-        const shortAxisGeometry = new LineString(shortAxisCoordinates);
-        shortAxisGeometry.setCoordinates(shortAxisCoordinates);
-
-        const shortAxisFeature = new Feature({ geometry: shortAxisGeometry });
-        shortAxisFeature.setId(id);
-        shortAxisFeature.setProperties({ isShortAxis: true }, true);
-
-        shortAxisFeature.on(Enums.FeatureGeometryEvents.CHANGE, () => {
-          updateMarkupPosition(shortAxisFeature, longAxisFeature);
-        });
-
-        setFeatureStyle(
-          shortAxisFeature,
-          drawingOptions[Enums.InternalProperties.StyleOptions]
-        );
-
-        features.push(shortAxisFeature);
+        createAndAddShortAxisFeature(longAxisFeature, viewerProperties);
       };
 
       longAxisFeature
         .getGeometry()
-        .on(Enums.FeatureGeometryEvents.CHANGE, onFeatureChangeHandler);
+        .on(
+          Enums.FeatureGeometryEvents.CHANGE,
+          onLongAxisFeatureGeometryChange
+        );
 
       const draw = interactions.getArray().find((i) => i instanceof Draw);
       const onDrawEndHandler = () => {
         longAxisFeature
           .getGeometry()
-          .un(Enums.FeatureGeometryEvents.CHANGE, onFeatureChangeHandler);
+          .un(
+            Enums.FeatureGeometryEvents.CHANGE,
+            onLongAxisFeatureGeometryChange
+          );
       };
       draw.on(Enums.InteractionEvents.DRAW_END, onDrawEndHandler);
 
@@ -116,46 +60,27 @@ const bidirectional = {
         const handleCoordinate = event.coordinate;
         const handle = { x: handleCoordinate[0], y: handleCoordinate[1] };
 
-        const feature =
+        const featureUnderPointer =
           drawingSource.getClosestFeatureToCoordinate(handleCoordinate);
-        const { isLongAxis, isShortAxis } = feature.getProperties();
-        const featureCoords = feature.getGeometry().getCoordinates();
+        const { isLongAxis, isShortAxis } = featureUnderPointer.getProperties();
 
-        const start = {
-          x: featureCoords[0][0],
-          y: featureCoords[0][1],
-        };
-        const end = {
-          x: featureCoords[1][0],
-          y: featureCoords[1][1],
-        };
-
-        const distanceStart = distance(handle, start);
-        const distanceEnd = distance(handle, end);
-        feature.setProperties(
-          {
-            axisHandle: distanceStart < distanceEnd ? "start" : "end",
-          },
-          true
-        );
+        updateLastHandleChanged(featureUnderPointer, handle);
 
         if (isLongAxis) {
-          const shortAxisFeatureId = SHORT_AXIS_ID_PREFIX + feature.getId();
+          const shortAxisFeatureId = getShortAxisId(featureUnderPointer);
           const shortAxisFeature =
             drawingSource.getFeatureById(shortAxisFeatureId);
-            updateMarkupPosition(shortAxisFeature, feature);
-          moveBidirectionalHandles(handle, feature, shortAxisFeature, feature);
+          updateMarkup(shortAxisFeature, featureUnderPointer, viewerProperties);
+          moveBidirectionalHandles(handle, featureUnderPointer, viewerProperties);
           return;
         }
 
         if (isShortAxis) {
-          const longAxisFeatureId = feature
-            .getId()
-            .split(SHORT_AXIS_ID_PREFIX)[1];
+          const longAxisFeatureId = getLongAxisId(featureUnderPointer);
           const longAxisFeature =
             drawingSource.getFeatureById(longAxisFeatureId);
-            updateMarkupPosition(feature, longAxisFeature);
-          moveBidirectionalHandles(handle, longAxisFeature, feature, feature);
+          updateMarkup(featureUnderPointer, longAxisFeature, viewerProperties);
+          moveBidirectionalHandles(handle, featureUnderPointer, viewerProperties);
           return;
         }
       });
@@ -165,7 +90,7 @@ const bidirectional = {
   onRemove: (feature, { drawingSource, features }) => {
     const { isLongAxis } = feature.getProperties();
     if (isLongAxis) {
-      const shortAxisFeatureId = SHORT_AXIS_ID_PREFIX + feature.getId();
+      const shortAxisFeatureId = getShortAxisId(feature);
       const shortAxisFeature = drawingSource.getFeatureById(shortAxisFeatureId);
       features.remove(shortAxisFeature);
     }

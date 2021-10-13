@@ -1,3 +1,4 @@
+import { getLongAxisId, getShortAxisId } from "./id";
 import { distance, intersectLine } from "./mathUtils";
 import moveLongAxisEndHandle from "./moveLongAxisEndHandle";
 import moveLongAxisStartHandle from "./moveLongAxisStartHandle";
@@ -6,14 +7,31 @@ import moveShortAxisStartHandle from "./moveShortAxisStartHandle";
 
 export default function (
   handle = { x: 0, y: 0 },
-  longAxisFeature,
-  shortAxisFeature,
-  currentFeature
+  currentFeature,
+  viewerProperties
 ) {
+  const { drawingSource } = viewerProperties;
+
   let outOfBounds;
   let intersection;
   let d1;
   let d2;
+
+  const { isShortAxis, isLongAxis, axisHandle } =
+    currentFeature.getProperties();
+
+  let longAxisFeature;
+  let shortAxisFeature;
+
+  if (isShortAxis) {
+    shortAxisFeature = currentFeature;
+    const longAxisFeatureId = getLongAxisId(currentFeature);
+    longAxisFeature = drawingSource.getFeatureById(longAxisFeatureId);
+  } else if (isLongAxis) {
+    longAxisFeature = currentFeature;
+    const shortAxisFeatureId = getShortAxisId(currentFeature);
+    shortAxisFeature = drawingSource.getFeatureById(shortAxisFeatureId);
+  }
 
   const longAxisGeometry = longAxisFeature.getGeometry();
   const shortAxisGeometry = shortAxisFeature.getGeometry();
@@ -21,23 +39,15 @@ export default function (
   const longAxisCoords = longAxisGeometry.getCoordinates();
   const shortAxisCoords = shortAxisGeometry.getCoordinates();
 
-  const currentFeatureProperties = currentFeature.getProperties();
-
   let isShortAxisStartHandleChange =
-    currentFeatureProperties.isShortAxis === true &&
-    currentFeatureProperties.axisHandle === "start";
+    isShortAxis === true && axisHandle === "start";
 
-  let isShortAxisEndHandleChange =
-    currentFeatureProperties.isShortAxis === true &&
-    currentFeatureProperties.axisHandle === "end";
+  let isShortAxisEndHandleChange = isShortAxis === true && axisHandle === "end";
 
   let isLongAxisStartHandleChange =
-    currentFeatureProperties.isLongAxis === true &&
-    currentFeatureProperties.axisHandle === "start";
+    isLongAxis === true && axisHandle === "start";
 
-  let isLongAxisEndHandleChange =
-    currentFeatureProperties.isLongAxis === true &&
-    currentFeatureProperties.axisHandle === "end";
+  let isLongAxisEndHandleChange = isLongAxis === true && axisHandle === "end";
 
   const longAxis = {};
   const shortAxis = {};

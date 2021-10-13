@@ -26,7 +26,7 @@ import {
 const { Marker, Markup } = Enums;
 
 class _AnnotationManager {
-  constructor({ map, features, pyramid, drawingSource } = {}) {
+  constructor({ map, pyramid, drawingSource } = {}) {
     const markupManager = new _MarkupManager({
       map,
       pyramid,
@@ -41,7 +41,6 @@ class _AnnotationManager {
       map,
       pyramid,
       markupManager,
-      features,
       drawingSource
     };
 
