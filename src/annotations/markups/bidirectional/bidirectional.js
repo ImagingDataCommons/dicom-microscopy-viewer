@@ -6,16 +6,16 @@ import getShortAxisCoords from "./getShortAxisCoords";
 import createAndAddShortAxisFeature from "./createAndAddShortAxisFeature";
 import updateMarkup from "./updateMarkup";
 import { getShortAxisId, getLongAxisId } from "./id";
-import updateLastHandleChanged from "./updateLastHandleChanged";
+
+const isDrawingBidirectional = (drawingOptions) =>
+  drawingOptions.geometryType === Enums.GeometryType.Line &&
+  drawingOptions[Enums.InternalProperties.Bidirectional] === true;
 
 const bidirectional = {
   onDrawStart: (event, viewerProperties) => {
     const { drawingOptions, drawingSource, map } = viewerProperties;
 
-    if (
-      drawingOptions.geometryType === Enums.GeometryType.Line &&
-      drawingOptions[Enums.InternalProperties.Bidirectional] === true
-    ) {
+    if (isDrawingBidirectional(drawingOptions)) {
       const longAxisFeature = event.feature;
 
       longAxisFeature.setProperties({ isLongAxis: true }, true);
@@ -60,27 +60,25 @@ const bidirectional = {
         const handleCoordinate = event.coordinate;
         const handle = { x: handleCoordinate[0], y: handleCoordinate[1] };
 
-        const featureUnderPointer =
+        const draggedFeature =
           drawingSource.getClosestFeatureToCoordinate(handleCoordinate);
-        const { isLongAxis, isShortAxis } = featureUnderPointer.getProperties();
-
-        updateLastHandleChanged(featureUnderPointer, handle);
+        const { isLongAxis, isShortAxis } = draggedFeature.getProperties();
 
         if (isLongAxis) {
-          const shortAxisFeatureId = getShortAxisId(featureUnderPointer);
+          const shortAxisFeatureId = getShortAxisId(draggedFeature);
           const shortAxisFeature =
             drawingSource.getFeatureById(shortAxisFeatureId);
-          updateMarkup(shortAxisFeature, featureUnderPointer, viewerProperties);
-          moveBidirectionalHandles(handle, featureUnderPointer, viewerProperties);
+          updateMarkup(shortAxisFeature, draggedFeature, viewerProperties);
+          moveBidirectionalHandles(handle, draggedFeature, viewerProperties);
           return;
         }
 
         if (isShortAxis) {
-          const longAxisFeatureId = getLongAxisId(featureUnderPointer);
+          const longAxisFeatureId = getLongAxisId(draggedFeature);
           const longAxisFeature =
             drawingSource.getFeatureById(longAxisFeatureId);
-          updateMarkup(featureUnderPointer, longAxisFeature, viewerProperties);
-          moveBidirectionalHandles(handle, featureUnderPointer, viewerProperties);
+          updateMarkup(draggedFeature, longAxisFeature, viewerProperties);
+          moveBidirectionalHandles(handle, draggedFeature, viewerProperties);
           return;
         }
       });

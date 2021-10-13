@@ -1,3 +1,4 @@
+import getDraggedHandleIndex from "./getDraggedHandleIndex";
 import { getLongAxisId, getShortAxisId } from "./id";
 import { distance, intersectLine } from "./mathUtils";
 import moveLongAxisEndHandle from "./moveLongAxisEndHandle";
@@ -17,8 +18,7 @@ export default function (
   let d1;
   let d2;
 
-  const { isShortAxis, isLongAxis, axisHandle } =
-    currentFeature.getProperties();
+  const { isShortAxis, isLongAxis } = currentFeature.getProperties();
 
   let longAxisFeature;
   let shortAxisFeature;
@@ -39,15 +39,12 @@ export default function (
   const longAxisCoords = longAxisGeometry.getCoordinates();
   const shortAxisCoords = shortAxisGeometry.getCoordinates();
 
-  let isShortAxisStartHandleChange =
-    isShortAxis === true && axisHandle === "start";
+  const draggedHandleIndex = getDraggedHandleIndex(currentFeature, handle);
 
-  let isShortAxisEndHandleChange = isShortAxis === true && axisHandle === "end";
-
-  let isLongAxisStartHandleChange =
-    isLongAxis === true && axisHandle === "start";
-
-  let isLongAxisEndHandleChange = isLongAxis === true && axisHandle === "end";
+  let isShortAxisStartHandleChange = draggedHandleIndex === 1;
+  let isShortAxisEndHandleChange = draggedHandleIndex === 2;
+  let isLongAxisStartHandleChange = draggedHandleIndex === 3;
+  let isLongAxisEndHandleChange = draggedHandleIndex === 4;
 
   const longAxis = {};
   const shortAxis = {};
@@ -67,32 +64,20 @@ export default function (
   const bidirectional = { start, end, shortAxisEnd, shortAxisStart };
 
   if (isLongAxisStartHandleChange) {
-    console.debug("long start");
     moveLongAxisStartHandle(handle, shortAxisGeometry, longAxisGeometry);
   } else if (isLongAxisEndHandleChange) {
-    console.debug("long end");
     moveLongAxisEndHandle(handle, shortAxisGeometry, longAxisGeometry);
   } else if (isShortAxisStartHandleChange) {
-    console.debug("short start");
     outOfBounds = false;
 
-    longAxis.start = {
-      x: bidirectional.start.x,
-      y: bidirectional.start.y,
-    };
-    longAxis.end = {
-      x: bidirectional.end.x,
-      y: bidirectional.end.y,
-    };
+    longAxis.start = { x: bidirectional.start.x, y: bidirectional.start.y };
+    longAxis.end = { x: bidirectional.end.x, y: bidirectional.end.y };
 
     shortAxis.start = {
       x: bidirectional.shortAxisEnd.x,
       y: bidirectional.shortAxisEnd.y,
     };
-    shortAxis.end = {
-      x: handle.x,
-      y: handle.y,
-    };
+    shortAxis.end = { x: handle.x, y: handle.y };
 
     intersection = intersectLine(longAxis, shortAxis);
     if (!intersection) {
@@ -115,26 +100,16 @@ export default function (
       moveShortAxisStartHandle(handle, shortAxisGeometry, longAxisGeometry);
     }
   } else if (isShortAxisEndHandleChange) {
-    console.debug("short end");
     outOfBounds = false;
 
-    longAxis.start = {
-      x: bidirectional.start.x,
-      y: bidirectional.start.y,
-    };
-    longAxis.end = {
-      x: bidirectional.end.x,
-      y: bidirectional.end.y,
-    };
+    longAxis.start = { x: bidirectional.start.x, y: bidirectional.start.y };
+    longAxis.end = { x: bidirectional.end.x, y: bidirectional.end.y };
 
     shortAxis.start = {
       x: bidirectional.shortAxisStart.x,
       y: bidirectional.shortAxisStart.y,
     };
-    shortAxis.end = {
-      x: handle.x,
-      y: handle.y,
-    };
+    shortAxis.end = { x: handle.x, y: handle.y };
 
     intersection = intersectLine(longAxis, shortAxis);
     if (!intersection) {
