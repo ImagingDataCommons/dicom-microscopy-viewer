@@ -629,8 +629,8 @@ class _Channel {
       ...new Set(physicalSizes.map(v => v.toString()))
     ].map(v => v.split(','))
     if (uniquePhysicalSizes.length > 1) {
-      throw new Error(
-        'Images of the image pyramid have different sizes (in millimeter): ',
+      console.warn(
+        'images of the image pyramid have different sizes (in millimeter): ',
         physicalSizes
       )
     }
