@@ -22,10 +22,11 @@ import { areCodedConceptsEqual, getContentItemNameCodedConcept } from '../utils'
 const { Marker, Markup } = Enums
 
 class _AnnotationManager {
-  constructor ({ map, pyramid } = {}) {
+  constructor ({ map, pyramid, drawingSource } = {}) {
     const markupManager = new _MarkupManager({
       map,
       pyramid,
+      drawingSource,
       formatters: {
         [Marker.Arrow]: arrowFormat,
         [Markup.Measurement]: measurementFormat,
@@ -119,6 +120,16 @@ class _AnnotationManager {
    */
   setVisible (isVisible) {
     this.props.markupManager.setVisible(isVisible)
+  }
+
+  /**
+   * Set markup visibility.
+   *
+   * @param {string} id The markup id
+   * @param {boolean} isVisible The markup visibility
+   */
+  setMarkupVisibility (id, isVisible) { 
+    this.props.markupManager.setVisibility(id, isVisible)
   }
 
   onAdd (feature) {

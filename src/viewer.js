@@ -894,7 +894,8 @@ class VolumeImageViewer {
 
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
-      pyramid: this[_pyramidMetadata]
+      pyramid: this[_pyramidMetadata],
+      drawingSource: this[_drawingSource]
     })
 
     // This updates the tiles offscreen rendering when zoom is applied to the view.
@@ -2124,6 +2125,8 @@ class VolumeImageViewer {
       const id = feature.getId()
       if (id === uid) {
         _setFeatureStyle(feature, styleOptions)
+        const isVisible = Object.keys(styleOptions).length !== 0
+        this[_annotationManager].setMarkupVisibility(id, isVisible)
       }
     })
   }
