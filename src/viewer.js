@@ -826,7 +826,9 @@ class VolumeImageViewer {
       rotation: this[_rotation],
       zoom: 0,
       minZoom: 0,
-      maxZoom: 0
+      maxZoom: 0,
+      constrainOnlyCenter: true,
+      center: getCenter(this[_referenceExtents])
     })
 
     this[_overviewMap] = new OverviewMap({
