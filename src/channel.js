@@ -603,8 +603,8 @@ class _Channel {
       imagePixelSpacings.push(pixelSpacing)
 
       physicalSizes.push([
-        (totalPixelMatrixColumns * pixelSpacing[0]).toFixed(4),
-        (totalPixelMatrixRows * pixelSpacing[1]).toFixed(4)
+        (totalPixelMatrixColumns * pixelSpacing[1]).toFixed(4),
+        (totalPixelMatrixRows * pixelSpacing[0]).toFixed(4)
       ])
       /*
       * Compute the resolution at each pyramid level, since the zoom
@@ -629,8 +629,8 @@ class _Channel {
       ...new Set(physicalSizes.map(v => v.toString()))
     ].map(v => v.split(','))
     if (uniquePhysicalSizes.length > 1) {
-      console.warn(
-        'images of the image pyramid have different sizes (in millimeter): ',
+      throw new Error(
+        'Images of the image pyramid have different sizes (in millimeter): ',
         physicalSizes
       )
     }
