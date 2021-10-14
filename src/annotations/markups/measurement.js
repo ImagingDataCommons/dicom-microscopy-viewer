@@ -5,6 +5,7 @@ import {
   getFeatureScoord3dLength,
 } from "../../scoord3dUtils.js";
 import bidirectional from "./bidirectional/bidirectional";
+import ellipse from "./ellipse";
 
 /**
  * Format measure output.
@@ -69,12 +70,18 @@ const MeasurementMarkup = (viewerProperties) => {
         const featureId = feature.getId();
         markupManager.remove(featureId);
         bidirectional.onRemove(feature, viewerProperties);
+        ellipse.onRemove(feature, viewerProperties);
       }
     },
     onDrawStart: (event, drawingOptions, setFeatureStyle) => {
       const { feature } = event;
       if (_isMeasurement(feature)) {
         markupManager.create({ feature });
+        ellipse.onDrawStart(event, {
+          setFeatureStyle,
+          drawingOptions,
+          ...viewerProperties,
+        });
         bidirectional.onDrawStart(event, {
           setFeatureStyle,
           drawingOptions,
@@ -85,6 +92,11 @@ const MeasurementMarkup = (viewerProperties) => {
     onUpdate: (feature) => {},
     onDrawEnd: (event, drawingOptions, setFeatureStyle) => {
       bidirectional.onDrawEnd(event, {
+        drawingOptions,
+        setFeatureStyle,
+        ...viewerProperties,
+      });
+      ellipse.onDrawEnd(event, {
         drawingOptions,
         setFeatureStyle,
         ...viewerProperties,

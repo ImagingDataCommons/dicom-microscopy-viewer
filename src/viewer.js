@@ -30,6 +30,8 @@ import VectorLayer from 'ol/layer/Vector'
 import View from 'ol/View'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
+import { fromCircle } from "ol/geom/Polygon";
+import CircleGeometry from "ol/geom/Circle";
 
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
@@ -863,6 +865,7 @@ class VolumeImageViewer {
       draw: undefined,
       select: undefined,
       translate: undefined,
+      transform: undefined,
       modify: undefined,
       snap: undefined,
       dragPan: defaultInteractions.find((i) => i instanceof DragPan)
@@ -1500,6 +1503,25 @@ class VolumeImageViewer {
         type: 'Circle',
         geometryName: 'Circle'
       },
+      ellipse: {
+        type: 'Circle',
+        geometryFunction: (coordinates, geometry) => {
+          var center = coordinates[0];
+          var last = coordinates[1];
+          var dx = center[0] - last[0];
+          var dy = center[1] - last[1];
+          var radius = Math.sqrt(dx * dx + dy * dy);
+          var circle = new CircleGeometry(center, radius);
+          var polygon = fromCircle(circle, 64);
+          polygon.scale(dx / radius, dy / radius);
+          if (!geometry) {
+            geometry = polygon;
+          } else {
+            geometry.setCoordinates(polygon.getCoordinates());
+          }
+          return geometry;
+        }
+      },
       box: {
         type: 'Circle',
         geometryName: 'Box',
@@ -1913,6 +1935,33 @@ class VolumeImageViewer {
   }
 
   /**
+   * Activates transform interaction.
+   *
+   * @param {Object} options - Transform options.
+   */
+  activateTransformInteraction (options = {}) {
+    this.deactivateTransformInteraction()
+    console.info('activate "transform" interaction')
+    this[_interactions].transform = new ol.interaction.Transform({
+      features: this[_features],
+      layers: [this[_imageLayer]]
+    })
+  }
+  
+  /**
+   * Deactivates transform interaction.
+   *
+   * @returns {void}
+   */
+  deactivateTransformInteraction () {
+    console.info('deactivate "transform" interaction')
+    if (this[_interactions].transform) {
+      this[_map].removeInteraction(this[_interactions].transform)
+      this[_interactions].transform = undefined
+    }
+  }
+
+  /**
    * Whether select interaction is active.
    *
    * @return {boolean}
@@ -2145,6 +2194,11 @@ class VolumeImageViewer {
       const id = feature.getId()
       if (id === uid) {
         _setFeatureStyle(feature, styleOptions)
+        if (Object.keys(styleOptions).length === 0) {
+          this[_annotationManager].setVisibility(id, false)
+        } else {
+          this[_annotationManager].setVisibility(id, true)
+        }
       }
     })
   }

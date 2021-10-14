@@ -30,6 +30,7 @@ class _AnnotationManager {
     const markupManager = new _MarkupManager({
       map,
       pyramid,
+      drawingSource,
       formatters: {
         [Marker.Arrow]: arrowFormat,
         [Markup.Measurement]: measurementFormat,
@@ -41,7 +42,7 @@ class _AnnotationManager {
       map,
       pyramid,
       markupManager,
-      drawingSource
+      drawingSource,
     };
 
     /** Markups */
@@ -127,6 +128,16 @@ class _AnnotationManager {
    */
   setVisible(isVisible) {
     this.props.markupManager.setVisible(isVisible);
+  }
+
+  /**
+   * Toggle markup visibility.
+   * 
+   * @param {string} id
+   * @param {boolean} isVisible
+   */
+   setVisibility(id, isVisible) {
+    this.props.markupManager.setVisibility(id, isVisible);
   }
 
   onAdd(feature) {

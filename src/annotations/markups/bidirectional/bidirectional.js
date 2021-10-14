@@ -31,6 +31,10 @@ const bidirectional = {
           drawingSource.getClosestFeatureToCoordinate(handleCoordinate);
       }
 
+      if (!draggedFeature) {
+        return;
+      }
+
       const { isLongAxis, isShortAxis } = draggedFeature.getProperties();
 
       if (isLongAxis) {
