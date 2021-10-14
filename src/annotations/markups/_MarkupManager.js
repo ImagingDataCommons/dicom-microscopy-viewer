@@ -15,10 +15,11 @@ import { coordinateWithOffset } from '../../scoord3dUtils'
 import defaultStyles from '../styles'
 
 class _MarkupManager {
-  constructor ({ map, pyramid, formatters, onClick, onStyle } = {}) {
+  constructor ({ map, pyramid, drawingSource, formatters, onClick, onStyle } = {}) {
     this._map = map
     this._pyramid = pyramid
     this._formatters = formatters
+    this._drawingSource = drawingSource;
 
     this.onClick = onClick
     this.onStyle = onStyle
@@ -108,6 +109,34 @@ class _MarkupManager {
     }
 
     return id
+  }
+
+  /**
+   * Set markup visibility.
+   *
+   * @param {string} id The markup id
+   * @param {boolean} isVisible The markup visibility
+   */
+  setVisibility (id, isVisible) {
+    const markup = this.get(id)
+    if (!markup) {
+      return;
+    }
+
+    const links = this._links.getArray()
+    const link = links.find((feature) => feature.getId() === id)
+
+    const feature = this._drawingSource.getFeatureById(id);
+
+    if (!isVisible) {
+      this._map.removeOverlay(markup.overlay)
+      this._links.remove(link)
+    } else {
+      this._map.addOverlay(markup.overlay)
+      this._drawLink(feature)
+    }
+
+    return isVisible
   }
 
   /**
