@@ -2085,6 +2085,8 @@ class VolumeImageViewer {
     this[_features].push(feature)
 
     _setFeatureStyle(feature, styleOptions)
+    const isVisible = Object.keys(styleOptions).length !== 0
+    this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
   }
 
   /**
