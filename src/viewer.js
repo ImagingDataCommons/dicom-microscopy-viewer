@@ -167,6 +167,37 @@ function _getRotation (metadata) {
   return angle + correction
 }
 
+/** Determine size of browser window.
+ *
+ * @return {number[]} Width and height of the window
+ */
+function _getWindowSize () {
+  let width = 0
+  let height = 0
+  if (typeof window.innerWidth === 'number') {
+    // Non-IE
+    width = window.innerWidth
+    height = window.innerHeight
+  } else if (
+    document.documentElement && (
+      document.documentElement.clientWidth || document.documentElement.clientHeight
+    )
+  ) {
+    // IE 6+ in 'standards compliant mode'
+    width = document.documentElement.clientWidth
+    height = document.documentElement.clientHeight
+  } else if (
+    document.body && (
+      document.body.clientWidth || document.body.clientHeight
+    )
+  ) {
+    // IE 4 compatible
+    width = document.body.clientWidth
+    height = document.body.clientHeight
+  }
+  return [width, height]
+}
+
 /** Map style options to OpenLayers style.
  *
  * @param {object} styleOptions - Style options
@@ -1425,19 +1456,22 @@ class VolumeImageViewer {
     )
     overviewmapElement.style.border = '1px solid black'
     // Try to fit the overview map into the target control overlay container
-    const resizeFactor = 300
-    let width = Math.abs(this[_referenceExtents][1]) / resizeFactor
-    let height = Math.abs(this[_referenceExtents][2]) / resizeFactor
-    if (width > 400 || height > 400) {
-      width /= 2
-      height /= 2
+    const height = Math.abs(this[_referenceExtents][1])
+    const width = Math.abs(this[_referenceExtents][2])
+    const rotation = this[_rotation] / Math.PI * 180
+    const windowSize = _getWindowSize()
+    const targetHeight = Math.ceil(windowSize[1] * 0.2)
+    let resizeFactor
+    let targetWidth
+    if (rotation === 180 || rotation === 0) {
+      resizeFactor = targetHeight / height
+      targetWidth = width * resizeFactor
+    } else {
+      resizeFactor = targetHeight / width
+      targetWidth = height * resizeFactor
     }
-    if (width < 150 || height < 150) {
-      width *= 1.5
-      height *= 1.5
-    }
-    overviewmapElement.style.width = `${width}px`
-    overviewmapElement.style.height = `${height}px`
+    overviewmapElement.style.width = `${targetWidth}px`
+    overviewmapElement.style.height = `${targetHeight}px`
 
     const container = this[_map].getTargetElement()
 
