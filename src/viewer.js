@@ -67,7 +67,6 @@ import {
 import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
-import LineString from 'ol/geom/LineString'
 
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
@@ -865,7 +864,6 @@ class VolumeImageViewer {
       draw: undefined,
       select: undefined,
       translate: undefined,
-      transform: undefined,
       modify: undefined,
       snap: undefined,
       dragPan: defaultInteractions.find((i) => i instanceof DragPan)
@@ -1505,14 +1503,16 @@ class VolumeImageViewer {
       },
       ellipse: {
         type: 'Circle',
+        geometryName: 'Ellipse',
         geometryFunction: (coordinates, geometry) => {
-          var center = coordinates[0];
-          var last = coordinates[1];
-          var dx = center[0] - last[0];
-          var dy = center[1] - last[1];
-          var radius = Math.sqrt(dx * dx + dy * dy);
-          var circle = new CircleGeometry(center, radius);
-          var polygon = fromCircle(circle, 64);
+          const center = coordinates[0];
+          const last = coordinates[1];
+          const dx = center[0] - last[0];
+          const dy = center[1] - last[1];
+          let radius = Math.sqrt(dx * dx + dy * dy);
+          radius = radius > 0 ? radius : Number.MIN_SAFE_INTEGER
+          const circle = new CircleGeometry(center, radius);
+          const polygon = fromCircle(circle, 64);
           polygon.scale(dx / radius, dy / radius);
           if (!geometry) {
             geometry = polygon;
@@ -1931,33 +1931,6 @@ class VolumeImageViewer {
     if (this[_interactions].snap) {
       this[_map].removeInteraction(this[_interactions].snap)
       this[_interactions].snap = undefined
-    }
-  }
-
-  /**
-   * Activates transform interaction.
-   *
-   * @param {Object} options - Transform options.
-   */
-  activateTransformInteraction (options = {}) {
-    this.deactivateTransformInteraction()
-    console.info('activate "transform" interaction')
-    this[_interactions].transform = new ol.interaction.Transform({
-      features: this[_features],
-      layers: [this[_imageLayer]]
-    })
-  }
-  
-  /**
-   * Deactivates transform interaction.
-   *
-   * @returns {void}
-   */
-  deactivateTransformInteraction () {
-    console.info('deactivate "transform" interaction')
-    if (this[_interactions].transform) {
-      this[_map].removeInteraction(this[_interactions].transform)
-      this[_interactions].transform = undefined
     }
   }
 

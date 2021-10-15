@@ -47,6 +47,7 @@ const MeasurementMarkup = (viewerProperties) => {
   return {
     onInit: () => {
       bidirectional.onInit(viewerProperties);
+      ellipse.onInit(viewerProperties);
     },
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {

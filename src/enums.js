@@ -6,8 +6,7 @@ export const InternalProperties = {
   Measurements: "measurements",
   Evaluations: "evaluations",
   PresentationState: "presentationState",
-  Bidirectional: "bidirectional",
-  Ellipse: "ellipse",
+  Bidirectional: "bidirectional"
 };
 
 export const Marker = {
@@ -22,6 +21,7 @@ export const Markup = {
 export const GeometryType = {
   Line: "line",
   Circle: "circle",
+  Ellipse: "ellipse",
 };
 
 export const FeatureEvents = {
