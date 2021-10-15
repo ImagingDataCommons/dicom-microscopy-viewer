@@ -737,7 +737,8 @@ class VolumeImageViewer {
       resolutions: this[_tileGrid].getResolutions(),
       rotation: this[_rotation],
       smoothResolutionConstraint: true,
-      showFullExtent: true
+      showFullExtent: true,
+      extent: this[_referenceExtents]
     })
 
     // Create a rendering engine object for offscreen rendering
@@ -846,7 +847,7 @@ class VolumeImageViewer {
       keyboardEventTarget: document
     })
 
-    view.fit(this[_projection].getExtent(), this[_map].getSize())
+    view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
 
     /**
      * OpenLayer's map has default active interactions
@@ -1391,7 +1392,7 @@ class VolumeImageViewer {
     this[_map].setTarget(options.container)
     const view = this[_map].getView()
     const projection = view.getProjection()
-    view.fit(projection.getExtent(), this[_map].getSize())
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
 
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")
     const scaleElement = this[_controls].scale.element
@@ -1417,6 +1418,26 @@ class VolumeImageViewer {
     scaleInnerElement.style.borderBottomColor = 'black'
     scaleInnerElement.style.margin = '1px'
     scaleInnerElement.style.willChange = 'contents,width'
+
+    const overviewElement = this[_overviewMap].element
+    const overviewmapElement = Object.values(overviewElement.children).find(
+      c => c.className === 'ol-overviewmap-map'
+    )
+    overviewmapElement.style.border = '1px solid black'
+    // Try to fit the overview map into the target control overlay container
+    const resizeFactor = 300
+    let width = Math.abs(this[_referenceExtents][1]) / resizeFactor
+    let height = Math.abs(this[_referenceExtents][2]) / resizeFactor
+    if (width > 400 || height > 400) {
+      width /= 2
+      height /= 2
+    }
+    if (width < 150 || height < 150) {
+      width *= 1.5
+      height *= 1.5
+    }
+    overviewmapElement.style.width = `${width}px`
+    overviewmapElement.style.height = `${height}px`
 
     const container = this[_map].getTargetElement()
 
@@ -1724,6 +1745,10 @@ class VolumeImageViewer {
       return
     }
     this[_map].addControl(this[_overviewMap])
+    const map = this[_overviewMap].getOverviewMap()
+    const view = map.getView()
+    const projection = view.getProjection()
+    view.fit(projection.getExtent(), { size: map.getSize() })
   }
 
   /**
@@ -2314,7 +2339,8 @@ class _NonVolumeImageViewer {
     const view = new View({
       center: getCenter(extent),
       rotation: rotation,
-      projection: projection
+      projection: projection,
+      extent: extent
     })
 
     // Creates the map with the defined layers and view and renders it.
@@ -2325,7 +2351,7 @@ class _NonVolumeImageViewer {
       keyboardEventTarget: document
     })
 
-    view.fit(projection.getExtent(), this[_map].getSize())
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
   }
 
   /** Renders the image in the specified viewport container.
@@ -2339,7 +2365,7 @@ class _NonVolumeImageViewer {
     this[_map].setTarget(options.container)
     const view = this[_map].getView()
     const projection = view.getProjection()
-    view.fit(projection.getExtent(), this[_map].getSize())
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
 
     this[_map].getInteractions().forEach((interaction) => {
       this[_map].removeInteraction(interaction)
