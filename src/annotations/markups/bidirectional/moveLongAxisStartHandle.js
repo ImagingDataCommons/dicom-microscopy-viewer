@@ -41,8 +41,6 @@ export default function (handle, shortAxisGeometry, longAxisGeometry, event) {
     return false;
   }
 
-  console.debug('Valid');
-
   const distanceFromShortAxisP1 = distance(shortAxis.start, intersection);
   const distanceFromShortAxisP2 = distance(shortAxis.end, intersection);
 

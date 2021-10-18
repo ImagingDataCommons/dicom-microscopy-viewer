@@ -130,16 +130,6 @@ class _AnnotationManager {
     this.props.markupManager.setVisible(isVisible);
   }
 
-  /**
-   * Toggle markup visibility.
-   * 
-   * @param {string} id
-   * @param {boolean} isVisible
-   */
-   setVisibility(id, isVisible) {
-    this.props.markupManager.setVisibility(id, isVisible);
-  }
-
   onAdd(feature) {
     /**
      * Add properties to ROI feature before triggering

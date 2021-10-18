@@ -103,7 +103,7 @@ const MeasurementMarkup = (viewerProperties) => {
         ...viewerProperties,
       });
     },
-    onDrawAbort: ({ feature }) => {},
+    onDrawAbort: ({ feature }) => {}
   };
 };
 

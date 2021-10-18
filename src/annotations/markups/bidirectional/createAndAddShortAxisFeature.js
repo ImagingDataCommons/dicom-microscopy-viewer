@@ -27,6 +27,8 @@ const createAndAddShortAxisFeature = (longAxisFeature, viewerProperties) => {
     drawingOptions[Enums.InternalProperties.StyleOptions]
   );
 
+  longAxisFeature.setProperties({ subFeatures: [feature] }, true);
+
   drawingSource.addFeature(feature);
 };
 

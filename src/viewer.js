@@ -1422,6 +1422,10 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement()
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+      const featureProperties = e.feature.getProperties()
+      if (featureProperties.isShortAxis) {
+        return;
+      }
       publish(
         container,
         EVENT.ROI_ADDED,
@@ -2167,11 +2171,9 @@ class VolumeImageViewer {
       const id = feature.getId()
       if (id === uid) {
         _setFeatureStyle(feature, styleOptions)
-        if (Object.keys(styleOptions).length === 0) {
-          this[_annotationManager].setVisibility(id, false)
-        } else {
-          this[_annotationManager].setVisibility(id, true)
-        }
+        feature.get('subFeatures').forEach(feature => {
+          _setFeatureStyle(feature, styleOptions)
+        });
       }
     })
   }

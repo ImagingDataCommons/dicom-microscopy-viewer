@@ -69,7 +69,7 @@ const ellipse = {
       event.feature.setProperties({ isEllipse: true }, true);
     }
   },
-  onRemove: (feature, { drawingSource, features }) => {},
+  onRemove: (feature, { drawingSource, features }) => {}
 };
 
 export default ellipse;

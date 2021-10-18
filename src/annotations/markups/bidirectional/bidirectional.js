@@ -130,6 +130,17 @@ const bidirectional = {
       features.remove(shortAxisFeature);
     }
   },
+  getSubFeatures: (feature, viewerProperties) => {
+    const { drawingSource } = viewerProperties; 
+    let subFeatures = [];
+    const { isLongAxis } = feature.getProperties();
+    if (isLongAxis) {
+      const shortAxisFeatureId = getShortAxisId(feature);
+      const shortAxisFeature = drawingSource.getFeatureById(shortAxisFeatureId);
+      subFeatures.push(shortAxisFeature);
+    }
+    subFeatures;
+  },
 };
 
 export default bidirectional;
