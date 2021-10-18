@@ -1,8 +1,6 @@
 import { distance, intersectLine } from "./mathUtils";
 
-let lastValidCoords;
-
-export default function (handle, shortAxisGeometry, longAxisGeometry) {
+export default function (handle, shortAxisGeometry, longAxisGeometry, event) {
   const shortAxisCoords = shortAxisGeometry.getCoordinates();
   const longAxisCoords = longAxisGeometry.getCoordinates();
 
@@ -27,11 +25,14 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
     },
   };
 
-  const intersection = intersectLine(longAxis, shortAxis);
-  if (!intersection) {
-    longAxisGeometry.setCoordinates(lastValidCoords);
+  const invisibleLine = { start: longAxis.start, end: handle };
+  let pointIntersection = intersectLine(shortAxis, invisibleLine);
+  if (!pointIntersection) {
+    event.stopPropagation();
     return false;
   }
+
+  const intersection = intersectLine(longAxis, shortAxis);
 
   const distanceToLineP2 = distance(longAxis.start, intersection);
   const newLineLength = distance(longAxis.start, handle);
@@ -40,9 +41,7 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
     return false;
   }
 
-  lastValidCoords = longAxisCoords;
-
-  console.debug('Valid');
+  console.debug("Valid");
 
   const distanceFromShortAxisP1 = distance(shortAxis.start, intersection);
   const distanceFromShortAxisP2 = distance(shortAxis.end, intersection);

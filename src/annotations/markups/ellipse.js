@@ -12,7 +12,6 @@ const isDrawingEllipse = (drawingOptions) =>
 const ellipse = {
   onInit: (viewerProperties) => {
     const { map, drawingSource, markupManager, pyramid } = viewerProperties;
-
     /**
      * This is used to avoid changing features while
      * dragging because of getClosestFeatureToCoordinate call
@@ -32,6 +31,11 @@ const ellipse = {
         return;
       }
 
+      const { isEllipse } = draggedFeature.getProperties();
+      if (!isEllipse) {
+        return;
+      }
+
       let ellipseGeometry = draggedFeature.getGeometry();
       const fakeCenter = getCenter(ellipseGeometry.getExtent());
       const fakeRadius = getWidth(ellipseGeometry.getExtent()) / 2;
@@ -48,11 +52,10 @@ const ellipse = {
 
       const view = map.getView();
       const units = getUnitSuffix(view);
-      const area = getFeatureScoord3dArea(draggedFeature, pyramid)
-      const value = `${area.toFixed(2)} ${units}²`;
+      const area = getFeatureScoord3dArea(draggedFeature, pyramid);
       markupManager.update({
         feature: draggedFeature,
-        value,
+        value: `${area.toFixed(2)} ${units}²`,
         coordinate: polygon.getLastCoordinate(),
       });
 
@@ -60,7 +63,12 @@ const ellipse = {
     });
   },
   onDrawEnd: (event, viewerProperties) => {},
-  onDrawStart: () => {},
+  onDrawStart: (event, viewerProperties) => {
+    const { drawingOptions } = viewerProperties;
+    if (isDrawingEllipse(drawingOptions)) {
+      event.feature.setProperties({ isEllipse: true }, true);
+    }
+  },
   onRemove: (feature, { drawingSource, features }) => {},
 };
 

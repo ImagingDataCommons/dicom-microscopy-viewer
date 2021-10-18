@@ -6,6 +6,7 @@ import getShortAxisCoords from "./getShortAxisCoords";
 import createAndAddShortAxisFeature from "./createAndAddShortAxisFeature";
 import updateMarkup from "./updateMarkup";
 import { getShortAxisId, getLongAxisId } from "./id";
+import getDraggedHandleIndex from "./getDraggedHandleIndex";
 
 const isDrawingBidirectional = (drawingOptions) =>
   drawingOptions.geometryType === Enums.GeometryType.Line &&
@@ -19,8 +20,12 @@ const bidirectional = {
      * This is used to avoid changing features while
      * dragging because of getClosestFeatureToCoordinate call
      */
-    let draggedFeature = null;
-    map.on("pointerup", () => (draggedFeature = null));
+    let draggedFeature,
+      draggedHandleIndex = null;
+    map.on("pointerup", () => {
+      draggedFeature = null;
+      draggedHandleIndex = null;
+    });
 
     map.on(Enums.MapEvents.POINTER_DRAG, (event) => {
       const handleCoordinate = event.coordinate;
@@ -35,6 +40,10 @@ const bidirectional = {
         return;
       }
 
+      if (draggedHandleIndex === null) {
+        draggedHandleIndex = getDraggedHandleIndex(draggedFeature, handle);
+      }
+
       const { isLongAxis, isShortAxis } = draggedFeature.getProperties();
 
       if (isLongAxis) {
@@ -42,7 +51,13 @@ const bidirectional = {
         const shortAxisFeature =
           drawingSource.getFeatureById(shortAxisFeatureId);
         updateMarkup(shortAxisFeature, draggedFeature, viewerProperties);
-        moveBidirectionalHandles(handle, draggedFeature, viewerProperties);
+        moveBidirectionalHandles(
+          handle,
+          draggedFeature,
+          viewerProperties,
+          event,
+          draggedHandleIndex
+        );
         return;
       }
 
@@ -50,7 +65,13 @@ const bidirectional = {
         const longAxisFeatureId = getLongAxisId(draggedFeature);
         const longAxisFeature = drawingSource.getFeatureById(longAxisFeatureId);
         updateMarkup(draggedFeature, longAxisFeature, viewerProperties);
-        moveBidirectionalHandles(handle, draggedFeature, viewerProperties);
+        moveBidirectionalHandles(
+          handle,
+          draggedFeature,
+          viewerProperties,
+          event,
+          draggedHandleIndex
+        );
         return;
       }
     });

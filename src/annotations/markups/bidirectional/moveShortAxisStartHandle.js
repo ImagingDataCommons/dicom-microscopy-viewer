@@ -1,6 +1,6 @@
 import { distance, distanceToPoint, intersectLine } from "./mathUtils";
 
-export default function (handle, shortAxisGeometry, longAxisGeometry) {
+export default function (handle, shortAxisGeometry, longAxisGeometry, event) {
   const shortAxisCoords = shortAxisGeometry.getCoordinates();
   const longAxisCoords = longAxisGeometry.getCoordinates();
 
@@ -24,6 +24,13 @@ export default function (handle, shortAxisGeometry, longAxisGeometry) {
       y: shortAxisCoords[1][1],
     },
   };
+
+  const invisibleLine = { start: handle, end: shortAxis.end };
+  let pointIntersection = intersectLine(longAxis, invisibleLine);
+  if (!pointIntersection) {
+    event.stopPropagation();
+    return false;
+  }
 
   const fudgeFactor = 1;
 

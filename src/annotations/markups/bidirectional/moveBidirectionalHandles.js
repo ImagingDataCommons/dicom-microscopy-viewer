@@ -1,4 +1,3 @@
-import getDraggedHandleIndex from "./getDraggedHandleIndex";
 import { getLongAxisId, getShortAxisId } from "./id";
 import { distance, intersectLine } from "./mathUtils";
 import moveLongAxisEndHandle from "./moveLongAxisEndHandle";
@@ -9,7 +8,9 @@ import moveShortAxisStartHandle from "./moveShortAxisStartHandle";
 export default function (
   handle = { x: 0, y: 0 },
   currentFeature,
-  viewerProperties
+  viewerProperties,
+  pointerEvent,
+  draggedHandleIndex
 ) {
   const { drawingSource } = viewerProperties;
 
@@ -39,8 +40,6 @@ export default function (
   const longAxisCoords = longAxisGeometry.getCoordinates();
   const shortAxisCoords = shortAxisGeometry.getCoordinates();
 
-  const draggedHandleIndex = getDraggedHandleIndex(currentFeature, handle);
-
   let isShortAxisStartHandleChange = draggedHandleIndex === 1;
   let isShortAxisEndHandleChange = draggedHandleIndex === 2;
   let isLongAxisStartHandleChange = draggedHandleIndex === 3;
@@ -64,9 +63,19 @@ export default function (
   const bidirectional = { start, end, shortAxisEnd, shortAxisStart };
 
   if (isLongAxisStartHandleChange) {
-    moveLongAxisStartHandle(handle, shortAxisGeometry, longAxisGeometry);
+    moveLongAxisStartHandle(
+      handle,
+      shortAxisGeometry,
+      longAxisGeometry,
+      pointerEvent
+    );
   } else if (isLongAxisEndHandleChange) {
-    moveLongAxisEndHandle(handle, shortAxisGeometry, longAxisGeometry);
+    moveLongAxisEndHandle(
+      handle,
+      shortAxisGeometry,
+      longAxisGeometry,
+      pointerEvent
+    );
   } else if (isShortAxisStartHandleChange) {
     outOfBounds = false;
 
@@ -97,7 +106,12 @@ export default function (
     }
 
     if (!outOfBounds) {
-      moveShortAxisStartHandle(handle, shortAxisGeometry, longAxisGeometry);
+      moveShortAxisStartHandle(
+        handle,
+        shortAxisGeometry,
+        longAxisGeometry,
+        pointerEvent
+      );
     }
   } else if (isShortAxisEndHandleChange) {
     outOfBounds = false;
@@ -129,7 +143,12 @@ export default function (
     }
 
     if (!outOfBounds) {
-      moveShortAxisEndHandle(handle, shortAxisGeometry, longAxisGeometry);
+      moveShortAxisEndHandle(
+        handle,
+        shortAxisGeometry,
+        longAxisGeometry,
+        pointerEvent
+      );
     }
   }
 }
