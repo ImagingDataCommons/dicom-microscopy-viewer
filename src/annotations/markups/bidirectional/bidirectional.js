@@ -40,11 +40,12 @@ const bidirectional = {
         return;
       }
 
-      if (draggedHandleIndex === null) {
+      const { isLongAxis, isShortAxis } = draggedFeature.getProperties();
+
+      const isBidirectional = isLongAxis || isShortAxis;
+      if (isBidirectional && draggedHandleIndex === null) {
         draggedHandleIndex = getDraggedHandleIndex(draggedFeature, handle);
       }
-
-      const { isLongAxis, isShortAxis } = draggedFeature.getProperties();
 
       if (isLongAxis) {
         const shortAxisFeatureId = getShortAxisId(draggedFeature);
@@ -129,18 +130,7 @@ const bidirectional = {
       const shortAxisFeature = drawingSource.getFeatureById(shortAxisFeatureId);
       features.remove(shortAxisFeature);
     }
-  },
-  getSubFeatures: (feature, viewerProperties) => {
-    const { drawingSource } = viewerProperties; 
-    let subFeatures = [];
-    const { isLongAxis } = feature.getProperties();
-    if (isLongAxis) {
-      const shortAxisFeatureId = getShortAxisId(feature);
-      const shortAxisFeature = drawingSource.getFeatureById(shortAxisFeatureId);
-      subFeatures.push(shortAxisFeature);
-    }
-    subFeatures;
-  },
+  }
 };
 
 export default bidirectional;
