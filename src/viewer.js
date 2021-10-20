@@ -1496,6 +1496,11 @@ class VolumeImageViewer {
     this.deactivateDrawInteraction()
     console.info('activate "draw" interaction')
 
+    let firstCoordinate;
+    this[_map].on("pointerdown", (event) => {
+      firstCoordinate = event.coordinate;
+    });
+
     const geometryOptionsMapping = {
       point: {
         type: 'Point',
@@ -1516,7 +1521,7 @@ class VolumeImageViewer {
           let radius = Math.sqrt(dx * dx + dy * dy);
           radius = radius > 0 ? radius : Number.MIN_SAFE_INTEGER
           const circle = new CircleGeometry(center, radius);
-          const polygon = fromCircle(circle, 64);
+          const polygon = fromCircle(circle);
           polygon.scale(dx / radius, dy / radius);
           if (!geometry) {
             geometry = polygon;
@@ -2171,9 +2176,12 @@ class VolumeImageViewer {
       const id = feature.getId()
       if (id === uid) {
         _setFeatureStyle(feature, styleOptions)
-        feature.get('subFeatures').forEach(feature => {
-          _setFeatureStyle(feature, styleOptions)
-        });
+        const subFeatures = feature.get('subFeatures');
+        if (subFeatures && subFeatures.length > 0) {
+          subFeatures.forEach(feature => {
+            _setFeatureStyle(feature, styleOptions)
+          });
+        }
       }
     })
   }
