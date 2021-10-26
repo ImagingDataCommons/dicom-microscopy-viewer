@@ -867,7 +867,8 @@ class VolumeImageViewer {
       view: overviewView,
       layers: [overviewImageLayer],
       collapsed: false,
-      collapsible: false
+      collapsible: false,
+      rotateWithView: true
     })
 
     // Creates the map with the defined layers and view and renders it.
