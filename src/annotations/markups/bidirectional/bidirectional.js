@@ -13,6 +13,7 @@ const isDrawingBidirectional = (drawingOptions) =>
   drawingOptions[Enums.InternalProperties.Bidirectional] === true;
 
 const bidirectional = {
+  onAdd: () => {},
   onInit: (viewerProperties) => {
     const { drawingSource, map } = viewerProperties;
 
@@ -43,6 +44,11 @@ const bidirectional = {
       const { isLongAxis, isShortAxis } = draggedFeature.getProperties();
 
       const isBidirectional = isLongAxis || isShortAxis;
+
+      if (!isBidirectional) {
+        return;
+      }
+
       if (isBidirectional && draggedHandleIndex === null) {
         draggedHandleIndex = getDraggedHandleIndex(draggedFeature, handle);
       }
@@ -123,12 +129,12 @@ const bidirectional = {
     }
   },
   onDrawEnd: () => {},
-  onRemove: (feature, { drawingSource, features }) => {
+  onRemove: (feature, { drawingSource }) => {
     const { isLongAxis } = feature.getProperties();
     if (isLongAxis) {
       const shortAxisFeatureId = getShortAxisId(feature);
       const shortAxisFeature = drawingSource.getFeatureById(shortAxisFeatureId);
-      features.remove(shortAxisFeature);
+      drawingSource.removeFeature(shortAxisFeature);
     }
   }
 };

@@ -67,8 +67,12 @@ import {
 import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
+import CircleStyle from 'ol/style/Circle'
+import MultiPoint from 'ol/geom/MultiPoint'
+import RegularShape from 'ol/style/RegularShape'
+import LineString from 'ol/geom/LineString'
 
-function _getInteractionBindingCondition (bindings) {
+function _getInteractionBindingCondition (bindings, condition = () => true) {
   const BUTTONS = {
     left: 1,
     middle: 4,
@@ -127,7 +131,7 @@ function _getInteractionBindingCondition (bindings) {
   }
 
   return (event) => {
-    return _mouseButtonCondition(event) && _modifierKeyCondition(event)
+    return _mouseButtonCondition(event) && _modifierKeyCondition(event) && condition(event)
   }
 }
 
@@ -1511,25 +1515,12 @@ class VolumeImageViewer {
         geometryName: 'Circle'
       },
       ellipse: {
-        type: 'Circle',
-        geometryName: 'Ellipse',
-        geometryFunction: (coordinates, geometry) => {
-          const center = coordinates[0];
-          const last = coordinates[1];
-          const dx = center[0] - last[0];
-          const dy = center[1] - last[1];
-          let radius = Math.sqrt(dx * dx + dy * dy);
-          radius = radius > 0 ? radius : Number.MIN_SAFE_INTEGER
-          const circle = new CircleGeometry(center, radius);
-          const polygon = fromCircle(circle);
-          polygon.scale(dx / radius, dy / radius);
-          if (!geometry) {
-            geometry = polygon;
-          } else {
-            geometry.setCoordinates(polygon.getCoordinates());
-          }
-          return geometry;
-        }
+        type: 'LineString',
+        geometryName: 'line',
+        ellipse: true,
+        maxPoints: 1,
+        minPoints: 1,
+        vertexEnabled: false
       },
       box: {
         type: 'Circle',
@@ -1571,6 +1562,8 @@ class VolumeImageViewer {
     const internalDrawOptions = { source: this[_drawingSource] }
     const geometryDrawOptions = geometryOptionsMapping[options.geometryType]
     const builtInDrawOptions = {
+      [Enums.InternalProperties.Ellipse]:
+        geometryDrawOptions[Enums.InternalProperties.Ellipse],
       [Enums.InternalProperties.Marker]:
         options[Enums.InternalProperties.Marker],
       [Enums.InternalProperties.Markup]:
@@ -1964,7 +1957,11 @@ class VolumeImageViewer {
     const modifyOptions = {
       features: this[_features], // TODO: or source, i.e. 'drawings'???
       insertVertexCondition: ({ feature }) =>
-        feature && feature.get('vertexEnabled') === true
+        feature && feature.get('vertexEnabled') === true,
+        condition: event => {
+          const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+          return feature && feature.get('isReadOnly') !== true
+        }
     }
 
     /**
@@ -1978,10 +1975,6 @@ class VolumeImageViewer {
     }
 
     this[_interactions].modify = new Modify(modifyOptions)
-
-    this[_interactions].modify.on('change', event => {
-      console.debug('modfiy change');
-    });
 
     this[_map].addInteraction(this[_interactions].modify)
   }

@@ -58,7 +58,9 @@ const MeasurementMarkup = (viewerProperties) => {
           feature,
           value: format(feature, unitSuffix, pyramid),
           position: ps && ps.markup ? ps.markup.coordinates : null,
-        });
+        });        
+        bidirectional.onAdd(feature, viewerProperties);
+        ellipse.onAdd(feature, viewerProperties);
       }
     },
     onFailure: (uid) => {
