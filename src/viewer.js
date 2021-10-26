@@ -1578,7 +1578,7 @@ class VolumeImageViewer {
      * },
      */
     if (options.bindings) {
-      drawOptions.condition = _getInteractionBindingCondition(options.bindings)
+      drawOptions.condition = _getInteractionBindingCondition(options.bindings, drawOptions.condition)
     }
 
     this[_interactions].draw = new Draw(drawOptions)
@@ -1694,10 +1694,13 @@ class VolumeImageViewer {
 
     const translateOptions = { 
       layers: [this[_drawingLayer]],
+      filter: feature => {
+        return feature && feature.get(Enums.InternalProperties.CantBeTranslated) !== true
+      },
       condition: event => {
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
         return feature && feature.get(Enums.InternalProperties.CantBeTranslated) !== true
-      }
+      },
     }
 
     /**
@@ -1713,20 +1716,25 @@ class VolumeImageViewer {
 
     this[_interactions].translate = new Translate(translateOptions)
 
+    let lastCoordinate = null;
+    map.on("pointerdown", ({ coordinate }) => lastCoordinate = coordinate);
+    map.on("pointerup", () => lastCoordinate = null);
+    
     this[_interactions].translate.on('translating', event => {
       const newCoordinate = event.coordinate;
-
       event.features.forEach(feature => {
         const { subFeatures } = feature.getProperties();
         if (subFeatures && subFeatures.length > 0) {
           subFeatures.forEach(subFeature => {
             const geometry = subFeature.getGeometry();
-            const coords = geometry.getLastCoordinate();
+            const coords = lastCoordinate;
 
             const deltaX = newCoordinate[0] - coords[0];
             const deltaY = newCoordinate[1] - coords[1];
 
             geometry.translate(deltaX, deltaY);
+
+            lastCoordinate = event.coordinate;
           });
         }
       });
@@ -1847,13 +1855,13 @@ class VolumeImageViewer {
 
     const selectOptions = { 
       layers: [this[_drawingLayer]],
+      filter: feature => {
+        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+      },
       condition: event => {
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
         return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
       },
-      // filter: test => {
-      //   debugger
-      // }
     }
 
     /**
@@ -1907,7 +1915,11 @@ class VolumeImageViewer {
     console.info('activate "drag pan" interaction')
 
     const dragPanOptions = {
-      features: this[_features]
+      features: this[_features],
+      condition: event => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+      },
     }
 
     /**
@@ -1916,7 +1928,8 @@ class VolumeImageViewer {
      */
     if (options.bindings) {
       dragPanOptions.condition = _getInteractionBindingCondition(
-        options.bindings
+        options.bindings,
+        options.condition
       )
     }
 
@@ -1949,10 +1962,6 @@ class VolumeImageViewer {
     console.info('activate "snap" interaction')
     this[_interactions].snap = new Snap({
       source: this[_drawingSource],
-      condition: event => {
-        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
-        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
-      }
     })
 
     this[_map].addInteraction(this[_interactions].snap)
@@ -1992,6 +2001,10 @@ class VolumeImageViewer {
 
     const modifyOptions = {
       features: this[_features], // TODO: or source, i.e. 'drawings'???
+      condition: event => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+      },
       insertVertexCondition: ({ feature }) =>
         feature && feature.get(Enums.InternalProperties.VertexEnabled) === true,
         condition: event => {

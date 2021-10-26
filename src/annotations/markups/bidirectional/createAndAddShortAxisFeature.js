@@ -23,9 +23,11 @@ const createAndAddShortAxisFeature = (
     {
       isShortAxis: true,
       [Enums.InternalProperties.IsSilentFeature]: true,
+      subFeatures: [longAxisFeature]
     },
     true
   );
+  longAxisFeature.setProperties({ subFeatures: [feature] }, true);
   feature.setStyle(shortAxisStyle);
 
   feature.on(Enums.FeatureGeometryEvents.CHANGE, () =>

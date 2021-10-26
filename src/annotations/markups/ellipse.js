@@ -169,6 +169,13 @@ const drawEllipse = (
       {
         isEllipseShape: true,
         [Enums.InternalProperties.ReadOnly]: true,
+        subFeatures: [feature]
+      },
+      true
+    );
+    feature.setProperties(
+      {
+        [Enums.InternalProperties.CantBeTranslated]: true
       },
       true
     );
@@ -287,17 +294,39 @@ const ellipse = {
   onInteractionsChange: (interactions, viewerProperties) => {},
   onDrawEnd: (event, viewerProperties) => {},
   onDrawStart: (event, viewerProperties) => {
-    const { drawingOptions, markupManager } = viewerProperties;
+    const { drawingOptions, map } = viewerProperties;
     if (isDrawingEllipse(drawingOptions)) {
       const ellipseHandlesFeature = event.feature;
 
       ellipseHandlesFeature.setProperties(
         {
           isEllipseHandles: true,
-          [Enums.InternalProperties.IsSilentFeature]: true,
+          [Enums.InternalProperties.IsSilentFeature]: true
         },
         true
       );
+
+      // TODO: Add built in highlighting of features
+      // let selected = null;
+      // map.on('pointermove', function (e) {
+      //   if (selected !== null) {
+      //     selected.setStyle(undefined);
+      //     selected = null;
+      //   }
+      
+      //   map.forEachFeatureAtPixel(e.pixel, function (f) {
+      //     selected = f;
+      //     // add highlight
+      //     // f.setStyle(highlightStyle);
+      //     return true;
+      //   });
+      
+      //   if (selected) {
+      //     // add highlight
+      //   } else {
+      //     // remove highlight
+      //   }
+      // });
 
       ellipseHandlesFeature.getGeometry().on("change", (event) => {
         const geometry = event.target;
