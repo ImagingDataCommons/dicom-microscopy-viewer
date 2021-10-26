@@ -81,7 +81,10 @@ const drawEllipse = (
 
     /** Remove markup from handles to add a new one to ellipse */
     markupManager.remove(feature.getId());
-    markupManager.create({ feature: ellipseFeature });
+    markupManager.create({
+      feature: ellipseFeature,
+      style: feature.get(Enums.InternalProperties.StyleOptions),
+    });
 
     drawingSource.addFeature(ellipseFeature);
   } else {
@@ -97,9 +100,14 @@ const ellipse = {
     if (isEllipse) {
       /** Remove markup from handles to add a new one to ellipse */
       markupManager.remove(feature.getId());
-      const ellipse = drawingSource.getFeatureById(`ellipse-${feature.getId()}`);
+      const ellipse = drawingSource.getFeatureById(
+        `ellipse-${feature.getId()}`
+      );
       if (ellipse) {
-        markupManager.create({ feature: ellipse });
+        markupManager.create({
+          feature: ellipse,
+          style: feature.get(Enums.InternalProperties.StyleOptions),
+        });
       }
     }
   },

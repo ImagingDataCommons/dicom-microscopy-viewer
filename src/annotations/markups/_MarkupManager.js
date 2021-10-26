@@ -140,6 +140,7 @@ class _MarkupManager {
    *
    * @param {object} options The options
    * @param {Feature} options.feature The feature to plug the measure markup
+   * @param {Style} options.style A custom style
    * @param {string} options.value The inner content of element
    * @param {string} options.position The position
    * @param {boolean} options.isLinkable Create a link between feature and markup
@@ -149,6 +150,7 @@ class _MarkupManager {
    */
   create({
     feature,
+    style,
     value = "",
     position,
     isLinkable = true,
@@ -165,7 +167,7 @@ class _MarkupManager {
       return this.get(id)
     }
 
-    const markup = { id, isLinkable, isDraggable }
+    const markup = { id, isLinkable, isDraggable, style }
 
     const element = document.createElement('div')
     element.id = markup.isDraggable ? Enums.InternalProperties.Markup : ''
@@ -312,7 +314,8 @@ class _MarkupManager {
    * @returns {void}
    */
   _styleTooltip (feature) {
-    const styleOptions = feature.get(Enums.InternalProperties.StyleOptions)
+    const marker = this.get(feature.getId());
+    const styleOptions = marker && marker.style !== undefined ? marker.style : feature.get(Enums.InternalProperties.StyleOptions)
     if (styleOptions && styleOptions.stroke) {
       const { color } = styleOptions.stroke
       const tooltipColor = color || defaultStyles.stroke.color
@@ -325,7 +328,6 @@ class _MarkupManager {
         styles.setStroke(stroke)
         link.setStyle(styles)
       }
-      const marker = this.get(feature.getId())
       if (marker) {
         marker.element.style.color = tooltipColor
       }
