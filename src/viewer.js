@@ -1713,24 +1713,24 @@ class VolumeImageViewer {
 
     this[_interactions].translate = new Translate(translateOptions)
 
-    // this[_interactions].translate.on('translating', event => {
-    //   const newCoordinate = event.coordinate;
+    this[_interactions].translate.on('translating', event => {
+      const newCoordinate = event.coordinate;
 
-    //   event.features.forEach(feature => {
-    //     const { subFeatures } = feature.getProperties();
-    //     if (subFeatures && subFeatures.length > 0) {
-    //       subFeatures.forEach(subFeature => {
-    //         const geometry = subFeature.getGeometry();
-    //         const coords = geometry.getLastCoordinate();
+      event.features.forEach(feature => {
+        const { subFeatures } = feature.getProperties();
+        if (subFeatures && subFeatures.length > 0) {
+          subFeatures.forEach(subFeature => {
+            const geometry = subFeature.getGeometry();
+            const coords = geometry.getLastCoordinate();
 
-    //         const deltaX = newCoordinate[0] - coords[0];
-    //         const deltaY = newCoordinate[1] - coords[1];
+            const deltaX = newCoordinate[0] - coords[0];
+            const deltaY = newCoordinate[1] - coords[1];
 
-    //         geometry.translate(deltaX, deltaY);
-    //       });
-    //     }
-    //   });
-    // });
+            geometry.translate(deltaX, deltaY);
+          });
+        }
+      });
+    });
 
     this[_map].addInteraction(this[_interactions].translate)
     this[_annotationManager].onInteractionsChange(this[_map].getInteractions());

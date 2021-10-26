@@ -142,8 +142,6 @@ const drawEllipse = (
       {
         isEllipseShape: true,
         [Enums.InternalProperties.ReadOnly]: true,
-        [Enums.InternalProperties.CantBeTranslated]: true,
-        [Enums.InternalProperties.VertexEnabled]: false
       },
       true
     );
@@ -170,10 +168,10 @@ const getChangeEvent = (viewerProperties) => {
    * dragging because of getClosestFeatureToCoordinate call
    */
   let draggedFeature,
-    draggedHandleIndex = null;
+    draggedHandle = null;
   map.on("pointerup", () => {
     draggedFeature = null;
-    draggedHandleIndex = null;
+    draggedHandle = null;
   });
 
   return (event) => {
@@ -198,16 +196,20 @@ const getChangeEvent = (viewerProperties) => {
     const draggedFeatureGeometry = draggedFeature.getGeometry();
     const coords = draggedFeatureGeometry.getCoordinates();
 
-    let axisHandle;
-    if (draggedHandleIndex === null) {
+    /** Disable dragging handle line */
+    if (handleCoordinate !== coords[1] && handleCoordinate !== coords[1]) {
+      return;
+    }
+
+    if (draggedHandle === null) {
       const start = { x: coords[0][0], y: coords[0][1] };
       const end = { x: coords[1][0], y: coords[1][1] };
       const distanceStart = distance(handle, start);
       const distanceEnd = distance(handle, end);
-      axisHandle = distanceStart < distanceEnd ? "start" : "end";
+      draggedHandle = distanceStart < distanceEnd ? "start" : "end";
     }
 
-    if (axisHandle === "start") {
+    if (draggedHandle === "start") {
       drawEllipse(
         draggedFeature,
         coords[0],
@@ -219,7 +221,7 @@ const getChangeEvent = (viewerProperties) => {
       return;
     }
 
-    if (axisHandle === "end") {
+    if (draggedHandle === "end") {
       drawEllipse(
         draggedFeature,
         coords[1],
@@ -266,8 +268,6 @@ const ellipse = {
         {
           isEllipseHandles: true,
           [Enums.InternalProperties.IsSilentFeature]: true,
-          [Enums.InternalProperties.CantBeTranslated]: true,
-          [Enums.InternalProperties.VertexEnabled]: false
         },
         true
       );

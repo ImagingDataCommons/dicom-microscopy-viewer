@@ -9,7 +9,6 @@ import createAndAddShortAxisFeature from "./createAndAddShortAxisFeature";
 import updateMarkup from "./updateMarkup";
 import { getShortAxisId, getLongAxisId } from "./id";
 import getDraggedHandleIndex from "./getDraggedHandleIndex";
-import Translate from "ol/interaction/Translate";
 
 const styles = {
   stroke: {
@@ -110,10 +109,7 @@ const bidirectional = {
     if (isDrawingBidirectional(drawingOptions)) {
       const longAxisFeature = event.feature;
 
-      longAxisFeature.setProperties(
-        { isLongAxis: true, [Enums.InternalProperties.CantBeTranslated]: true },
-        true
-      );
+      longAxisFeature.setProperties({ isLongAxis: true }, true);
 
       const interactions = map.getInteractions();
 

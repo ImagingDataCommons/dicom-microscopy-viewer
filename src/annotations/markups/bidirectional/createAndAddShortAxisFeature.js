@@ -23,7 +23,6 @@ const createAndAddShortAxisFeature = (
     {
       isShortAxis: true,
       [Enums.InternalProperties.IsSilentFeature]: true,
-      [Enums.InternalProperties.CantBeTranslated]: true,
     },
     true
   );
