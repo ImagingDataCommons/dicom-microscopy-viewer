@@ -1594,7 +1594,7 @@ class VolumeImageViewer {
         options[Enums.InternalProperties.StyleOptions]
       )
 
-      this[_annotationManager].onDrawStart(event, options, this.setFeatureStyle)
+      this[_annotationManager].onDrawStart(event, options)
 
       _wireMeasurementsAndQualitativeEvaluationsEvents(
         this[_map],
@@ -1608,7 +1608,7 @@ class VolumeImageViewer {
     })
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
-      this[_annotationManager].onDrawEnd(event, options, this.setFeatureStyle)
+      this[_annotationManager].onDrawEnd(event, options)
       publish(
         container,
         EVENT.ROI_DRAWN,
@@ -1850,7 +1850,10 @@ class VolumeImageViewer {
       condition: event => {
         const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
         return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
-      }
+      },
+      // filter: test => {
+      //   debugger
+      // }
     }
 
     /**

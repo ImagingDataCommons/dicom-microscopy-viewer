@@ -9,7 +9,8 @@ import CircleStyle from "ol/style/Circle";
 import Point from "ol/geom/Point";
 import { getFeatureScoord3dArea } from "../../scoord3dUtils";
 import { getUnitSuffix } from "../../utils";
-import Translate from "ol/interaction/Translate";
+import Fill from "ol/style/Fill";
+import RegularShape from "ol/style/RegularShape";
 
 const styles = {
   image: {
@@ -51,6 +52,32 @@ function ellipseHandlesStyleFunction(feature) {
   }
 
   const [start, end] = featureGeometry.getCoordinates();
+
+  featureGeometry.forEachSegment((seg) => {
+    if (
+      seg[0] !== start[0] ||
+      seg[0] !== start[1] ||
+      seg[1] !== start[0] ||
+      seg[1] !== start[1]
+    ) {
+      const hiddenPointStyle = new Style({
+        geometry: new Point(seg),
+        image: new RegularShape({
+          fill: new Fill({
+            color: "rgba(255, 255, 255, 0.5)",
+          }),
+          stroke: new Stroke({
+            color: "red",
+            width: 1,
+          }),
+          points: 4,
+          radius: 8,
+          angle: Math.PI / 4,
+        }),
+      });
+      styles.push(hiddenPointStyle);
+    }
+  });
 
   styles.push(getHandleStyle(start));
   styles.push(getHandleStyle(end));
@@ -298,17 +325,11 @@ const ellipse = {
 
     if (isEllipseAnnotation) {
       if (styleOptions.stroke) {
-        styles.stroke = {
-          ...styles.stroke,
-          ...styleOptions.stroke,
-        };
+        styles.stroke = Object.assign(styles.stroke, styleOptions.stroke);
       }
 
       if (styleOptions.image) {
-        styles.image = {
-          ...styles.image,
-          ...styleOptions.image,
-        };
+        styles.image = Object.assign(styles.image, styleOptions.image);
       }
     }
 

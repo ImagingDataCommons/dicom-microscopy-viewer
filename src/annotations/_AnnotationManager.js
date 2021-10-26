@@ -160,17 +160,17 @@ class _AnnotationManager {
     this[Markup.TextEvaluation].onUpdate(feature);
   }
 
-  onDrawStart(event, options, _setFeatureStyle) {
-    this[Marker.Arrow].onDrawStart(event, options, _setFeatureStyle);
-    this[Markup.Measurement].onDrawStart(event, options, _setFeatureStyle);
-    this[Markup.TextEvaluation].onDrawStart(event, options, _setFeatureStyle);
+  onDrawStart(event, options) {
+    this[Marker.Arrow].onDrawStart(event, options);
+    this[Markup.Measurement].onDrawStart(event, options);
+    this[Markup.TextEvaluation].onDrawStart(event, options);
   }
 
-  onDrawEnd(event, options, _setFeatureStyle) {
-    this[Marker.Arrow].onDrawEnd(event, options, _setFeatureStyle);
-    this[Markup.Measurement].onDrawEnd(event, options, _setFeatureStyle);
-    this[Markup.TextEvaluation].onDrawEnd(event, options, _setFeatureStyle);
-    this.props.markupManager.onDrawEnd(event, options, _setFeatureStyle);
+  onDrawEnd(event, options) {
+    this[Marker.Arrow].onDrawEnd(event, options);
+    this[Markup.Measurement].onDrawEnd(event, options);
+    this[Markup.TextEvaluation].onDrawEnd(event, options);
+    this.props.markupManager.onDrawEnd(event, options);
   }
 
   onDrawAbort(event) {

@@ -168,10 +168,7 @@ const bidirectional = {
     const isBidirectional = isLongAxis || isShortAxis;
     if (isBidirectional) {
       if (styleOptions.stroke) {
-        styles.stroke = {
-          ...styles.stroke,
-          ...styleOptions.stroke,
-        };
+        styles.stroke = Object.assign(styles.stroke, styleOptions.stroke);
       }
     }
 

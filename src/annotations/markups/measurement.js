@@ -76,36 +76,22 @@ const MeasurementMarkup = (viewerProperties) => {
         ellipse.onRemove(feature, viewerProperties);
       }
     },
-    onDrawStart: (event, drawingOptions, setFeatureStyle) => {
+    onDrawStart: (event, drawingOptions) => {
       const { feature } = event;
       if (_isMeasurement(feature)) {
         markupManager.create({ feature });
-        ellipse.onDrawStart(event, {
-          setFeatureStyle,
-          drawingOptions,
-          ...viewerProperties,
-        });
-        bidirectional.onDrawStart(event, {
-          setFeatureStyle,
-          drawingOptions,
-          ...viewerProperties,
-        });
+        viewerProperties.drawingOptions = drawingOptions;
+        ellipse.onDrawStart(event, viewerProperties);
+        bidirectional.onDrawStart(event, viewerProperties);
       }
     },
     onUpdate: (feature) => {},
-    onDrawEnd: (event, drawingOptions, setFeatureStyle) => {
+    onDrawEnd: (event, drawingOptions) => {
       const { feature } = event;
       if (_isMeasurement(feature)) {
-        bidirectional.onDrawEnd(event, {
-          drawingOptions,
-          setFeatureStyle,
-          ...viewerProperties,
-        });
-        ellipse.onDrawEnd(event, {
-          drawingOptions,
-          setFeatureStyle,
-          ...viewerProperties,
-        });
+        viewerProperties.drawingOptions = drawingOptions;
+        bidirectional.onDrawEnd(event, viewerProperties);
+        ellipse.onDrawEnd(event, viewerProperties);
       }
     },
     onDrawAbort: ({ feature }) => {},
