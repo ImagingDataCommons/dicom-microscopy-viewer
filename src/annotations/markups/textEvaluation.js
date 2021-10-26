@@ -128,7 +128,8 @@ const TextEvaluationMarkup = ({ markupManager }) => {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },
-    onDrawAbort: ({ feature }) => {}
+    onDrawAbort: ({ feature }) => {},
+    onSetFeatureStyle: (feature, styleOptions) => {}
   }
 }
 

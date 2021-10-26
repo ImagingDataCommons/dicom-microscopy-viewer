@@ -58,7 +58,7 @@ const MeasurementMarkup = (viewerProperties) => {
           feature,
           value: format(feature, unitSuffix, pyramid),
           position: ps && ps.markup ? ps.markup.coordinates : null,
-        });        
+        });
         bidirectional.onAdd(feature, viewerProperties);
         ellipse.onAdd(feature, viewerProperties);
       }
@@ -94,18 +94,29 @@ const MeasurementMarkup = (viewerProperties) => {
     },
     onUpdate: (feature) => {},
     onDrawEnd: (event, drawingOptions, setFeatureStyle) => {
-      bidirectional.onDrawEnd(event, {
-        drawingOptions,
-        setFeatureStyle,
-        ...viewerProperties,
-      });
-      ellipse.onDrawEnd(event, {
-        drawingOptions,
-        setFeatureStyle,
-        ...viewerProperties,
-      });
+      const { feature } = event;
+      if (_isMeasurement(feature)) {
+        bidirectional.onDrawEnd(event, {
+          drawingOptions,
+          setFeatureStyle,
+          ...viewerProperties,
+        });
+        ellipse.onDrawEnd(event, {
+          drawingOptions,
+          setFeatureStyle,
+          ...viewerProperties,
+        });
+      }
     },
-    onDrawAbort: ({ feature }) => {}
+    onDrawAbort: ({ feature }) => {},
+    onSetFeatureStyle: (feature, styleOptions) => {
+      bidirectional.onSetFeatureStyle(feature, styleOptions, viewerProperties);
+      ellipse.onSetFeatureStyle(feature, styleOptions, viewerProperties);
+    },
+    onInteractionsChange: (interactions) => {
+      bidirectional.onInteractionsChange(interactions, viewerProperties);
+      ellipse.onInteractionsChange(interactions, viewerProperties);
+    },
   };
 };
 

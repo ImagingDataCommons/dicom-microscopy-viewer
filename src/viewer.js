@@ -30,8 +30,6 @@ import VectorLayer from 'ol/layer/Vector'
 import View from 'ol/View'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
-import { fromCircle } from "ol/geom/Polygon";
-import CircleGeometry from "ol/geom/Circle";
 
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
@@ -67,10 +65,6 @@ import {
 import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
-import CircleStyle from 'ol/style/Circle'
-import MultiPoint from 'ol/geom/MultiPoint'
-import RegularShape from 'ol/style/RegularShape'
-import LineString from 'ol/geom/LineString'
 
 function _getInteractionBindingCondition (bindings, condition = () => true) {
   const BUTTONS = {
@@ -419,32 +413,6 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
 
     feature.set(Enums.InternalProperties.Measurements, measurements)
     console.debug(`Measurements of feature (${feature.getId()}):`, measurements)
-  }
-}
-
-/**
- * Updates the style of a feature.
- *
- * @param {Feature} feature - Feature
- * @param {object} styleOptions - Style options
- * @param {object} styleOptions.stroke - Style options for the outline of the geometry
- * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
- * @param {number} styleOptions.stroke.width - Width of the outline
- * @param {object} styleOptions.fill - Style options for body the geometry
- * @param {number[]} styleOptions.fill.color - RGBA color of the body
- * @param {object} styleOptions.image - Style options for image
- */
-function _setFeatureStyle (feature, styleOptions, optSilent = false) {
-  if (styleOptions !== undefined) {
-    const style = _getOpenLayersStyle(styleOptions)
-    feature.setStyle(style)
-
-    /**
-     * styleOptions is used internally by internal styled components like markers.
-     * This allows them to take priority over styling since OpenLayers swaps the styles
-     * completely in case of a setStyle happens.
-     */
-    feature.set(Enums.InternalProperties.StyleOptions, styleOptions, optSilent)
   }
 }
 
@@ -1426,10 +1394,11 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement()
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      const featureProperties = e.feature.getProperties()
-      if (featureProperties.isShortAxis) {
+      const isSilentFeature = e.feature.get(Enums.InternalProperties.IsSilentFeature)
+      if (isSilentFeature == true) {
         return;
       }
+
       publish(
         container,
         EVENT.ROI_ADDED,
@@ -1480,6 +1449,32 @@ class VolumeImageViewer {
     })
   }
 
+  /**
+   * Updates the style of a feature.
+   *
+   * @param {Feature} feature - Feature
+   * @param {object} styleOptions - Style options
+   * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+   * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
+   * @param {number} styleOptions.stroke.width - Width of the outline
+   * @param {object} styleOptions.fill - Style options for body the geometry
+   * @param {number[]} styleOptions.fill.color - RGBA color of the body
+   * @param {object} styleOptions.image - Style options for image
+   */
+  setFeatureStyle (feature, styleOptions, optSilent = false) {
+    if (styleOptions !== undefined) {   
+      const style = _getOpenLayersStyle(styleOptions);
+      feature.setStyle(style)
+      /**
+       * styleOptions is used internally by internal styled components like markers.
+       * This allows them to take priority over styling since OpenLayers swaps the styles
+       * completely in case of a setStyle happens.
+       */
+      feature.set(Enums.InternalProperties.StyleOptions, styleOptions, optSilent)
+      this[_annotationManager].onSetFeatureStyle(feature, styleOptions);
+    }
+  }
+
   /** Activates the draw interaction for graphic annotation of regions of interest.
    * @param {object} options - Drawing options
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
@@ -1500,11 +1495,6 @@ class VolumeImageViewer {
     this.deactivateDrawInteraction()
     console.info('activate "draw" interaction')
 
-    let firstCoordinate;
-    this[_map].on("pointerdown", (event) => {
-      firstCoordinate = event.coordinate;
-    });
-
     const geometryOptionsMapping = {
       point: {
         type: 'Point',
@@ -1517,10 +1507,10 @@ class VolumeImageViewer {
       ellipse: {
         type: 'LineString',
         geometryName: 'line',
-        ellipse: true,
+        isEllipse: true,
         maxPoints: 1,
         minPoints: 1,
-        vertexEnabled: false
+        [Enums.InternalProperties.VertexEnabled]: false
       },
       box: {
         type: 'Circle',
@@ -1568,7 +1558,7 @@ class VolumeImageViewer {
         options[Enums.InternalProperties.Marker],
       [Enums.InternalProperties.Markup]:
         options[Enums.InternalProperties.Markup],
-      vertexEnabled: options.vertexEnabled,
+      [Enums.InternalProperties.VertexEnabled]: options[Enums.InternalProperties.VertexEnabled],
       [Enums.InternalProperties.Label]: options[Enums.InternalProperties.Label]
     }
     const drawOptions = Object.assign(
@@ -1599,12 +1589,12 @@ class VolumeImageViewer {
       event.feature.setId(generateUID())
 
       /** Set external styles before calling internal annotation hooks */
-      _setFeatureStyle(
+      this.setFeatureStyle(
         event.feature,
         options[Enums.InternalProperties.StyleOptions]
       )
 
-      this[_annotationManager].onDrawStart(event, options, _setFeatureStyle)
+      this[_annotationManager].onDrawStart(event, options, this.setFeatureStyle)
 
       _wireMeasurementsAndQualitativeEvaluationsEvents(
         this[_map],
@@ -1618,7 +1608,7 @@ class VolumeImageViewer {
     })
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
-      this[_annotationManager].onDrawEnd(event, options, _setFeatureStyle)
+      this[_annotationManager].onDrawEnd(event, options, this.setFeatureStyle)
       publish(
         container,
         EVENT.ROI_DRAWN,
@@ -1627,6 +1617,7 @@ class VolumeImageViewer {
     })
 
     this[_map].addInteraction(this[_interactions].draw)
+    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -1701,7 +1692,13 @@ class VolumeImageViewer {
 
     console.info('activate "translate" interaction')
 
-    const translateOptions = { layers: [this[_drawingLayer]] }
+    const translateOptions = { 
+      layers: [this[_drawingLayer]],
+      condition: event => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+        return feature && feature.get(Enums.InternalProperties.CantBeTranslated) !== true
+      }
+    }
 
     /**
      * Get conditional mouse bindings
@@ -1709,13 +1706,34 @@ class VolumeImageViewer {
      */
     if (options.bindings) {
       translateOptions.condition = _getInteractionBindingCondition(
-        options.bindings
+        options.bindings,
+        options.condition
       )
     }
 
     this[_interactions].translate = new Translate(translateOptions)
 
+    // this[_interactions].translate.on('translating', event => {
+    //   const newCoordinate = event.coordinate;
+
+    //   event.features.forEach(feature => {
+    //     const { subFeatures } = feature.getProperties();
+    //     if (subFeatures && subFeatures.length > 0) {
+    //       subFeatures.forEach(subFeature => {
+    //         const geometry = subFeature.getGeometry();
+    //         const coords = geometry.getLastCoordinate();
+
+    //         const deltaX = newCoordinate[0] - coords[0];
+    //         const deltaY = newCoordinate[1] - coords[1];
+
+    //         geometry.translate(deltaX, deltaY);
+    //       });
+    //     }
+    //   });
+    // });
+
     this[_map].addInteraction(this[_interactions].translate)
+    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -1802,6 +1820,7 @@ class VolumeImageViewer {
     this[_interactions].dragZoom = new DragZoom(dragZoomOptions)
 
     this[_map].addInteraction(this[_interactions].dragZoom)
+    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -1826,7 +1845,13 @@ class VolumeImageViewer {
 
     console.info('activate "select" interaction')
 
-    const selectOptions = { layers: [this[_drawingLayer]] }
+    const selectOptions = { 
+      layers: [this[_drawingLayer]],
+      condition: event => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+      }
+    }
 
     /**
      * Get conditional mouse bindings
@@ -1834,7 +1859,8 @@ class VolumeImageViewer {
      */
     if (options.bindings) {
       selectOptions.condition = _getInteractionBindingCondition(
-        options.bindings
+        options.bindings,
+        selectOptions.condition
       )
     }
 
@@ -1851,6 +1877,7 @@ class VolumeImageViewer {
     })
 
     this[_map].addInteraction(this[_interactions].select)
+    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -1893,6 +1920,7 @@ class VolumeImageViewer {
     this[_interactions].dragPan = new DragPan(dragPanOptions)
 
     this[_map].addInteraction(this[_interactions].dragPan)
+    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -1917,10 +1945,15 @@ class VolumeImageViewer {
     this.deactivateSnapInteraction()
     console.info('activate "snap" interaction')
     this[_interactions].snap = new Snap({
-      source: this[_drawingSource]
+      source: this[_drawingSource],
+      condition: event => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+      }
     })
 
     this[_map].addInteraction(this[_interactions].snap)
+    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -1957,10 +1990,10 @@ class VolumeImageViewer {
     const modifyOptions = {
       features: this[_features], // TODO: or source, i.e. 'drawings'???
       insertVertexCondition: ({ feature }) =>
-        feature && feature.get('vertexEnabled') === true,
+        feature && feature.get(Enums.InternalProperties.VertexEnabled) === true,
         condition: event => {
           const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
-          return feature && feature.get('isReadOnly') !== true
+          return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
         }
     }
 
@@ -1970,13 +2003,15 @@ class VolumeImageViewer {
      */
     if (options.bindings) {
       modifyOptions.condition = _getInteractionBindingCondition(
-        options.bindings
+        options.bindings,
+        modifyOptions.condition
       )
     }
 
     this[_interactions].modify = new Modify(modifyOptions)
 
     this[_map].addInteraction(this[_interactions].modify)
+    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /** Deactivates modify interaction. */
@@ -2126,7 +2161,7 @@ class VolumeImageViewer {
 
     this[_features].push(feature)
 
-    _setFeatureStyle(feature, styleOptions)
+    this.setFeatureStyle(feature, styleOptions)
   }
 
   /**
@@ -2168,13 +2203,7 @@ class VolumeImageViewer {
     this[_features].forEach((feature) => {
       const id = feature.getId()
       if (id === uid) {
-        _setFeatureStyle(feature, styleOptions)
-        const subFeatures = feature.get('subFeatures');
-        if (subFeatures && subFeatures.length > 0) {
-          subFeatures.forEach(feature => {
-            _setFeatureStyle(feature, styleOptions)
-          });
-        }
+        this.setFeatureStyle(feature, styleOptions)
       }
     })
   }

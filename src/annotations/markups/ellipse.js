@@ -9,6 +9,54 @@ import CircleStyle from "ol/style/Circle";
 import Point from "ol/geom/Point";
 import { getFeatureScoord3dArea } from "../../scoord3dUtils";
 import { getUnitSuffix } from "../../utils";
+import Translate from "ol/interaction/Translate";
+
+const styles = {
+  image: {
+    radius: 7,
+  },
+  stroke: {
+    color: "black",
+    width: 3,
+  },
+};
+
+const getEllipseStyle = () =>
+  new Style({
+    stroke: new Stroke({
+      color: styles.stroke.color,
+      width: styles.stroke.width,
+    }),
+  });
+
+const getHandleStyle = (coords) =>
+  new Style({
+    geometry: new Point(coords),
+    image: new CircleStyle({
+      radius: styles.image.radius,
+      stroke: new Stroke({
+        color: styles.stroke.color,
+        width: styles.stroke.width,
+      }),
+    }),
+  });
+
+function ellipseHandlesStyleFunction(feature) {
+  const styles = [];
+  const featureGeometry = feature.getGeometry();
+
+  const type = featureGeometry.getType();
+  if (type !== "LineString") {
+    return styles;
+  }
+
+  const [start, end] = featureGeometry.getCoordinates();
+
+  styles.push(getHandleStyle(start));
+  styles.push(getHandleStyle(end));
+
+  return styles;
+}
 
 const updateMarkup = (
   feature,
@@ -21,7 +69,28 @@ const updateMarkup = (
     const unitSuffix = getUnitSuffix(view);
     const ellipseGeometry = ellipseFeature.getGeometry();
     const area = getFeatureScoord3dArea(ellipseFeature, pyramid);
-    const value = `Area ${area.toFixed(2)} ${unitSuffix}`;
+
+    let sum = 0;
+    let count = 0;
+    let sumSquared = 0;
+    let min = 0;
+    let max = 0;
+    const pixels = ellipseGeometry.getCoordinates()[0].flat();
+    for (let i = 0; i < pixels.length; i++) {
+      sum += pixels[i];
+      sumSquared += pixels[i] * pixels[i];
+      min = Math.min(min, pixels[i]);
+      max = Math.max(max, pixels[i]);
+      count++;
+    }
+
+    const mean = sum / count;
+    const variance = sumSquared / count - mean * mean;
+    const stdDev = Math.sqrt(variance);
+
+    const value1 = `Area: ${area.toFixed(2)} ${unitSuffix}`;
+    const value2 = `Mean: ${mean.toFixed(2)} Std Dev:${stdDev.toFixed(2)}`;
+    const value = `${value1}\n${value2}`;
     markupManager.update({
       feature: ellipseFeature,
       value,
@@ -31,7 +100,7 @@ const updateMarkup = (
 };
 
 const isDrawingEllipse = (drawingOptions) =>
-  drawingOptions.geometryType === Enums.InternalProperties.Ellipse;
+  drawingOptions.geometryType === Enums.GeometryType.Ellipse;
 
 const drawEllipse = (
   feature,
@@ -69,15 +138,16 @@ const drawEllipse = (
     const geometry = polygon;
     const ellipseFeature = new Feature({ geometry });
     ellipseFeature.setId(`ellipse-${feature.getId()}`);
-    ellipseFeature.setProperties({ isReadOnly: true }, true);
-    ellipseFeature.setStyle(
-      new Style({
-        stroke: new Stroke({
-          color: "yellow",
-          width: 3,
-        }),
-      })
+    ellipseFeature.setProperties(
+      {
+        isEllipseShape: true,
+        [Enums.InternalProperties.ReadOnly]: true,
+        [Enums.InternalProperties.CantBeTranslated]: true,
+        [Enums.InternalProperties.VertexEnabled]: false
+      },
+      true
     );
+    ellipseFeature.setStyle(getEllipseStyle());
 
     /** Remove markup from handles to add a new one to ellipse */
     markupManager.remove(feature.getId());
@@ -93,11 +163,81 @@ const drawEllipse = (
   }
 };
 
+const getChangeEvent = (viewerProperties) => {
+  const { map, drawingSource } = viewerProperties;
+  /**
+   * This is used to avoid changing features while
+   * dragging because of getClosestFeatureToCoordinate call
+   */
+  let draggedFeature,
+    draggedHandleIndex = null;
+  map.on("pointerup", () => {
+    draggedFeature = null;
+    draggedHandleIndex = null;
+  });
+
+  return (event) => {
+    const handleCoordinate = event.coordinate;
+    const handle = { x: handleCoordinate[0], y: handleCoordinate[1] };
+
+    if (draggedFeature === null) {
+      draggedFeature =
+        drawingSource.getClosestFeatureToCoordinate(handleCoordinate);
+    }
+
+    if (!draggedFeature) {
+      return;
+    }
+
+    const { isEllipseHandles } = draggedFeature.getProperties();
+
+    if (!isEllipseHandles) {
+      return;
+    }
+
+    const draggedFeatureGeometry = draggedFeature.getGeometry();
+    const coords = draggedFeatureGeometry.getCoordinates();
+
+    let axisHandle;
+    if (draggedHandleIndex === null) {
+      const start = { x: coords[0][0], y: coords[0][1] };
+      const end = { x: coords[1][0], y: coords[1][1] };
+      const distanceStart = distance(handle, start);
+      const distanceEnd = distance(handle, end);
+      axisHandle = distanceStart < distanceEnd ? "start" : "end";
+    }
+
+    if (axisHandle === "start") {
+      drawEllipse(
+        draggedFeature,
+        coords[0],
+        coords[1],
+        handleCoordinate,
+        viewerProperties
+      );
+      updateMarkup(draggedFeature, viewerProperties);
+      return;
+    }
+
+    if (axisHandle === "end") {
+      drawEllipse(
+        draggedFeature,
+        coords[1],
+        coords[0],
+        handleCoordinate,
+        viewerProperties
+      );
+      updateMarkup(draggedFeature, viewerProperties);
+      return;
+    }
+  };
+};
+
 const ellipse = {
   onAdd: (feature, viewerProperties) => {
     const { markupManager, drawingSource } = viewerProperties;
-    const { isEllipse } = feature.getProperties();
-    if (isEllipse) {
+    const { isEllipseHandles } = feature.getProperties();
+    if (isEllipseHandles) {
       /** Remove markup from handles to add a new one to ellipse */
       markupManager.remove(feature.getId());
       const ellipse = drawingSource.getFeatureById(
@@ -112,126 +252,95 @@ const ellipse = {
     }
   },
   onInit: (viewerProperties) => {
-    const { map, drawingSource } = viewerProperties;
-    /**
-     * This is used to avoid changing features while
-     * dragging because of getClosestFeatureToCoordinate call
-     */
-    let draggedFeature,
-      draggedHandleIndex = null;
-    map.on("pointerup", () => {
-      draggedFeature = null;
-      draggedHandleIndex = null;
-    });
-
-    map.on(Enums.MapEvents.POINTER_DRAG, (event) => {
-      const handleCoordinate = event.coordinate;
-      const handle = { x: handleCoordinate[0], y: handleCoordinate[1] };
-
-      if (draggedFeature === null) {
-        draggedFeature =
-          drawingSource.getClosestFeatureToCoordinate(handleCoordinate);
-      }
-
-      if (!draggedFeature) {
-        return;
-      }
-
-      const { isEllipse } = draggedFeature.getProperties();
-
-      if (!isEllipse) {
-        return;
-      }
-
-      const draggedFeatureGeometry = draggedFeature.getGeometry();
-      const coords = draggedFeatureGeometry.getCoordinates();
-
-      let axisHandle;
-      if (draggedHandleIndex === null) {
-        const start = { x: coords[0][0], y: coords[0][1] };
-        const end = { x: coords[1][0], y: coords[1][1] };
-        const distanceStart = distance(handle, start);
-        const distanceEnd = distance(handle, end);
-        axisHandle = distanceStart < distanceEnd ? "start" : "end";
-      }
-
-      if (axisHandle === "start") {
-        drawEllipse(
-          draggedFeature,
-          coords[0],
-          coords[1],
-          handleCoordinate,
-          viewerProperties
-        );
-        updateMarkup(draggedFeature, viewerProperties);
-        return;
-      }
-
-      if (axisHandle === "end") {
-        drawEllipse(
-          draggedFeature,
-          coords[1],
-          coords[0],
-          handleCoordinate,
-          viewerProperties
-        );
-        updateMarkup(draggedFeature, viewerProperties);
-        return;
-      }
-    });
+    const { map } = viewerProperties;
+    map.on(Enums.MapEvents.POINTER_DRAG, getChangeEvent(viewerProperties));
   },
+  onInteractionsChange: (interactions, viewerProperties) => {},
   onDrawEnd: (event, viewerProperties) => {},
   onDrawStart: (event, viewerProperties) => {
     const { drawingOptions, markupManager } = viewerProperties;
     if (isDrawingEllipse(drawingOptions)) {
-      const ellipseFeature = event.feature;
-      ellipseFeature.setProperties({ isEllipse: true }, true);
-      ellipseFeature.getGeometry().on("change", (event) => {
+      const ellipseHandlesFeature = event.feature;
+
+      ellipseHandlesFeature.setProperties(
+        {
+          isEllipseHandles: true,
+          [Enums.InternalProperties.IsSilentFeature]: true,
+          [Enums.InternalProperties.CantBeTranslated]: true,
+          [Enums.InternalProperties.VertexEnabled]: false
+        },
+        true
+      );
+
+      ellipseHandlesFeature.getGeometry().on("change", (event) => {
         const geometry = event.target;
         const [first, last] = geometry.getCoordinates();
-        drawEllipse(ellipseFeature, first, last, last, viewerProperties);
-        updateMarkup(ellipseFeature, viewerProperties);
+        drawEllipse(ellipseHandlesFeature, first, last, last, viewerProperties);
+        updateMarkup(ellipseHandlesFeature, viewerProperties);
       });
-
-      function styleFunction(feature) {
-        const styles = [];
-        const featureGeometry = feature.getGeometry();
-
-        const type = featureGeometry.getType();
-        if (type !== "LineString") {
-          return styles;
-        }
-
-        const [start, end] = featureGeometry.getCoordinates();
-
-        const getHandleStyle = (coords) =>
-          new Style({
-            geometry: new Point(coords),
-            image: new CircleStyle({
-              radius: 7,
-              stroke: new Stroke({
-                color: "yellow",
-                width: 2,
-              }),
-            }),
-          });
-
-        styles.push(getHandleStyle(start));
-        styles.push(getHandleStyle(end));
-
-        return styles;
-      }
-
-      ellipseFeature.setStyle(styleFunction);
     }
   },
   onRemove: (feature, { drawingSource, markupManager }) => {
-    const { isEllipse } = feature.getProperties();
-    if (isEllipse) {
+    const { isEllipseHandles } = feature.getProperties();
+    if (isEllipseHandles) {
       const ellipseFeatureId = `ellipse-${feature.getId()}`;
       const ellipseFeature = drawingSource.getFeatureById(ellipseFeatureId);
       drawingSource.removeFeature(ellipseFeature);
       markupManager.remove(ellipseFeature.getId());
+    }
+  },
+  onSetFeatureStyle: (feature, styleOptions, viewerProperties) => {
+    const { drawingSource } = viewerProperties;
+    const { isEllipseHandles, isEllipse, isEllipseShape } =
+      feature.getProperties();
+
+    const isEllipseAnnotation = isEllipseHandles || isEllipse || isEllipseShape;
+
+    if (isEllipseAnnotation) {
+      if (styleOptions.stroke) {
+        styles.stroke = {
+          ...styles.stroke,
+          ...styleOptions.stroke,
+        };
+      }
+
+      if (styleOptions.image) {
+        styles.image = {
+          ...styles.image,
+          ...styleOptions.image,
+        };
+      }
+    }
+
+    const ellipseStyle = getEllipseStyle();
+
+    if (isEllipseHandles || isEllipse) {
+      feature.setStyle(ellipseHandlesStyleFunction);
+      feature.set(Enums.InternalProperties.StyleOptions, styles);
+
+      const ellipseFeatureId = `ellipse-${feature.getId()}`;
+      const ellipseFeature = drawingSource.getFeatureById(ellipseFeatureId);
+      if (ellipseFeature) {
+        ellipseFeature.setStyle(ellipseStyle);
+        ellipseFeature.set(Enums.InternalProperties.StyleOptions, styles);
+      }
+    }
+
+    if (isEllipseShape) {
+      feature.setStyle(ellipseStyle);
+      feature.set(Enums.InternalProperties.StyleOptions, styles);
+
+      const ellipseHandlesFeatureId = feature.getId().split("ellipse-")[1];
+      const ellipseHandlesFeature = drawingSource.getFeatureById(
+        ellipseHandlesFeatureId
+      );
+      if (ellipseHandlesFeature) {
+        ellipseHandlesFeature.setStyle(ellipseHandlesStyleFunction);
+        ellipseHandlesFeature.set(
+          Enums.InternalProperties.StyleOptions,
+          styles
+        );
+      }
     }
   },
 };

@@ -1,4 +1,6 @@
 import Draw from "ol/interaction/Draw";
+import Style from "ol/style/Style";
+import Stroke from "ol/style/Stroke";
 
 import Enums from "../../../enums";
 import moveBidirectionalHandles from "./moveBidirectionalHandles";
@@ -7,6 +9,24 @@ import createAndAddShortAxisFeature from "./createAndAddShortAxisFeature";
 import updateMarkup from "./updateMarkup";
 import { getShortAxisId, getLongAxisId } from "./id";
 import getDraggedHandleIndex from "./getDraggedHandleIndex";
+import Translate from "ol/interaction/Translate";
+
+const styles = {
+  stroke: {
+    color: "black",
+    width: 3,
+  },
+};
+
+const getAxisStyle = (drawStyles) => {
+  const stroke = (drawStyles ? drawStyles : styles).stroke;
+  return new Style({
+    stroke: new Stroke({
+      color: stroke.color,
+      width: stroke.width,
+    }),
+  });
+};
 
 const isDrawingBidirectional = (drawingOptions) =>
   drawingOptions.geometryType === Enums.GeometryType.Line &&
@@ -83,13 +103,17 @@ const bidirectional = {
       }
     });
   },
+  onInteractionsChange: (interactions, viewerProperties) => {},
   onDrawStart: (event, viewerProperties) => {
     const { drawingOptions, drawingSource, map } = viewerProperties;
 
     if (isDrawingBidirectional(drawingOptions)) {
       const longAxisFeature = event.feature;
 
-      longAxisFeature.setProperties({ isLongAxis: true }, true);
+      longAxisFeature.setProperties(
+        { isLongAxis: true, [Enums.InternalProperties.CantBeTranslated]: true },
+        true
+      );
 
       const interactions = map.getInteractions();
 
@@ -106,7 +130,11 @@ const bidirectional = {
           return;
         }
 
-        createAndAddShortAxisFeature(longAxisFeature, viewerProperties);
+        createAndAddShortAxisFeature(
+          longAxisFeature,
+          viewerProperties,
+          getAxisStyle(drawingOptions[Enums.InternalProperties.StyleOptions])
+        );
       };
 
       longAxisFeature
@@ -136,7 +164,47 @@ const bidirectional = {
       const shortAxisFeature = drawingSource.getFeatureById(shortAxisFeatureId);
       drawingSource.removeFeature(shortAxisFeature);
     }
-  }
+  },
+  onSetFeatureStyle: (feature, styleOptions, viewerProperties) => {
+    const { drawingSource } = viewerProperties;
+    const { isLongAxis, isShortAxis } = feature.getProperties();
+
+    const isBidirectional = isLongAxis || isShortAxis;
+    if (isBidirectional) {
+      if (styleOptions.stroke) {
+        styles.stroke = {
+          ...styles.stroke,
+          ...styleOptions.stroke,
+        };
+      }
+    }
+
+    const axisStyle = getAxisStyle();
+
+    if (isLongAxis) {
+      feature.setStyle(axisStyle);
+      feature.set(Enums.InternalProperties.StyleOptions, styles);
+
+      const shortAxisFeatureId = getShortAxisId(feature);
+      const shortAxisFeature = drawingSource.getFeatureById(shortAxisFeatureId);
+      if (shortAxisFeature) {
+        shortAxisFeature.setStyle(axisStyle);
+        shortAxisFeature.set(Enums.InternalProperties.StyleOptions, styles);
+      }
+    }
+
+    if (isShortAxis) {
+      feature.setStyle(axisStyle);
+      feature.set(Enums.InternalProperties.StyleOptions, styles);
+
+      const longAxisFeatureId = getLongAxisId(draggedFeature);
+      const longAxisFeature = drawingSource.getFeatureById(longAxisFeatureId);
+      if (longAxisFeature) {
+        longAxisFeature.setStyle(axisStyle);
+        longAxisFeature.set(Enums.InternalProperties.StyleOptions, styles);
+      }
+    }
+  },
 };
 
 export default bidirectional;

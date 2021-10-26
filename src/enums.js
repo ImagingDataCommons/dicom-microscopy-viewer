@@ -7,7 +7,11 @@ export const InternalProperties = {
   Evaluations: "evaluations",
   PresentationState: "presentationState",
   Bidirectional: "bidirectional",
-  Ellipse: "ellipse"
+  Ellipse: "isEllipse",
+  ReadOnly: "isReadOnly",
+  IsSilentFeature: "isSilent",
+  CantBeTranslated: "cantBeTranslated",
+  VertexEnabled: "vertexEnabled"
 };
 
 export const Marker = {
@@ -21,7 +25,8 @@ export const Markup = {
 
 export const GeometryType = {
   Line: "line",
-  Circle: "circle"
+  Circle: "circle",
+  Ellipse: "ellipse",
 };
 
 export const FeatureEvents = {
@@ -67,5 +72,5 @@ export default {
   HTMLElementEvents,
   InternalProperties,
   MapEvents,
-  GeometryType
+  GeometryType,
 };

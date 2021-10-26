@@ -162,7 +162,8 @@ const ArrowMarker = ({ map, markupManager }) => {
     },
     onUpdate: (feature) => {},
     onDrawEnd: ({ feature }) => {},
-    onDrawAbort: ({ feature }) => {}
+    onDrawAbort: ({ feature }) => {},
+    onSetFeatureStyle: (feature, styleOptions) => {}
   }
 }
 

@@ -179,6 +179,16 @@ class _AnnotationManager {
     this[Markup.TextEvaluation].onDrawAbort(event);
     this.props.markupManager.onDrawAbort(event);
   }
+
+  onSetFeatureStyle(feature, styleOptions) {
+    this[Marker.Arrow].onSetFeatureStyle(feature, styleOptions);
+    this[Markup.Measurement].onSetFeatureStyle(feature, styleOptions);
+    this[Markup.TextEvaluation].onSetFeatureStyle(feature, styleOptions);
+  }
+
+  onInteractionsChange(interactions) {
+    this[Markup.Measurement].onInteractionsChange(interactions);
+  }
 }
 
 export default _AnnotationManager;
