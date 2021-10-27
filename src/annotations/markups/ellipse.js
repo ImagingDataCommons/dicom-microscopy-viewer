@@ -169,13 +169,13 @@ const drawEllipse = (
       {
         isEllipseShape: true,
         [Enums.InternalProperties.ReadOnly]: true,
-        subFeatures: [feature]
+        subFeatures: [feature],
       },
       true
     );
     feature.setProperties(
       {
-        [Enums.InternalProperties.CantBeTranslated]: true
+        [Enums.InternalProperties.CantBeTranslated]: true,
       },
       true
     );
@@ -231,7 +231,12 @@ const getChangeEvent = (viewerProperties) => {
     const coords = draggedFeatureGeometry.getCoordinates();
 
     /** Disable dragging handle line */
-    if (handleCoordinate !== coords[1] && handleCoordinate !== coords[1]) {
+    if (
+      handleCoordinate[0] !== coords[0][0] &&
+      handleCoordinate[1] !== coords[0][1] &&
+      handleCoordinate[0] !== coords[1][0] &&
+      handleCoordinate[1] !== coords[1][1]
+    ) {
       return;
     }
 
@@ -301,7 +306,7 @@ const ellipse = {
       ellipseHandlesFeature.setProperties(
         {
           isEllipseHandles: true,
-          [Enums.InternalProperties.IsSilentFeature]: true
+          [Enums.InternalProperties.IsSilentFeature]: true,
         },
         true
       );
@@ -313,14 +318,14 @@ const ellipse = {
       //     selected.setStyle(undefined);
       //     selected = null;
       //   }
-      
+
       //   map.forEachFeatureAtPixel(e.pixel, function (f) {
       //     selected = f;
       //     // add highlight
       //     // f.setStyle(highlightStyle);
       //     return true;
       //   });
-      
+
       //   if (selected) {
       //     // add highlight
       //   } else {
