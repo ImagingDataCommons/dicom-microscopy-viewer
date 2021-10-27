@@ -1,16 +1,18 @@
-import Enums from "../../enums";
+import Enums from "../../../enums";
 import Style from "ol/style/Style";
 import Stroke from "ol/style/Stroke";
 import { fromCircle } from "ol/geom/Polygon";
 import CircleGeometry from "ol/geom/Circle";
-import { distance } from "./bidirectional/mathUtils";
+import { distance } from "../bidirectional/mathUtils";
 import { Feature } from "ol";
 import CircleStyle from "ol/style/Circle";
 import Point from "ol/geom/Point";
-import { getFeatureScoord3dArea } from "../../scoord3dUtils";
-import { getUnitSuffix } from "../../utils";
+import { getFeatureScoord3dArea } from "../../../scoord3dUtils";
+import { getUnitSuffix } from "../../../utils";
 import Fill from "ol/style/Fill";
 import RegularShape from "ol/style/RegularShape";
+import annotationInterface from "../../annotationInterface";
+import { getEllipseHandlesId, getEllipseId } from "./id";
 
 const styles = {
   image: {
@@ -89,7 +91,7 @@ const updateMarkup = (
   feature,
   { markupManager, drawingSource, map, pyramid }
 ) => {
-  const ellipseFeatureId = `ellipse-${feature.getId()}`;
+  const ellipseFeatureId = getEllipseId(feature);
   const ellipseFeature = drawingSource.getFeatureById(ellipseFeatureId);
   if (ellipseFeature) {
     const view = map.getView();
@@ -149,7 +151,8 @@ const drawEllipse = (
     movingPoint[1]
   );
 
-  const ellipse = drawingSource.getFeatureById(`ellipse-${feature.getId()}`);
+  const ellipseId = getEllipseId(feature);
+  const ellipse = drawingSource.getFeatureById(ellipseId);
 
   const center = mid;
   const last = currentPoint;
@@ -164,7 +167,7 @@ const drawEllipse = (
   if (!ellipse) {
     const geometry = polygon;
     const ellipseFeature = new Feature({ geometry });
-    ellipseFeature.setId(`ellipse-${feature.getId()}`);
+    ellipseFeature.setId(ellipseId);
     ellipseFeature.setProperties(
       {
         isEllipseShape: true,
@@ -203,7 +206,7 @@ const getChangeEvent = (viewerProperties) => {
    */
   let draggedFeature,
     draggedHandle = null;
-  map.on("pointerup", () => {
+  map.on(Enums.MapEvents.POINTER_UP, () => {
     draggedFeature = null;
     draggedHandle = null;
   });
@@ -275,15 +278,14 @@ const getChangeEvent = (viewerProperties) => {
 };
 
 const ellipse = {
+  ...annotationInterface,
   onAdd: (feature, viewerProperties) => {
     const { markupManager, drawingSource } = viewerProperties;
     const { isEllipseHandles } = feature.getProperties();
     if (isEllipseHandles) {
       /** Remove markup from handles to add a new one to ellipse */
       markupManager.remove(feature.getId());
-      const ellipse = drawingSource.getFeatureById(
-        `ellipse-${feature.getId()}`
-      );
+      const ellipse = drawingSource.getFeatureById(getEllipseId(feature));
       if (ellipse) {
         markupManager.create({
           feature: ellipse,
@@ -292,12 +294,11 @@ const ellipse = {
       }
     }
   },
-  onInit: (viewerProperties) => {
+  onInit: (viewerProperties) => {},
+  onDrawEnd: (event, viewerProperties) => {
     const { map } = viewerProperties;
     map.on(Enums.MapEvents.POINTER_DRAG, getChangeEvent(viewerProperties));
   },
-  onInteractionsChange: (interactions, viewerProperties) => {},
-  onDrawEnd: (event, viewerProperties) => {},
   onDrawStart: (event, viewerProperties) => {
     const { drawingOptions, map } = viewerProperties;
     if (isDrawingEllipse(drawingOptions)) {
@@ -342,13 +343,19 @@ const ellipse = {
     }
   },
   onRemove: (feature, { drawingSource, markupManager }) => {
-    const { isEllipseHandles } = feature.getProperties();
-    if (isEllipseHandles) {
-      const ellipseFeatureId = `ellipse-${feature.getId()}`;
-      const ellipseFeature = drawingSource.getFeatureById(ellipseFeatureId);
-      drawingSource.removeFeature(ellipseFeature);
-      markupManager.remove(ellipseFeature.getId());
+    const { isEllipse } = feature.getProperties();
+    if (isEllipse) {
+      const ellipseHandlesFeatureId = getEllipseHandlesId(feature);
+      const ellipseHandlesFeature = drawingSource.getFeatureById(
+        ellipseHandlesFeatureId
+      );
+      drawingSource.removeFeature(ellipseHandlesFeature);
+      markupManager.remove(ellipseHandlesFeature.getId());
     }
+  },
+  getMeasurements: feature => {
+    // todo
+    return [];
   },
   onSetFeatureStyle: (feature, styleOptions, viewerProperties) => {
     const { drawingSource } = viewerProperties;
@@ -356,6 +363,10 @@ const ellipse = {
       feature.getProperties();
 
     const isEllipseAnnotation = isEllipseHandles || isEllipse || isEllipseShape;
+
+    if (!isEllipseAnnotation) {
+      return;
+    }
 
     if (isEllipseAnnotation) {
       if (styleOptions.stroke) {
@@ -373,7 +384,7 @@ const ellipse = {
       feature.setStyle(ellipseHandlesStyleFunction);
       feature.set(Enums.InternalProperties.StyleOptions, styles);
 
-      const ellipseFeatureId = `ellipse-${feature.getId()}`;
+      const ellipseFeatureId = getEllipseId(feature);
       const ellipseFeature = drawingSource.getFeatureById(ellipseFeatureId);
       if (ellipseFeature) {
         ellipseFeature.setStyle(ellipseStyle);
@@ -385,7 +396,7 @@ const ellipse = {
       feature.setStyle(ellipseStyle);
       feature.set(Enums.InternalProperties.StyleOptions, styles);
 
-      const ellipseHandlesFeatureId = feature.getId().split("ellipse-")[1];
+      const ellipseHandlesFeatureId = getEllipseHandlesId(feature);
       const ellipseHandlesFeature = drawingSource.getFeatureById(
         ellipseHandlesFeatureId
       );

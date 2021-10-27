@@ -65,6 +65,7 @@ import {
 import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
+import { getLongAxisId, getShortAxisId } from './annotations/markups/bidirectional/id'
 
 function _getInteractionBindingCondition (bindings, condition = () => true) {
   const BUTTONS = {
@@ -296,22 +297,23 @@ function _addROIPropertiesToFeature(feature, properties, optSilent) {
  * Wire measurements and qualitative events to generate content items
  * based on feature properties and geometry changes
  *
- * @param {object} map - The map instance
  * @param {object} feature - The feature instance
- * @param {object} pyramid - The pyramid metadata
+ * @param {object} viewerProperties - The viewer properties
+ * @param {object} viewerProperties.map - The map
+ * @param {object} viewerProperties.drawingSource - The drawing source
+ * @param {object} viewerProperties.pyramid - The pyramid metadata
  * @returns {void}
  */
 function _wireMeasurementsAndQualitativeEvaluationsEvents (
-  map,
   feature,
-  pyramid
+  viewerProperties
 ) {
   /**
    * Update feature measurement properties first and then measurements
    */
-  _updateFeatureMeasurements(map, feature, pyramid)
+  _updateFeatureMeasurements(feature, viewerProperties)
   feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-    _updateFeatureMeasurements(map, feature, pyramid)
+    _updateFeatureMeasurements(feature, viewerProperties)
   })
 
   /**
@@ -330,10 +332,15 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents (
  * @returns {void}
  */
 function _updateFeatureEvaluations (feature) {
-  const evaluations = feature.get(Enums.InternalProperties.Evaluations) || []
-  const label = feature.get(Enums.InternalProperties.Label)
+  const {
+    [Enums.InternalProperties.Evaluations]: featureEvaluations,
+    [Enums.InternalProperties.Label]: featureLabel,
+  } = feature.getProperties();
 
-  if (!label) return
+  const evaluations = featureEvaluations || [];
+  const label = featureLabel;
+
+  if (!label) return;
 
   const evaluation = new dcmjs.sr.valueTypes.TextContentItem({
     name: new dcmjs.sr.coding.CodedConcept({
@@ -362,19 +369,30 @@ function _updateFeatureEvaluations (feature) {
 /**
  * Generate feature measurements from its measurement properties
  *
- * @param {object} map - The map instance
  * @param {object} feature - The feature instance
- * @param {object} pyramid - The pyramid metadata
+ * @param {object} viewerProperties - The viewer properties
+ * @param {object} viewerProperties.map - The map
+ * @param {object} viewerProperties.drawingSource - The drawing source
+ * @param {object} viewerProperties.pyramid - The pyramid metadata
  * @returns {void}
  */
-function _updateFeatureMeasurements (map, feature, pyramid) {
+function _updateFeatureMeasurements (feature, viewerProperties) {
+  const { map, pyramid, annotationManager } = viewerProperties;
+
+  const { 
+    [Enums.InternalProperties.Markup]: featureMarkup, 
+    [Enums.Bidirectional.IsShortAxis]: isShortAxis,
+    [Enums.Bidirectional.IsLongAxis]: isLongAxis
+  } = feature.getProperties();
+
+  const isBidirectional = isShortAxis || isLongAxis;
+
   if (
-    Enums.Markup.Measurement !== feature.get(Enums.InternalProperties.Markup)
+    Enums.Markup.Measurement !== featureMarkup
   ) {
     return
   }
 
-  const measurements = feature.get(Enums.InternalProperties.Measurements) || []
   const area = getFeatureScoord3dArea(feature, pyramid)
   const length = getFeatureScoord3dLength(feature, pyramid)
 
@@ -389,14 +407,21 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     km: 'kilometers'
   }
 
-  let measurement
   const view = map.getView()
   const unitSuffix = getUnitSuffix(view)
   const unitCodedConceptValue = unitSuffix
   const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
 
+  const measurements = annotationManager.getMeasurements(feature);
+  if (measurements && measurements.length > 0) {
+    measurements.forEach(measurement => {
+      addOrUpdateMeasurement(feature, measurement);
+    });
+    return;
+  }
+
   if (area != null) {
-    measurement = new dcmjs.sr.valueTypes.NumContentItem({
+    const measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Area',
         value: '42798000',
@@ -411,10 +436,12 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
         })
       ]
     })
+    addOrUpdateMeasurement(feature, measurement);
+    return;
   }
 
   if (length != null) {
-    measurement = new dcmjs.sr.valueTypes.NumContentItem({
+    const measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Length',
         value: '410668003',
@@ -429,9 +456,16 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
         })
       ]
     })
+    addOrUpdateMeasurement(feature, measurement);
+    return;
   }
+}
 
+const addOrUpdateMeasurement = (feature, measurement) => {
   if (measurement) {
+    const featureMeasurements = feature.get(Enums.InternalProperties.Measurements);
+    const measurements = featureMeasurements || []
+
     const index = measurements.findIndex((m) => (
       doContentItemsMatch(m, measurement)
     ))
@@ -445,7 +479,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     feature.set(Enums.InternalProperties.Measurements, measurements)
     console.debug(`Measurements of feature (${feature.getId()}):`, measurements)
   }
-}
+};
 
 const _options = Symbol('options')
 const _controls = Symbol('controls')
@@ -928,18 +962,18 @@ class VolumeImageViewer {
     }
 
     // This updates the tiles offscreen rendering when panning the view.
-    this[_map].on('pointermove', evt => {
+    this[_map].on(Enums.MapEvents.POINTER_MOVE, evt => {
       if (evt.dragging) {
         this._updateTilesRenderingAtPanning()
       }
     })
 
     let startMoveZoom = 0
-    this[_map].on('movestart', evt => {
+    this[_map].on(Enums.MapEvents.MOVE_START, evt => {
       startMoveZoom = Math.round(evt.frameState.viewState.zoom)
     })
 
-    this[_map].on('moveend', evt => {
+    this[_map].on(Enums.MapEvents.MOVE_END, evt => {
       const endMoveZoom = Math.round(evt.frameState.viewState.zoom)
       if (endMoveZoom === startMoveZoom) {
         this._updateTilesRenderingAtPanning()
@@ -1657,9 +1691,13 @@ class VolumeImageViewer {
       this[_annotationManager].onDrawStart(event, options)
 
       _wireMeasurementsAndQualitativeEvaluationsEvents(
-        this[_map],
         event.feature,
-        this[_pyramidMetadata]
+        {
+          map: this[_map],
+          drawingSource: this[_drawingSource],
+          pyramid: this[_pyramidMetadata],
+          annotationManager: this[_annotationManager]
+        }
       )
     })
 
@@ -1677,7 +1715,6 @@ class VolumeImageViewer {
     })
 
     this[_map].addInteraction(this[_interactions].draw)
-    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -1776,11 +1813,13 @@ class VolumeImageViewer {
 
     this[_interactions].translate = new Translate(translateOptions)
 
+    /**
+     * This allows feature with sub features to be translated together.
+     */
     let lastCoordinate = null;
-    map.on("pointerdown", ({ coordinate }) => lastCoordinate = coordinate);
-    map.on("pointerup", () => lastCoordinate = null);
-    
-    this[_interactions].translate.on('translating', event => {
+    map.on(Enums.MapEvents.POINTER_DOWN, ({ coordinate }) => lastCoordinate = coordinate);
+    map.on(Enums.MapEvents.POINTER_UP, () => lastCoordinate = null);
+    this[_interactions].translate.on(Enums.InteractionEvents.TRANSLATING, event => {
       const newCoordinate = event.coordinate;
       event.features.forEach(feature => {
         const { subFeatures } = feature.getProperties();
@@ -1801,7 +1840,6 @@ class VolumeImageViewer {
     });
 
     this[_map].addInteraction(this[_interactions].translate)
-    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -1892,7 +1930,6 @@ class VolumeImageViewer {
     this[_interactions].dragZoom = new DragZoom(dragZoomOptions)
 
     this[_map].addInteraction(this[_interactions].dragZoom)
-    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -1952,7 +1989,6 @@ class VolumeImageViewer {
     })
 
     this[_map].addInteraction(this[_interactions].select)
-    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -2000,7 +2036,6 @@ class VolumeImageViewer {
     this[_interactions].dragPan = new DragPan(dragPanOptions)
 
     this[_map].addInteraction(this[_interactions].dragPan)
-    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -2029,7 +2064,6 @@ class VolumeImageViewer {
     })
 
     this[_map].addInteraction(this[_interactions].snap)
-    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /**
@@ -2091,7 +2125,6 @@ class VolumeImageViewer {
     this[_interactions].modify = new Modify(modifyOptions)
 
     this[_map].addInteraction(this[_interactions].modify)
-    this[_annotationManager].onInteractionsChange(this[_map].getInteractions());
   }
 
   /** Deactivates modify interaction. */
@@ -2234,9 +2267,13 @@ class VolumeImageViewer {
     feature.setId(roi.uid)
 
     _wireMeasurementsAndQualitativeEvaluationsEvents(
-      this[_map],
       feature,
-      this[_pyramidMetadata]
+      {
+        map: this[_map],
+        drawingSource: this[_drawingSource],
+        pyramid: this[_pyramidMetadata],
+        annotationManager: this[_annotationManager]
+      }
     )
 
     this[_features].push(feature)

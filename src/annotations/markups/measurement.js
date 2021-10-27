@@ -4,8 +4,7 @@ import {
   getFeatureScoord3dArea,
   getFeatureScoord3dLength,
 } from "../../scoord3dUtils.js";
-import bidirectional from "./bidirectional/bidirectional";
-import ellipse from "./ellipse";
+import annotationInterface from "../annotationInterface";
 
 /**
  * Format measure output.
@@ -45,10 +44,7 @@ const MeasurementMarkup = (viewerProperties) => {
   const { map, pyramid, markupManager } = viewerProperties;
 
   return {
-    onInit: () => {
-      bidirectional.onInit(viewerProperties);
-      ellipse.onInit(viewerProperties);
-    },
+    ...annotationInterface,
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
         const view = map.getView();
@@ -59,8 +55,6 @@ const MeasurementMarkup = (viewerProperties) => {
           value: format(feature, unitSuffix, pyramid),
           position: ps && ps.markup ? ps.markup.coordinates : null,
         });
-        bidirectional.onAdd(feature, viewerProperties);
-        ellipse.onAdd(feature, viewerProperties);
       }
     },
     onFailure: (uid) => {
@@ -72,36 +66,13 @@ const MeasurementMarkup = (viewerProperties) => {
       if (_isMeasurement(feature)) {
         const featureId = feature.getId();
         markupManager.remove(featureId);
-        bidirectional.onRemove(feature, viewerProperties);
-        ellipse.onRemove(feature, viewerProperties);
       }
     },
     onDrawStart: (event, drawingOptions) => {
       const { feature } = event;
       if (_isMeasurement(feature)) {
         markupManager.create({ feature });
-        viewerProperties.drawingOptions = drawingOptions;
-        ellipse.onDrawStart(event, viewerProperties);
-        bidirectional.onDrawStart(event, viewerProperties);
       }
-    },
-    onUpdate: (feature) => {},
-    onDrawEnd: (event, drawingOptions) => {
-      const { feature } = event;
-      if (_isMeasurement(feature)) {
-        viewerProperties.drawingOptions = drawingOptions;
-        bidirectional.onDrawEnd(event, viewerProperties);
-        ellipse.onDrawEnd(event, viewerProperties);
-      }
-    },
-    onDrawAbort: ({ feature }) => {},
-    onSetFeatureStyle: (feature, styleOptions) => {
-      bidirectional.onSetFeatureStyle(feature, styleOptions, viewerProperties);
-      ellipse.onSetFeatureStyle(feature, styleOptions, viewerProperties);
-    },
-    onInteractionsChange: (interactions) => {
-      bidirectional.onInteractionsChange(interactions, viewerProperties);
-      ellipse.onInteractionsChange(interactions, viewerProperties);
     },
   };
 };

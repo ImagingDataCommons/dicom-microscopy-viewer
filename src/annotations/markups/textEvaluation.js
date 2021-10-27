@@ -4,6 +4,7 @@ import Style from 'ol/style/Style'
 import Circle from 'ol/style/Circle'
 
 import Enums from '../../enums'
+import annotationInterface from '../annotationInterface'
 
 /**
  * Format free text output.
@@ -87,6 +88,7 @@ const _onInteractionEventHandler = ({ feature, markupManager }) => {
  */
 const TextEvaluationMarkup = ({ markupManager }) => {
   return {
+    ...annotationInterface,
     onAdd: (feature) => {
       if (_isTextEvaluation(feature)) {
         _onInteractionEventHandler({ feature, markupManager })
@@ -128,8 +130,6 @@ const TextEvaluationMarkup = ({ markupManager }) => {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },
-    onDrawAbort: ({ feature }) => {},
-    onSetFeatureStyle: (feature, styleOptions) => {}
   }
 }
 

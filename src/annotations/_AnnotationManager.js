@@ -22,11 +22,13 @@ import {
   areCodedConceptsEqual,
   getContentItemNameCodedConcept,
 } from "../utils";
+import ellipse from "./markups/ellipse/ellipse";
+import bidirectional from "./markups/bidirectional/bidirectional";
 
 const { Marker, Markup } = Enums;
 
 class _AnnotationManager {
-  constructor ({ map, pyramid, drawingSource } = {}) {
+  constructor({ map, pyramid, drawingSource } = {}) {
     const markupManager = new _MarkupManager({
       map,
       pyramid,
@@ -53,7 +55,7 @@ class _AnnotationManager {
     this[Marker.Arrow] = ArrowMarker(this.props);
 
     /** Init */
-    this[Markup.Measurement].onInit();
+    this.onInit();
   }
 
   /**
@@ -136,68 +138,142 @@ class _AnnotationManager {
    * @param {string} id The markup id
    * @param {boolean} isVisible The markup visibility
    */
-  setMarkupVisibility (id, isVisible) { 
-    this.props.markupManager.setVisibility(id, isVisible)
+  setMarkupVisibility(id, isVisible) {
+    this.props.markupManager.setVisibility(id, isVisible);
   }
 
-  onAdd (feature) {
+  getMeasurements(feature) {
+    /** Annotations */
+    return (
+      bidirectional.getMeasurements(feature, this.props) ||
+      ellipse.getMeasurements(feature, this.props)
+    );
+  }
+
+  onAdd(feature) {
     /**
      * Add properties to ROI feature before triggering
      * markup and markers callbacks to keep UI in sync.
      */
     this._addMeasurementsAndEvaluationsProperties(feature);
 
-    this[Marker.Arrow].onAdd(feature);
-    this[Markup.Measurement].onAdd(feature);
-    this[Markup.TextEvaluation].onAdd(feature);
+    /** Markups & Markers */
+    this[Marker.Arrow].onAdd(feature, this.props);
+    this[Markup.Measurement].onAdd(feature, this.props);
+    this[Markup.TextEvaluation].onAdd(feature, this.props);
+
+    /** Annotations */
+    bidirectional.onAdd(feature, this.props);
+    ellipse.onAdd(feature, this.props);
+  }
+
+  onInit() {
+    /** Markups & Markers */
+    this[Marker.Arrow].onInit(this.props);
+    this[Markup.Measurement].onInit(this.props);
+    this[Markup.TextEvaluation].onInit(this.props);
+
+    /** Annotations */
+    bidirectional.onInit(this.props);
+    ellipse.onInit(this.props);
   }
 
   onFailure(uid) {
-    this[Marker.Arrow].onFailure(uid);
-    this[Markup.Measurement].onFailure(uid);
-    this[Markup.TextEvaluation].onFailure(uid);
+    /** Markups & Markers */
+    this[Marker.Arrow].onFailure(uid, this.props);
+    this[Markup.Measurement].onFailure(uid, this.props);
+    this[Markup.TextEvaluation].onFailure(uid, this.props);
+
+    /** Annotations */
+    bidirectional.onFailure(uid, this.props);
+    ellipse.onFailure(uid, this.props);
+
+    /** Managers */
+    this.props.markupManager.onFailure(uid, this.props);
   }
 
   onRemove(feature) {
-    this[Marker.Arrow].onRemove(feature);
-    this[Markup.Measurement].onRemove(feature);
-    this[Markup.TextEvaluation].onRemove(feature);
+    /** Markups & Markers */
+    this[Marker.Arrow].onRemove(feature, this.props);
+    this[Markup.Measurement].onRemove(feature, this.props);
+    this[Markup.TextEvaluation].onRemove(feature, this.props);
+
+    /** Annotations */
+    bidirectional.onRemove(feature, this.props);
+    ellipse.onRemove(feature, this.props);
   }
 
   onUpdate(feature) {
-    this[Marker.Arrow].onUpdate(feature);
-    this[Markup.Measurement].onUpdate(feature);
-    this[Markup.TextEvaluation].onUpdate(feature);
+    /** Markups & Markers */
+    this[Marker.Arrow].onUpdate(feature, this.props);
+    this[Markup.Measurement].onUpdate(feature, this.props);
+    this[Markup.TextEvaluation].onUpdate(feature, this.props);
+
+    /** Annotations */
+    bidirectional.onUpdate(feature, this.props);
+    ellipse.onUpdate(feature, this.props);
   }
 
-  onDrawStart(event, options) {
-    this[Marker.Arrow].onDrawStart(event, options);
-    this[Markup.Measurement].onDrawStart(event, options);
-    this[Markup.TextEvaluation].onDrawStart(event, options);
+  onDrawStart(event, drawingOptions) {
+    this.props.drawingOptions = drawingOptions;
+
+    /** Markups & Markers */
+    this[Marker.Arrow].onDrawStart(event, this.props);
+    this[Markup.Measurement].onDrawStart(event, this.props);
+    this[Markup.TextEvaluation].onDrawStart(event, this.props);
+
+    /** Annotations */
+    bidirectional.onDrawStart(event, this.props);
+    ellipse.onDrawStart(event, this.props);
   }
 
-  onDrawEnd(event, options) {
-    this[Marker.Arrow].onDrawEnd(event, options);
-    this[Markup.Measurement].onDrawEnd(event, options);
-    this[Markup.TextEvaluation].onDrawEnd(event, options);
-    this.props.markupManager.onDrawEnd(event, options);
+  onDrawEnd(event, drawingOptions) {
+    this.props.drawingOptions = drawingOptions;
+
+    /** Markups & Markers */
+    this[Marker.Arrow].onDrawEnd(event, this.props);
+    this[Markup.Measurement].onDrawEnd(event, this.props);
+    this[Markup.TextEvaluation].onDrawEnd(event, this.props);
+
+    /** Annotations */
+    bidirectional.onDrawEnd(event, this.props);
+    ellipse.onDrawEnd(event, this.props);
+
+    /** Managers */
+    this.props.markupManager.onDrawEnd(event, this.props);
   }
 
   onDrawAbort(event) {
-    this[Marker.Arrow].onDrawAbort(event);
-    this[Markup.Measurement].onDrawAbort(event);
-    this[Markup.TextEvaluation].onDrawAbort(event);
-    this.props.markupManager.onDrawAbort(event);
+    /** Markups & Markers */
+    this[Marker.Arrow].onDrawAbort(event, this.props);
+    this[Markup.Measurement].onDrawAbort(event, this.props);
+    this[Markup.TextEvaluation].onDrawAbort(event, this.props);
+
+    /** Annotations */
+    bidirectional.onDrawAbort(event, this.props);
+    ellipse.onDrawAbort(event, this.props);
+
+    /** Managers */
+    this.props.markupManager.onDrawAbort(event, this.props);
   }
 
   onSetFeatureStyle(feature, styleOptions) {
-    this[Marker.Arrow].onSetFeatureStyle(feature, styleOptions);
-    this[Markup.Measurement].onSetFeatureStyle(feature, styleOptions);
-    this[Markup.TextEvaluation].onSetFeatureStyle(feature, styleOptions);
-  }
+    /** Markups & Markers */
+    this[Marker.Arrow].onSetFeatureStyle(feature, styleOptions, this.props);
+    this[Markup.Measurement].onSetFeatureStyle(
+      feature,
+      styleOptions,
+      this.props
+    );
+    this[Markup.TextEvaluation].onSetFeatureStyle(
+      feature,
+      styleOptions,
+      this.props
+    );
 
-  onInteractionsChange(interactions) {
-    this[Markup.Measurement].onInteractionsChange(interactions);
+    /** Annotations */
+    bidirectional.onSetFeatureStyle(feature, styleOptions, this.props);
+    ellipse.onSetFeatureStyle(feature, styleOptions, this.props);
   }
 }
 

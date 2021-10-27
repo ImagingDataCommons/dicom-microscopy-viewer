@@ -14,7 +14,7 @@ import { getUnitSuffix } from '../../utils'
 import { coordinateWithOffset } from '../../scoord3dUtils'
 import defaultStyles from '../styles'
 
-const DEFAULT_MARKUP_OFFSET = 70;
+const DEFAULT_MARKUP_OFFSET = 2;
 
 class _MarkupManager {
   constructor ({ map, pyramid, drawingSource, formatters, onClick, onStyle } = {}) {
@@ -202,7 +202,7 @@ class _MarkupManager {
     element.className = 'ol-tooltip ol-tooltip-measure'
     element.innerText = value
 
-    const spacedCoordinate = coordinateWithOffset(feature, DEFAULT_MARKUP_OFFSET)
+    const spacedCoordinate = coordinateWithOffset(feature, DEFAULT_MARKUP_OFFSET, this._map)
 
     element.onpointerdown = event => {
       event.stopPropagation();
@@ -440,7 +440,7 @@ class _MarkupManager {
 
     if (coordinate) {
       const padding = (markup.element.offsetWidth + markup.element.offsetHeight) / 2;
-      markup.overlay.setPosition(coordinateWithOffset(feature, DEFAULT_MARKUP_OFFSET + padding))
+      markup.overlay.setPosition(coordinateWithOffset(feature, DEFAULT_MARKUP_OFFSET + padding, this._map))
     }
 
     this._markups.set(id, markup)

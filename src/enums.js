@@ -14,6 +14,11 @@ export const InternalProperties = {
   VertexEnabled: "vertexEnabled"
 };
 
+export const Bidirectional = {
+  IsShortAxis: "isShortAxis",
+  IsLongAxis: "isLongAxis",
+};
+
 export const Marker = {
   Arrow: "arrow",
 };
@@ -36,7 +41,10 @@ export const FeatureEvents = {
 export const MapEvents = {
   POINTER_MOVE: "pointermove",
   POINTER_UP: "pointerup",
+  POINTER_DOWN: "pointerdown",
   POINTER_DRAG: "pointerdrag",
+  MOVE_START: "movestart",
+  MOVE_END: "moveend"
 };
 
 export const HTMLElementEvents = {
@@ -52,6 +60,7 @@ export const InteractionEvents = {
   TRANSLATE_START: "translatestart",
   MODIFY_START: "modifystart",
   MODIFY_END: "modifyend",
+  TRANSLATING: "translating",
 };
 
 export const FeatureGeometryEvents = {
@@ -73,4 +82,5 @@ export default {
   InternalProperties,
   MapEvents,
   GeometryType,
+  Bidirectional
 };

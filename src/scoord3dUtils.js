@@ -195,17 +195,23 @@ function coordinateFormatScoord3d2Geometry (coordinates, pyramid) {
  *
  * @param {object} feature feature
  * @param {number} offset offset
+ * @param {object} map map
  * @returns {array} coordinates with offset
  * @private
  */
-function coordinateWithOffset (feature, offset) {
+function coordinateWithOffset (feature, offset, map) {
   const geometry = feature.getGeometry()
   const coordinates = geometry.getLastCoordinate()
   const [x, y] = coordinates
+
+  const view = map.getView()
+  const resolution = view.getResolution()
+  const realOffset = offset * resolution
+
   return !feature.get(Enums.InternalProperties.Marker) &&
     feature.get(Enums.InternalProperties.Markup) === Enums.Markup.TextEvaluation
     ? coordinates
-    : [x - offset, y - offset]
+    : [x - realOffset, y - realOffset]
 }
 
 /**
