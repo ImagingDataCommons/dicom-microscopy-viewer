@@ -61,7 +61,7 @@
     "standard": "^16.0.3"
   },
   "dependencies": {
-    "dcmjs": "^0.18",
+    "dcmjs": "^0.19.0",
     "dicomweb-client": "^0.8",
     "image-type": "^4.1",
     "mathjs": "^9.4",

@@ -69,7 +69,6 @@ class _AnnotationManager {
 
     if (measurements && measurements.length) {
       return measurements.some((measurement) => {
-        // eslint-disable-line
         const SUPPORTED_MEASUREMENTS_CODED_CONCEPTS = [
           new dcmjs.sr.coding.CodedConcept({
             meaning: "Area",
@@ -80,6 +79,16 @@ class _AnnotationManager {
             meaning: "Length",
             value: "410668003",
             schemeDesignator: "SCT",
+          }),
+          new dcmjs.sr.coding.CodedConcept({
+            meaning: "Long Axis",
+            value: "G-A185",
+            schemeDesignator: "SRT",
+          }),
+          new dcmjs.sr.coding.CodedConcept({
+            meaning: "Short Axis",
+            value: "G-A186",
+            schemeDesignator: "SRT",
           }),
         ];
         const measurementCodedConcept =
@@ -99,7 +108,6 @@ class _AnnotationManager {
 
     if (evaluations && evaluations.length) {
       return evaluations.some((evaluation) => {
-        // eslint-disable-line
         const SUPPORTED_EVALUATIONS_CODED_CONCEPTS = [
           new dcmjs.sr.coding.CodedConcept({
             value: "112039",
@@ -187,9 +195,6 @@ class _AnnotationManager {
     /** Annotations */
     bidirectional.onFailure(uid, this.props);
     ellipse.onFailure(uid, this.props);
-
-    /** Managers */
-    this.props.markupManager.onFailure(uid, this.props);
   }
 
   onRemove(feature) {
