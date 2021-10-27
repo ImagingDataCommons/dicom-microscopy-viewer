@@ -65,7 +65,6 @@ import {
 import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
-import { getLongAxisId, getShortAxisId } from './annotations/markups/bidirectional/id'
 
 function _getInteractionBindingCondition (bindings, condition = () => true) {
   const BUTTONS = {
@@ -378,19 +377,10 @@ function _updateFeatureEvaluations (feature) {
  */
 function _updateFeatureMeasurements (feature, viewerProperties) {
   const { map, pyramid, annotationManager } = viewerProperties;
+  const featureMarkup = feature.get(Enums.InternalProperties.Markup);
 
-  const { 
-    [Enums.InternalProperties.Markup]: featureMarkup, 
-    [Enums.Bidirectional.IsShortAxis]: isShortAxis,
-    [Enums.Bidirectional.IsLongAxis]: isLongAxis
-  } = feature.getProperties();
-
-  const isBidirectional = isShortAxis || isLongAxis;
-
-  if (
-    Enums.Markup.Measurement !== featureMarkup
-  ) {
-    return
+  if (Enums.Markup.Measurement !== featureMarkup) {
+    return;
   }
 
   const area = getFeatureScoord3dArea(feature, pyramid)

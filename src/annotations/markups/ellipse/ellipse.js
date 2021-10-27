@@ -1,16 +1,18 @@
-import Enums from "../../../enums";
 import Style from "ol/style/Style";
 import Stroke from "ol/style/Stroke";
+import dcmjs from "dcmjs";
 import { fromCircle } from "ol/geom/Polygon";
 import CircleGeometry from "ol/geom/Circle";
-import { distance } from "../bidirectional/mathUtils";
 import { Feature } from "ol";
 import CircleStyle from "ol/style/Circle";
 import Point from "ol/geom/Point";
-import { getFeatureScoord3dArea } from "../../../scoord3dUtils";
-import { getUnitSuffix } from "../../../utils";
 import Fill from "ol/style/Fill";
 import RegularShape from "ol/style/RegularShape";
+
+import Enums from "../../../enums";
+import { distance } from "../bidirectional/mathUtils";
+import { getFeatureScoord3dArea } from "../../../scoord3dUtils";
+import { getUnitSuffix } from "../../../utils";
 import annotationInterface from "../../annotationInterface";
 import { getEllipseHandlesId, getEllipseId } from "./id";
 
@@ -277,8 +279,7 @@ const getChangeEvent = (viewerProperties) => {
   };
 };
 
-const ellipse = {
-  ...annotationInterface,
+const ellipse = Object.assign({}, annotationInterface, {
   onAdd: (feature, viewerProperties) => {
     const { markupManager, drawingSource } = viewerProperties;
     const { isEllipseHandles } = feature.getProperties();
@@ -353,8 +354,60 @@ const ellipse = {
       markupManager.remove(ellipseHandlesFeature.getId());
     }
   },
-  getMeasurements: feature => {
-    // todo
+  getMeasurements: (feature, viewerProperties) => {
+    const { drawingSource, pyramid } = viewerProperties;
+
+    const { isEllipseHandles, isEllipseShape } =
+      feature.getProperties();
+    const isEllipse = isEllipseHandles || isEllipseShape;
+
+    if (isEllipse) {
+      let ellipseHandlesFeature;
+      let ellipseFeature;
+      let points = [];
+      let area = 0;
+
+      if (ellipseHandlesFeature) {
+        ellipseHandlesFeature = feature;
+
+        const ellipseFeatureId = getEllipseId(ellipseHandlesFeature);
+        ellipseFeature = drawingSource.getFeatureById(ellipseFeatureId);
+
+        if (ellipseFeature) {
+          area = getFeatureScoord3dArea(ellipseFeature, pyramid);
+          points = ellipseFeature.getGeometry().getCoordinates().map(coordinate => ({
+            x: coordinate[0],
+            y: coordinate[1] 
+          }));
+        }
+      }
+
+      if (isEllipseShape) {
+        ellipseFeature = feature;
+        area = getFeatureScoord3dArea(ellipseFeature, pyramid);
+        points = ellipseFeature.getGeometry().getCoordinates().map(coordinate => ({
+          x: coordinate[0],
+          y: coordinate[1] 
+        }));
+      }
+
+      const ellipse = new dcmjs.utilities.TID300.Ellipse({
+        area,
+        points
+      });
+
+      const contentItem = ellipse.contentItem();
+      const numContentItems = contentItem.filter(
+        (ci) => ci.ValueType === "NUM"
+      );
+      return numContentItems.map((measurement) => {
+        /** Update format wrong in dcmjs */
+        measurement.ConceptNameCodeSequence = [
+          measurement.ConceptNameCodeSequence,
+        ];
+        return measurement;
+      });
+    }
     return [];
   },
   onSetFeatureStyle: (feature, styleOptions, viewerProperties) => {
@@ -409,6 +462,6 @@ const ellipse = {
       }
     }
   },
-};
+})
 
 export default ellipse;

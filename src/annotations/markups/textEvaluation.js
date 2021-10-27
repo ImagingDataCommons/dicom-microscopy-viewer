@@ -87,8 +87,7 @@ const _onInteractionEventHandler = ({ feature, markupManager }) => {
  * @param {object} dependencies.markupManager MarkupManager shared instance
  */
 const TextEvaluationMarkup = ({ markupManager }) => {
-  return {
-    ...annotationInterface,
+  return Object.assign({}, annotationInterface, {
     onAdd: (feature) => {
       if (_isTextEvaluation(feature)) {
         _onInteractionEventHandler({ feature, markupManager })
@@ -130,7 +129,7 @@ const TextEvaluationMarkup = ({ markupManager }) => {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },
-  }
+  })
 }
 
 export default TextEvaluationMarkup

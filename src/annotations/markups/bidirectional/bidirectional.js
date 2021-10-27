@@ -216,8 +216,7 @@ const attachPointerEvents = (viewerProperties) => {
   map.on(Enums.MapEvents.POINTER_DRAG, onPointerDragHandler);
 };
 
-const bidirectional = {
-  ...annotationInterface,
+const bidirectional = Object.assign({}, annotationInterface, {
   onAdd: (feature, viewerProperties) => {
     const { measurements } = feature.getProperties();
     if (measurements && JSON.stringify(measurements).includes("Long Axis")) {
@@ -393,7 +392,7 @@ const bidirectional = {
         longAxisFeature.set(Enums.InternalProperties.StyleOptions, styles);
       }
     }
-  },
-};
+  }
+})
 
 export default bidirectional;

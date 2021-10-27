@@ -43,8 +43,7 @@ const _isMeasurement = (feature) =>
 const MeasurementMarkup = (viewerProperties) => {
   const { map, pyramid, markupManager } = viewerProperties;
 
-  return {
-    ...annotationInterface,
+  return Object.assign({}, annotationInterface, {
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
         const view = map.getView();
@@ -74,7 +73,7 @@ const MeasurementMarkup = (viewerProperties) => {
         markupManager.create({ feature });
       }
     },
-  };
+  });
 };
 
 export default MeasurementMarkup;

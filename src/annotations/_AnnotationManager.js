@@ -90,6 +90,11 @@ class _AnnotationManager {
             value: "G-A186",
             schemeDesignator: "SRT",
           }),
+          new dcmjs.sr.coding.CodedConcept({
+            meaning: "AREA",
+            value: "G-D7FE",
+            schemeDesignator: "SRT",
+          }),
         ];
         const measurementCodedConcept =
           getContentItemNameCodedConcept(measurement);
@@ -152,10 +157,9 @@ class _AnnotationManager {
 
   getMeasurements(feature) {
     /** Annotations */
-    return (
-      bidirectional.getMeasurements(feature, this.props) ||
-      ellipse.getMeasurements(feature, this.props)
-    );
+    return bidirectional
+      .getMeasurements(feature, this.props)
+      .concat(ellipse.getMeasurements(feature, this.props));
   }
 
   onAdd(feature) {

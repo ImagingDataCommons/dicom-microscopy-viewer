@@ -124,8 +124,7 @@ const _isArrow = (feature) =>
  * @param {object} dependencies.markupManager Markup manager shared instance
  */
 const ArrowMarker = ({ map, markupManager }) => {
-  return {
-    ...annotationInterface,
+  return Object.assign({}, annotationInterface, {
     onAdd: (feature) => {
       if (_isArrow(feature)) {
         _applyStyles(feature, map)
@@ -162,7 +161,7 @@ const ArrowMarker = ({ map, markupManager }) => {
         markupManager.remove(uid)
       }
     },
-  }
+  })
 }
 
 export default ArrowMarker
