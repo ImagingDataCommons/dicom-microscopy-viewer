@@ -1,16 +1,15 @@
-import { getFrameMapping } from './metadata.js'
-import *
-as DICOMwebClient from 'dicomweb-client'
+import TileImage from 'ol/source/TileImage'
+import TileLayer from 'ol/layer/WebGLTile'
 import {
   areNumbersAlmostEqual,
   are1DArraysAlmostEqual,
   are2DArraysAlmostEqual
 } from './utils.js'
 import {
-  getPixelSpacing
-} from './scoord3dUtils'
-import TileImage from 'ol/source/TileImage'
-import TileLayer from 'ol/layer/Tile'
+  _computeImagePyramid,
+  _createTileLoadFunction,
+  _createTileUrlFunction
+} from './pyramid.js'
 
 /** BlendingInformation for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
@@ -109,19 +108,21 @@ class _Channel {
     projection,
     tileGrid,
     options,
-    renderingEngine) {
+    renderingEngine
+  ) {
     // cache viewer object and info in channel
     this.renderingEngine = renderingEngine
 
     /*
     * To visualize images accross multiple scales, we first need to
-    * determine the image pyramid structure, i.e. the size and resolution
-    * images at the different pyramid levels.
+    * determine the structure of the image pyramid, i.e., the size and
+    * resolution of images at the different pyramid levels.
     */
-    const geometryArrays = _Channel.deriveImageGeometry(this)
+    const pyramid = _computeImagePyramid({ metadata: this.metadata })
     const opticalPathIdentifier = this.blendingInformation.opticalPathIdentifier
-    // Check frame of reference
-    if (referenceFrameOfReferenceUID !== this.FrameOfReferenceUID) {
+
+    const frameOfReferenceUID = this.metadata[0].FrameOfReferenceUID
+    if (referenceFrameOfReferenceUID !== frameOfReferenceUID) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has different FrameOfReferenceUID with respect to the reference ' +
@@ -130,8 +131,8 @@ class _Channel {
       )
     }
 
-    // Check container identifier
-    if (referenceContainerIdentifier !== this.ContainerIdentifier) {
+    const containerIdentifier = this.metadata[0].ContainerIdentifier
+    if (referenceContainerIdentifier !== containerIdentifier) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has different ContainerIdentifier with respect to the reference ' +
@@ -141,7 +142,7 @@ class _Channel {
     }
 
     // Check that all the channels have the same pyramid parameters
-    if (!are2DArraysAlmostEqual(geometryArrays[0], referenceExtent)) {
+    if (!are2DArraysAlmostEqual(pyramid.extent, referenceExtent)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has an incompatible extent with respect to the reference ' +
@@ -149,7 +150,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(geometryArrays[1], referenceOrigins)) {
+    if (!are2DArraysAlmostEqual(pyramid.origins, referenceOrigins)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible origins with respect to the reference ' +
@@ -157,7 +158,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(geometryArrays[2], referenceResolutions)) {
+    if (!are2DArraysAlmostEqual(pyramid.resolutions, referenceResolutions)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible resolutions with respect to the reference ' +
@@ -165,7 +166,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(geometryArrays[3], referenceGridSizes)) {
+    if (!are2DArraysAlmostEqual(pyramid.gridSizes, referenceGridSizes)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible grid sizes with respect to the reference ' +
@@ -173,7 +174,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(geometryArrays[4], referenceTileSizes)) {
+    if (!are2DArraysAlmostEqual(pyramid.tileSizes, referenceTileSizes)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible tile sizes with respect to the reference ' +
@@ -181,7 +182,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(geometryArrays[5], referencePixelSpacings)) {
+    if (!are2DArraysAlmostEqual(pyramid.pixelSpacings, referencePixelSpacings)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible pixel spacings with respect to the reference ' +
@@ -190,251 +191,20 @@ class _Channel {
       )
     }
 
-    /*
-     * Define custom tile URL function to retrive frames via DICOMweb WADO-RS.
-     */
-    const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
-      /*
-       * Variables x and y correspond to the X and Y axes of the slide
-       * coordinate system. Since we want to view the slide horizontally
-       * with the label on the right side, the x axis of the slide
-       * coordinate system is the vertical axis of the viewport and the
-       * y axis of the slide coordinate system the horizontal axis of the
-       * viewport. Note that this is in contrast to the nomenclature used
-       * by Openlayers.
-       */
-      const z = tileCoord[0]
-      const y = tileCoord[1] + 1
-      const x = tileCoord[2] + 1
-      const index = x + '-' + y
+    const tileUrlFunction = _createTileUrlFunction({
+      pyramid,
+      client: options.client,
+      retrieveRendered: options.retrieveRendered
+    })
 
-      const path = this.pyramidFrameMappings[z][index]
-      if (path === undefined) {
-        console.warn('tile ' + index + ' not found at level ' + z)
-        return (null)
-      }
-      let url = options.client.wadoURL +
-        '/studies/' + this.pyramidMetadata[z].StudyInstanceUID +
-        '/series/' + this.pyramidMetadata[z].SeriesInstanceUID +
-        '/instances/' + path
-      if (options.retrieveRendered) {
-        url = url + '/rendered'
-      }
-      return (url)
-    }
-    /*
-     * Define custom tile loader function, which is required because the
-     * WADO-RS response message has content type "multipart/related".
-    */
-    const tileLoadFunction = async (tile, src) => {
-      const img = tile.getImage()
-      const z = tile.tileCoord[0]
-      const columns = this.pyramidMetadata[z].Columns
-      const rows = this.pyramidMetadata[z].Rows
-      const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel
-      const bitsAllocated = this.pyramidMetadata[z].BitsAllocated
-      const pixelRepresentation = this.pyramidMetadata[z].PixelRepresentation
-
-      if (src !== null && samplesPerPixel === 1) {
-        const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src)
-        const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src)
-        const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
-        const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
-
-        console.info(`retrieve frames ${frameNumbers}`)
-        tile.needToRerender = false
-        tile.isLoading = true
-
-        if (options.retrieveRendered) {
-          /*
-           * We could use PNG, but at the moment we don't have a PNG decoder
-           * library and thus would have to draw to a canvas, retrieve the
-           * imageData and then recompat the array from a RGBA to a 1 component
-           * array for the offscreen rendering engine, which would result in
-           * poor perfomance.
-           */
-          const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
-          const jpegMediaType = 'image/jpeg' // decoded with libJPEG-turbo
-          const transferSyntaxUID = ''
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            mediaTypes: [
-              { mediaType: jp2MediaType, transferSyntaxUID },
-              { mediaType: jpegMediaType, transferSyntaxUID }
-            ]
-          }
-          if (options.includeIccProfile) {
-            retrieveOptions.queryParams = {
-              iccprofile: 'yes'
-            }
-          }
-
-          options.client.retrieveInstanceFramesRendered(retrieveOptions).then(
-            (renderedFrame) => {
-              // coloring image
-              const {
-                thresholdValues,
-                limitValues,
-                color
-              } = this.blendingInformation
-
-              const frameData = {
-                img,
-                frames: renderedFrame,
-                bitsAllocated,
-                pixelRepresentation,
-                thresholdValues,
-                limitValues,
-                color,
-                opacity: 1, // handled by OpenLayers
-                columns,
-                rows
-              }
-
-              const rendered = renderingEngine.colorMonochromeImageFrame(
-                frameData
-              )
-              tile.needToRerender = !rendered
-              tile.isLoading = false
-            }
-          )
-        } else {
-          const jlsMediaType = 'image/jls' // decoded with CharLS
-          const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
-          const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
-          const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
-          const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90'
-          const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91'
-          const jpxMediaType = 'image/jpx' // decoded with OpenJPEG
-          const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
-          const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-          const jpegMediaType = 'image/jpeg' // decoded with libJPEG-turbo
-          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-
-          const octetStreamMediaType = 'application/octet-stream'
-          const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
-
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            mediaTypes: [
-              {
-                mediaType: jlsMediaType,
-                transferSyntaxUID: jlsTransferSyntaxUIDlossless
-              },
-              {
-                mediaType: jlsMediaType,
-                transferSyntaxUID: jlsTransferSyntaxUID
-              },
-              {
-                mediaType: jp2MediaType,
-                transferSyntaxUID: jp2TransferSyntaxUIDlossless
-              },
-              {
-                mediaType: jp2MediaType,
-                transferSyntaxUID: jp2TransferSyntaxUID
-              },
-              {
-                mediaType: jpxMediaType,
-                transferSyntaxUID: jpxTransferSyntaxUIDlossless
-              },
-              {
-                mediaType: jpxMediaType,
-                transferSyntaxUID: jpxTransferSyntaxUID
-              },
-              {
-                mediaType: jpegMediaType,
-                transferSyntaxUID: jpegTransferSyntaxUID
-              }
-            ]
-          }
-
-          options.client.retrieveInstanceFrames(retrieveOptions).then(
-            (rawFrames) => {
-              // coloring image
-              const {
-                thresholdValues,
-                limitValues,
-                color
-              } = this.blendingInformation
-
-              const frameData = {
-                img,
-                frames: rawFrames[0],
-                bitsAllocated,
-                pixelRepresentation,
-                thresholdValues,
-                limitValues,
-                color,
-                opacity: 1, // handled by OpenLayers
-                columns,
-                rows
-              }
-
-              const rendered = renderingEngine.colorMonochromeImageFrame(
-                frameData
-              )
-              tile.needToRerender = !rendered
-              tile.isLoading = false
-            }
-          ).catch(
-            () => {
-              // since we can't ask to retrieve both jpeg formats and octet-stream
-              // we use a catch in the case all jpeg formats will fail
-              const retrieveOptions = {
-                studyInstanceUID,
-                seriesInstanceUID,
-                sopInstanceUID,
-                frameNumbers,
-                mediaTypes: [
-                  {
-                    mediaType: octetStreamMediaType,
-                    transferSyntaxUID: octetStreamTransferSyntaxUID
-                  }
-                ]
-              }
-              options.client.retrieveInstanceFrames(retrieveOptions).then(
-                (rawFrames) => {
-                  // coloring image
-                  const {
-                    thresholdValues,
-                    limitValues,
-                    color
-                  } = this.blendingInformation
-
-                  const frameData = {
-                    img,
-                    frames: rawFrames[0],
-                    bitsAllocated,
-                    pixelRepresentation,
-                    thresholdValues,
-                    limitValues,
-                    color,
-                    opacity: 1, // handled by OpenLayers
-                    columns,
-                    rows
-                  }
-
-                  const rendered = renderingEngine.colorMonochromeImageFrame(
-                    frameData
-                  )
-                  tile.needToRerender = !rendered
-                  tile.isLoading = false
-                }
-              )
-            }
-          )
-        }
-      } else {
-        console.warn('could not load tile')
-      }
-    }
-
+    const tileLoadFunction = _createTileLoadFunction({
+      pyramid,
+      client: options.client,
+      retrieveRendered: options.retrieveRendered,
+      includeIccProfile: options.includeIccProfile,
+      renderingEngine,
+      blendingInformation: this.blendingInformation
+    })
     /*
      * We use the existing TileImage source but customize it to retrieve
      * frames (load tiles) via DICOMweb WADO-RS.
@@ -473,192 +243,6 @@ class _Channel {
     this.tileLayer.on('postrender', function (event) {
       event.context.globalCompositeOperation = 'source-over'
     })
-  }
-
-  /** Calculates the image geometry
-   *
-   * @param {object} image - _Channel object
-   * @returns {number[][]} image geometry - Extents, Origins, Resolutions, GridSizes, TileSizes, PixelSpacings array
-   * @static
-   */
-  static deriveImageGeometry (image) {
-    if (image.metadata.length === 0) {
-      throw new Error('No VOLUME image provided for Optioncal Path ID: ' +
-      image.blendingInformation.opticalPathIdentifier)
-    }
-
-    image.FrameOfReferenceUID = image.metadata[0].FrameOfReferenceUID
-    for (let i = 0; i < image.metadata.length; ++i) {
-      if (image.FrameOfReferenceUID !== image.metadata[i].FrameOfReferenceUID) {
-        throw new Error('Optioncal Path ID ' +
-        image.blendingInformation.opticalPathIdentifier +
-        ' has volume microscopy images with different FrameOfReferenceUID')
-      }
-    }
-
-    image.ContainerIdentifier = image.metadata[0].ContainerIdentifier
-    for (let i = 0; i < image.metadata.length; ++i) {
-      if (image.ContainerIdentifier !== image.metadata[i].ContainerIdentifier) {
-        throw new Error('Optioncal Path ID ' +
-        image.blendingInformation.opticalPathIdentifier +
-        ' has volume microscopy images with different ContainerIdentifier')
-      }
-    }
-
-    // Sort instances and optionally concatenation parts if present.
-    image.metadata.sort((a, b) => {
-      const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns
-      if (sizeDiff === 0) {
-        if (a.ConcatenationFrameOffsetNumber !== undefined) {
-          return a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber
-        }
-        return sizeDiff
-      }
-      return sizeDiff
-    })
-
-    image.pyramidMetadata = []
-    image.pyramidFrameMappings = []
-    const frameMappings = image.metadata.map(m => getFrameMapping(m))
-    for (let i = 0; i < image.metadata.length; i++) {
-      const cols = image.metadata[i].TotalPixelMatrixColumns
-      const rows = image.metadata[i].TotalPixelMatrixRows
-      const numberOfFrames = image.metadata[i].NumberOfFrames
-      /*
-       * Instances may be broken down into multiple concatentation parts.
-       * Therefore, we have to re-assemble instance metadata.
-      */
-      let alreadyExists = false
-      let index = null
-      for (let j = 0; j < image.pyramidMetadata.length; j++) {
-        if (
-          (image.pyramidMetadata[j].TotalPixelMatrixColumns === cols) &&
-          (image.pyramidMetadata[j].TotalPixelMatrixRows === rows)
-        ) {
-          alreadyExists = true
-          index = j
-        }
-      }
-      if (alreadyExists) {
-        // Update with information obtained from current concatentation part.
-        Object.assign(image.pyramidFrameMappings[index], frameMappings[i])
-        image.pyramidMetadata[index].NumberOfFrames += numberOfFrames
-        if ('PerFrameFunctionalGroupsSequence' in image.metadata[index]) {
-          image.pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
-            ...image.metadata[i].PerFrameFunctionalGroupsSequence
-          )
-        }
-        if (!('SOPInstanceUIDOfConcatenationSource' in image.metadata[i])) {
-          throw new Error(
-            'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
-            'for concatenation parts.'
-          )
-        }
-        const sopInstanceUID = image.metadata[i].SOPInstanceUIDOfConcatenationSource
-        image.pyramidMetadata[index].SOPInstanceUID = sopInstanceUID
-        delete image.pyramidMetadata[index].SOPInstanceUIDOfConcatenationSource
-        delete image.pyramidMetadata[index].ConcatenationUID
-        delete image.pyramidMetadata[index].InConcatenationNumber
-        delete image.pyramidMetadata[index].ConcatenationFrameOffsetNumber
-      } else {
-        image.pyramidMetadata.push(image.metadata[i])
-        image.pyramidFrameMappings.push(frameMappings[i])
-      }
-    }
-    const nLevels = image.pyramidMetadata.length
-    if (nLevels === 0) {
-      console.error('empty pyramid - no levels found')
-    }
-    image.pyramidBaseMetadata = image.pyramidMetadata[nLevels - 1]
-
-    /*
-     * Collect relevant information from DICOM metadata for each pyramid
-     * level to construct the Openlayers map.
-     */
-    const imageTileSizes = []
-    const imageGridSizes = []
-    const imageResolutions = []
-    const imageOrigins = []
-    const imagePixelSpacings = []
-    const physicalSizes = []
-    const offset = [0, -1]
-    const baseTotalPixelMatrixColumns = image.pyramidBaseMetadata.TotalPixelMatrixColumns
-    const baseTotalPixelMatrixRows = image.pyramidBaseMetadata.TotalPixelMatrixRows
-    for (let j = (nLevels - 1); j >= 0; j--) {
-      const columns = image.pyramidMetadata[j].Columns
-      const rows = image.pyramidMetadata[j].Rows
-      const totalPixelMatrixColumns = image.pyramidMetadata[j].TotalPixelMatrixColumns
-      const totalPixelMatrixRows = image.pyramidMetadata[j].TotalPixelMatrixRows
-      const pixelSpacing = getPixelSpacing(image.pyramidMetadata[j])
-      const nColumns = Math.ceil(totalPixelMatrixColumns / columns)
-      const nRows = Math.ceil(totalPixelMatrixRows / rows)
-      imageTileSizes.push([
-        columns,
-        rows
-      ])
-      imageGridSizes.push([
-        nColumns,
-        nRows
-      ])
-      imagePixelSpacings.push(pixelSpacing)
-
-      physicalSizes.push([
-        (totalPixelMatrixColumns * pixelSpacing[1]).toFixed(4),
-        (totalPixelMatrixRows * pixelSpacing[0]).toFixed(4)
-      ])
-      /*
-      * Compute the resolution at each pyramid level, since the zoom
-      * factor may not be the same between adjacent pyramid levels.
-      */
-      const zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns
-      imageResolutions.push(zoomFactor)
-      /*
-      * TODO: One may have to adjust the offset slightly due to the
-      * difference between extent of the image at a given resolution level
-      * and the actual number of tiles (frames).
-      */
-      imageOrigins.push(offset)
-    }
-    imageResolutions.reverse()
-    imageTileSizes.reverse()
-    imageGridSizes.reverse()
-    imageOrigins.reverse()
-    imagePixelSpacings.reverse()
-
-    const uniquePhysicalSizes = [
-      ...new Set(physicalSizes.map(v => v.toString()))
-    ].map(v => v.split(','))
-    if (uniquePhysicalSizes.length > 1) {
-      console.warn(
-        'images of the image pyramid have different sizes (in millimeter): ',
-        physicalSizes
-      )
-    }
-
-    /** Frames may extend beyond the size of the total pixel matrix.
-     * The excess pixels are empty, i.e. have only a padding value.
-     * We set the extent to the size of the actual image without taken
-     * excess pixels into account.
-     * Note that the vertical axis is flipped in the used tile source,
-     * i.e. values on the axis lie in the range [-n, -1], where n is the
-     * number of rows in the total pixel matrix.
-     */
-
-    const imageExtents = [
-      0, // min X
-      -(baseTotalPixelMatrixRows + 1), // min Y
-      baseTotalPixelMatrixColumns, // max X
-      -1 // max Y
-    ]
-
-    return [
-      imageExtents,
-      imageOrigins,
-      imageResolutions,
-      imageGridSizes,
-      imageTileSizes,
-      imagePixelSpacings
-    ]
   }
 
   /** Adds the metadata to the metadata array of the channel

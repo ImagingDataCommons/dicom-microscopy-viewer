@@ -22,7 +22,7 @@ import Stroke from 'ol/style/Stroke'
 import Circle from 'ol/style/Circle'
 import Static from 'ol/source/ImageStatic'
 import Overlay from 'ol/Overlay'
-import TileLayer from 'ol/layer/Tile' // WebGLTile
+import TileLayer from 'ol/layer/WebGLTile'
 import TileImage from 'ol/source/TileImage'
 import TileGrid from 'ol/tilegrid/TileGrid'
 import VectorSource from 'ol/source/Vector'
@@ -1163,6 +1163,7 @@ class VolumeImageViewer {
 
     const channel = this.getOpticalPath(opticalPathIdentifier)
     this[_map].removeLayer(channel.tileLayer)
+    channel.tileLayer.dispose()
   }
 
   /** Returns if the channel is being rendered
@@ -2019,6 +2020,7 @@ class VolumeImageViewer {
       )
     }
 
+    // Map the segmentation pyramid levels to the source image pyramid
     const fittedPyramid = {
       extent: this[_pyramid].extent,
       origins: this[_pyramid].origins,
@@ -2041,10 +2043,6 @@ class VolumeImageViewer {
       } else {
         fittedPyramid.pixelSpacings.push(undefined)
         fittedPyramid.metadata.push(undefined)
-        const updatedFrameMappings = {}
-        for (const key in this[_pyramid].frameMappings[i]) {
-          updatedFrameMappings[key] = null
-        }
         fittedPyramid.frameMappings.push(undefined)
       }
     }
@@ -2082,7 +2080,6 @@ class VolumeImageViewer {
         segmentUID = segmentItem.UniqueTrackingIdentifier
       }
 
-      // TODO: Map the source pyramid and segmentation pyramid
       const tileLoadFunction = _createTileLoadFunction({
         pyramid: fittedPyramid,
         client: this[_options].client,
@@ -2098,6 +2095,8 @@ class VolumeImageViewer {
       })
       rasterSource.setTileLoadFunction(tileLoadFunction)
 
+      // https://openlayers.org/en/latest/apidoc/module-ol_layer_WebGLTile.html#~Style
+      // https://openlayers.org/en/latest/examples/cog-math.html
       const layer = new TileLayer({
         source: rasterSource,
         extent: this[_pyramid].extent,
@@ -2136,6 +2135,7 @@ class VolumeImageViewer {
     }
     const segment = this[_segmentations][segmentUID]
     this[_map].removeLayer(segment.tileLayer)
+    segment.tileLayer.dispose()
     delete this[_segmentations][segmentUID]
   }
 
