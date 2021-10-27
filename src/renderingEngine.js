@@ -1,5 +1,6 @@
 // Allocate decoders
 import imageType from 'image-type'
+import dcmjs from 'dcmjs'
 
 let jpegDecoder
 if (typeof libjpegturbowasm === 'function') {
@@ -180,8 +181,10 @@ class RenderingEngine {
 
     try {
       const canvas = document.createElement('canvas')
-      return Boolean(window.WebGLRenderingContext) &&
-        (canvas.getContext('webgl', options) || canvas.getContext('experimental-webgl', options))
+      return Boolean(window.WebGLRenderingContext) && (
+        canvas.getContext('webgl', options) ||
+        canvas.getContext('experimental-webgl', options)
+      )
     } catch (e) {
       return false
     }
@@ -234,20 +237,18 @@ class RenderingEngine {
    *
    * @returns {boolean} image was colored.
    */
-  colorMonochromeImageFrame (frameData) {
-    const {
-      img,
-      frames,
-      bitsAllocated,
-      pixelRepresentation,
-      thresholdValues,
-      limitValues,
-      color,
-      opacity,
-      columns,
-      rows
-    } = frameData
-
+  colorMonochromeImageFrame ({
+    img,
+    frames,
+    bitsAllocated,
+    pixelRepresentation,
+    thresholdValues,
+    limitValues,
+    color,
+    opacity,
+    columns,
+    rows
+  }) {
     const signed = pixelRepresentation === 1
     if (frames) {
       let {
@@ -263,6 +264,9 @@ class RenderingEngine {
       if (!pixelData) {
         // data downloaded uncompressed
         switch (bitsAllocated) {
+          case 1:
+            pixelData = dcmjs.data.BitArray.unpack(frames)
+            break
           case 8:
             if (signed) {
               pixelData = new Int8Array(frames)
@@ -279,14 +283,20 @@ class RenderingEngine {
             break
           default:
             throw new Error(
-              'The pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
+              'The pixel bit depth ' + bitsAllocated +
+              ' is not supported by the offscreen rendering.'
             )
         }
-        bitsPerSample = bitsAllocated
+        if (bitsAllocated === 1) {
+          bitsPerSample = 8 // unpacked to 8-bit
+        } else {
+          bitsPerSample = bitsAllocated
+        }
       }
 
-      // NOTE: we store the pixelData array and bitsPerSample in img, so we can apply again colorImageFrame
-      //       at the change of any blending parameter (opacity, color, clipping).
+      // NOTE: we store the pixelData array and bitsPerSample in img,
+      // so we can apply again colorImageFrame whenever any blending parameter
+      // (opacity, color, clipping) changes.
       img.pixelData = pixelData
       img.bitsPerSample = bitsPerSample
     }
@@ -308,7 +318,8 @@ class RenderingEngine {
       img.src = renderedCanvas.toDataURL('image/png')
 
       // NOTE: ToBlob is async and provides smaller images,
-      // but here the renderingEngine is synch/sequential (one object, one gl context, etc..).
+      // but here the renderingEngine is synch/sequential
+      // (one object, one gl context, etc..).
       // When the OffscreenCanvas will be fully supported,
       // it can be used for a full web-workers async approach
       // https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas
@@ -319,7 +330,8 @@ class RenderingEngine {
     return false
   }
 
-  /** Creates image url from raw frames or rendered frame of RGB images.
+  /** Create image url from raw frames or rendered frame of RGB images.
+   *
    * Decodes the image if jpeg (jpegturbo), jp2/jpx (OpenJPEG) or jls (CharLS) and re-econde them into a png data url.
    * If png it just creates a url from a blob.
    * The image type is automatically detected by checking the magic number
@@ -335,15 +347,13 @@ class RenderingEngine {
    * @returns {boolean} blob.
    *
    */
-  createURLFromRGBImage (frameData) {
-    const {
-      frames,
-      bitsAllocated,
-      pixelRepresentation,
-      columns,
-      rows
-    } = frameData
-
+  createURLFromRGBImage ({
+    frames,
+    bitsAllocated,
+    pixelRepresentation,
+    columns,
+    rows
+  }) {
     const {
       pixelData,
       decodedframeInfo,
@@ -355,12 +365,10 @@ class RenderingEngine {
       const blob = new Blob([frames], { type: mediaType })// eslint-disable-line
       return window.URL.createObjectURL(blob)
     } else if (pixelData && mediaType && decodedframeInfo) {
-      // jp2/jpx/jls/jpeg pixelData is decoded and uncompressed into a RGB image array.
-      // put the data in a canvas and return data url
+      // jp2/jpx/jls/jpeg pixelData is decoded and uncompressed into a RGB image
+      // array.
       if (decodedframeInfo.componentCount !== 3) {
-        throw new Error(
-          'decoded image is not a RGB image'
-        )
+        throw new Error('Decoded image is not an RGB image.')
       }
       const width = decodedframeInfo.width
       const height = decodedframeInfo.height
@@ -405,7 +413,8 @@ class RenderingEngine {
           break
         default:
           throw new Error(
-            'The pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
+            'The pixel bit ' + bitsAllocated +
+            ' is not supported by the offscreen rendering engine.'
           )
       }
 
@@ -413,9 +422,7 @@ class RenderingEngine {
       const height = rows
 
       if (octetPixelData.length !== width * height * 3) {
-        throw new Error(
-          'decoded image is not a RGB image'
-        )
+        throw new Error('Decoded image is not a RGB image.')
       }
 
       const dstBmp = new Uint8ClampedArray(width * height * 4)
@@ -465,32 +472,35 @@ class RenderingEngine {
     let decodedframeInfo
     if (mediaType === 'image/jpeg') {
       if (!jpegDecoder) {
-        throw new Error(
-          'jpegDecoder was not initialized.'
-        )
+        throw new Error('JPEG decoder was not initialized.')
       }
       // data are compressed jpeg -> decode
-      const { decodedPixelData, frameInfo } = this._decodeInternal(jpegDecoder, fullEncodedBitStream)
+      const { decodedPixelData, frameInfo } = this._decodeInternal(
+        jpegDecoder,
+        fullEncodedBitStream
+      )
       pixelData = decodedPixelData.slice(0)
       decodedframeInfo = frameInfo
     } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
       if (!jp2jpxDecoder) {
-        throw new Error(
-          'jp2jpxDecoder was not initialized.'
-        )
+        throw new Error('JPEG 2000 Decoder was not initialized.')
       }
       // data are compressed jp2 -> decode
-      const { decodedPixelData, frameInfo } = this._decodeInternal(jp2jpxDecoder, fullEncodedBitStream)
+      const { decodedPixelData, frameInfo } = this._decodeInternal(
+        jp2jpxDecoder,
+        fullEncodedBitStream
+      )
       pixelData = decodedPixelData.slice(0)
       decodedframeInfo = frameInfo
     } else if (mediaType === 'image/jls') {
       if (!jlsDecoder) {
-        throw new Error(
-          'jlsDecoder was not initialized.'
-        )
+        throw new Error('JPEG-LS decoder was not initialized.')
       }
       // data are compressed jls -> decode
-      const { decodedPixelData, frameInfo } = this._decodeInternal(jlsDecoder, fullEncodedBitStream)
+      const { decodedPixelData, frameInfo } = this._decodeInternal(
+        jlsDecoder,
+        fullEncodedBitStream
+      )
       pixelData = decodedPixelData.slice(0)
       decodedframeInfo = frameInfo
     } else if (mediaType === 'image/png') {
@@ -501,7 +511,8 @@ class RenderingEngine {
       }
     } else {
       throw new Error(
-        'The media type ' + mediaType + ' is not supported by the offscreen render.'
+        'The media type ' + mediaType +
+        ' is not supported by the offscreen rendering engine.'
       )
     }
 
@@ -787,7 +798,8 @@ class RenderingEngine {
       max = 65793
     } else {
       throw new Error(
-        'The pixel bit ' + bitsAllocated + 'is not supported by the offscreen render.'
+        'The pixel bit depth ' + bitsAllocated +
+        ' is not supported by the offscreen rendering engine.'
       )
     }
 

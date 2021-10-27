@@ -1,6 +1,9 @@
 import EVENTS from './events.js'
 import {
   Comprehensive3DSR,
+  MicroscopyBulkSimpleAnnotations,
+  ParametricMap,
+  Segmentation,
   VLWholeSlideMicroscopyImage,
   formatMetadata,
   groupMonochromeInstances,
@@ -32,6 +35,9 @@ import {
 import {
   BlendingInformation
 } from './channel.js'
+import {
+  Segment
+} from './segment.js'
 
 /** Namespace for the viewer.
  *
@@ -60,6 +66,9 @@ const metadata = {
   formatMetadata,
   groupMonochromeInstances,
   groupColorInstances,
+  MicroscopyBulkSimpleAnnotations,
+  ParametricMap,
+  Segmentation,
   VLWholeSlideMicroscopyImage,
   Comprehensive3DSR,
   BlendingInformation
@@ -86,6 +95,14 @@ const roi = {
   ROI
 }
 
+/** Namespace for segments.
+ *
+ * @namespace segment
+ */
+const segment = {
+  Segment
+}
+
 /** Namespace for viewer events.
  *
  * @namespace events
@@ -108,4 +125,4 @@ const utils = {
   mapPixelCoordToSlideCoord
 }
 
-export { api, events, metadata, roi, scoord3d, utils, viewer }
+export { api, events, metadata, roi, scoord3d, segment, utils, viewer }

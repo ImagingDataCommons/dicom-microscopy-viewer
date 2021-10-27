@@ -11,18 +11,34 @@ function getFrameMapping (metadata) {
   const columns = metadata.Columns
   const totalPixelMatrixColumns = metadata.TotalPixelMatrixColumns
   const sopInstanceUID = metadata.SOPInstanceUID
-  let numberOfFrames = metadata.NumberOfFrames || 1
-  numberOfFrames = Number(numberOfFrames)
-  let frameOffsetNumber = metadata.ConcatenationFrameOffsetNumber || 0
-  frameOffsetNumber = Number(frameOffsetNumber)
-  /*
-   * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
-   * of the standard. Older datasets are equivalent to "TILED_SPARSE"
-   * even though they may not have a value or a different value.
-   */
-  const dimensionOrganizationType = metadata.DimensionOrganizationType || 'TILED_SPARSE'
+  const numberOfFrames = Number(metadata.NumberOfFrames || 1)
+  const frameOffsetNumber = Number(metadata.ConcatenationFrameOffsetNumber || 0)
+
+  // Handle multiple planes (channels, z-planes, or segments)
+  const numberOfOpticalPath = Number(metadata.NumberOfOpticalPaths || 1)
+  let numberOfSegments = 0
+  if (metadata.SegmentSequence !== undefined) {
+    numberOfSegments = metadata.SegmentSequence.length
+  }
+  if (numberOfOpticalPath > 1 && numberOfSegments > 0) {
+    throw new Error(
+      'An image cannot have multiple optical paths and multiple segments.'
+    )
+  }
+  const numberOfFocalPlanes = Number(metadata.TotalPixelMatrixFocalPlanes || 1)
+  if (numberOfFocalPlanes > 1) {
+    throw new Error('Images with multiple focal planes are not yet supported.')
+  }
+
   const tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns)
   const frameMapping = {}
+  /**
+   * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
+   * edition of the standard. Older datasets are equivalent to "TILED_SPARSE".
+   */
+  const dimensionOrganizationType = (
+    metadata.DimensionOrganizationType || 'TILED_SPARSE'
+  )
   if (dimensionOrganizationType === 'TILED_FULL') {
     const offset = frameOffsetNumber + 1
     const limit = frameOffsetNumber + numberOfFrames
@@ -30,7 +46,9 @@ function getFrameMapping (metadata) {
       const rowFraction = j / tilesPerRow
       const rowIndex = Math.ceil(rowFraction)
       const colIndex = j - (rowIndex * tilesPerRow) + tilesPerRow
-      const index = rowIndex + '-' + colIndex
+      // FIXME: channelIndex
+      const channelIndex = 1
+      const index = rowIndex + '-' + colIndex + '-' + channelIndex
       const frameNumber = j - offset + 1
       frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
     }
@@ -42,7 +60,15 @@ function getFrameMapping (metadata) {
       const columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix
       const rowIndex = Math.ceil(rowPosition / rows)
       const colIndex = Math.ceil(columnPosition / columns)
-      const index = rowIndex + '-' + colIndex
+      let channelIndex = 1
+      if (numberOfOpticalPath > 1) {
+        const opticalPath = functionalGroups[j].OpticalPathIdentificationSequence[0]
+        channelIndex = Number(opticalPath.OpticalPathIdentifier)
+      } else if (numberOfSegments > 0) {
+        const segment = functionalGroups[j].SegmentIdentificationSequence[0]
+        channelIndex = Number(segment.ReferencedSegmentNumber)
+      }
+      const index = rowIndex + '-' + colIndex + '-' + channelIndex
       const frameNumber = j + 1
       frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
     }
@@ -254,11 +280,83 @@ class Comprehensive3DSR {
   }
 }
 
+/** DICOM Microscopy Bulk Simple Annotations instance.
+ *
+ * @class
+ * @memberof metadata
+ */
+class MicroscopyBulkSimpleAnnotations {
+  /**
+     * @params {Object} options
+     * @params {Object} options.metadata - Metadata in DICOM JSON format
+     */
+  constructor (options) {
+    const dataset = formatMetadata(options.metadata)
+    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.91.1') {
+      throw new Error(
+        'Cannot construct Microscopy Bulk Simple Annotations instance ' +
+          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+      )
+    }
+
+    Object.assign(this, dataset)
+  }
+}
+
+/** DICOM Parametric Map instance.
+ *
+ * @class
+ * @memberof metadata
+ */
+class ParametricMap {
+  /**
+     * @params {Object} options
+     * @params {Object} options.metadata - Metadata in DICOM JSON format
+     */
+  constructor (options) {
+    const dataset = formatMetadata(options.metadata)
+    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.30') {
+      throw new Error(
+        'Cannot construct Parametric Map instance ' +
+          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+      )
+    }
+
+    Object.assign(this, dataset)
+  }
+}
+
+/** DICOM Segmentation instance.
+ *
+ * @class
+ * @memberof metadata
+ */
+class Segmentation {
+  /**
+     * @params {Object} options
+     * @params {Object} options.metadata - Metadata in DICOM JSON format
+     */
+  constructor (options) {
+    const dataset = formatMetadata(options.metadata)
+    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.66.4') {
+      throw new Error(
+        'Cannot construct Segmentation instance ' +
+          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+      )
+    }
+
+    Object.assign(this, dataset)
+  }
+}
+
 export {
   Comprehensive3DSR,
   formatMetadata,
   groupMonochromeInstances,
   groupColorInstances,
   getFrameMapping,
+  MicroscopyBulkSimpleAnnotations,
+  ParametricMap,
+  Segmentation,
   VLWholeSlideMicroscopyImage
 }
