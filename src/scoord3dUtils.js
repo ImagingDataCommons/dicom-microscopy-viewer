@@ -285,7 +285,7 @@ function coordinateFormatGeometry2Scoord3d (coordinates, pyramid) {
     spacing
   })
   coordinates = coordinates.map((c) => {
-    const pixelCoord = [c[0], -(c[1] + 1)]
+    const pixelCoord = [c[0], (c[1] + 1)]
     const slideCoord = applyTransform({ coordinate: pixelCoord, affine })
     return [slideCoord[0], slideCoord[1], 0]
   })
