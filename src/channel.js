@@ -579,6 +579,7 @@ class _Channel {
     const imageResolutions = []
     const imageOrigins = []
     const imagePixelSpacings = []
+    const physicalSizes = []
     const offset = [0, -1]
     const baseTotalPixelMatrixColumns = image.pyramidBaseMetadata.TotalPixelMatrixColumns
     const baseTotalPixelMatrixRows = image.pyramidBaseMetadata.TotalPixelMatrixRows
@@ -599,6 +600,11 @@ class _Channel {
         nRows
       ])
       imagePixelSpacings.push(pixelSpacing)
+
+      physicalSizes.push([
+        (totalPixelMatrixColumns * pixelSpacing[1]).toFixed(4),
+        (totalPixelMatrixRows * pixelSpacing[0]).toFixed(4)
+      ])
       /*
       * Compute the resolution at each pyramid level, since the zoom
       * factor may not be the same between adjacent pyramid levels.
@@ -617,6 +623,16 @@ class _Channel {
     imageGridSizes.reverse()
     imageOrigins.reverse()
     imagePixelSpacings.reverse()
+
+    const uniquePhysicalSizes = [
+      ...new Set(physicalSizes.map(v => v.toString()))
+    ].map(v => v.split(','))
+    if (uniquePhysicalSizes.length > 1) {
+      console.warn(
+        'images of the image pyramid have different sizes (in millimeter): ',
+        physicalSizes
+      )
+    }
 
     /** Frames may extend beyond the size of the total pixel matrix.
      * The excess pixels are empty, i.e. have only a padding value.

@@ -167,6 +167,37 @@ function _getRotation (metadata) {
   return angle + correction
 }
 
+/** Determine size of browser window.
+ *
+ * @return {number[]} Width and height of the window
+ */
+function _getWindowSize () {
+  let width = 0
+  let height = 0
+  if (typeof window.innerWidth === 'number') {
+    // Non-IE
+    width = window.innerWidth
+    height = window.innerHeight
+  } else if (
+    document.documentElement && (
+      document.documentElement.clientWidth || document.documentElement.clientHeight
+    )
+  ) {
+    // IE 6+ in 'standards compliant mode'
+    width = document.documentElement.clientWidth
+    height = document.documentElement.clientHeight
+  } else if (
+    document.body && (
+      document.body.clientWidth || document.body.clientHeight
+    )
+  ) {
+    // IE 4 compatible
+    width = document.body.clientWidth
+    height = document.body.clientHeight
+  }
+  return [width, height]
+}
+
 /** Map style options to OpenLayers style.
  *
  * @param {object} styleOptions - Style options
@@ -714,7 +745,8 @@ class VolumeImageViewer {
       resolutions: this[_tileGrid].getResolutions(),
       rotation: this[_rotation],
       smoothResolutionConstraint: true,
-      showFullExtent: true
+      showFullExtent: true,
+      extent: this[_referenceExtents]
     })
 
     // Create a rendering engine object for offscreen rendering
@@ -801,14 +833,19 @@ class VolumeImageViewer {
     const overviewView = new View({
       projection: this[_projection],
       rotation: this[_rotation],
-      zoom: 28 /** Default max zoom */
+      zoom: 0,
+      minZoom: 0,
+      maxZoom: 0,
+      constrainOnlyCenter: true,
+      center: getCenter(this[_referenceExtents])
     })
 
     this[_overviewMap] = new OverviewMap({
       view: overviewView,
       layers: [overviewImageLayer],
       collapsed: false,
-      collapsible: false
+      collapsible: false,
+      rotateWithView: true
     })
 
     // Creates the map with the defined layers and view and renders it.
@@ -819,7 +856,7 @@ class VolumeImageViewer {
       keyboardEventTarget: document
     })
 
-    view.fit(this[_projection].getExtent(), this[_map].getSize())
+    view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
 
     /**
      * OpenLayer's map has default active interactions
@@ -975,7 +1012,6 @@ class VolumeImageViewer {
        */
 
       const z = tileCoord[0]
-      console.debug('Pyramid level:', z)
       const y = tileCoord[1] + 1
       const x = tileCoord[2] + 1
       const index = x + '-' + y
@@ -1013,6 +1049,8 @@ class VolumeImageViewer {
         const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src)
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
+
+        console.info(`get tile (${tile.tileCoord})`)
 
         if (this[_options].retrieveRendered) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
@@ -1363,8 +1401,7 @@ class VolumeImageViewer {
     this[_map].setTarget(options.container)
     const view = this[_map].getView()
     const projection = view.getProjection()
-    console.warn("render 2 fit", projection.getExtent());
-    view.fit(projection.getExtent(), this[_map].getSize())
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
 
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")
     const scaleElement = this[_controls].scale.element
@@ -1390,6 +1427,29 @@ class VolumeImageViewer {
     scaleInnerElement.style.borderBottomColor = 'black'
     scaleInnerElement.style.margin = '1px'
     scaleInnerElement.style.willChange = 'contents,width'
+
+    const overviewElement = this[_overviewMap].element
+    const overviewmapElement = Object.values(overviewElement.children).find(
+      c => c.className === 'ol-overviewmap-map'
+    )
+    overviewmapElement.style.border = '1px solid black'
+    // Try to fit the overview map into the target control overlay container
+    const height = Math.abs(this[_referenceExtents][1])
+    const width = Math.abs(this[_referenceExtents][2])
+    const rotation = this[_rotation] / Math.PI * 180
+    const windowSize = _getWindowSize()
+    const targetHeight = Math.ceil(windowSize[1] * 0.2)
+    let resizeFactor
+    let targetWidth
+    if (rotation === 180 || rotation === 0) {
+      resizeFactor = targetHeight / height
+      targetWidth = width * resizeFactor
+    } else {
+      resizeFactor = targetHeight / width
+      targetWidth = height * resizeFactor
+    }
+    overviewmapElement.style.width = `${targetWidth}px`
+    overviewmapElement.style.height = `${targetHeight}px`
 
     const container = this[_map].getTargetElement()
 
@@ -1788,6 +1848,10 @@ class VolumeImageViewer {
       return
     }
     this[_map].addControl(this[_overviewMap])
+    const map = this[_overviewMap].getOverviewMap()
+    const view = map.getView()
+    const projection = view.getProjection()
+    view.fit(projection.getExtent(), { size: map.getSize() })
   }
 
   /**
@@ -2178,6 +2242,8 @@ class VolumeImageViewer {
     this[_features].push(feature)
 
     this.setFeatureStyle(feature, styleOptions)
+    const isVisible = Object.keys(styleOptions).length !== 0
+    this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
   }
 
   /**
@@ -2220,6 +2286,8 @@ class VolumeImageViewer {
       const id = feature.getId()
       if (id === uid) {
         this.setFeatureStyle(feature, styleOptions)
+        const isVisible = Object.keys(styleOptions).length !== 0
+        this[_annotationManager].setMarkupVisibility(id, isVisible)
       }
     })
   }
@@ -2345,14 +2413,11 @@ class _NonVolumeImageViewer {
     const imageLoadFunction = (image, src) => {
       console.info('load image')
       const mediaType = 'image/png'
-      const queryParams = {
-        viewport: [
-          this[_metadata].TotalPixelMatrixRows,
-          this[_metadata].TotalPixelMatrixColumns
-        ].join(',')
+      const queryParams = {}
+      if (resizeFactor !== 1) {
+        queryParams.viewport = [width, height].join(',')
       }
-      // We make this optional because a) not all archives currently support
-      // this query parameter and b) because ICC Profiles can be large and
+      // We make this optional because ICC Profiles can be large and
       // their inclusion can result in significant overhead.
       if (options.includeIccProfile) {
         queryParams.iccprofile = 'yes'
@@ -2406,7 +2471,8 @@ class _NonVolumeImageViewer {
     const view = new View({
       center: getCenter(extent),
       rotation: rotation,
-      projection: projection
+      projection: projection,
+      extent: extent
     })
 
     // Creates the map with the defined layers and view and renders it.
@@ -2417,7 +2483,7 @@ class _NonVolumeImageViewer {
       keyboardEventTarget: document
     })
 
-    view.fit(projection.getExtent(), this[_map].getSize())
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
   }
 
   /** Renders the image in the specified viewport container.
@@ -2431,8 +2497,7 @@ class _NonVolumeImageViewer {
     this[_map].setTarget(options.container)
     const view = this[_map].getView()
     const projection = view.getProjection()
-    console.warn("render fit", projection.getExtent());
-    view.fit(projection.getExtent(), this[_map].getSize())
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
 
     this[_map].getInteractions().forEach((interaction) => {
       this[_map].removeInteraction(interaction)

@@ -26,7 +26,7 @@ import {
 const { Marker, Markup } = Enums;
 
 class _AnnotationManager {
-  constructor({ map, pyramid, drawingSource } = {}) {
+  constructor ({ map, pyramid, drawingSource } = {}) {
     const markupManager = new _MarkupManager({
       map,
       pyramid,
@@ -130,7 +130,17 @@ class _AnnotationManager {
     this.props.markupManager.setVisible(isVisible);
   }
 
-  onAdd(feature) {
+  /**
+   * Set markup visibility.
+   *
+   * @param {string} id The markup id
+   * @param {boolean} isVisible The markup visibility
+   */
+  setMarkupVisibility (id, isVisible) { 
+    this.props.markupManager.setVisibility(id, isVisible)
+  }
+
+  onAdd (feature) {
     /**
      * Add properties to ROI feature before triggering
      * markup and markers callbacks to keep UI in sync.

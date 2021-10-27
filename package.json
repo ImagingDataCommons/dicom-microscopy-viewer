@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.32.1",
+  "version": "0.35.0",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "./src/dicom-microscopy-viewer.js",
   "standard": {
@@ -61,11 +61,11 @@
     "standard": "^16.0.3"
   },
   "dependencies": {
-    "dcmjs": "^0.18.2",
-    "dicomweb-client": "^0.5.2",
-    "image-type": "^4.1.0",
+    "dcmjs": "^0.18",
+    "dicomweb-client": "^0.8",
+    "image-type": "^4.1",
     "mathjs": "^9.4",
-    "ol": "^6.7.0"
+    "ol": "^6.9"
   },
   "config": {
     "puppeteer_skip_chromium_download": false
