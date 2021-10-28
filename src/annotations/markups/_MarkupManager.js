@@ -102,6 +102,7 @@ class _MarkupManager {
    * @return {string} The markup id
    */
   remove (id) {
+    debugger
     const markup = this.get(id)
     if (!markup) {
       return id

@@ -18,7 +18,7 @@ const annotationInterface = {
   onSetFeatureStyle(feature, styleOptions) {},
   getMeasurements() {
     return [];
-  }
+  },
 };
 
 export default annotationInterface;

@@ -39,6 +39,10 @@ export const distanceToPoint = (lineSegment, point) => {
   return Math.sqrt(distanceToPointSquared(lineSegment, point));
 };
 
+export const midpoint = (x1, x2, y1, y2) => {
+  return [(x1 + x2) / 2, (y1 + y2) / 2];
+};
+
 // Returns intersection points of two lines
 export const intersectLine = (lineSegment1, lineSegment2) => {
   const intersectionPoint = {};

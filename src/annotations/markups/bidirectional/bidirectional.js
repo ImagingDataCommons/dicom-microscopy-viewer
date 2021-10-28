@@ -212,13 +212,14 @@ const attachPointerEvents = (viewerProperties) => {
 
   map.on(Enums.MapEvents.POINTER_UP, resetPointEventState);
   map.on(Enums.MapEvents.POINTER_DOWN, updatePointerEventState);
-
   map.on(Enums.MapEvents.POINTER_DRAG, onPointerDragHandler);
 };
 
 const bidirectional = Object.assign({}, annotationInterface, {
   onAdd: (feature, viewerProperties) => {
     const { measurements } = feature.getProperties();
+
+    /** TODO: Remove long axis check. */
     if (measurements && JSON.stringify(measurements).includes("Long Axis")) {
       attachChangeEvents(feature, viewerProperties);
       createAndAddShortAxisFeature(feature, viewerProperties, getAxisStyle());
@@ -227,10 +228,8 @@ const bidirectional = Object.assign({}, annotationInterface, {
   },
   onDrawStart: (event, viewerProperties) => {
     const { drawingOptions } = viewerProperties;
-
     if (isDrawingBidirectional(drawingOptions)) {
       const longAxisFeature = event.feature;
-
       attachChangeEvents(longAxisFeature, viewerProperties);
     }
   },

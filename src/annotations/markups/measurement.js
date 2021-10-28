@@ -46,6 +46,11 @@ const MeasurementMarkup = (viewerProperties) => {
   return Object.assign({}, annotationInterface, {
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
+        const isSilentFeature = feature.get(Enums.InternalProperties.IsSilentFeature)
+        if (isSilentFeature == true) {
+          return;
+        }
+
         const view = map.getView();
         const unitSuffix = getUnitSuffix(view);
         const ps = feature.get(Enums.InternalProperties.PresentationState);
