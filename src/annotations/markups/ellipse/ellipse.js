@@ -7,9 +7,15 @@ import getMeasurements from "./getMeasurements";
 import updateMarkup from "./updateMarkup";
 import getEllipsePolygonFromMovingLine from "./getEllipsePolygonFromMovingLine";
 import createAndAddEllipseFeature from "./createAndAddEllipseFeature";
+import createAndAddEllipseHandlesFeature from "./createAndAddEllipseHandlesFeature";
+import removeFeature from "./removeFeature";
 
 const isDrawingEllipse = (drawingOptions) =>
   drawingOptions.geometryType === Enums.GeometryType.Ellipse;
+
+const getFeatureById = (features, id) => {
+  return features.getArray().find((f) => f.getId() === id);
+};
 
 const drawEllipse = (
   feature,
@@ -18,10 +24,10 @@ const drawEllipse = (
   currentPoint,
   viewerProperties
 ) => {
-  const { drawingSource } = viewerProperties;
+  const { features } = viewerProperties;
 
   const ellipseId = getEllipseId(feature);
-  const ellipseFeature = drawingSource.getFeatureById(ellipseId);
+  const ellipseFeature = getFeatureById(features, ellipseId);
 
   const ellipsePolygon = getEllipsePolygonFromMovingLine(
     fixedPoint,
@@ -165,69 +171,35 @@ const attachPointerEvents = (viewerProperties) => {
 
 const ellipse = Object.assign({}, annotationInterface, {
   onAdd: (feature, viewerProperties) => {
-    // const { markupManager, drawingSource } = viewerProperties;
-    // const { measurements, isEllipseShape, isEllipseHandles } =
-    //   feature.getProperties();
-    // if (isEllipseHandles) {
-    //   markupManager.remove(feature.getId());
-    // }
-    // /** TODO: Remove area code check. */
-    // if (
-    //   measurements &&
-    //   JSON.stringify(measurements).includes("G-D7FE") &&
-    //   !isEllipseShape &&
-    //   !isEllipseHandles
-    // ) {
-    //   const ellipseFeature = feature;
-    //   const ellipseHandlesFeatureId = ellipseFeature.getId();
-    //   const ellipseId = getEllipseId(ellipseFeature);
-    //   ellipseFeature.setId(ellipseId);
-    //   ellipseFeature.setProperties(
-    //     {
-    //       isEllipseShape: true,
-    //       [Enums.InternalProperties.ReadOnly]: true,
-    //     },
-    //     true
-    //   );
-    //   const ellipseHandlesFeature = drawingSource.getFeatureById(
-    //     ellipseHandlesFeatureId
-    //   );
-    //   if (!ellipseHandlesFeature) {
-    //     const [coords] = ellipseFeature.getGeometry().getCoordinates();
-    //     const middle = Math.round(coords.length / 2);
-    //     const padding = 700; /** TODO: Calculate based on radius */
-    //     const paddedStart = [coords[0][0] + padding, coords[0][1] + padding];
-    //     const paddedEnd = [
-    //       coords[middle][0] - padding,
-    //       coords[middle][1] - padding,
-    //     ];
-    //     const handles = new LineString([paddedStart, paddedEnd]);
-    //     const ellipseHandlesFeature = new Feature({ geometry: handles });
-    //     ellipseHandlesFeature.setId(ellipseHandlesFeatureId);
-    //     ellipseHandlesFeature.setProperties(
-    //       {
-    //         isEllipseHandles: true,
-    //         [Enums.InternalProperties.IsSilentFeature]: true,
-    //       },
-    //       true
-    //     );
-    //     ellipseHandlesFeature.setStyle(ellipseHandlesStyleFunction);
-    //     ellipseHandlesFeature.set(
-    //       Enums.InternalProperties.StyleOptions,
-    //       styles
-    //     );
-    //     ellipseFeature.setProperties(
-    //       {
-    //         subFeatures: [ellipseHandlesFeature],
-    //       },
-    //       true
-    //     );
-    //     drawingSource.addFeature(ellipseHandlesFeature);
-    //     attachChangeEvents(ellipseHandlesFeature, viewerProperties);
-    //     attachPointerEvents(viewerProperties);
-    //   }
-    // }
-    // return true;
+    const { measurements, isEllipseShape, isEllipseHandles } =
+      feature.getProperties();
+
+    /** TODO: Remove area code check. */
+    const isEllipseROIFeature =
+      measurements &&
+      JSON.stringify(measurements).includes("G-D7FE") &&
+      !isEllipseShape &&
+      !isEllipseHandles;
+
+    if (isEllipseROIFeature) {
+      const ellipseROIFeature = feature;
+      removeFeature(ellipseROIFeature, viewerProperties);
+
+      attachPointerEvents(viewerProperties);
+      const ellipseHandlesFeature = createAndAddEllipseHandlesFeature(
+        ellipseROIFeature,
+        viewerProperties
+      );
+      attachChangeEvents(ellipseHandlesFeature, viewerProperties);
+
+      const originalROIGeometry = ellipseROIFeature.getGeometry();
+      createAndAddEllipseFeature(
+        ellipseHandlesFeature,
+        originalROIGeometry,
+        viewerProperties,
+        ellipseROIFeature
+      );
+    }
   },
   onDrawEnd: (event, viewerProperties) => {
     global.viewerProperties = viewerProperties;
@@ -240,24 +212,27 @@ const ellipse = Object.assign({}, annotationInterface, {
       attachChangeEvents(ellipseHandlesFeature, viewerProperties);
     }
   },
-  onRemove: (feature, { drawingSource, markupManager }) => {
+  onRemove: (feature, viewerProperties) => {
+    const { markupManager, features } = viewerProperties;
     const { isEllipseHandles, isEllipseShape } = feature.getProperties();
     if (isEllipseHandles) {
       const ellipseFeatureId = getEllipseId(feature);
-      const ellipseFeature = drawingSource.getFeatureById(ellipseFeatureId);
+      const ellipseFeature = getFeatureById(features, ellipseFeatureId);
       if (ellipseFeature) {
-        drawingSource.removeFeature(ellipseFeature);
+        markupManager.remove(ellipseFeature.getId());
+        removeFeature(ellipseFeature, viewerProperties);
       }
     }
 
     if (isEllipseShape) {
       const ellipseHandlesFeatureId = getEllipseHandlesId(feature);
-      const ellipseHandlesFeature = drawingSource.getFeatureById(
+      const ellipseHandlesFeature = getFeatureById(
+        features,
         ellipseHandlesFeatureId
       );
       if (ellipseHandlesFeature) {
-        drawingSource.removeFeature(ellipseHandlesFeature);
-        markupManager.remove(ellipseHandlesFeature.getId());
+        markupManager.remove(feature.getId());
+        removeFeature(ellipseHandlesFeature, viewerProperties);
       }
     }
   },

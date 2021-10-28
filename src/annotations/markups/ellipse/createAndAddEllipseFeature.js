@@ -2,16 +2,19 @@ import { Feature } from "ol";
 import { getEllipseStyle } from "./styles";
 import { getEllipseId } from "./id";
 import Enums from "../../../enums";
-import updateMarkup from "./updateMarkup";
+import addFeature from "./addFeature";
 
 const createAndAddEllipseFeature = (
   ellipseHandlesFeature,
   ellipseGeometry,
-  viewerProperties
+  viewerProperties,
+  originalROIFeature
 ) => {
-  const { drawingSource, markupManager } = viewerProperties;
+  const { markupManager } = viewerProperties;
 
-  const ellipseId = getEllipseId(ellipseHandlesFeature);
+  const ellipseId = getEllipseId(
+    originalROIFeature ? originalROIFeature : ellipseHandlesFeature
+  );
 
   const geometry = ellipseGeometry;
   const ellipseFeature = new Feature({ geometry });
@@ -30,7 +33,7 @@ const createAndAddEllipseFeature = (
     },
     true
   );
-  ellipseFeature.setStyle(getEllipseStyle());
+  ellipseFeature.setStyle(getEllipseStyle(ellipseFeature));
 
   /** Remove markup from handles to add a new one to ellipse */
   markupManager.remove(ellipseHandlesFeature.getId());
@@ -39,7 +42,7 @@ const createAndAddEllipseFeature = (
     style: ellipseHandlesFeature.get(Enums.InternalProperties.StyleOptions),
   });
 
-  drawingSource.addFeature(ellipseFeature);
+  addFeature(ellipseFeature, viewerProperties);
 };
 
 export default createAndAddEllipseFeature;

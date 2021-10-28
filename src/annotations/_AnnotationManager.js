@@ -28,7 +28,7 @@ import bidirectional from "./markups/bidirectional/bidirectional";
 const { Marker, Markup } = Enums;
 
 class _AnnotationManager {
-  constructor({ map, pyramid, drawingSource } = {}) {
+  constructor({ map, pyramid, drawingSource, features } = {}) {
     const markupManager = new _MarkupManager({
       map,
       pyramid,
@@ -45,6 +45,7 @@ class _AnnotationManager {
       pyramid,
       markupManager,
       drawingSource,
+      features
     };
 
     /** Markups */
@@ -152,7 +153,10 @@ class _AnnotationManager {
    * @param {boolean} isVisible The markup visibility
    */
   setMarkupVisibility(id, isVisible) {
-    this.props.markupManager.setVisibility(id, isVisible);
+    const feature = this.props.drawingSource.getFeatureById(id);
+    if (feature) {
+      this.props.markupManager.setVisibility(id, isVisible);
+    }
   }
 
   getMeasurements(feature) {

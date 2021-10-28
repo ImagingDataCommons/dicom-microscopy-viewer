@@ -562,8 +562,6 @@ class VolumeImageViewer {
       if (e.element.getId() === undefined) {
         e.element.setId(generateUID())
       }
-
-      this[_annotationManager].onAdd(e.element)
     })
 
     this[_features].on('remove', (e) => {
@@ -931,7 +929,8 @@ class VolumeImageViewer {
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
       pyramid: this[_pyramidMetadata],
-      drawingSource: this[_drawingSource]
+      drawingSource: this[_drawingSource],
+      features: this[_features]
     })
 
     // This updates the tiles offscreen rendering when zoom is applied to the view.
@@ -1482,6 +1481,8 @@ class VolumeImageViewer {
       if (isSilentFeature == true) {
         return;
       }
+
+      this[_annotationManager].onAdd(e.feature)
 
       publish(
         container,
