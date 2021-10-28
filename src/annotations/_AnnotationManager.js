@@ -45,7 +45,7 @@ class _AnnotationManager {
       pyramid,
       markupManager,
       drawingSource,
-      features
+      features,
     };
 
     /** Markups */
@@ -159,6 +159,20 @@ class _AnnotationManager {
     }
   }
 
+  getNormalizedFeature(feature) {
+    return (
+      bidirectional.getNormalizedFeature(feature, this.props) ||
+      ellipse.getNormalizedFeature(feature, this.props)
+    );
+  }
+
+  getNormalizedFeatureId(feature) {
+    return (
+      bidirectional.getNormalizedFeatureId(feature, this.props) ||
+      ellipse.getNormalizedFeatureId(feature, this.props)
+    );
+  }
+  
   getMeasurements(feature) {
     /** Annotations */
     return bidirectional

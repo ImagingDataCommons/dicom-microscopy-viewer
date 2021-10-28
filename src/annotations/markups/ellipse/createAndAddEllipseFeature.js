@@ -23,14 +23,9 @@ const createAndAddEllipseFeature = (
   ellipseFeature.setProperties(
     {
       isEllipseShape: true,
+      [Enums.InternalProperties.IsSilentFeature]: true,
       [Enums.InternalProperties.ReadOnly]: true,
       subFeatures: [ellipseHandlesFeature],
-    },
-    true
-  );
-  ellipseHandlesFeature.setProperties(
-    {
-      [Enums.InternalProperties.CantBeTranslated]: true,
     },
     true
   );

@@ -1,11 +1,15 @@
 import dcmjs from "dcmjs";
 import { getFeatureScoord3dArea } from "../../../scoord3dUtils";
+import getFeatureById from "./getFeatureById";
 import { getEllipseHandlesId, getEllipseId } from "./id";
 
 const getMeasurements = (feature, viewerProperties) => {
-  const { drawingSource, pyramid } = viewerProperties;
+  const { pyramid } = viewerProperties;
 
-  const { isEllipseHandles, isEllipseShape } = feature.getProperties();
+  /** Get fresh feature or the one bring dawn */
+  const freshFeature = getFeatureById(feature.getId(), viewerProperties) || feature;
+
+  const { isEllipseHandles, isEllipseShape } = freshFeature.getProperties();
   const isEllipse = isEllipseHandles || isEllipseShape;
 
   if (isEllipse) {
@@ -24,10 +28,10 @@ const getMeasurements = (feature, viewerProperties) => {
         }));
 
     if (isEllipseHandles) {
-      ellipseHandlesFeature = feature;
+      ellipseHandlesFeature = freshFeature;
 
       const ellipseFeatureId = getEllipseId(ellipseHandlesFeature);
-      ellipseFeature = drawingSource.getFeatureById(ellipseFeatureId);
+      ellipseFeature = getFeatureById(ellipseFeatureId, viewerProperties);
 
       if (ellipseFeature) {
         area = getFeatureScoord3dArea(ellipseFeature, pyramid);
@@ -36,12 +40,10 @@ const getMeasurements = (feature, viewerProperties) => {
     }
 
     if (isEllipseShape) {
-      ellipseFeature = feature;
+      ellipseFeature = freshFeature;
 
       const ellipseHandlesFeatureId = getEllipseHandlesId(ellipseFeature);
-      ellipseHandlesFeature = drawingSource.getFeatureById(
-        ellipseHandlesFeatureId
-      );
+      ellipseHandlesFeature = getFeatureById(ellipseHandlesFeatureId, viewerProperties);
 
       area = getFeatureScoord3dArea(ellipseFeature, pyramid);
       points = getEllipsePoints(ellipseFeature);

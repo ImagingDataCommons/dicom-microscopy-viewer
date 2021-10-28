@@ -1477,23 +1477,50 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement()
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+      let feature = e.feature;
+
+      /**
+       * Example: Silent until all features from a single annotation are done.
+       */
       const isSilentFeature = e.feature.get(Enums.InternalProperties.IsSilentFeature)
       if (isSilentFeature == true) {
         return;
       }
 
+      /** 
+       * Some features are a composite of other features. 
+       * This function gets the one (normalized) that will map into scoord coordinates. 
+       */
+      const normalizedFeature = this[_annotationManager].getNormalizedFeature(feature);
+      if (normalizedFeature) {
+        feature = normalizedFeature;
+      }
+
+      /** Dont normalize when is annotation hook */
       this[_annotationManager].onAdd(e.feature)
 
+      console.debug('ROI ADDED', feature);
       publish(
         container,
         EVENT.ROI_ADDED,
-        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(feature, this[_pyramidMetadata])
       )
     })
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      if (e.feature !== undefined || e.feature !== null) {
-        const geometry = e.feature.getGeometry()
+      let feature = e.feature;
+
+      /** 
+       * Some features are a composite of other features. 
+       * This function gets the one (normalized) that will map into scoord coordinates. 
+       */
+      const normalizedFeature = this[_annotationManager].getNormalizedFeature(feature);
+      if (normalizedFeature) {
+        feature = normalizedFeature;
+      }
+
+      if (feature !== undefined || feature !== null) {
+        const geometry = feature.getGeometry()
         const type = geometry.getType()
         // The first and last point of a polygon must be identical. The last point
         // is an implementation detail and is hidden from the user in the graphical
@@ -1514,14 +1541,15 @@ class VolumeImageViewer {
           ) {
             coordinates[0][coordinates[0].length - 1] = firstPoint
             geometry.setCoordinates(coordinates, layout)
-            e.feature.setGeometry(geometry)
+            feature.setGeometry(geometry)
           }
         }
       }
+
       publish(
         container,
         EVENT.ROI_MODIFIED,
-        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(feature, this[_pyramidMetadata])
       )
     })
 
@@ -1698,6 +1726,7 @@ class VolumeImageViewer {
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
       this[_annotationManager].onDrawEnd(event, options)
+
       publish(
         container,
         EVENT.ROI_DRAWN,
@@ -2267,9 +2296,11 @@ class VolumeImageViewer {
       }
     )
 
+    /** Style should be set before adding to features array which is tracked elsewhere */
+    this.setFeatureStyle(feature, styleOptions)
+
     this[_features].push(feature)
 
-    this.setFeatureStyle(feature, styleOptions)
     const isVisible = Object.keys(styleOptions).length !== 0
     this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
   }

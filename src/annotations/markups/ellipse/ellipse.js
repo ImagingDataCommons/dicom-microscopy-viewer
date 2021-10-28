@@ -124,15 +124,7 @@ const onPointerDragHandler = (event) => {
 };
 
 const attachChangeEvents = (ellipseHandlesFeature, viewerProperties) => {
-  const { map, markupManager } = viewerProperties;
-
-  ellipseHandlesFeature.setProperties(
-    {
-      isEllipseHandles: true,
-      [Enums.InternalProperties.IsSilentFeature]: true,
-    },
-    true
-  );
+  ellipseHandlesFeature.setProperties({ isEllipseHandles: true }, true);
 
   const ellipseHandlesGeometry = ellipseHandlesFeature.getGeometry();
 
@@ -147,19 +139,6 @@ const attachChangeEvents = (ellipseHandlesFeature, viewerProperties) => {
     Enums.FeatureGeometryEvents.CHANGE,
     onEllipseHandlesGeometryChange
   );
-
-  // const interactions = map.getInteractions();
-  // const draw = interactions.getArray().find((i) => i instanceof Draw);
-  // if (draw) {
-  //   const onDrawEndHandler = () => {
-  //     ellipseHandlesGeometry.un(
-  //       Enums.FeatureGeometryEvents.CHANGE,
-  //       onEllipseHandlesGeometryChange
-  //     );
-  //     draw.un(Enums.InteractionEvents.DRAW_END, onDrawEndHandler);
-  //   };
-  //   draw.on(Enums.InteractionEvents.DRAW_END, onDrawEndHandler);
-  // }
 };
 
 const attachPointerEvents = (viewerProperties) => {
@@ -199,6 +178,26 @@ const ellipse = Object.assign({}, annotationInterface, {
         viewerProperties,
         ellipseROIFeature
       );
+    }
+  },
+  getNormalizedFeature: (feature, viewerProperties) => {
+    const { features } = viewerProperties;
+    const { isEllipseHandles, isEllipseShape } = feature.getProperties();
+
+    if (isEllipseHandles) {
+      const ellipseFeatureId = getEllipseId(feature);
+      const ellipseFeature = getFeatureById(features, ellipseFeatureId);
+      if (ellipseFeature) {
+        const ellipseFeatureClone = ellipseFeature.clone();
+        ellipseFeatureClone.setId(feature.getId());
+        return ellipseFeatureClone;
+      }
+    }
+
+    if (isEllipseShape) {
+      const ellipseFeatureClone = feature.clone();
+      ellipseFeatureClone.setId(getEllipseHandlesId(feature));
+      return ellipseFeatureClone;
     }
   },
   onDrawEnd: (event, viewerProperties) => {

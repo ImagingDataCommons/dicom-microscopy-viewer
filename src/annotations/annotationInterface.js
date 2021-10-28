@@ -1,11 +1,3 @@
-import dcmjs from "dcmjs";
-import Feature from "ol/Feature";
-
-import _MarkupManager from "./markups/_MarkupManager";
-
-/** Enums */
-import Enums from "../enums";
-
 const annotationInterface = {
   onAdd(feature) {},
   onInit() {},
@@ -18,6 +10,9 @@ const annotationInterface = {
   onSetFeatureStyle(feature, styleOptions) {},
   getMeasurements() {
     return [];
+  },
+  getNormalizedFeature() {
+    return null;
   },
 };
 

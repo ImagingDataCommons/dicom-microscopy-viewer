@@ -2,7 +2,8 @@ import LineString from "ol/geom/LineString";
 import { Feature } from "ol";
 import styles, { ellipseHandlesStyleFunction } from "./styles";
 import Enums from "../../../enums";
-import addFeature from './addFeature';
+import addFeature from "./addFeature";
+import onSetFeatureStyle from "./onSetFeatureStyle";
 
 const createAndAddEllipseHandlesFeature = (
   ellipseROIFeature,
@@ -18,10 +19,18 @@ const createAndAddEllipseHandlesFeature = (
   ellipseHandlesFeature.setProperties(
     {
       isEllipseHandles: true,
-      [Enums.InternalProperties.IsSilentFeature]: true,
+      [Enums.InternalProperties.CantBeTranslated]: true,
     },
     true
   );
+
+  /** Trigger style change to get styles from original ROI that is going to be deleted */
+  onSetFeatureStyle(
+    ellipseHandlesFeature,
+    ellipseROIFeature.get(Enums.InternalProperties.StyleOptions),
+    viewerProperties
+  );
+
   ellipseHandlesFeature.setStyle(ellipseHandlesStyleFunction);
   ellipseHandlesFeature.set(Enums.InternalProperties.StyleOptions, styles);
   ellipseHandlesFeature.setId(ellipseROIFeature.getId());
@@ -32,6 +41,3 @@ const createAndAddEllipseHandlesFeature = (
 };
 
 export default createAndAddEllipseHandlesFeature;
-
-// todo: try removing roi and adding roi 
-// todo: try just using the same id

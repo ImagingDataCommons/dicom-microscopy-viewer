@@ -8,20 +8,16 @@ const addFeature = (feature, viewerProperties) => {
     featureId = generateUID();
   }
 
-  const getFeatureById = (features, id) => {
-    return features.getArray().find((f) => f.getId() === id);
-  };
+  const getFeatureById = (features, id) =>
+    features.getArray().find((f) => f.getId() === id);
 
-  const featureBeingAdded = drawingSource.getFeatureById(featureId);
-  if (!featureBeingAdded) {
+  const featureFromDrawingSource = drawingSource.getFeatureById(featureId);
+  if (!featureFromDrawingSource) {
     drawingSource.addFeature(feature);
   }
 
-  const featureBeingAddedInFeaturesCollection = getFeatureById(
-    features,
-    featureId
-  );
-  if (!featureBeingAddedInFeaturesCollection) {
+  const featuresFromFeatures = getFeatureById(features, featureId);
+  if (!featuresFromFeatures) {
     features.push(feature);
   }
 };
