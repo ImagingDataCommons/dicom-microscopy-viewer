@@ -46,26 +46,20 @@ class BlendingInformation {
   }
 }
 
-/** Channel for DICOM VL Whole Slide Microscopy Image instances
- * with Image Type VOLUME.
- *
- * @class
- * @memberof channel
- */
-
 class _Channel {
 /**
- * Create a channel instances which contains all the visualization/presentation
+ * Create a channel instance which contains all the visualization/presentation
  * parameters and OpenLayer objects for a Whole Slide Microscopy Image.
- * Channel coloring is allowed only for monochrome channels (i.e SamplesPerPixel === 1).
+ * Channel coloring is allowed only for monochrome images
+ * (i.e., images with only one sample per pixel).
  *
- * @param {object} BlendingInformation
- * @param {string} BlendingInformation.opticalPathIdentifier - channel ID
- * @param {number[]} BlendingInformation.color - channel rgb color
- * @param {number} BlendingInformation.opacity - channel opacity
- * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
- * @param {number[]} BlendingInformation.limitValues - channel min and max color fuinction values
- * @param {boolean} BlendingInformation.visible - channel visibility
+ * @param {object} options
+ * @param {string} options.opticalPathIdentifier - channel ID
+ * @param {number[]} options.color - channel rgb color
+ * @param {number} options.opacity - channel opacity
+ * @param {number[]} options.thresholdValues - channel clipping values
+ * @param {number[]} options.limitValues - channel min and max color function values
+ * @param {boolean} options.visible - channel visibility
  */
   constructor (blendingInformation) {
     this.blendingInformation = blendingInformation
@@ -237,11 +231,16 @@ class _Channel {
 
     // Set the composition type for the OpenLayer renderer object
     this.tileLayer.on('prerender', function (event) {
-      event.context.globalCompositeOperation = 'lighter'
+      console.log(event)
+      if (event.content) {
+        event.context.globalCompositeOperation = 'lighter'
+      }
     })
 
     this.tileLayer.on('postrender', function (event) {
-      event.context.globalCompositeOperation = 'source-over'
+      if (event.content) {
+        event.context.globalCompositeOperation = 'source-over'
+      }
     })
   }
 
@@ -261,7 +260,8 @@ class _Channel {
     return this.blendingInformation
   }
 
-  /** Sets the channel visualization/presentation parameters
+  /** Set the channel visualization/presentation parameters
+   *
    * @param {object} BlendingInformation
    * @param {string} BlendingInformation.opticalPathIdentifier - channel ID
    * @param {number[]} BlendingInformation.color - channel rgb color
@@ -283,19 +283,35 @@ class _Channel {
     } = blendingInformation
 
     let rerender = false
-    if (color && !are1DArraysAlmostEqual(this.blendingInformation.color, color)) {
+    const doesColorMatch = are1DArraysAlmostEqual(
+      this.blendingInformation.color,
+      color
+    )
+    if (color && !doesColorMatch) {
       rerender = true
       this.blendingInformation.color = [...color]
     }
-    if (opacity && !areNumbersAlmostEqual(this.blendingInformation.opacity, opacity)) {
+    const doesOpacityMatch = areNumbersAlmostEqual(
+      this.blendingInformation.opacity,
+      opacity
+    )
+    if (opacity && !doesOpacityMatch) {
       this.blendingInformation.opacity = opacity
       this.tileLayer.setOpacity(this.blendingInformation.opacity)
     }
-    if (thresholdValues && !are1DArraysAlmostEqual(this.blendingInformation.thresholdValues, thresholdValues)) {
+    const doThresholdValuesMatch = are1DArraysAlmostEqual(
+      this.blendingInformation.thresholdValues,
+      thresholdValues
+    )
+    if (thresholdValues && !doThresholdValuesMatch) {
       rerender = true
       this.blendingInformation.thresholdValues = [...thresholdValues]
     }
-    if (limitValues && !are1DArraysAlmostEqual(this.blendingInformation.limitValues, limitValues)) {
+    const doLimitValuesMatch = are1DArraysAlmostEqual(
+      this.blendingInformation.limitValues,
+      limitValues
+    )
+    if (limitValues && !doLimitValuesMatch) {
       rerender = true
       this.blendingInformation.limitValues = [...limitValues]
     }
@@ -316,7 +332,8 @@ class _Channel {
     }
   }
 
-  /** Reruns the offscreen render to color the tiles if needed.
+  /** Rerun the offscreen render to color the tiles if needed.
+   *
    * This is called at every zoom interaction.
    * @param {boolean} visuParamChanged - true if this is called by setBlendingInformation
    * @param {number} zoomLevel - zoom level to update

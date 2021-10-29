@@ -1,4 +1,5 @@
 import { tagToKeyword } from './dictionary'
+import { SOPClassUIDs } from './enums'
 
 /** Determines the mapping of pyramid tile positions to frame numbers.
  *
@@ -246,7 +247,7 @@ class VLWholeSlideMicroscopyImage {
     } else {
       dataset = formatMetadata(options.metadata)
     }
-    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.77.1.6') {
+    if (dataset.SOPClassUID !== SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE) {
       throw new Error(
         'Cannot construct VL Whole Slide Microscopy Image instance ' +
         `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
@@ -269,7 +270,7 @@ class Comprehensive3DSR {
      */
   constructor (options) {
     const dataset = formatMetadata(options.metadata)
-    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.88.34') {
+    if (dataset.SOPClassUID !== SOPClassUIDs.COMPREHENSIVE_3D_SR) {
       throw new Error(
         'Cannot construct Comprehensive 3D SR instance ' +
           `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
@@ -292,7 +293,7 @@ class MicroscopyBulkSimpleAnnotations {
      */
   constructor (options) {
     const dataset = formatMetadata(options.metadata)
-    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.91.1') {
+    if (dataset.SOPClassUID !== SOPClassUIDs.MICROSCOPY_BULK_SIMPLE_ANNOTATIONS) {
       throw new Error(
         'Cannot construct Microscopy Bulk Simple Annotations instance ' +
           `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
@@ -315,7 +316,7 @@ class ParametricMap {
      */
   constructor (options) {
     const dataset = formatMetadata(options.metadata)
-    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.30') {
+    if (dataset.SOPClassUID !== SOPClassUIDs.PARAMETRIC_MAP) {
       throw new Error(
         'Cannot construct Parametric Map instance ' +
           `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
@@ -338,7 +339,7 @@ class Segmentation {
      */
   constructor (options) {
     const dataset = formatMetadata(options.metadata)
-    if (dataset.SOPClassUID !== '1.2.840.10008.5.1.4.1.1.66.4') {
+    if (dataset.SOPClassUID !== SOPClassUIDs.SEGMENTATION) {
       throw new Error(
         'Cannot construct Segmentation instance ' +
           `given dataset with SOP Class UID "${dataset.SOPClassUID}"`

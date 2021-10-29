@@ -1,5 +1,6 @@
 import * as dwc from 'dicomweb-client'
 
+import { SOPClassUIDs } from './enums'
 import { getFrameMapping } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 
@@ -283,11 +284,12 @@ function _createTileLoadFunction ({
       )
       return
     }
-    const columns = pyramid.metadata[z].Columns
-    const rows = pyramid.metadata[z].Rows
-    const bitsAllocated = pyramid.metadata[z].BitsAllocated
-    const pixelRepresentation = pyramid.metadata[z].PixelRepresentation
-    const samplesPerPixel = pyramid.metadata[z].SamplesPerPixel
+    const refImage = pyramid.metadata[z]
+    const columns = refImage.Columns
+    const rows = refImage.Rows
+    const bitsAllocated = refImage.BitsAllocated
+    const pixelRepresentation = refImage.PixelRepresentation
+    const samplesPerPixel = refImage.SamplesPerPixel
 
     if (samplesPerPixel === 1 && blendingInformation === undefined) {
       throw new Error(
@@ -314,11 +316,11 @@ function _createTileLoadFunction ({
         /*
          * We could use PNG, but at the moment we don't have a PNG decoder
          * library and thus would have to draw to a canvas, retrieve the
-         * imageData and then recompat the array from a RGBA to a 1 component
+         * image data and then recompat the array from a RGBA to a 1 component
          * array for the offscreen rendering engine, which would result in
          * poor perfomance.
          */
-        const jp2MediaType = 'image/jp2' // decoded with Openjpeg
+        const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
         const jpegMediaType = 'image/jpeg' // decoded with libjpeg-turbo
         const transferSyntaxUID = ''
         const retrieveOptions = {
@@ -332,6 +334,9 @@ function _createTileLoadFunction ({
           ]
         }
         if (includeIccProfile) {
+          /* Unclear whether the included ICC profile will be correclty
+           * rendered by the browser.
+           */
           retrieveOptions.queryParams = {
             iccprofile: 'yes'
           }
@@ -369,6 +374,7 @@ function _createTileLoadFunction ({
           }
         )
       } else {
+        // Compressed Bulkdata Media Types
         const jlsMediaType = 'image/jls' // decoded with CharLS
         const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
         const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
@@ -378,18 +384,33 @@ function _createTileLoadFunction ({
         const jpxMediaType = 'image/jpx' // decoded with OpenJPEG
         const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
         const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-        const jpegMediaType = 'image/jpeg' // decoded with libJPEG-turbo
+        const jpegMediaType = 'image/jpeg' // decoded with libjpeg-turbo
         const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
 
+        // Uncompressed Bulkdata Media Types
         const octetStreamMediaType = 'application/octet-stream'
         const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
+
+        let useImageMediaType = false
+        if (refImage.SOPClassUID === SOPClassUIDs.PARAMETRIC_MAP) {
+          // float or double float pixel data
+          useImageMediaType = false
+        } else if (refImage.SOPClassUID === SOPClassUIDs.SEGMENTATION) {
+          if (refImage.SegmentationType === 'BINARY') {
+            // 1-bit pixel data
+            useImageMediaType = false
+          }
+        }
 
         const retrieveOptions = {
           studyInstanceUID,
           seriesInstanceUID,
           sopInstanceUID,
           frameNumbers,
-          mediaTypes: [
+          mediaTypes: []
+        }
+        if (useImageMediaType) {
+          retrieveOptions.mediaTypes = [
             {
               mediaType: jlsMediaType,
               transferSyntaxUID: jlsTransferSyntaxUIDlossless
@@ -417,6 +438,13 @@ function _createTileLoadFunction ({
             {
               mediaType: jpegMediaType,
               transferSyntaxUID: jpegTransferSyntaxUID
+            }
+          ]
+        } else {
+          retrieveOptions.mediaTypes = [
+            {
+              mediaType: octetStreamMediaType,
+              transferSyntaxUID: octetStreamTransferSyntaxUID
             }
           ]
         }
@@ -457,57 +485,7 @@ function _createTileLoadFunction ({
             }
           }
         ).catch(
-          () => {
-            // since we can't ask to retrieve both jpeg formats and octet-stream
-            // we use a catch in the case all jpeg formats will fail
-            const retrieveOptions = {
-              studyInstanceUID,
-              seriesInstanceUID,
-              sopInstanceUID,
-              frameNumbers,
-              mediaTypes: [
-                {
-                  mediaType: octetStreamMediaType,
-                  transferSyntaxUID: octetStreamTransferSyntaxUID
-                }
-              ]
-            }
-            client.retrieveInstanceFrames(retrieveOptions).then(
-              (rawFrames) => {
-                if (samplesPerPixel === 1) {
-                  const {
-                    thresholdValues,
-                    limitValues,
-                    color
-                  } = blendingInformation
-                  const isRendered = renderingEngine.colorMonochromeImageFrame({
-                    img,
-                    frames: rawFrames[0],
-                    bitsAllocated,
-                    pixelRepresentation,
-                    thresholdValues,
-                    limitValues,
-                    color,
-                    opacity: 1, // handled by OpenLayers
-                    columns,
-                    rows
-                  })
-                  tile.needToRerender = !isRendered
-                  tile.isLoading = false
-                } else {
-                  img.src = renderingEngine.createURLFromRGBImage({
-                    frames: rawFrames[0],
-                    bitsAllocated,
-                    pixelRepresentation,
-                    columns,
-                    rows
-                  })
-                  tile.needToRerender = false
-                  tile.isLoading = false
-                }
-              }
-            )
-          }
+          () => {}
         )
       }
     } else {
