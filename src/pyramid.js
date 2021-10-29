@@ -391,7 +391,7 @@ function _createTileLoadFunction ({
         const octetStreamMediaType = 'application/octet-stream'
         const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
 
-        let useImageMediaType = false
+        let useImageMediaType = true
         if (refImage.SOPClassUID === SOPClassUIDs.PARAMETRIC_MAP) {
           // float or double float pixel data
           useImageMediaType = false
@@ -407,47 +407,47 @@ function _createTileLoadFunction ({
           seriesInstanceUID,
           sopInstanceUID,
           frameNumbers,
-          mediaTypes: []
+          // mediaTypes: []
         }
-        if (useImageMediaType) {
-          retrieveOptions.mediaTypes = [
-            {
-              mediaType: jlsMediaType,
-              transferSyntaxUID: jlsTransferSyntaxUIDlossless
-            },
-            {
-              mediaType: jlsMediaType,
-              transferSyntaxUID: jlsTransferSyntaxUID
-            },
-            {
-              mediaType: jp2MediaType,
-              transferSyntaxUID: jp2TransferSyntaxUIDlossless
-            },
-            {
-              mediaType: jp2MediaType,
-              transferSyntaxUID: jp2TransferSyntaxUID
-            },
-            {
-              mediaType: jpxMediaType,
-              transferSyntaxUID: jpxTransferSyntaxUIDlossless
-            },
-            {
-              mediaType: jpxMediaType,
-              transferSyntaxUID: jpxTransferSyntaxUID
-            },
-            {
-              mediaType: jpegMediaType,
-              transferSyntaxUID: jpegTransferSyntaxUID
-            }
-          ]
-        } else {
-          retrieveOptions.mediaTypes = [
-            {
-              mediaType: octetStreamMediaType,
-              transferSyntaxUID: octetStreamTransferSyntaxUID
-            }
-          ]
-        }
+        // if (useImageMediaType) {
+        //   retrieveOptions.mediaTypes = [
+        //     {
+        //       mediaType: jlsMediaType,
+        //       transferSyntaxUID: jlsTransferSyntaxUIDlossless
+        //     },
+        //     {
+        //       mediaType: jlsMediaType,
+        //       transferSyntaxUID: jlsTransferSyntaxUID
+        //     },
+        //     {
+        //       mediaType: jp2MediaType,
+        //       transferSyntaxUID: jp2TransferSyntaxUIDlossless
+        //     },
+        //     {
+        //       mediaType: jp2MediaType,
+        //       transferSyntaxUID: jp2TransferSyntaxUID
+        //     },
+        //     {
+        //       mediaType: jpxMediaType,
+        //       transferSyntaxUID: jpxTransferSyntaxUIDlossless
+        //     },
+        //     {
+        //       mediaType: jpxMediaType,
+        //       transferSyntaxUID: jpxTransferSyntaxUID
+        //     },
+        //     {
+        //       mediaType: jpegMediaType,
+        //       transferSyntaxUID: jpegTransferSyntaxUID
+        //     }
+        //   ]
+        // } else {
+        //   retrieveOptions.mediaTypes = [
+        //     {
+        //       mediaType: octetStreamMediaType,
+        //       transferSyntaxUID: octetStreamTransferSyntaxUID
+        //     }
+        //   ]
+        // }
 
         client.retrieveInstanceFrames(retrieveOptions).then(
           (rawFrames) => {

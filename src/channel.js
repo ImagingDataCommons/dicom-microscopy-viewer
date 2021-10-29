@@ -230,8 +230,8 @@ class _Channel {
     this.tileLayer.setVisible(this.blendingInformation.visible)
 
     // Set the composition type for the OpenLayer renderer object
+    // TODO: may no longer be needed with WebGL renderer
     this.tileLayer.on('prerender', function (event) {
-      console.log(event)
       if (event.content) {
         event.context.globalCompositeOperation = 'lighter'
       }
