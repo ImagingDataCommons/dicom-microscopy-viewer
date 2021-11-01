@@ -39,6 +39,7 @@ import * as DICOMwebClient from 'dicomweb-client'
 import dcmjs from 'dcmjs'
 
 import {
+  ColorMapNames,
   createColorMap,
   createColorTable
 } from './color.js'
@@ -1872,8 +1873,6 @@ class VolumeImageViewer {
    * @param {object} item - NUM content item representing a measurement
    */
   addROIMeasurement (uid, item) {
-    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
-    console.info(`add measurement "${meaning}" to ROI ${uid}`)
     this[_features].forEach((feature) => {
       const id = feature.getId()
       if (id === uid) {
@@ -2130,7 +2129,12 @@ class VolumeImageViewer {
         }),
         segmentationType: refInstance.SegmentationType,
         rasterSource: rasterSource,
-        tileLayer: layer
+        tileLayer: layer,
+        overlay: null,
+        defaultStyle: {
+          opacity: 0.5,
+          colormap: ColorMapNames.VIRIDIS
+        }
       }
     }
   }
@@ -2149,6 +2153,7 @@ class VolumeImageViewer {
     const segment = this[_segmentations][segmentUID]
     this[_map].removeLayer(segment.tileLayer)
     segment.tileLayer.dispose()
+    this[_map].removeOverlay(segment.overlay)
     delete this[_segmentations][segmentUID]
   }
 
@@ -2169,13 +2174,6 @@ class VolumeImageViewer {
     const segment = this[_segmentations][segmentUID]
     console.info(`show segment #${segmentUID}`)
     segment.tileLayer.setVisible(true)
-
-    if (styleOptions.colormap === undefined) {
-      styleOptions.colormap = 'VIRIDIS'
-    }
-    if (styleOptions.opacity === undefined) {
-      styleOptions.opacity = 1
-    }
     this.setSegmentStyle(segmentUID, styleOptions)
   }
 
@@ -2193,6 +2191,7 @@ class VolumeImageViewer {
     const segment = this[_segmentations][segmentUID]
     console.info(`hide segment #${segmentUID}`)
     segment.tileLayer.setVisible(false)
+    this[_map].removeOverlay(segment.overlay)
   }
 
   /**
@@ -2227,7 +2226,16 @@ class VolumeImageViewer {
       )
     }
     const segment = this[_segmentations][segmentUID]
-    segment.setOpacity(styleOptions.opacity)
+
+    if (styleOptions.colormap === undefined) {
+      styleOptions.colormap = segment.defaultStyle.colormap
+    }
+    if (styleOptions.opacity === undefined) {
+      styleOptions.opacity = segment.defaultStyle.opacity
+    }
+    segment.tileLayer.setOpacity(styleOptions.opacity)
+
+    const colors = createColorMap({ name: styleOptions.colormap, bins: 256 })
     // TODO
     // const min = 0
     // let max
@@ -2236,7 +2244,6 @@ class VolumeImageViewer {
     // } else {
     //   max = 255
     // }
-    // const colors = createColorMap({ name: styleOptions.colormap, bins: 256 })
     // const colorTable = createColorTable({ colormap: colors, min, max })
     // segment.tileLayer.updateStyleVariables({
     //   color: [
@@ -2245,6 +2252,46 @@ class VolumeImageViewer {
     //     ...colorTable
     //   ]
     // })
+    segment.overlay = new Overlay({
+      element: document.createElement('div'),
+      offset: [5, 5]
+    })
+
+    console.log(segment.segment)
+    const overlayElement = segment.overlay.getElement()
+    overlayElement.innerHTML = segment.segment.propertyType.CodeMeaning
+    overlayElement.style = {}
+    overlayElement.style.display = 'flex'
+    overlayElement.style.flexDirection = 'column'
+    overlayElement.style.padding = '4px'
+    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
+    overlayElement.style.borderRadius = '4px'
+    overlayElement.style.margin = '1px'
+    overlayElement.style.color = 'black'
+    overlayElement.style.fontWeight = '600'
+    overlayElement.style.fontSize = '12px'
+    overlayElement.style.textAlign = 'center'
+
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    const height = 40
+    const width = 10
+    context.canvas.height = height
+    context.canvas.width = width
+    for (let j = 0; j < colors.length; j++) {
+      const color = colors[colors.length - j - 1]
+      const r = color[0]
+      const g = color[1]
+      const b = color[2]
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`
+      context.fillRect(0, height / colors.length * j, width, 1)
+    }
+    overlayElement.appendChild(canvas)
+
+    const parentElement = overlayElement.parentNode
+    parentElement.style.display = 'inline'
+
+    this[_map].addOverlay(segment.overlay)
   }
 
   /**
@@ -2297,11 +2344,18 @@ class VolumeImageViewer {
    * Add a new viewport overlay.
    *
    * @param {object} options Overlay options
-   * @param {object} options.element The custom overlay html element
-   * @param {object} options.className Class to style the OpenLayer's overlay container
+   * @param {object} options.element The custom overlay HTML element
+   * @param {string} options.className Class to style the overlay container
+   * @param {number[]} options.offset Horizontal and vertical offset of the overlay container in pixels
    */
-  addViewportOverlay ({ element, className }) {
-    this[_map].addOverlay(new Overlay({ element, className }))
+  addViewportOverlay ({ element, className, offset }) {
+    const overlay = new Overlay({
+      element,
+      className,
+      offset,
+      stopEvent: false
+    })
+    this[_map].addOverlay(overlay)
   }
 
   /**
