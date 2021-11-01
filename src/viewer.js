@@ -1782,7 +1782,7 @@ class VolumeImageViewer {
     console.info('activate "modify" interaction')
 
     const modifyOptions = {
-      features: this[_features], // TODO: or source, i.e. 'drawings'???
+      features: this[_features],
       insertVertexCondition: ({ feature }) =>
         feature && feature.get('vertexEnabled') === true
     }
@@ -2079,26 +2079,35 @@ class VolumeImageViewer {
       })
       rasterSource.setTileLoadFunction(tileLoadFunction)
 
-      // TODO
+      /** TODO
+       * The color mapping currently doesn't work as expected, because the
+       * pixel values get changed by renderingEngine.colorMonochromeImageFrame().
+       */
+      // const min = 0
+      // let max
+      // if (segment.segmentationStyle === 'BINARY') {
+      //   max = 1
+      // } else {
+      //   max = 255
+      // }
+      // const colors = createColorMap({ name: 'VIRIDIS, bins: 256 })
+      // const colorTable = createColorTable({ colormap: colors, min, max })
       const layer = new TileLayer({
         source: rasterSource,
         extent: this[_pyramid].extent,
         projection: this[_projection],
         visible: false,
+        opacity: 0.5,
         preload: 0
         // style: {
         //   color: ['var', 'color'],
-        //   opacity: ['var', 'opacity'],
         //   variables: {
         //     color: [
-        //       'match',
+        //       'interpolate',
+        //       ['linear'],
         //       ['band', 1],
-        //       0,
-        //       [255, 255, 255],
-        //       255,
-        //       [255, 0, 0]
-        //     ],
-        //     opacity: 0
+        //       ...colorTable
+        //     ]
         //   }
         // }
       })
@@ -2217,27 +2226,24 @@ class VolumeImageViewer {
         `Could not find segment "${segmentUID}".`
       )
     }
+    const segment = this[_segmentations][segmentUID]
+    segment.setOpacity(styleOptions.opacity)
     // TODO
-    // const segment = this[_segmentations][segmentUID]
     // const min = 0
     // let max
-    // let bins
     // if (segment.segmentationStyle === 'BINARY') {
     //   max = 1
-    //   bins = 2
     // } else {
     //   max = 255
-    //   bins = 256
     // }
-    // const colors = createColorMap({ name: styleOptions.colormap, bins })
+    // const colors = createColorMap({ name: styleOptions.colormap, bins: 256 })
     // const colorTable = createColorTable({ colormap: colors, min, max })
     // segment.tileLayer.updateStyleVariables({
     //   color: [
     //     'match',
     //     ['band', 1],
-    //     colorTable
-    //   ],
-    //   opacity: styleOptions.opacity
+    //     ...colorTable
+    //   ]
     // })
   }
 

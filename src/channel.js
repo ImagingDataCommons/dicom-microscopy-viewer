@@ -112,7 +112,7 @@ class _Channel {
     * determine the structure of the image pyramid, i.e., the size and
     * resolution of images at the different pyramid levels.
     */
-    const pyramid = _computeImagePyramid({ metadata: this.metadata })
+    this.pyramid = _computeImagePyramid({ metadata: this.metadata })
     const opticalPathIdentifier = this.blendingInformation.opticalPathIdentifier
 
     const frameOfReferenceUID = this.metadata[0].FrameOfReferenceUID
@@ -136,7 +136,7 @@ class _Channel {
     }
 
     // Check that all the channels have the same pyramid parameters
-    if (!are2DArraysAlmostEqual(pyramid.extent, referenceExtent)) {
+    if (!are2DArraysAlmostEqual(this.pyramid.extent, referenceExtent)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has an incompatible extent with respect to the reference ' +
@@ -144,7 +144,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(pyramid.origins, referenceOrigins)) {
+    if (!are2DArraysAlmostEqual(this.pyramid.origins, referenceOrigins)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible origins with respect to the reference ' +
@@ -152,7 +152,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(pyramid.resolutions, referenceResolutions)) {
+    if (!are2DArraysAlmostEqual(this.pyramid.resolutions, referenceResolutions)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible resolutions with respect to the reference ' +
@@ -160,7 +160,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(pyramid.gridSizes, referenceGridSizes)) {
+    if (!are2DArraysAlmostEqual(this.pyramid.gridSizes, referenceGridSizes)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible grid sizes with respect to the reference ' +
@@ -168,7 +168,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(pyramid.tileSizes, referenceTileSizes)) {
+    if (!are2DArraysAlmostEqual(this.pyramid.tileSizes, referenceTileSizes)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible tile sizes with respect to the reference ' +
@@ -176,7 +176,7 @@ class _Channel {
         `"${referenceOpticalPathIdentifier}".`
       )
     }
-    if (!are2DArraysAlmostEqual(pyramid.pixelSpacings, referencePixelSpacings)) {
+    if (!are2DArraysAlmostEqual(this.pyramid.pixelSpacings, referencePixelSpacings)) {
       throw new Error(
         `Image with optical path "${opticalPathIdentifier}"` +
         'has incompatible pixel spacings with respect to the reference ' +
@@ -186,13 +186,13 @@ class _Channel {
     }
 
     const tileUrlFunction = _createTileUrlFunction({
-      pyramid,
+      pyramid: this.pyramid,
       client: options.client,
       retrieveRendered: options.retrieveRendered
     })
 
     const tileLoadFunction = _createTileLoadFunction({
-      pyramid,
+      pyramid: this.pyramid,
       client: options.client,
       retrieveRendered: options.retrieveRendered,
       includeIccProfile: options.includeIccProfile,
@@ -372,11 +372,15 @@ class _Channel {
 
       if (render) {
         console.log('updating rendering for tile : ', key)
-        const samplesPerPixel = this.pyramidMetadata[z].SamplesPerPixel // number of colors for pixel
+        const samplesPerPixel = this.pyramid.metadata[z].SamplesPerPixel
         if (samplesPerPixel === 1) {
-          const columns = this.pyramidMetadata[z].Columns
-          const rows = this.pyramidMetadata[z].Rows
-          const { thresholdValues, limitValues, color } = this.blendingInformation
+          const columns = this.pyramid.metadata[z].Columns
+          const rows = this.pyramid.metadata[z].Rows
+          const {
+            thresholdValues,
+            limitValues,
+            color
+          } = this.blendingInformation
           const img = tile.getImage()
 
           // coloring images
@@ -390,9 +394,10 @@ class _Channel {
             rows
           }
 
-          this.renderingEngine.colorMonochromeImageFrame(frameData)
+          tile.needToRerender = this.renderingEngine.colorMonochromeImageFrame(
+            frameData
+          )
           mapRerender = true
-          tile.needToRerender = false
         }
       }
     }
