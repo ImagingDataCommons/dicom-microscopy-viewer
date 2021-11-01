@@ -322,7 +322,7 @@ class _Channel {
 
     // rerender tiles already loaded
     if (rerender) {
-      return this.updateTilesRendering(
+      return this.rerenderTiles(
         true,
         tilesCoordRanges[2],
         [tilesCoordRanges[0], tilesCoordRanges[1]]
@@ -341,7 +341,7 @@ class _Channel {
    *
    * @returns {boolean} rerender - force OpenLayer to rerender the view.
   */
-  updateTilesRendering (visuParamChanged, zoomLevel, tilesCoordRanges) {
+  rerenderTiles (visuParamChanged, zoomLevel, tilesCoordRanges) {
     // rerender tiles already loaded
     // retrieve all the cached tiles from the raster source and reapply the offscreen render
     let mapRerender = false
@@ -371,7 +371,7 @@ class _Channel {
       }
 
       if (render) {
-        console.log('updating rendering for tile : ', key)
+        console.log('rendering tile: ', key)
         const samplesPerPixel = this.pyramid.metadata[z].SamplesPerPixel
         if (samplesPerPixel === 1) {
           const columns = this.pyramid.metadata[z].Columns
@@ -383,8 +383,7 @@ class _Channel {
           } = this.blendingInformation
           const img = tile.getImage()
 
-          // coloring images
-          const frameData = {
+          tile.needToRerender = this.renderingEngine.colorMonochromeImageFrame({
             img,
             thresholdValues,
             limitValues,
@@ -392,11 +391,7 @@ class _Channel {
             opacity: 1, // handled by OpenLayers
             columns,
             rows
-          }
-
-          tile.needToRerender = this.renderingEngine.colorMonochromeImageFrame(
-            frameData
-          )
+          })
           mapRerender = true
         }
       }

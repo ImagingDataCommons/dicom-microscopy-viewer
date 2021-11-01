@@ -969,7 +969,7 @@ class VolumeImageViewer {
       const channel = this[_channels][opticalPathIdentifier]
       // For each channel check if any tiles at the new zoom
       // needs to refresh the offscreen coloring rendering.
-      const channelRender = channel.updateTilesRendering(false, zoom)
+      const channelRender = channel.rerenderTiles(false, zoom)
       if (channelRender) {
         render = true
       }
@@ -987,7 +987,7 @@ class VolumeImageViewer {
     const tileCoords = this._transformViewCoordinatesIntoTileCoordinates()
     for (const opticalPathIdentifier in this[_channels]) {
       const channel = this[_channels][opticalPathIdentifier]
-      const channelRender = channel.updateTilesRendering(
+      const channelRender = channel.rerenderTiles(
         false,
         tileCoords[2],
         [tileCoords[0], tileCoords[1]]
@@ -1001,19 +1001,21 @@ class VolumeImageViewer {
     }
   }
 
-  /** Set the style of a channel.
+  /** Set the style of an optical path.
    *
    * @param {object} options
-   * @param {string} options.opticalPathIdentifier - channel ID
+   * @param {string} options.opticalPathIdentifier - Identifier of the optical path
    * @param {number[]} options.color - RGB color triplet
    * @param {number} options.opacity - Opacity
    * @param {number[]} options.thresholdValues - Upper and lower clipping values
+   * @param {boolean} options.visible - Whether optical path should be visible
    */
   setOpticalPathStyle ({
     opticalPathIdentifier,
     color,
     opacity,
-    thresholdValues
+    thresholdValues,
+    visible
   }) {
     const channel = this[_channels][opticalPathIdentifier]
     if (channel === undefined) {
@@ -1028,7 +1030,7 @@ class VolumeImageViewer {
       color,
       opacity,
       thresholdValues,
-      visible: true
+      visible
     }
     if (channel.setBlendingInformation(blendingInformation, tileCoords)) {
       this[_map].render()
