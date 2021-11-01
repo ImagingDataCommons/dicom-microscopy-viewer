@@ -2257,7 +2257,6 @@ class VolumeImageViewer {
       offset: [5, 5]
     })
 
-    console.log(segment.segment)
     const overlayElement = segment.overlay.getElement()
     overlayElement.innerHTML = segment.segment.propertyType.CodeMeaning
     overlayElement.style = {}

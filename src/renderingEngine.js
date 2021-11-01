@@ -894,15 +894,45 @@ class RenderingEngine {
     const texture = this.gl.createTexture()
     this.gl.bindTexture(this.gl.TEXTURE_2D, texture)
 
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST)
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.NEAREST)
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE)
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE)
+    this.gl.texParameteri(
+      this.gl.TEXTURE_2D,
+      this.gl.TEXTURE_MIN_FILTER,
+      this.gl.NEAREST
+    )
+    this.gl.texParameteri(
+      this.gl.TEXTURE_2D,
+      this.gl.TEXTURE_MAG_FILTER,
+      this.gl.NEAREST
+    )
+    this.gl.texParameteri(
+      this.gl.TEXTURE_2D,
+      this.gl.TEXTURE_WRAP_S,
+      this.gl.CLAMP_TO_EDGE
+    )
+    this.gl.texParameteri(
+      this.gl.TEXTURE_2D,
+      this.gl.TEXTURE_WRAP_T,
+      this.gl.CLAMP_TO_EDGE
+    )
     this.gl.pixelStorei(this.gl.UNPACK_ALIGNMENT, 1)
 
-    const imageData = this.dataUtilities[imageDataType].storedPixelDataToPackedData(pixelData, width, height)
+    const imageData = this.dataUtilities[imageDataType].storedPixelDataToPackedData(
+      pixelData,
+      width,
+      height
+    )
 
-    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, format, width, height, 0, format, this.gl.UNSIGNED_BYTE, imageData)
+    this.gl.texImage2D(
+      this.gl.TEXTURE_2D,
+      0,
+      format,
+      width,
+      height,
+      0,
+      format,
+      this.gl.UNSIGNED_BYTE,
+      imageData
+    )
 
     // Calculate the size in bytes of this image in memory
     const sizeInBytes = width * height * TEXTURE_BYTES[imageDataType]
@@ -948,10 +978,24 @@ class RenderingEngine {
     this.gl.useProgram(shader.program)
 
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.texCoordBuffer)
-    this.gl.vertexAttribPointer(shader.attributes.texCoordLocation, 2, this.gl.FLOAT, false, 0, 0)
+    this.gl.vertexAttribPointer(
+      shader.attributes.texCoordLocation,
+      2,
+      this.gl.FLOAT,
+      false,
+      0,
+      0
+    )
 
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer)
-    this.gl.vertexAttribPointer(shader.attributes.positionLocation, 2, this.gl.FLOAT, false, 0, 0)
+    this.gl.vertexAttribPointer(
+      shader.attributes.positionLocation,
+      2,
+      this.gl.FLOAT,
+      false,
+      0,
+      0
+    )
 
     for (const key in parameters) {
       const uniformLocation = this.gl.getUniformLocation(shader.program, key)
@@ -971,11 +1015,16 @@ class RenderingEngine {
       }
     }
 
-    this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([
-      width, height,
-      0, height,
-      width, 0,
-      0, 0]), this.gl.STATIC_DRAW)
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      new Float32Array([
+        width, height,
+        0, height,
+        width, 0,
+        0, 0
+      ]),
+      this.gl.STATIC_DRAW
+    )
 
     this.gl.activeTexture(this.gl.TEXTURE0)
 
