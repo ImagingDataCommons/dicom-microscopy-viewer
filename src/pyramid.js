@@ -2,6 +2,8 @@ import * as dwc from 'dicomweb-client'
 
 import { getFrameMapping } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
+import { are2DArraysAlmostEqual } from './utils.js'
+
 
 /** Compute image pyramid.
  *
@@ -200,9 +202,39 @@ function _computeImagePyramid ({ metadata }) {
   }
 }
 
-/*
- * Create custom tile loader function to retrieve frames via WADO-RS.
-*/
+function _areImagePyramidsEqual (pyramid, refPyramid) {
+  // Check that all the channels have the same pyramid parameters
+  if (!are2DArraysAlmostEqual(pyramid.extent, refPyramid.extent)) {
+    console.warn('Pyramid has different extent as reference pyramid.')
+    return false
+  }
+  if (!are2DArraysAlmostEqual(pyramid.origins, refPyramid.origins)) {
+    console.warn('Pyramid has different origins as reference pyramid.')
+    return false
+  }
+  if (!are2DArraysAlmostEqual(pyramid.resolutions, refPyramid.resolutions)) {
+    console.warn('Pyramid has different resolutions as reference pyramid.')
+    return false
+  }
+  if (!are2DArraysAlmostEqual(pyramid.gridSizes, refPyramid.gridSizes)) {
+    console.warn('Pyramid has different grid sizes as reference pyramid.')
+    return false
+  }
+  if (!are2DArraysAlmostEqual(pyramid.tileSizes, refPyramid.tileSizes)) {
+    console.warn('Pyramid has different tile sizes as reference pyramid.')
+    return false
+  }
+  if (!are2DArraysAlmostEqual(pyramid.pixelSpacings, refPyramid.pixelSpacings)) {
+    console.warn('Pyramid has different pixel spacings as reference pyramid.')
+    return false
+  }
+  return true
+}
+
+/** Create custom tile loader function to retrieve frames via WADO-RS.
+ *
+ *
+ */
 function _createTileLoadFunction ({
   pyramid,
   client,
@@ -393,6 +425,7 @@ function _createTileLoadFunction ({
 }
 
 export {
+  _areImagePyramidsEqual,
   _computeImagePyramid,
   _createTileLoadFunction
 }

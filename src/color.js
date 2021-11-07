@@ -6,7 +6,9 @@ const ColorMapNames = {
   MAGMA: 'MAGMA',
   BLUE: 'BLUE',
   RED: 'RED',
-  BLUE_RED: 'BLUE_RED'
+  BLUE_RED: 'BLUE_RED',
+  PHASE: 'PHASE',
+  JET: 'JET'
 }
 
 /** Create a color map.
@@ -24,7 +26,9 @@ function createColorMap ({ name, bins }) {
     VIRIDIS: ['viridis', false],
     BLUE: ['freesurface-blue', true],
     RED: ['freesurface-red', true],
-    BLUE_RED: ['RdBu', false]
+    BLUE_RED: ['RdBu', false],
+    PHASE: ['phase', true],
+    JET: ['jet', false]
   }
   const params = lut[name]
   if (params === undefined) {
