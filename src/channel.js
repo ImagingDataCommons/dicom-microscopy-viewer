@@ -1,4 +1,4 @@
-import TileImage from 'ol/source/TileImage'
+import DataTileSource from 'ol/source/DataTile'
 import TileLayer from 'ol/layer/WebGLTile'
 import {
   areNumbersAlmostEqual,
@@ -7,8 +7,7 @@ import {
 } from './utils.js'
 import {
   _computeImagePyramid,
-  _createTileLoadFunction,
-  _createTileUrlFunction
+  _createTileLoadFunction
 } from './pyramid.js'
 
 /** BlendingInformation for DICOM VL Whole Slide Microscopy Image instances
@@ -185,39 +184,23 @@ class _Channel {
       )
     }
 
-    const tileUrlFunction = _createTileUrlFunction({
-      pyramid: this.pyramid,
-      client: options.client,
-      retrieveRendered: options.retrieveRendered
-    })
-
     const tileLoadFunction = _createTileLoadFunction({
       pyramid: this.pyramid,
       client: options.client,
       retrieveRendered: options.retrieveRendered,
       includeIccProfile: options.includeIccProfile,
-      renderingEngine,
-      blendingInformation: this.blendingInformation
+      renderingEngine
     })
-    /*
-     * We use the existing TileImage source but customize it to retrieve
-     * frames (load tiles) via DICOMweb WADO-RS.
-     * NOTE: transition = 0 disable OpenLayer transition alpha opacity
-     * NOTE: it is needed a very large initial cacheSize value
-     *       otherwise, the tile caches will be cleared at each zoom
-     *       providing very bad perfomances.
-    */
-    this.rasterSource = new TileImage({
+
+    this.rasterSource = new DataTileSource({
+      loader: tileLoadFunction,
       crossOrigin: 'Anonymous',
       tileGrid: tileGrid,
       projection: projection,
       wrapX: false,
       transition: 0,
-      cacheSize: options.tilesCacheSize
+      bandCount: 1
     })
-
-    this.rasterSource.setTileUrlFunction(tileUrlFunction)
-    this.rasterSource.setTileLoadFunction(tileLoadFunction)
 
     // Create OpenLayer renderer object
     this.tileLayer = new TileLayer({
@@ -382,9 +365,10 @@ class _Channel {
             color
           } = this.blendingInformation
           const img = tile.getImage()
-
           tile.needToRerender = this.renderingEngine.colorMonochromeImageFrame({
             img,
+            pixelArray: img.pixelArray, // previously cached
+            bitDepth: img.bitDepth, // previously cached
             thresholdValues,
             limitValues,
             color,

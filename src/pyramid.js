@@ -1,6 +1,5 @@
 import * as dwc from 'dicomweb-client'
 
-import { SOPClassUIDs } from './enums'
 import { getFrameMapping } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 
@@ -202,64 +201,6 @@ function _computeImagePyramid ({ metadata }) {
 }
 
 /*
- * Create custom tile URL function to retrive frames via DICOMweb WADO-RS.
- */
-function _createTileUrlFunction ({
-  pyramid,
-  client,
-  retrieveRendered,
-  channel
-}) {
-  const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
-    /*
-     * Variables x and y correspond to the X and Y axes of the slide
-     * coordinate system. Since we want to view the slide horizontally
-     * with the label on the right side, the x axis of the slide
-     * coordinate system is the vertical axis of the viewport and the
-     * y axis of the slide coordinate system the horizontal axis of the
-     * viewport. Note that this is in contrast to the nomenclature used
-     * by Openlayers.
-     */
-    const z = tileCoord[0]
-    const y = tileCoord[1] + 1
-    const x = tileCoord[2] + 1
-
-    let index = x + '-' + y
-    if (channel === undefined) {
-      index += '-1'
-    }
-
-    if (pyramid.metadata[z] === undefined) {
-      return (null)
-    }
-
-    if (pyramid.frameMappings[z] === undefined) {
-      return (null)
-    }
-
-    const path = pyramid.frameMappings[z][index]
-    if (path === undefined || path === null) {
-      return (null)
-    }
-    let url = ''
-    if (client.wadoURL !== undefined) {
-      url += client.wadoURL
-    }
-    url += (
-      '/studies/' + pyramid.metadata[z].StudyInstanceUID +
-      '/series/' + pyramid.metadata[z].SeriesInstanceUID +
-      '/instances/' + path
-    )
-    if (retrieveRendered) {
-      url += '/rendered'
-    }
-    return (url)
-  }
-
-  return tileUrlFunction
-}
-
-/*
  * Create custom tile loader function to retrieve frames via WADO-RS.
 */
 function _createTileLoadFunction ({
@@ -268,14 +209,30 @@ function _createTileLoadFunction ({
   retrieveRendered,
   includeIccProfile,
   renderingEngine,
-  blendingInformation
+  channel
 }) {
-  const tileLoadFunction = async (tile, src) => {
-    const img = tile.getImage()
-    const z = tile.tileCoord[0]
-    const y = tile.tileCoord[1] + 1
-    const x = tile.tileCoord[2] + 1
-    const index = x + '-' + y
+  const tileLoadFunction = async (z, y, x) => {
+    let index = (x + 1) + '-' + (y + 1)
+    if (channel === undefined) {
+      index += '-1'
+    } else {
+      index += `-${channel}`
+    }
+
+    // TODO: refactor frameMappings
+    const path = pyramid.frameMappings[z][index]
+    let src
+    if (path != null) {
+      src = ''
+      if (client.wadoURL !== undefined) {
+        src += client.wadoURL
+      }
+      src += (
+        '/studies/' + pyramid.metadata[z].StudyInstanceUID +
+        '/series/' + pyramid.metadata[z].SeriesInstanceUID +
+        '/instances/' + path
+      )
+    }
 
     if (pyramid.metadata[z] === undefined) {
       console.warn(
@@ -291,13 +248,7 @@ function _createTileLoadFunction ({
     const pixelRepresentation = refImage.PixelRepresentation
     const samplesPerPixel = refImage.SamplesPerPixel
 
-    if (samplesPerPixel === 1 && blendingInformation === undefined) {
-      throw new Error(
-        'Blending information is required for loading monochrome image tiles.'
-      )
-    }
-
-    if (src !== null) {
+    if (src != null) {
       const studyInstanceUID = dwc.utils.getStudyInstanceUIDFromUri(src)
       const seriesInstanceUID = dwc.utils.getSeriesInstanceUIDFromUri(src)
       const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src)
@@ -308,9 +259,6 @@ function _createTileLoadFunction ({
       } else {
         console.info(`retrieve frame ${frameNumbers} of color image`)
       }
-
-      tile.needToRerender = false
-      tile.isLoading = true
 
       if (retrieveRendered) {
         /*
@@ -342,150 +290,96 @@ function _createTileLoadFunction ({
           }
         }
 
-        client.retrieveInstanceFramesRendered(retrieveOptions).then(
+        return client.retrieveInstanceFramesRendered(retrieveOptions).then(
           (renderedFrame) => {
-            if (samplesPerPixel === 1) {
-              const {
-                thresholdValues,
-                limitValues,
-                color
-              } = blendingInformation
-              const isRendered = renderingEngine.colorMonochromeImageFrame({
-                img,
-                frames: renderedFrame,
-                bitsAllocated,
-                pixelRepresentation,
-                thresholdValues,
-                limitValues,
-                color,
-                opacity: 1, // handled by OpenLayers
-                columns,
-                rows
-              })
-              tile.needToRerender = !isRendered
-              tile.isLoading = false
-            } else {
-              img.src = renderingEngine.createURLFromRGBImage({
-                frames: renderedFrame
-              })
-              tile.needToRerender = false
-              tile.isLoading = false
-            }
+            const { pixelArray } = renderingEngine.decodeFrame({
+              frame: renderedFrame,
+              bitsAllocated,
+              pixelRepresentation,
+              columns,
+              rows
+            })
+            return pixelArray
+          }
+        ).catch(
+          () => {
+            return Promise.reject(
+              new Error(`Failed to load tile "${index}" at level ${z}.`)
+            )
           }
         )
       } else {
-        // Compressed Bulkdata Media Types
-        const jlsMediaType = 'image/jls' // decoded with CharLS
+        const jpegMediaType = 'image/jpeg'
+        const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
+        const jlsMediaType = 'image/jls'
         const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
         const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
-        const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
+        const jp2MediaType = 'image/jp2'
         const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90'
         const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91'
-        const jpxMediaType = 'image/jpx' // decoded with OpenJPEG
+        const jpxMediaType = 'image/jpx'
         const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
         const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-        const jpegMediaType = 'image/jpeg' // decoded with libjpeg-turbo
-        const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-
-        // Uncompressed Bulkdata Media Types
         const octetStreamMediaType = 'application/octet-stream'
         const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
-
-        let useImageMediaType = true
-        if (refImage.SOPClassUID === SOPClassUIDs.PARAMETRIC_MAP) {
-          // float or double float pixel data
-          useImageMediaType = false
-        } else if (refImage.SOPClassUID === SOPClassUIDs.SEGMENTATION) {
-          if (refImage.SegmentationType === 'BINARY') {
-            // 1-bit pixel data
-            useImageMediaType = false
-          }
-        }
 
         const retrieveOptions = {
           studyInstanceUID,
           seriesInstanceUID,
           sopInstanceUID,
           frameNumbers,
-          // mediaTypes: []
-        }
-        // if (useImageMediaType) {
-        //   retrieveOptions.mediaTypes = [
-        //     {
-        //       mediaType: jlsMediaType,
-        //       transferSyntaxUID: jlsTransferSyntaxUIDlossless
-        //     },
-        //     {
-        //       mediaType: jlsMediaType,
-        //       transferSyntaxUID: jlsTransferSyntaxUID
-        //     },
-        //     {
-        //       mediaType: jp2MediaType,
-        //       transferSyntaxUID: jp2TransferSyntaxUIDlossless
-        //     },
-        //     {
-        //       mediaType: jp2MediaType,
-        //       transferSyntaxUID: jp2TransferSyntaxUID
-        //     },
-        //     {
-        //       mediaType: jpxMediaType,
-        //       transferSyntaxUID: jpxTransferSyntaxUIDlossless
-        //     },
-        //     {
-        //       mediaType: jpxMediaType,
-        //       transferSyntaxUID: jpxTransferSyntaxUID
-        //     },
-        //     {
-        //       mediaType: jpegMediaType,
-        //       transferSyntaxUID: jpegTransferSyntaxUID
-        //     }
-        //   ]
-        // } else {
-        //   retrieveOptions.mediaTypes = [
-        //     {
-        //       mediaType: octetStreamMediaType,
-        //       transferSyntaxUID: octetStreamTransferSyntaxUID
-        //     }
-        //   ]
-        // }
-
-        client.retrieveInstanceFrames(retrieveOptions).then(
-          (rawFrames) => {
-            if (samplesPerPixel === 1) {
-              // coloring image
-              const {
-                thresholdValues,
-                limitValues,
-                color
-              } = blendingInformation
-              const isRendered = renderingEngine.colorMonochromeImageFrame({
-                img,
-                frames: rawFrames[0],
-                bitsAllocated,
-                pixelRepresentation,
-                thresholdValues,
-                limitValues,
-                color,
-                opacity: 1, // handled by OpenLayers
-                columns,
-                rows
-              })
-              tile.needToRerender = !isRendered
-              tile.isLoading = false
-            } else {
-              img.src = renderingEngine.createURLFromRGBImage({
-                frames: rawFrames[0],
-                bitsAllocated,
-                pixelRepresentation,
-                columns,
-                rows
-              })
-              tile.needToRerender = false
-              tile.isLoading = false
+          mediaTypes: [
+            {
+              mediaType: jpegMediaType,
+              transferSyntaxUID: jpegTransferSyntaxUID
+            },
+            {
+              mediaType: jlsMediaType,
+              transferSyntaxUID: jlsTransferSyntaxUIDlossless
+            },
+            {
+              mediaType: jlsMediaType,
+              transferSyntaxUID: jlsTransferSyntaxUID
+            },
+            {
+              mediaType: jp2MediaType,
+              transferSyntaxUID: jp2TransferSyntaxUIDlossless
+            },
+            {
+              mediaType: jp2MediaType,
+              transferSyntaxUID: jp2TransferSyntaxUID
+            },
+            {
+              mediaType: jpxMediaType,
+              transferSyntaxUID: jpxTransferSyntaxUIDlossless
+            },
+            {
+              mediaType: jpxMediaType,
+              transferSyntaxUID: jpxTransferSyntaxUID
+            },
+            {
+              mediaType: octetStreamMediaType,
+              transferSyntaxUID: octetStreamTransferSyntaxUID
             }
+          ]
+        }
+        return client.retrieveInstanceFrames(retrieveOptions).then(
+          (rawFrames) => {
+            const { pixelArray } = renderingEngine.decodeFrame({
+              frame: rawFrames[0],
+              bitsAllocated,
+              pixelRepresentation,
+              columns,
+              rows
+            })
+            return pixelArray
           }
         ).catch(
-          () => {}
+          () => {
+            return Promise.reject(
+              new Error(`Failed to load tile "${index}" at level ${z}.`)
+            )
+          }
         )
       }
     } else {
@@ -500,6 +394,5 @@ function _createTileLoadFunction ({
 
 export {
   _computeImagePyramid,
-  _createTileLoadFunction,
-  _createTileUrlFunction
+  _createTileLoadFunction
 }

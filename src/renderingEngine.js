@@ -26,7 +26,7 @@ if (typeof Module === 'object') {
   }
 }
 
-/** Offscreen render for coloring tile frames
+/** Engine for offscreen rendering of images
  *
  * @class
  * @memberof renderingEngine
@@ -71,11 +71,11 @@ class RenderingEngine {
       if (pixelValue > minT && pixelValue < maxT) {
         intensity = (pixelValue - center0) / width0 + 0.5;
       }
-  
+
       // Clamp intensity
       intensity = clamp(intensity, 0.0, 1.0);
       vec3 scaledColor = color * intensity;
-    
+
       // RGBA output
       gl_FragColor = vec4(scaledColor.r, scaledColor.g, scaledColor.b, opacity);
     `
@@ -207,244 +207,51 @@ class RenderingEngine {
     }
   }
 
-  /** Runs the offscreen render applying the channel visualization/presentation parameters
-   * to monochrome images (1 color channel).
-   * The pipeline consists in 3 steps:
-   * 1) decode the image if is jpeg (libJPEG-turbo), jp2/jpx (OpenJPEG) or jls (CharLS).
-   *    The image type is automatically detected by checking the magic number
-   *    https://en.wikipedia.org/wiki/Magic_number_(programming)#Magic_numbers_in_files
-   *    (see https://github.com/sindresorhus/file-type).
-   * 2) apply coloring to the images with the offscreen webgl canvas.
-   * 3) recompress the image in lossless png format.
-   *
-   * NOTE: The actual render time is < respect to the recompression of the data in png (toDataURL).
-   *       Using lossy compression (jpeg), would improve the compression step.
-   *       However, the images are originally stored in the server as lossy jpeg and
-   *       we would have lossy re-compression issues
-   *       (al least for IDC data, https://imaging.datacommons.cancer.gov/).
-   *
-   * @param {object} frameData - interface to pass the frame data to the offscreen render
-   * @param {object} frameData.img - Image object
-   * @param {number[]} frameData.frames - compressed image array
-   * @param {number} frameData.bitsAllocated - bits per pixel
-   * @param {number} frameData.pixelRepresentation - pixel sign
-   * @param {number[]} frameData.thresholdValues - clipping values
-   * @param {number[]} frameData.limitValues - min and max color function values
-   * @param {number[]} frameData.color - rgb color
-   * @param {number} frameData.opacity - opacity
-   * @param {number} frameData.columns - horizontal image size
-   * @param {number} frameData.rows - vertical image size
-   *
-   * @returns {boolean} image was colored.
-   */
-  colorMonochromeImageFrame ({
-    img,
-    frames,
+  decodeFrame ({
+    frame,
     bitsAllocated,
     pixelRepresentation,
-    thresholdValues,
-    limitValues,
-    color,
-    opacity,
     columns,
     rows
   }) {
+    const decodedFrame = this._checkImageTypeAndDecode(frame)
+
+    // The OpenLayers WebGL API is able to handle uin8 or float32
     const signed = pixelRepresentation === 1
-    if (frames) {
-      let {
-        pixelData,
-        decodedframeInfo
-      } = this._checkImageTypeAndDecode(frames)
-
-      let bitsPerSample
-      if (decodedframeInfo) {
-        bitsPerSample = decodedframeInfo.bitsPerSample
-      }
-
-      if (!pixelData) {
-        // data downloaded uncompressed
-        switch (bitsAllocated) {
-          case 1:
-            pixelData = dcmjs.data.BitArray.unpack(frames)
-            break
-          case 8:
-            if (signed) {
-              pixelData = new Int8Array(frames)
-            } else {
-              pixelData = new Uint8Array(frames)
-            }
-            break
-          case 16:
-            if (signed) {
-              pixelData = new Int16Array(frames)
-            } else {
-              pixelData = new Uint16Array(frames)
-            }
-            break
-          default:
-            throw new Error(
-              'The pixel bit depth ' + bitsAllocated +
-              ' is not supported by the offscreen rendering.'
-            )
-        }
-        if (bitsAllocated === 1) {
-          bitsPerSample = 8 // unpacked to 8-bit
+    let pixelArray
+    let bitsPerSample
+    switch (bitsAllocated) {
+      case 1:
+        // Uint8Array
+        pixelArray = dcmjs.data.BitArray.unpack(decodedFrame)
+        bitsPerSample = 8 // unpacked to 8-bit
+        break
+      case 8:
+        if (signed) {
+          pixelArray = new Float32Array(decodedFrame)
         } else {
-          bitsPerSample = bitsAllocated
+          pixelArray = new Uint8Array(decodedFrame)
         }
-      }
-
-      // NOTE: we store the pixelData array and bitsPerSample in img,
-      // so we can apply again colorImageFrame whenever any blending parameter
-      // (opacity, color, clipping) changes.
-      img.pixelData = pixelData
-      img.bitsPerSample = bitsPerSample
+        bitsPerSample = 8
+        break
+      case 16:
+        if (signed) {
+          pixelArray = new Float32Array(decodedFrame)
+        } else {
+          pixelArray = new Float32Array(decodedFrame)
+        }
+        bitsPerSample = 16
+        break
+      default:
+        throw new Error(
+          'The pixel bit depth ' + bitsAllocated +
+          ' is not supported by the offscreen rendering.'
+        )
     }
 
-    if (img.pixelData) {
-      // run offscreen render to color images
-      const renderedCanvas = this._render(
-        img.pixelData,
-        img.bitsPerSample,
-        columns,
-        rows,
-        color,
-        opacity,
-        thresholdValues,
-        limitValues
-      )
-
-      // econde back the image in png
-      img.src = renderedCanvas.toDataURL('image/png')
-
-      // NOTE: ToBlob is async and provides smaller images,
-      // but here the renderingEngine is synch/sequential
-      // (one object, one gl context, etc..).
-      // When the OffscreenCanvas will be fully supported,
-      // it can be used for a full web-workers async approach
-      // https://developer.mozilla.org/en-US/docs/Web/API/OffscreenCanvas
-
-      return true
-    }
-
-    return false
-  }
-
-  /** Create image url from raw frames or rendered frame of RGB images.
-   *
-   * Decodes the image if jpeg (jpegturbo), jp2/jpx (OpenJPEG) or jls (CharLS) and re-econde them into a png data url.
-   * If png it just creates a url from a blob.
-   * The image type is automatically detected by checking the magic number
-   * https://en.wikipedia.org/wiki/Magic_number_(programming)#Magic_numbers_in_files
-   * (see https://github.com/sindresorhus/file-type).
-   *
-   * @param {object} frameData - interface to pass the frame data to the offscreen render
-   * @param {number[]} frameData.frames - compressed image array
-   * @param {number} frameData.bitsAllocated - bits per pixel
-   * @param {number} frameData.pixelRepresentation - pixel sign
-   * @param {number} frameData.columns - horizontal image size
-   * @param {number} frameData.rows - vertical image size
-   * @returns {boolean} blob.
-   *
-   */
-  createURLFromRGBImage ({
-    frames,
-    bitsAllocated,
-    pixelRepresentation,
-    columns,
-    rows
-  }) {
-    const {
-      pixelData,
-      decodedframeInfo,
-      mediaType
-    } = this._checkImageTypeAndDecode(frames)
-
-    if (!pixelData && mediaType) {
-      // the image is png, just use the source compressed array
-      const blob = new Blob([frames], { type: mediaType })// eslint-disable-line
-      return window.URL.createObjectURL(blob)
-    } else if (pixelData && mediaType && decodedframeInfo) {
-      // jp2/jpx/jls/jpeg pixelData is decoded and uncompressed into a RGB image
-      // array.
-      if (decodedframeInfo.componentCount !== 3) {
-        throw new Error('Decoded image is not an RGB image.')
-      }
-      const width = decodedframeInfo.width
-      const height = decodedframeInfo.height
-      const dstBmp = new Uint8ClampedArray(width * height * 4)
-      let ptrSrc = 0
-      let ptrDst = 0
-      const dstLen = dstBmp.length
-
-      while (ptrDst < dstLen) {
-        dstBmp[ptrDst++] = pixelData[ptrSrc++]
-        dstBmp[ptrDst++] = pixelData[ptrSrc++]
-        dstBmp[ptrDst++] = pixelData[ptrSrc++]
-        dstBmp[ptrDst++] = 255
-      }
-
-      // Create a ImageData object using the typed array:
-      const idata = new ImageData(dstBmp, width, height)// eslint-disable-line
-      this.tempCanvas.width = width
-      this.tempCanvas.height = height
-      const ctx = this.tempCanvas.getContext('2d')
-      ctx.putImageData(idata, 0, 0)
-
-      return this.tempCanvas.toDataURL('image/png')
-    } else {
-      // octet-stream RGB image
-      let octetPixelData
-      const signed = pixelRepresentation === 1
-      switch (bitsAllocated) {
-        case 8:
-          if (signed) {
-            octetPixelData = new Int8Array(frames)
-          } else {
-            octetPixelData = new Uint8Array(frames)
-          }
-          break
-        case 16:
-          if (signed) {
-            octetPixelData = new Int16Array(frames)
-          } else {
-            octetPixelData = new Uint16Array(frames)
-          }
-          break
-        default:
-          throw new Error(
-            'The pixel bit ' + bitsAllocated +
-            ' is not supported by the offscreen rendering engine.'
-          )
-      }
-
-      const width = columns
-      const height = rows
-
-      if (octetPixelData.length !== width * height * 3) {
-        throw new Error('Decoded image is not a RGB image.')
-      }
-
-      const dstBmp = new Uint8ClampedArray(width * height * 4)
-      let ptrSrc = 0
-      let ptrDst = 0
-      const dstLen = dstBmp.length
-
-      while (ptrDst < dstLen) {
-        dstBmp[ptrDst++] = octetPixelData[ptrSrc++]
-        dstBmp[ptrDst++] = octetPixelData[ptrSrc++]
-        dstBmp[ptrDst++] = octetPixelData[ptrSrc++]
-        dstBmp[ptrDst++] = 255
-      }
-
-      // Create a ImageData object using the typed array:
-      const idata = new ImageData(dstBmp, width, height)// eslint-disable-line
-      this.tempCanvas.width = width
-      this.tempCanvas.height = height
-      const ctx = this.tempCanvas.getContext('2d')
-      ctx.putImageData(idata, 0, 0)
-
-      return this.tempCanvas.toDataURL('image/png')
+    return {
+      pixelArray,
+      bitsPerSample
     }
   }
 
@@ -455,60 +262,43 @@ class RenderingEngine {
    * @returns {obejct} image array, frameInfo and mediaType.
    * @private
    */
-  _checkImageTypeAndDecode (frames) {
-    const fullEncodedBitStream = new Uint8Array(frames)
-    const imageTypeObject = imageType(fullEncodedBitStream)
+  _checkImageTypeAndDecode (frame) {
+    const byteArray = new Uint8Array(frame)
+    const imageTypeObject = imageType(byteArray)
+
     if (imageTypeObject === null) {
-      // this is uncompressed (octet-stream), just return undefined and
-      // createURLFromRGBImage and colorMonochromeImageFrame will deal with it
-      return {
-        pixelData: undefined,
-        decodedframeInfo: undefined,
-        mediaType: undefined
-      }
+      return byteArray
     }
     const mediaType = imageTypeObject.mime
-    let pixelData
-    let decodedframeInfo
+
+    let decodedFrame
     if (mediaType === 'image/jpeg') {
       if (!jpegDecoder) {
         throw new Error('JPEG decoder was not initialized.')
       }
-      // data are compressed jpeg -> decode
-      const { decodedPixelData, frameInfo } = this._decodeInternal(
+      const { decodedPixelData } = this._decodeInternal(
         jpegDecoder,
-        fullEncodedBitStream
+        byteArray
       )
-      pixelData = decodedPixelData.slice(0)
-      decodedframeInfo = frameInfo
+      decodedFrame = decodedPixelData.slice(0)
     } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
       if (!jp2jpxDecoder) {
         throw new Error('JPEG 2000 Decoder was not initialized.')
       }
-      // data are compressed jp2 -> decode
-      const { decodedPixelData, frameInfo } = this._decodeInternal(
+      const { decodedPixelData } = this._decodeInternal(
         jp2jpxDecoder,
-        fullEncodedBitStream
+        byteArray
       )
-      pixelData = decodedPixelData.slice(0)
-      decodedframeInfo = frameInfo
+      decodedFrame = decodedPixelData.slice(0)
     } else if (mediaType === 'image/jls') {
       if (!jlsDecoder) {
         throw new Error('JPEG-LS decoder was not initialized.')
       }
-      // data are compressed jls -> decode
-      const { decodedPixelData, frameInfo } = this._decodeInternal(
+      const { decodedPixelData } = this._decodeInternal(
         jlsDecoder,
-        fullEncodedBitStream
+        byteArray
       )
-      pixelData = decodedPixelData.slice(0)
-      decodedframeInfo = frameInfo
-    } else if (mediaType === 'image/png') {
-      return {
-        pixelData: undefined,
-        decodedframeInfo: undefined,
-        mediaType
-      }
+      decodedFrame = decodedPixelData.slice(0)
     } else {
       throw new Error(
         'The media type ' + mediaType +
@@ -516,11 +306,7 @@ class RenderingEngine {
       )
     }
 
-    return {
-      pixelData,
-      decodedframeInfo,
-      mediaType
-    }
+    return decodedFrame
   }
 
   /** Returns decoded array
@@ -550,14 +336,14 @@ class RenderingEngine {
     const shader = {}
     shader.fragSource = `
     ${this.definitions}
-  
+
     void main() {
       // Get texture
       vec4 packedPixelValue = texture2D(u_image, v_texCoord);
-      
+
       // Calculate luminance from packed texture
       ${intensityComputationString}
-      
+
       ${this.windowAndReturnRGBA}
     }`
 
@@ -781,24 +567,24 @@ class RenderingEngine {
    * @returns {object} canvas
    * @private
    */
-  _render (pixelData, bitsAllocated, width, height, color, opacity, thresholdValues, limitValues) {
+  _render (pixelArray, bitDepth, width, height, color, opacity, thresholdValues, limitValues) {
     // Resize the canvas
     this.renderCanvas.width = width
     this.renderCanvas.height = height
 
     // Render the current image
-    const shader = this._getShaderProgram(pixelData)
-    const texture = this._generateTexture(pixelData, width, height)
+    const shader = this._getShaderProgram(pixelArray)
+    const texture = this._generateTexture(pixelArray, width, height)
 
     // Setup color function
     let max
-    if (bitsAllocated === 8) {
+    if (bitDepth === 8) {
       max = 257
-    } else if (bitsAllocated === 16) {
+    } else if (bitDepth === 16) {
       max = 65793
     } else {
       throw new Error(
-        'The pixel bit depth ' + bitsAllocated +
+        'The pixel bit depth ' + bitDepth +
         ' is not supported by the offscreen rendering engine.'
       )
     }
@@ -961,7 +747,7 @@ class RenderingEngine {
     return 'uint8'
   }
 
-  /** Renders the image
+  /** Render the image
    *
    * @param {object} shader
    * @param {object} parameters - shader input parameters

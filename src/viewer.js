@@ -23,7 +23,7 @@ import Circle from 'ol/style/Circle'
 import Static from 'ol/source/ImageStatic'
 import Overlay from 'ol/Overlay'
 import TileLayer from 'ol/layer/WebGLTile'
-import TileImage from 'ol/source/TileImage'
+import DataTileSource from 'ol/source/DataTile'
 import TileGrid from 'ol/tilegrid/TileGrid'
 import VectorSource from 'ol/source/Vector'
 import VectorLayer from 'ol/layer/Vector'
@@ -70,8 +70,7 @@ import {
 } from './channel.js'
 import {
   _computeImagePyramid,
-  _createTileLoadFunction,
-  _createTileUrlFunction
+  _createTileLoadFunction
 } from './pyramid.js'
 
 import { RenderingEngine } from './renderingEngine.js'
@@ -358,7 +357,6 @@ function _updateFeatureEvaluations (feature) {
   }
 
   feature.set(Enums.InternalProperties.Evaluations, evaluations)
-  console.debug(`evaluations of feature (${feature.getId()}):`, evaluations)
 }
 
 /**
@@ -445,7 +443,6 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     }
 
     feature.set(Enums.InternalProperties.Measurements, measurements)
-    console.debug(`measurements of feature (${feature.getId()}):`, measurements)
   }
 }
 
@@ -760,11 +757,6 @@ class VolumeImageViewer {
       )
     }
 
-    const tileUrlFunction = _createTileUrlFunction({
-      pyramid: this[_pyramid],
-      client: this[_options].client,
-      retrieveRendered: this[_options].retrieveRendered
-    })
     const tileLoadFunction = _createTileLoadFunction({
       pyramid: this[_pyramid],
       client: this[_options].client,
@@ -774,17 +766,16 @@ class VolumeImageViewer {
     })
 
     if (this[_colorImage] !== undefined) {
-      this[_colorImage].rasterSource = new TileImage({
+      this[_colorImage].rasterSource = new DataTileSource({
+        loader: tileLoadFunction,
         crossOrigin: 'Anonymous',
         tileGrid: this[_tileGrid],
         projection: this[_projection],
         wrapX: false,
         transition: 0,
-        cacheSize: this[_options].tilesCacheSize
+        preload: 1,
+        bandCount: 3
       })
-
-      this[_colorImage].rasterSource.setTileUrlFunction(tileUrlFunction)
-      this[_colorImage].rasterSource.setTileLoadFunction(tileLoadFunction)
 
       // Create OpenLayer renderer object
       this[_colorImage].tileLayer = new TileLayer({
@@ -1962,7 +1953,7 @@ class VolumeImageViewer {
    *
    * @param {Segmentation[]} metadata - Metadata of a series of DICOM Segmentation instances
    */
-  addSegments ({ metadata }) {
+  addSegments (metadata) {
     if (metadata.length === 0) {
       throw new Error('Input metadata has no instances.')
     }
@@ -2040,22 +2031,6 @@ class VolumeImageViewer {
       tileSizes: fittedPyramid.tileSizes
     })
 
-    const rasterSource = new TileImage({
-      crossOrigin: 'Anonymous',
-      tileGrid: tileGrid,
-      projection: this[_projection],
-      wrapX: false,
-      transition: 0,
-      cacheSize: this[_options].tilesCacheSize
-    })
-
-    const tileUrlFunction = _createTileUrlFunction({
-      pyramid: fittedPyramid,
-      client: this[_options].client,
-      retrieveRendered: this[_options].retrieveRendered
-    })
-    rasterSource.setTileUrlFunction(tileUrlFunction)
-
     const refInstance = pyramid.metadata[0]
     for (let i = 0; i < refInstance.SegmentSequence.length; i++) {
       const segmentItem = refInstance.SegmentSequence[i]
@@ -2071,46 +2046,46 @@ class VolumeImageViewer {
         retrieveRendered: this[_options].retrieveRendered,
         includeIccProfile: this[_options].includeIccProfile,
         renderingEngine: this[_renderingEngine],
-        blendingInformation: {
-          thresholdValues: [0, 255],
-          limitValues: [0, 255],
-          color: [1, 1, 0]
-        },
         channel: segmentNumber
       })
-      rasterSource.setTileLoadFunction(tileLoadFunction)
 
-      /** TODO
-       * The color mapping currently doesn't work as expected, because the
-       * pixel values get changed by renderingEngine.colorMonochromeImageFrame().
-       */
-      // const min = 0
-      // let max
-      // if (segment.segmentationStyle === 'BINARY') {
-      //   max = 1
-      // } else {
-      //   max = 255
-      // }
-      // const colors = createColorMap({ name: 'VIRIDIS, bins: 256 })
-      // const colorTable = createColorTable({ colormap: colors, min, max })
+      const rasterSource = new DataTileSource({
+        loader: tileLoadFunction,
+        crossOrigin: 'Anonymous',
+        tileGrid: tileGrid,
+        projection: this[_projection],
+        wrapX: false,
+        transition: 0,
+        bandCount: 1
+      })
+
+      const colormap = createColorMap({ name: ColorMapNames.VIRIDIS, bins: 50 })
+      const min = 0
+      let max
+      if (refInstance.SegmentationType === 'BINARY') {
+        max = 1
+      } else {
+        /** For whatever reason the maximum input value must be set to 1
+         * although the maximal pixel value is 255.
+         */
+        max = 1
+      }
+      const colorTable = createColorTable({ colormap: colormap, min, max })
       const layer = new TileLayer({
         source: rasterSource,
         extent: this[_pyramid].extent,
         projection: this[_projection],
         visible: false,
-        opacity: 0.5,
-        preload: 0
-        // style: {
-        //   color: ['var', 'color'],
-        //   variables: {
-        //     color: [
-        //       'interpolate',
-        //       ['linear'],
-        //       ['band', 1],
-        //       ...colorTable
-        //     ]
-        //   }
-        // }
+        opacity: 1,
+        preload: 1,
+        style: {
+          color: [
+            'interpolate',
+            ['linear'],
+            ['band', 1],
+            ...colorTable
+          ]
+        }
       })
       this[_map].addLayer(layer)
 
@@ -2133,10 +2108,7 @@ class VolumeImageViewer {
         rasterSource: rasterSource,
         tileLayer: layer,
         overlay: null,
-        defaultStyle: {
-          opacity: 0.5,
-          colormap: ColorMapNames.VIRIDIS
-        }
+        colormap: colormap
       }
     }
   }
@@ -2229,31 +2201,10 @@ class VolumeImageViewer {
     }
     const segment = this[_segmentations][segmentUID]
 
-    if (styleOptions.colormap === undefined) {
-      styleOptions.colormap = segment.defaultStyle.colormap
+    if (styleOptions.opacity != null) {
+      segment.tileLayer.setOpacity(styleOptions.opacity)
     }
-    if (styleOptions.opacity === undefined) {
-      styleOptions.opacity = segment.defaultStyle.opacity
-    }
-    segment.tileLayer.setOpacity(styleOptions.opacity)
 
-    const colors = createColorMap({ name: styleOptions.colormap, bins: 256 })
-    // TODO
-    // const min = 0
-    // let max
-    // if (segment.segmentationStyle === 'BINARY') {
-    //   max = 1
-    // } else {
-    //   max = 255
-    // }
-    // const colorTable = createColorTable({ colormap: colors, min, max })
-    // segment.tileLayer.updateStyleVariables({
-    //   color: [
-    //     'match',
-    //     ['band', 1],
-    //     ...colorTable
-    //   ]
-    // })
     segment.overlay = new Overlay({
       element: document.createElement('div'),
       offset: [5, 5]
@@ -2275,10 +2226,12 @@ class VolumeImageViewer {
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
-    const height = 40
-    const width = 10
+    const height = 15
+    const width = 5
     context.canvas.height = height
     context.canvas.width = width
+
+    const colors = segment.colormap
     for (let j = 0; j < colors.length; j++) {
       const color = colors[colors.length - j - 1]
       const r = color[0]
@@ -2293,6 +2246,23 @@ class VolumeImageViewer {
     parentElement.style.display = 'inline'
 
     this[_map].addOverlay(segment.overlay)
+  }
+
+  /** Get the style of a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @returns {object} Style Options
+   */
+  getSegmentStyle (segmentUID, styleOptions) {
+    if (!(segmentUID in this[_segmentations])) {
+      throw new Error(
+        'Cannot set style of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segmentations][segmentUID]
+
+    return { opacity: segment.tileLayer.getOpacity() }
   }
 
   /**
