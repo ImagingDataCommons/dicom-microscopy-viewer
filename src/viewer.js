@@ -1103,7 +1103,7 @@ class VolumeImageViewer {
     }
     this[_map].removeLayer(channel.tileLayer)
     channel.tileLayer.dispose()
-    this[_overviewMap].removeLayer(channel.overviewTileLayer)
+    this[_overviewMap].getOverviewMap().removeLayer(channel.overviewTileLayer)
     channel.overviewTileLayer.dispose()
   }
 
