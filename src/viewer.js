@@ -787,7 +787,19 @@ class VolumeImageViewer {
           color: [
             'interpolate',
             ['linear'],
-            ['band', 1],
+            [
+              '+',
+              [
+                '/',
+                [
+                  '-',
+                  ['band', 1],
+                  ['var', 'windowCenter']
+                ],
+                ['var', 'windowWidth']
+              ],
+              0.5
+            ],
             ['var', 'lowerThreshold'],
             [0, 0, 0, 1],
             ['var', 'upperThreshold'],
@@ -804,7 +816,16 @@ class VolumeImageViewer {
             ),
             red: channel.style.color[0],
             green: channel.style.color[1],
-            blue: channel.style.color[2]
+            blue: channel.style.color[2],
+            windowCenter: (
+              (channel.style.limitValues[0] + channel.style.limitValues[1]) /
+              2 /
+              channel.maxValue
+            ),
+            windowWidth: (
+              (channel.style.limitValues[1] - channel.style.limitValues[0]) /
+              channel.maxValue
+            )
           }
         }
         channel.tileLayer = new TileLayer({
@@ -1001,6 +1022,19 @@ class VolumeImageViewer {
       channel.style.thresholdValues = styleOptions.thresholdValues
       styleVariables.lowerThreshold = styleOptions.thresholdValues[0] / max
       styleVariables.upperThreshold = styleOptions.thresholdValues[1] / max
+    }
+    if (styleOptions.limitValues != null) {
+      const max = channel.maxValue
+      channel.style.limitValues = styleOptions.limitValues
+      styleVariables.windowCenter = (
+        (styleOptions.limitValues[0] + styleOptions.limitValues[1]) /
+        2 /
+        max
+      )
+      styleVariables.windowWidth = (
+        (styleOptions.limitValues[1] - styleOptions.limitValues[0]) /
+        max
+      )
     }
     channel.tileLayer.updateStyleVariables(styleVariables)
     channel.overviewTileLayer.updateStyleVariables(styleVariables)
