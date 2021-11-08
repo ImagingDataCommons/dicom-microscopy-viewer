@@ -1040,57 +1040,6 @@ class VolumeImageViewer {
     channel.overviewTileLayer.updateStyleVariables(styleVariables)
   }
 
-  /** Transform coordinates.
-   *
-   * @returns {number[]} array with tiles X and Y coordinates ranges and zoom level.
-   */
-  _transformViewCoordinatesIntoTileCoordinates () {
-    const viewSize = this[_map].getView().calculateExtent(this[_map].getSize())
-    // viewSize: x1, y1, x2, y2
-    const zoomLevel = this[_map].getView().getZoom()
-    const resolution = this[_map].getView().values_.resolution
-    const tilesCoordinates = []
-    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution(
-      [viewSize[0], viewSize[1]], resolution)
-    )
-    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution(
-      [viewSize[0], viewSize[3]], resolution)
-    )
-    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution(
-      [viewSize[2], viewSize[1]], resolution)
-    )
-    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution(
-      [viewSize[2], viewSize[3]], resolution)
-    )
-
-    const tileCoordXRange = {
-      min: Number.MAX_SAFE_INTEGER,
-      max: Number.MIN_SAFE_INTEGER
-    }
-    const tileCoordYRange = {
-      min: Number.MAX_SAFE_INTEGER,
-      max: Number.MIN_SAFE_INTEGER
-    }
-    for (let i = 0; i < tilesCoordinates.length; i++) {
-      // X coordinates
-      if (tilesCoordinates[i][2] < tileCoordXRange.min) {
-        tileCoordXRange.min = tilesCoordinates[i][2]
-      }
-      if (tilesCoordinates[i][2] > tileCoordXRange.max) {
-        tileCoordXRange.max = tilesCoordinates[i][2]
-      }
-      // Y coordinates
-      if (tilesCoordinates[i][1] < tileCoordYRange.min) {
-        tileCoordYRange.min = tilesCoordinates[i][1]
-      }
-      if (tilesCoordinates[i][1] > tileCoordYRange.max) {
-        tileCoordYRange.max = tilesCoordinates[i][1]
-      }
-    }
-
-    return [tileCoordXRange, tileCoordYRange, zoomLevel]
-  }
-
   /** Get the style of an optical path.
    *
    * @param {string} opticalPathIdentifier - Identifier of the optical path
