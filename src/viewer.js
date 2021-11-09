@@ -2190,7 +2190,6 @@ class VolumeImageViewer {
 
     if (styleOptions.opacity != null) {
       segment.tileLayer.setOpacity(styleOptions.opacity)
-      segment.overviewTileLayer.setOpacity(styleOptions.opacity)
     }
 
     segment.overlay = new Overlay({
