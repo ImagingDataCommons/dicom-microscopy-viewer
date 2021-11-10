@@ -74,6 +74,7 @@ import {
 import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
+ 
 
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
@@ -605,6 +606,7 @@ class VolumeImageViewer {
                 .OpticalPathSequence[0]
                 .OpticalPathIdentifier
             )
+            const bitsAllocated = channelImage.BitsAllocated
             if (monochromeImageInformation[opticalPathIdentifier]) {
               monochromeImageInformation[opticalPathIdentifier].metadata.push(
                 channelImage
@@ -623,12 +625,13 @@ class VolumeImageViewer {
                   blendingInformation: blendingInformation
                 }
               } else {
+                const maxValue = Math.pow(2, bitsAllocated)
                 const defaultBlendingInformation = new BlendingInformation({
                   opticalPathIdentifier: `${opticalPathIdentifier}`,
                   color: [...colormap[i % colormap.length]].slice(0,3),
                   opacity: 1,
-                  thresholdValues: [0, 255],
-                  limitValues: [0, 255],
+                  thresholdValues: [0, maxValue],
+                  limitValues: [0, maxValue],
                   visible: false
                 })
                 monochromeImageInformation[opticalPathIdentifier] = {
@@ -749,6 +752,7 @@ class VolumeImageViewer {
             limitValues: channelInfo.blendingInformation.limitValues
           },
           bitsAllocated: channelInfo.metadata[0].BitsAllocated,
+          maxValue: Math.pow(2, channelInfo.metadata[0].BitsAllocated)
         }
 
         const areImagePyramidsEqual = _areImagePyramidsEqual(
@@ -804,20 +808,20 @@ class VolumeImageViewer {
           ],
           variables: {
             lowerThreshold: (
-              channel.style.thresholdValues[0]
+              channel.style.thresholdValues[0] / channel.maxValue
             ),
             upperThreshold: (
-              channel.style.thresholdValues[1]
+              channel.style.thresholdValues[1] / channel.maxValue
             ),
             red: channel.style.color[0],
             green: channel.style.color[1],
             blue: channel.style.color[2],
             windowCenter: (
               (channel.style.limitValues[0] + channel.style.limitValues[1]) /
-              2 / 255
+              2 / channel.maxValue
             ),
             windowWidth: (
-              (channel.style.limitValues[1] - channel.style.limitValues[0]) / 255
+              (channel.style.limitValues[1] - channel.style.limitValues[0]) / channel.maxValue
             )
           }
         }
@@ -1019,17 +1023,17 @@ class VolumeImageViewer {
     }
     if (styleOptions.thresholdValues != null) {
       channel.style.thresholdValues = styleOptions.thresholdValues
-      styleVariables.lowerThreshold = styleOptions.thresholdValues[0]
-      styleVariables.upperThreshold = styleOptions.thresholdValues[1]
+      styleVariables.lowerThreshold = styleOptions.thresholdValues[0] / channel.maxValue
+      styleVariables.upperThreshold = styleOptions.thresholdValues[1] / channel.maxValue
     }
     if (styleOptions.limitValues != null) {
       channel.style.limitValues = styleOptions.limitValues
       styleVariables.windowCenter = (
         (styleOptions.limitValues[0] + styleOptions.limitValues[1]) /
-        2 / 255
+        2 / channel.maxValue
       )
       styleVariables.windowWidth = (
-        (styleOptions.limitValues[1] - styleOptions.limitValues[0]) / 255
+        (styleOptions.limitValues[1] - styleOptions.limitValues[0]) / channel.maxValue
       )
     }
     channel.tileLayer.updateStyleVariables(styleVariables)

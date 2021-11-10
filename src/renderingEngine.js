@@ -210,16 +210,13 @@ class RenderingEngine {
   decodeFrame ({
     frame,
     bitsAllocated,
-    pixelRepresentation,
-    columns,
-    rows
+    pixelRepresentation
   }) {
     const decodedFrame = this._checkImageTypeAndDecode(frame)
 
     // The OpenLayers WebGL API is able to handle uin8 or float32
     const signed = pixelRepresentation === 1
     let pixelArray
-    let bitsPerSample
     switch (bitsAllocated) {
       case 1:
         // Uint8Array
@@ -232,7 +229,6 @@ class RenderingEngine {
         } else {
           pixelArray = new Uint8Array(decodedFrame)
         }
-        bitsPerSample = 8
         break
       case 16:
         if (signed) {
@@ -240,7 +236,6 @@ class RenderingEngine {
         } else {
           pixelArray = new Float32Array(decodedFrame)
         }
-        bitsPerSample = 16
         break
       default:
         throw new Error(
@@ -249,10 +244,7 @@ class RenderingEngine {
         )
     }
 
-    return {
-      pixelArray,
-      bitsPerSample
-    }
+    return pixelArray
   }
 
   /** Check image type of a compressed array and returns a decoded image

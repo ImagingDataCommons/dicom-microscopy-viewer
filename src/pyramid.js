@@ -324,12 +324,10 @@ function _createTileLoadFunction ({
 
         return client.retrieveInstanceFramesRendered(retrieveOptions).then(
           (renderedFrame) => {
-            const { pixelArray } = renderingEngine.decodeFrame({
+            const pixelArray = renderingEngine.decodeFrame({
               frame: renderedFrame,
               bitsAllocated,
-              pixelRepresentation,
-              columns,
-              rows
+              pixelRepresentation
             })
             return pixelArray
           }
@@ -397,12 +395,10 @@ function _createTileLoadFunction ({
         }
         return client.retrieveInstanceFrames(retrieveOptions).then(
           (rawFrames) => {
-            const { pixelArray } = renderingEngine.decodeFrame({
+            const pixelArray = renderingEngine.decodeFrame({
               frame: rawFrames[0],
               bitsAllocated,
-              pixelRepresentation,
-              columns,
-              rows
+              pixelRepresentation
             })
             return pixelArray
           }
