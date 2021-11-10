@@ -733,14 +733,6 @@ class VolumeImageViewer {
     // Create a rendering engine object for offscreen rendering
     this[_renderingEngine] = new RenderingEngine()
 
-    const tileLoadFunction = _createTileLoadFunction({
-      pyramid: this[_pyramid],
-      client: this[_options].client,
-      retrieveRendered: this[_options].retrieveRendered,
-      includeIccProfile: this[_options].includeIccProfile,
-      renderingEngine: this[_renderingEngine]
-    })
-
     const layers = []
     const overviewLayers = []
     this[_channels] = {}
@@ -769,6 +761,14 @@ class VolumeImageViewer {
             'is different from reference pyramid.'
           )
         }
+
+        const tileLoadFunction = _createTileLoadFunction({
+          pyramid: channel.pyramid,
+          client: this[_options].client,
+          retrieveRendered: this[_options].retrieveRendered,
+          includeIccProfile: this[_options].includeIccProfile,
+          renderingEngine: this[_renderingEngine]
+        })
 
         channel.rasterSource = new DataTileSource({
           loader: tileLoadFunction,
@@ -851,6 +851,14 @@ class VolumeImageViewer {
         bitsAllocated: 8,
       }
 
+      const tileLoadFunction = _createTileLoadFunction({
+        pyramid: this[_pyramid],
+        client: this[_options].client,
+        retrieveRendered: this[_options].retrieveRendered,
+        includeIccProfile: this[_options].includeIccProfile,
+        renderingEngine: this[_renderingEngine]
+      })
+      
       this[_colorImage].rasterSource = new DataTileSource({
         loader: tileLoadFunction,
         crossOrigin: 'Anonymous',
