@@ -625,8 +625,8 @@ class VolumeImageViewer {
               } else {
                 const defaultBlendingInformation = new BlendingInformation({
                   opticalPathIdentifier: `${opticalPathIdentifier}`,
-                  color: [...colormap[i % colormap.length]],
-                  opacity: 1.0,
+                  color: [...colormap[i % colormap.length]].slice(0,3),
+                  opacity: 1,
                   thresholdValues: [0, 255],
                   limitValues: [0, 255],
                   visible: false
