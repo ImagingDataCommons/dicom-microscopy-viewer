@@ -605,7 +605,6 @@ class VolumeImageViewer {
                 .OpticalPathSequence[0]
                 .OpticalPathIdentifier
             )
-            const bitsAllocated = channelImage.BitsAllocated
             if (monochromeImageInformation[opticalPathIdentifier]) {
               monochromeImageInformation[opticalPathIdentifier].metadata.push(
                 channelImage
@@ -624,13 +623,12 @@ class VolumeImageViewer {
                   blendingInformation: blendingInformation
                 }
               } else {
-                const maxValue = Math.pow(2, bitsAllocated)
                 const defaultBlendingInformation = new BlendingInformation({
                   opticalPathIdentifier: `${opticalPathIdentifier}`,
                   color: [...colormap[i % colormap.length]],
                   opacity: 1.0,
-                  thresholdValues: [0, maxValue],
-                  limitValues: [0, maxValue],
+                  thresholdValues: [0, 255],
+                  limitValues: [0, 255],
                   visible: false
                 })
                 monochromeImageInformation[opticalPathIdentifier] = {
@@ -759,7 +757,6 @@ class VolumeImageViewer {
             limitValues: channelInfo.blendingInformation.limitValues
           },
           bitsAllocated: channelInfo.metadata[0].BitsAllocated,
-          maxValue: Math.pow(2, channelInfo.metadata[0].BitsAllocated)
         }
 
         const areImagePyramidsEqual = _areImagePyramidsEqual(
@@ -807,24 +804,20 @@ class VolumeImageViewer {
           ],
           variables: {
             lowerThreshold: (
-              channel.style.thresholdValues[0] /
-              channel.maxValue
+              channel.style.thresholdValues[0]
             ),
             upperThreshold: (
-              channel.style.thresholdValues[1] /
-              channel.maxValue
+              channel.style.thresholdValues[1]
             ),
             red: channel.style.color[0],
             green: channel.style.color[1],
             blue: channel.style.color[2],
             windowCenter: (
               (channel.style.limitValues[0] + channel.style.limitValues[1]) /
-              2 /
-              channel.maxValue
+              2 / 255
             ),
             windowWidth: (
-              (channel.style.limitValues[1] - channel.style.limitValues[0]) /
-              channel.maxValue
+              (channel.style.limitValues[1] - channel.style.limitValues[0]) / 255
             )
           }
         }
@@ -856,7 +849,6 @@ class VolumeImageViewer {
         opticalPathIdentifier: colorOpticalPathIdentifiers[0],
         pyramid: this[_pyramid],
         bitsAllocated: 8,
-        maxValue: 255
       }
 
       this[_colorImage].rasterSource = new DataTileSource({
@@ -1018,22 +1010,18 @@ class VolumeImageViewer {
       styleVariables.blue = channel.style.color[2]
     }
     if (styleOptions.thresholdValues != null) {
-      const max = channel.maxValue
       channel.style.thresholdValues = styleOptions.thresholdValues
-      styleVariables.lowerThreshold = styleOptions.thresholdValues[0] / max
-      styleVariables.upperThreshold = styleOptions.thresholdValues[1] / max
+      styleVariables.lowerThreshold = styleOptions.thresholdValues[0]
+      styleVariables.upperThreshold = styleOptions.thresholdValues[1]
     }
     if (styleOptions.limitValues != null) {
-      const max = channel.maxValue
       channel.style.limitValues = styleOptions.limitValues
       styleVariables.windowCenter = (
         (styleOptions.limitValues[0] + styleOptions.limitValues[1]) /
-        2 /
-        max
+        2 / 255
       )
       styleVariables.windowWidth = (
-        (styleOptions.limitValues[1] - styleOptions.limitValues[0]) /
-        max
+        (styleOptions.limitValues[1] - styleOptions.limitValues[0]) / 255
       )
     }
     channel.tileLayer.updateStyleVariables(styleVariables)
