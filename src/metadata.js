@@ -1,5 +1,6 @@
 import { tagToKeyword } from './dictionary'
 import { SOPClassUIDs } from './enums'
+import { _groupFramesPerMapping } from './mapping'
 
 /** Determines the mapping of pyramid tile positions to frame numbers.
  *
@@ -10,28 +11,47 @@ import { SOPClassUIDs } from './enums'
 function getFrameMapping (metadata) {
   const rows = metadata.Rows
   const columns = metadata.Columns
+  const totalPixelMatrixRows = metadata.TotalPixelMatrixRows
   const totalPixelMatrixColumns = metadata.TotalPixelMatrixColumns
   const sopInstanceUID = metadata.SOPInstanceUID
   const numberOfFrames = Number(metadata.NumberOfFrames || 1)
   const frameOffsetNumber = Number(metadata.ConcatenationFrameOffsetNumber || 0)
 
-  // Handle multiple planes (channels, z-planes, or segments)
-  const numberOfOpticalPath = Number(metadata.NumberOfOpticalPaths || 1)
-  let numberOfSegments = 0
-  if (metadata.SegmentSequence !== undefined) {
-    numberOfSegments = metadata.SegmentSequence.length
-  }
-  if (numberOfOpticalPath > 1 && numberOfSegments > 0) {
-    throw new Error(
-      'An image cannot have multiple optical paths and multiple segments.'
-    )
-  }
+  /**
+   * Handle images that may contain multiple "planes"
+   *  - z-planes (VL Whole Slide Microscopy Image)
+   *  - optical paths (VL Whole Slide Microscopy Image)
+   *  - segments (Segmentation)
+   *  - mappings (Parametric Map)
+   */
+  let numberOfChannels = 0
   const numberOfFocalPlanes = Number(metadata.TotalPixelMatrixFocalPlanes || 1)
   if (numberOfFocalPlanes > 1) {
     throw new Error('Images with multiple focal planes are not yet supported.')
   }
 
+  const {
+    mappingNumberToFrameNumbers,
+    frameNumberToMappingNumber
+  } = _groupFramesPerMapping(metadata)
+  let numberOfOpticalPaths = 0
+  let numberOfSegments = 0
+  let numberOfMappings = 0
+  if (metadata.NumberOfOpticalPaths !== undefined) {
+    numberOfOpticalPaths = Number(metadata.NumberOfOpticalPaths || 1)
+    numberOfChannels = numberOfOpticalPaths
+  } else if (metadata.SegmentSequence !== undefined) {
+    numberOfSegments = metadata.SegmentSequence.length
+    numberOfChannels = numberOfSegments
+  } else if (mappingNumberToFrameNumbers.length > 0) {
+    numberOfMappings = mappingNumberToFrameNumbers.length
+    numberOfChannels = numberOfMappings
+  } else {
+    throw new Error('Could not determine the number of image channels.')
+  }
+
   const tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns)
+  const tilesPerCol = Math.ceil(totalPixelMatrixRows / rows)
   const frameMapping = {}
   /**
    * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
@@ -44,12 +64,28 @@ function getFrameMapping (metadata) {
     const offset = frameOffsetNumber + 1
     const limit = frameOffsetNumber + numberOfFrames
     for (let j = offset; j <= limit; j++) {
-      const rowFraction = j / tilesPerRow
-      const rowIndex = Math.ceil(rowFraction)
-      const colIndex = j - (rowIndex * tilesPerRow) + tilesPerRow
-      // FIXME: channelIndex
-      const channelIndex = 1
-      const index = rowIndex + '-' + colIndex + '-' + channelIndex
+      const rowIndex = Math.ceil(j / (tilesPerRow * numberOfChannels))
+      const n = (
+        j -
+        (rowIndex * tilesPerRow * numberOfChannels) +
+        (tilesPerRow * numberOfChannels)
+      )
+      const colIndex = Math.ceil(n / numberOfChannels)
+      const channelIndex = Math.ceil(n / tilesPerRow)
+      let channelIdentifier
+      if (numberOfOpticalPaths > 0) {
+        const opticalPath = metadata.OpticalPathSequence[channelIndex - 1]
+        channelIdentifier = opticalPath.OpticalPathIdentifier
+      } else if (numberOfSegments > 0) {
+        const segment = metadata.SegmentIdentificationSequence[channelIndex - 1]
+        channelIdentifier = String(segment.ReferencedSegmentNumber)
+      } else if (numberOfMappings > 0) {
+        // TODO: ensure that frames are mapped accordingly
+        channelIdentifier = String(frameNumberToMappingNumber[j + 1])
+      } else {
+        throw new Error(`Could not determine channel of frame ${j}.`)
+      }
+      const index = rowIndex + '-' + colIndex + '-' + channelIdentifier
       const frameNumber = j - offset + 1
       frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
     }
@@ -61,20 +97,27 @@ function getFrameMapping (metadata) {
       const columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix
       const rowIndex = Math.ceil(rowPosition / rows)
       const colIndex = Math.ceil(columnPosition / columns)
-      let channelIndex = 1
-      if (numberOfOpticalPath > 1) {
+      let channelIdentifier
+      if (numberOfOpticalPaths > 0) {
         const opticalPath = functionalGroups[j].OpticalPathIdentificationSequence[0]
-        channelIndex = Number(opticalPath.OpticalPathIdentifier)
+        channelIdentifier = opticalPath.OpticalPathIdentifier
       } else if (numberOfSegments > 0) {
         const segment = functionalGroups[j].SegmentIdentificationSequence[0]
-        channelIndex = Number(segment.ReferencedSegmentNumber)
+        channelIdentifier = String(segment.ReferencedSegmentNumber)
+      } else if (numberOfMappings > 0) {
+        channelIdentifier = String(frameNumberToMappingNumber[j + 1])
+      } else {
+        throw new Error(`Could not determine channel of frame ${j}.`)
       }
-      const index = rowIndex + '-' + colIndex + '-' + channelIndex
+      const index = rowIndex + '-' + colIndex + '-' + channelIdentifier
       const frameNumber = j + 1
       frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
     }
   }
-  return frameMapping
+  return {
+    frameMapping,
+    numberOfChannels
+  }
 }
 
 /** Formats DICOM metadata structured according to the DICOM JSON model into a

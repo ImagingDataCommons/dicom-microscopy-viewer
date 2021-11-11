@@ -2,8 +2,7 @@ import * as dwc from 'dicomweb-client'
 
 import { getFrameMapping } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
-import { are2DArraysAlmostEqual } from './utils.js'
-
+import { are1DArraysAlmostEqual, are2DArraysAlmostEqual } from './utils.js'
 
 /** Compute image pyramid.
  *
@@ -32,7 +31,7 @@ function _computeImagePyramid ({ metadata }) {
 
   const pyramidMetadata = []
   const pyramidFrameMappings = []
-  const frameMappings = metadata.map(m => getFrameMapping(m))
+  let pyramidNumberOfChannels
   for (let i = 0; i < metadata.length; i++) {
     if (metadata[0].FrameOfReferenceUID !== metadata[i].FrameOfReferenceUID) {
       throw new Error(
@@ -52,6 +51,18 @@ function _computeImagePyramid ({ metadata }) {
         'Images of pyramid must all have attributes ' +
         '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
       )
+    }
+
+    const { frameMapping, numberOfChannels } = getFrameMapping(metadata[i])
+    if (i > 0) {
+      if (pyramidNumberOfChannels !== numberOfChannels) {
+        throw new Error(
+          'Images of pyramid must all have the same number of channels ' +
+          '(optical paths, segments, mappings, etc.)'
+        )
+      }
+    } else {
+      pyramidNumberOfChannels = numberOfChannels
     }
 
     const cols = metadata[i].TotalPixelMatrixColumns
@@ -77,8 +88,8 @@ function _computeImagePyramid ({ metadata }) {
       }
     }
     if (alreadyExists) {
+      Object.assign(pyramidFrameMappings[index], frameMapping)
       // Update with information obtained from current concatentation part.
-      Object.assign(pyramidFrameMappings[index], frameMappings[i])
       pyramidMetadata[index].NumberOfFrames += numberOfFrames
       if ('PerFrameFunctionalGroupsSequence' in metadata[index]) {
         pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
@@ -99,7 +110,7 @@ function _computeImagePyramid ({ metadata }) {
       delete pyramidMetadata[index].ConcatenationFrameOffsetNumber
     } else {
       pyramidMetadata.push(metadata[i])
-      pyramidFrameMappings.push(frameMappings[i])
+      pyramidFrameMappings.push(frameMapping)
     }
   }
 
@@ -198,7 +209,8 @@ function _computeImagePyramid ({ metadata }) {
     tileSizes: pyramidTileSizes,
     pixelSpacings: pyramidPixelSpacings,
     metadata: pyramidMetadata,
-    frameMappings: pyramidFrameMappings
+    frameMappings: pyramidFrameMappings,
+    numberOfChannels: pyramidNumberOfChannels
   }
 }
 
@@ -245,13 +257,8 @@ function _createTileLoadFunction ({
 }) {
   const tileLoadFunction = async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
-    if (channel === undefined) {
-      index += '-1'
-    } else {
-      index += `-${channel}`
-    }
+    index += `-${channel}`
 
-    // TODO: refactor frameMappings
     const path = pyramid.frameMappings[z][index]
     let src
     if (path != null) {
@@ -424,8 +431,63 @@ function _createTileLoadFunction ({
   return tileLoadFunction
 }
 
+function _fitImagePyramid (pyramid, refPyramid) {
+  const matchingLevelIndices = []
+  for (let i = 0; i < refPyramid.metadata.length; i++) {
+    for (let j = 0; j < pyramid.metadata.length; j++) {
+      const doOriginsMatch = are1DArraysAlmostEqual(
+        refPyramid.origins[i],
+        pyramid.origins[j]
+      )
+      const doPixelSpacingsMatch = are1DArraysAlmostEqual(
+        refPyramid.pixelSpacings[i],
+        pyramid.pixelSpacings[j]
+      )
+      if (doOriginsMatch && doPixelSpacingsMatch) {
+        matchingLevelIndices.push([i, j])
+      }
+    }
+  }
+
+  if (matchingLevelIndices.length === 0) {
+    throw new Error(
+      'Image pyramid cannot be fit to reference image pyramid.'
+    )
+  }
+
+  // Fit the pyramid levels to the reference image pyramid
+  const fittedPyramid = {
+    extent: refPyramid.extent,
+    origins: refPyramid.origins,
+    resolutions: refPyramid.resolutions,
+    gridSizes: refPyramid.gridSizes,
+    tileSizes: refPyramid.tileSizes,
+    pixelSpacings: [],
+    metadata: [],
+    frameMappings: []
+  }
+  for (let i = 0; i < refPyramid.metadata.length; i++) {
+    const index = matchingLevelIndices.find(element => element[0] === i)
+    if (index) {
+      const j = index[1]
+      fittedPyramid.gridSizes[i] = pyramid.gridSizes[j]
+      fittedPyramid.tileSizes[i] = pyramid.tileSizes[j]
+      fittedPyramid.pixelSpacings.push(pyramid.pixelSpacings[j])
+      fittedPyramid.metadata.push(pyramid.metadata[j])
+      fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+    } else {
+      fittedPyramid.pixelSpacings.push(undefined)
+      fittedPyramid.metadata.push(undefined)
+      fittedPyramid.frameMappings.push(undefined)
+    }
+  }
+
+  return fittedPyramid
+}
+
 export {
   _areImagePyramidsEqual,
   _computeImagePyramid,
-  _createTileLoadFunction
+  _createTileLoadFunction,
+  _fitImagePyramid
 }

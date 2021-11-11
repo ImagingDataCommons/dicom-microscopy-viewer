@@ -1,11 +1,4 @@
-import { generateUID } from './utils.js'
-
-const _number = Symbol('number')
-const _label = Symbol('label')
-const _uid = Symbol('uid')
-const _property = Symbol('property')
-const _algorithm = Symbol('algorithm')
-const _instanceUIDs = Symbol('instanceUIDs')
+const _attrs = Symbol('attrs')
 
 /** A segment.
  *
@@ -39,58 +32,57 @@ class Segment {
     seriesInstanceUID,
     sopInstanceUIDs
   }) {
+    this[_attrs] = {}
     if (uid === undefined) {
       throw new Error('Unique Tracking Identifier is required.')
     } else {
-      this[_uid] = uid
+      this[_attrs].uid = uid
     }
 
     if (number === undefined) {
       throw new Error('Segment Number is required.')
     }
-    this[_number] = number
+    this[_attrs].number = number
 
     if (label === undefined) {
       throw new Error('Segment Label is required.')
     }
-    this[_label] = label
+    this[_attrs].label = label
 
     if (propertyCategory === undefined) {
       throw new Error('Segmented Property Category is required.')
     }
+    this[_attrs].propertyCategory = propertyCategory
+
     if (propertyType === undefined) {
       throw new Error('Segmented Property Type is required.')
     }
-    this[_property] = {
-      category: propertyCategory,
-      type: propertyType
-    }
+    this[_attrs].propertyType = propertyType
 
     if (algorithmName === undefined) {
       throw new Error('Segment Algorithm Name is required.')
     }
+    this[_attrs].algorithmType = algorithmType
+
     if (algorithmType === undefined) {
       throw new Error('Segment Algorithm Type is required.')
     }
-    this[_algorithm] = {
-      type: algorithmType,
-      name: algorithmName
-    }
+    this[_attrs].algorithmName = algorithmName
 
     if (studyInstanceUID === undefined) {
       throw new Error('Study Instance UID is required.')
     }
+    this[_attrs].studyInstanceUID = studyInstanceUID
+
     if (seriesInstanceUID === undefined) {
       throw new Error('Series Instance UID is required.')
     }
+    this[_attrs].seriesInstanceUID = seriesInstanceUID
+
     if (sopInstanceUIDs === undefined) {
       throw new Error('SOP Instance UIDs are required.')
     }
-    this[_instanceUIDs] = {
-      studyInstanceUID,
-      seriesInstanceUID,
-      sopInstanceUIDs
-    }
+    this[_attrs].sopInstanceUIDs = sopInstanceUIDs
   }
 
   /** Get Unique Tracking Identifier
@@ -98,7 +90,7 @@ class Segment {
    * @returns {string} Unique Tracking Identifier
    */
   get uid () {
-    return this[_uid]
+    return this[_attrs].uid
   }
 
   /** Get Segment Number.
@@ -106,7 +98,7 @@ class Segment {
    * @returns {number} Segment Number
    */
   get number () {
-    return this[_number]
+    return this[_attrs].number
   }
 
   /** Get Segment Label
@@ -114,7 +106,7 @@ class Segment {
    * @returns {string} Segment Label
    */
   get label () {
-    return this[_label]
+    return this[_attrs].label
   }
 
   /** Get Segment Algorithm Name
@@ -122,7 +114,7 @@ class Segment {
    * @returns {string} Segment Algorithm Name
    */
   get algorithmName () {
-    return this[_algorithm].name
+    return this[_attrs].algorithmName
   }
 
   /** Get Segment Algorithm Type
@@ -130,7 +122,7 @@ class Segment {
    * @returns {string} Segment Algorithm Type
    */
   get algorithmType () {
-    return this[_algorithm].type
+    return this[_attrs].algorithmType
   }
 
   /** Get Segmented Property Category
@@ -138,7 +130,7 @@ class Segment {
    * @returns {object} Segmented Property Category
    */
   get propertyCategory () {
-    return this[_property].category
+    return this[_attrs].propertyCategory
   }
 
   /** Get Segmented Property Type
@@ -146,7 +138,7 @@ class Segment {
    * @returns {object} Segmented Property Type
    */
   get propertyType () {
-    return this[_property].type
+    return this[_attrs].propertyType
   }
 
   /** Get Study Instance UID of Segmentation images.
@@ -154,7 +146,7 @@ class Segment {
    * @returns {string} Study Instance UID
    */
   get studyInstanceUID () {
-    return this[_instanceUIDs].studyInstanceUIDs
+    return this[_attrs].studyInstanceUID
   }
 
   /** Get Series Instance UID of Segmentation images.
@@ -162,7 +154,7 @@ class Segment {
    * @returns {string} Series Instance UID
    */
   get seriesInstanceUID () {
-    return this[_instanceUIDs].seriesInstanceUIDs
+    return this[_attrs].seriesInstanceUID
   }
 
   /** Get SOP Instance UIDs of Segmentation images.
@@ -170,7 +162,7 @@ class Segment {
    * @returns {string[]} SOP Instance UIDs
    */
   get sopInstanceUIDs () {
-    return this[_instanceUIDs].sopInstanceUIDs
+    return this[_attrs].sopInstanceUIDs
   }
 }
 
