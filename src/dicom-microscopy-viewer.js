@@ -33,8 +33,9 @@ import {
   VolumeImageViewer
 } from './viewer.js'
 import {
-  BlendingInformation
-} from './channel.js'
+  BlendingInformation,
+  OpticalPath
+} from './opticalPath.js'
 import {
   Segment
 } from './segment.js'

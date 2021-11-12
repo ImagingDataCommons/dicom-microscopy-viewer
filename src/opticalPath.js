@@ -1,4 +1,4 @@
-const _channelAttrs = Symbol('channelAttrs')
+const _attrs = Symbol('_attrs')
 
 /** Information for blending a channel with other channels during display.
  *
@@ -70,104 +70,103 @@ class BlendingInformation {
   }
 }
 
-/** A channel.
+/** An Optical Path.
  *
- * A channel represents a monochrome image that was acquired using a specific
- * optical path. Usually, a channel is also associated with specific specimen
- * preparation steps, in particular one or more staining steps.
- * For example, in immunofluorescence microscopy imaging, a channel is generally
- * associated with a specific fluorescence illumination wave length or color
- * (e.g., 568nm in the red spectrum of the visible light) and an antibody or a
- * set of antibodies labeled with a corresponding fluorophore that can be
- * excited by light at the illumination wave length and re-emit light upon
- * excitation (usually at a slightly higher wave length).
+ * An optical path represents a color or a monochromatic image that was acquired
+ * using specific microscopy settings. Usually, an optical path is also
+ * associated with specific specimen preparation steps, in particular one or
+ * more staining steps. For example, in immunofluorescence microscopy imaging,
+ * an optical path is generally associated with a specific fluorescence
+ * illumination wave length or color (e.g., 568nm in the red spectrum of the
+ * visible light) and an antibody or a set of antibodies labeled with a
+ * corresponding fluorophore that can be excited by light at the illumination
+ * wave length and re-emit light (usually at a slightly higher wave length)
+ * upon excitation.
  *
  * Note, however, that multiple stains may be applied to the imaging target
- * (specimen) during specimen preparation, and image acquisition may result in
- * multiple channels, which may be acquired using different optical paths
- * either simultaneously or sequentially.
- * The content of an image of an individual channel thus depends on the physical
- * properties of the tissue stains (fluorophores) as well as the optical path
- * (illumination wave length, light path filters, image path filters, etc.).
+ * (specimen) during specimen preparation, and multiple images may be acquired
+ * using different optical paths - either simultaneously or sequentially.
+ * The content of an image thus depends on the physical properties of the
+ * tissue stains (fluorophores) as well as the characteristics of the optical
+ * path (illumination wave length, light and image path filters, etc.).
  *
- * A channel is thus defined by a unique optical path and identified by an
- * optical path identifier that must be unique within the scope of an image
- * acquisition (or multiple cycles of image acquisition in case of iterative
- * immunofluorescence imaging). The relationship between the optical path and
- * any corresponding staining specimen preparation steps may not be explicitly
- * specified.
+ * An optical path is identified by an optical path identifier that must be
+ * unique within the scope of an image acquisition (or multiple cycles of image
+ * acquisition in case of iterative immunofluorescence imaging).
+ * The relationship between the optical path and any corresponding staining
+ * specimen preparation steps may not be explicitly specified.
  *
  * @class
- * @memberof channel
+ * @memberof opticalPath
  */
-class Channel {
-  /* Creates a new Channel object.
+class OpticalPath {
+  /* Create a new OpticalPath object.
    *
-   * @param {Object} options - Options for construction of Segment
-   * @param {string} options.opticalPathIdentifier - Optical Path Identifier
+   * @param {Object} options - Options
+   * @param {string} options.identifier - Optical Path Identifier
    * @param {string} options.studyInstanceUID - Study Instance UID of VL Whole Slide Microscopy Image instances
    * @param {string} options.seriesInstanceUID - Series Instance UID of VL Whole Slide Microscopy Image instances
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of VL Whole Slide Microscopy Image instances
    */
   constructor ({
-    opticalPathIdentifier,
+    identifier,
     studyInstanceUID,
     seriesInstanceUID,
     sopInstanceUIDs
   }) {
-    this[_channelAttrs] = {}
-    if (opticalPathIdentifier === undefined) {
+    this[_attrs] = {}
+    if (identifier === undefined) {
       throw new Error('Optical Path Identifier is required.')
     }
-    this[_channelAttrs].opticalPathIdentifier = opticalPathIdentifier
+    this[_attrs].identifier = identifier
 
     if (studyInstanceUID === undefined) {
       throw new Error('Study Instance UID is required.')
     }
-    this[_channelAttrs].studyInstanceUID = studyInstanceUID
+    this[_attrs].studyInstanceUID = studyInstanceUID
 
     if (seriesInstanceUID === undefined) {
       throw new Error('Series Instance UID is required.')
     }
-    this[_channelAttrs].seriesInstanceUID = seriesInstanceUID
+    this[_attrs].seriesInstanceUID = seriesInstanceUID
 
     if (sopInstanceUIDs === undefined) {
       throw new Error('SOP Instance UIDs are required.')
     }
-    this[_channelAttrs].sopInstanceUIDs = sopInstanceUIDs
+    this[_attrs].sopInstanceUIDs = sopInstanceUIDs
   }
 
   /** Get Optical Path Identifier
    *
    * @returns {string} Optical Path Identifier
    */
-  get opticalPathIdentifier () {
-    return this[_channelAttrs].opticalPathIdentifier
+  get identifier () {
+    return this[_attrs].identifier
   }
 
-  /** Get Study Instance UID of Segmentation images.
+  /** Get Study Instance UID of images.
    *
    * @returns {string} Study Instance UID
    */
   get studyInstanceUID () {
-    return this[_channelAttrs].studyInstanceUID
+    return this[_attrs].studyInstanceUID
   }
 
-  /** Get Series Instance UID of Segmentation images.
+  /** Get Series Instance UID of images.
    *
    * @returns {string} Series Instance UID
    */
   get seriesInstanceUID () {
-    return this[_channelAttrs].seriesInstanceUID
+    return this[_attrs].seriesInstanceUID
   }
 
-  /** Get SOP Instance UIDs of Segmentation images.
+  /** Get SOP Instance UIDs of images.
    *
    * @returns {string[]} SOP Instance UIDs
    */
   get sopInstanceUIDs () {
-    return this[_channelAttrs].sopInstanceUIDs
+    return this[_attrs].sopInstanceUIDs
   }
 }
 
-export { BlendingInformation, Channel }
+export { BlendingInformation, OpticalPath }

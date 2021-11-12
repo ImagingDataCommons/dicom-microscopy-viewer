@@ -64,7 +64,7 @@ import {
   getFeatureScoord3dLength,
   getFeatureScoord3dArea
 } from './scoord3dUtils'
-import { BlendingInformation, Channel } from './channel.js'
+import { BlendingInformation, OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
   _computeImagePyramid,
@@ -482,8 +482,7 @@ const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
 const _pyramid = Symbol('pyramid')
 const _segments = Symbol('segments')
-const _channels = Symbol('channels')
-const _colorImage = Symbol('colorImage')
+const _opticalPaths = Symbol('opticalPaths')
 const _renderingEngine = Symbol('renderingEngine')
 const _rotation = Symbol('rotation')
 const _projection = Symbol('projection')
@@ -505,9 +504,8 @@ class VolumeImageViewer {
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
    * @param {object[]} options.metadata - An array of DICOM JSON metadata objects or formatted image metadata objects created via "formatMetadata()".
    *        The array shall contain the metadata of all image instances that should be displayed.
-   *        The constructor automatically determines which instances represent monochromatic channels (optical paths).
-   * @param {object[]} options.blendingInformation - An array containing blending information for the channels with the
-   *        standard visualization parameters already setup by an external application.
+   *        The constructor automatically determines optical paths of monochromatic images for blending.
+   * @param {object[]} options.blendingInformation - An array containing blending information for the optical paths of monochromatic images standard visualization parameters already setup by an external application.
    * @param {object} options.styleOptions - Default style options for annotations.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
@@ -584,27 +582,25 @@ class VolumeImageViewer {
     }
 
     const colormap = createColorMap({ name: ColorMapNames.JET, bins: 50 })
-    // Group channels by Optical Path Identifier
     const monochromeGroups = groupMonochromeInstances(this[_options].metadata)
-    // Perform additional checks and create channel objects
     const monochromeImageInformation = {}
     monochromeGroups.forEach((group, i) => {
-      group.forEach(channelImage => {
+      group.forEach(image => {
         if (
-          channelImage.DimensionOrganizationType === '3D' ||
-          channelImage.DimensionOrganizationType === '3D_TEMPORAL'
+          image.DimensionOrganizationType === '3D' ||
+          image.DimensionOrganizationType === '3D_TEMPORAL'
         ) {
           throw new Error(
-            'Volume Image Viewer does hot hanlde 3D channel data yet.'
+            'Volume Image Viewer does hot hanlde 3D image data yet.'
           )
-        } else if (channelImage.DimensionOrganizationType === 'TILED_FULL') {
-          if (channelImage.TotalPixelMatrixFocalPlanes === 1) {
-            channelImage.OpticalPathSequence.forEach(opticalPath => {
+        } else if (image.DimensionOrganizationType === 'TILED_FULL') {
+          if (image.TotalPixelMatrixFocalPlanes === 1) {
+            image.OpticalPathSequence.forEach(opticalPath => {
               const opticalPathIdentifier = opticalPath.OpticalPathIdentifier
-              const bitsAllocated = channelImage.BitsAllocated
+              const bitsAllocated = image.BitsAllocated
               if (monochromeImageInformation[opticalPathIdentifier]) {
                 monochromeImageInformation[opticalPathIdentifier].metadata.push(
-                  channelImage
+                  image
                 )
               } else {
                 const blendingInformation = (
@@ -616,12 +612,12 @@ class VolumeImageViewer {
                 )
                 if (blendingInformation !== undefined) {
                   monochromeImageInformation[opticalPathIdentifier] = {
-                    metadata: [channelImage],
+                    metadata: [image],
                     blendingInformation,
                     opticalPath
                   }
                 } else {
-                  const maxValue = Math.pow(2, bitsAllocated)
+                  const maxValue = Math.pow(2, bitsAllocated) - 1
                   const defaultBlendingInformation = new BlendingInformation({
                     opticalPathIdentifier: `${opticalPathIdentifier}`,
                     color: [...colormap[i % colormap.length]].slice(0, 3),
@@ -631,7 +627,7 @@ class VolumeImageViewer {
                     visible: false
                   })
                   monochromeImageInformation[opticalPathIdentifier] = {
-                    metadata: [channelImage],
+                    metadata: [image],
                     blendingInformation: defaultBlendingInformation,
                     opticalPath
                   }
@@ -641,20 +637,35 @@ class VolumeImageViewer {
           } else {
             console.warn('images with multiple focal planes are not supported')
           }
-        } else if (channelImage.DimensionOrganizationType === 'TILED_SPARSE') {
+        } else if (image.DimensionOrganizationType === 'TILED_SPARSE') {
           /*
            * The spatial location of each tile is explicitly encoded using
            * information in the Per-Frame Functional Group Sequence, and the
            * recipient shall not make any assumption about the spatial position
            * or optical path or order of the encoded frames.
            */
+          // FIXME
           throw new Error(
             'Volume Image Viewer does hot handle TILED_SPARSE ' +
-            'dimension organization for blending of channels yet.'
+            'dimension organization for blending of optical paths yet.'
           )
         }
       })
     })
+
+    const monochromeOpticalPathIdentifiers = Object.keys(monochromeImageInformation)
+    const numChannels = monochromeOpticalPathIdentifiers.length
+    const colorOpticalPathIdentifiers = Object.keys(colorImageInformation)
+    const numColorImages = colorOpticalPathIdentifiers.length
+    if (numChannels === 0 && numColorImages === 0) {
+      throw new Error('Could not find any channels or color images.')
+    }
+    if (numChannels > 0 && numColorImages > 0) {
+      throw new Error('Found both channels and color images.')
+    }
+    if (numColorImages > 1) {
+      throw new Error('Found more than one color image.')
+    }
 
     /*
      * For blending we have to make some assumptions
@@ -665,19 +676,9 @@ class VolumeImageViewer {
      * 2) given (1), we calculcate the tileGrid, projection and rotation objects
      *    using the metadata of the first channel and subsequently apply them to
      *    all the other channels.
-     * 3) If the parameters in (1) are different, it means that we have to
-     *    perfom regridding/reprojection over the data (i.e. registration).
-     *    This, at the moment, is out of scope.
+     * 3) If the parameters in (1) are different, it means that we would have to
+     *    perfom registration, which (at least for now) is out of scope.
      */
-
-    const monochromeOpticalPathIdentifiers = Object.keys(monochromeImageInformation)
-    const numChannels = monochromeOpticalPathIdentifiers.length
-    const colorOpticalPathIdentifiers = Object.keys(colorImageInformation)
-    const numColorImages = colorOpticalPathIdentifiers.length
-    if (numChannels === 0 && numColorImages === 0) {
-      throw new Error('No channels or color image found.')
-    }
-
     if (numChannels > 0) {
       const opticalPathIdentifier = monochromeOpticalPathIdentifiers[0]
       const info = monochromeImageInformation[opticalPathIdentifier]
@@ -700,7 +701,8 @@ class VolumeImageViewer {
       global: true,
       extent: this[_pyramid].extent,
       getPointResolution: (pixelRes, point) => {
-        /* DICOM Pixel Spacing has millimeter unit while the projection has
+        /*
+         * DICOM Pixel Spacing has millimeter unit while the projection has
          * meter unit.
          */
         const spacing = getPixelSpacing(
@@ -711,10 +713,10 @@ class VolumeImageViewer {
     })
 
     /*
-    * We need to specify the tile grid, since DICOM allows tiles to
-    * have different sizes at each resolution level and a different zoom
-    * factor between individual levels.
-    */
+     * We need to specify the tile grid, since DICOM allows tiles to
+     * have different sizes at each resolution level and a different zoom
+     * factor between individual levels.
+     */
     this[_tileGrid] = new TileGrid({
       extent: this[_pyramid].extent,
       origins: this[_pyramid].origins,
@@ -733,58 +735,55 @@ class VolumeImageViewer {
       extent: this[_pyramid].extent
     })
 
-    // Create a rendering engine object for offscreen rendering
     this[_renderingEngine] = new RenderingEngine()
 
     const layers = []
     const overviewLayers = []
-    this[_channels] = {}
+    this[_opticalPaths] = {}
     if (numChannels > 0) {
       for (const opticalPathIdentifier in monochromeImageInformation) {
-        const channelInfo = monochromeImageInformation[opticalPathIdentifier]
-        const channelPyramid = _computeImagePyramid({
-          metadata: channelInfo.metadata
-        })
-        const channel = {
+        const info = monochromeImageInformation[opticalPathIdentifier]
+        const pyramid = _computeImagePyramid({ metadata: info.metadata })
+        const opticalPath = {
           opticalPathIdentifier,
-          channel: new Channel({
-            opticalPathIdentifier,
-            studyInstanceUID: channelInfo.metadata[0].StudyInstanceUID,
-            seriesInstanceUID: channelInfo.metadata[0].SeriesInstanceUID,
-            sopInstanceUIDs: channelPyramid.metadata.map(element => {
+          opticalPath: new OpticalPath({
+            identifier: opticalPathIdentifier,
+            studyInstanceUID: info.metadata[0].StudyInstanceUID,
+            seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
+            sopInstanceUIDs: pyramid.metadata.map(element => {
               return element.SOPInstanceUID
             })
           }),
-          pyramid: channelPyramid,
+          pyramid: pyramid,
           style: {
-            color: channelInfo.blendingInformation.color,
-            opacity: channelInfo.blendingInformation.opacity,
-            thresholdValues: channelInfo.blendingInformation.thresholdValues,
-            limitValues: channelInfo.blendingInformation.limitValues
+            color: info.blendingInformation.color,
+            opacity: info.blendingInformation.opacity,
+            thresholdValues: info.blendingInformation.thresholdValues,
+            limitValues: info.blendingInformation.limitValues
           },
-          bitsAllocated: channelInfo.metadata[0].BitsAllocated,
-          maxValue: Math.pow(2, channelInfo.metadata[0].BitsAllocated)
+          bitsAllocated: info.metadata[0].BitsAllocated,
+          maxValue: Math.pow(2, info.metadata[0].BitsAllocated) - 1
         }
 
         const areImagePyramidsEqual = _areImagePyramidsEqual(
-          channel.pyramid,
+          opticalPath.pyramid,
           this[_pyramid]
         )
         if (!areImagePyramidsEqual) {
           throw new Error(
-            `Pyramid of channel image "${opticalPathIdentifier}" ` +
+            `Pyramid of optical path "${opticalPathIdentifier}" ` +
             'is different from reference pyramid.'
           )
         }
 
-        channel.rasterSource = new DataTileSource({
+        opticalPath.rasterSource = new DataTileSource({
           loader: _createTileLoadFunction({
-            pyramid: channel.pyramid,
+            pyramid: opticalPath.pyramid,
             client: this[_options].client,
             retrieveRendered: this[_options].retrieveRendered,
             includeIccProfile: this[_options].includeIccProfile,
             renderingEngine: this[_renderingEngine],
-            channel: channel.opticalPathIdentifier
+            channel: opticalPathIdentifier
           }),
           crossOrigin: 'Anonymous',
           tileGrid: this[_tileGrid],
@@ -817,68 +816,75 @@ class VolumeImageViewer {
             ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1]
           ],
           variables: {
-            lowerThreshold: channel.style.thresholdValues[0],
-            upperThreshold: channel.style.thresholdValues[1],
-            red: channel.style.color[0],
-            green: channel.style.color[1],
-            blue: channel.style.color[2],
+            lowerThreshold: opticalPath.style.thresholdValues[0],
+            upperThreshold: opticalPath.style.thresholdValues[1],
+            red: opticalPath.style.color[0],
+            green: opticalPath.style.color[1],
+            blue: opticalPath.style.color[2],
             windowCenter: (
-              (channel.style.limitValues[0] + channel.style.limitValues[1]) /
-              2 /
-              channel.maxValue
+              (
+                opticalPath.style.limitValues[0] +
+                opticalPath.style.limitValues[1]
+              ) / 2 / opticalPath.maxValue
             ),
             windowWidth: (
-              (channel.style.limitValues[1] - channel.style.limitValues[0]) /
-              channel.maxValue
+              (
+                opticalPath.style.limitValues[1] -
+                opticalPath.style.limitValues[0]
+              ) / opticalPath.maxValue
             )
           }
         }
-        channel.tileLayer = new TileLayer({
+        opticalPath.tileLayer = new TileLayer({
           extent: this[_tileGrid].getExtent(),
-          source: channel.rasterSource,
+          source: opticalPath.rasterSource,
           preload: 1,
           projection: this[_projection],
           style: style
         })
-        channel.overviewTileLayer = new TileLayer({
+        opticalPath.overviewTileLayer = new TileLayer({
           extent: this[_pyramid].extent,
-          source: channel.rasterSource,
+          source: opticalPath.rasterSource,
           projection: this[_projection],
           preload: 1,
           style: style
         })
 
-        channel.tileLayer.on('postrender', function (event) {
-          const gl = event.context
-          if (gl != null) {
-            gl.blendFunc(gl.ONE, gl.ONE)
-          }
-        })
-
-        if (channelInfo.blendingInformation.visible === true) {
-          layers.push(channel.tileLayer)
-          channel.tileLayer.setVisible(true)
-          overviewLayers.push(channel.overviewTileLayer)
-          channel.overviewTileLayer.setVisible(true)
+        if (info.blendingInformation.visible === true) {
+          layers.push(opticalPath.tileLayer)
+          opticalPath.tileLayer.setVisible(true)
+          overviewLayers.push(opticalPath.overviewTileLayer)
+          opticalPath.overviewTileLayer.setVisible(true)
         }
 
-        this[_channels][opticalPathIdentifier] = channel
+        this[_opticalPaths][opticalPathIdentifier] = opticalPath
       }
     } else {
-      this[_colorImage] = {
-        opticalPathIdentifier: colorOpticalPathIdentifiers[0],
-        pyramid: this[_pyramid],
+      const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
+      const info = colorImageInformation[opticalPathIdentifier]
+      const pyramid = _computeImagePyramid({ metadata: info.metadata })
+      const opticalPath = {
+        opticalPathIdentifier,
+        opticalPath: new OpticalPath({
+          identifier: opticalPathIdentifier,
+          studyInstanceUID: info.metadata[0].StudyInstanceUID,
+          seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
+          sopInstanceUIDs: pyramid.metadata.map(element => {
+            return element.SOPInstanceUID
+          })
+        }),
+        pyramid: pyramid,
         bitsAllocated: 8,
         maxValue: 255
       }
 
-      this[_colorImage].rasterSource = new DataTileSource({
+      opticalPath.rasterSource = new DataTileSource({
         loader: _createTileLoadFunction({
-          pyramid: this[_colorImage].pyramid,
+          pyramid: opticalPath.pyramid,
           client: this[_options].client,
           retrieveRendered: this[_options].retrieveRendered,
           renderingEngine: this[_renderingEngine],
-          channel: this[_colorImage].opticalPathIdentifier
+          channel: opticalPathIdentifier
         }),
         crossOrigin: 'Anonymous',
         tileGrid: this[_tileGrid],
@@ -888,20 +894,22 @@ class VolumeImageViewer {
         preload: 1,
         bandCount: 3
       })
-      this[_colorImage].tileLayer = new TileLayer({
+      opticalPath.tileLayer = new TileLayer({
         extent: this[_tileGrid].getExtent(),
-        source: this[_colorImage].rasterSource,
+        source: opticalPath.rasterSource,
         projection: this[_projection]
       })
-      this[_colorImage].overviewTileLayer = new TileLayer({
-        extent: this[_pyramid].extent,
-        source: this[_colorImage].rasterSource,
+      opticalPath.overviewTileLayer = new TileLayer({
+        extent: pyramid.extent,
+        source: opticalPath.rasterSource,
         projection: this[_projection],
         preload: 0
       })
 
-      layers.push(this[_colorImage].tileLayer)
-      overviewLayers.push(this[_colorImage].overviewTileLayer)
+      layers.push(opticalPath.tileLayer)
+      overviewLayers.push(opticalPath.overviewTileLayer)
+
+      this[_opticalPaths][opticalPathIdentifier] = opticalPath
     }
 
     const overviewView = new View({
@@ -997,7 +1005,7 @@ class VolumeImageViewer {
     })
   }
 
-  /** Set the style of a channel.
+  /** Set the style of an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @param {object} styleOptions
@@ -1006,9 +1014,9 @@ class VolumeImageViewer {
    * @param {number[]} styleOptions.thresholdValues - Upper and lower clipping values
    * @param {number[]} styleOptions.limitValues - Upper and lower clipping values
    */
-  setChannelStyle (opticalPathIdentifier, styleOptions = {}) {
-    const channel = this[_channels][opticalPathIdentifier]
-    if (channel === undefined) {
+  setOpticalPathStyle (opticalPathIdentifier, styleOptions = {}) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
       throw new Error(
         'Cannot set optical path style. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
@@ -1024,26 +1032,26 @@ class VolumeImageViewer {
       styleOptions
     )
     if (styleOptions.opacity != null) {
-      channel.style.opacity = styleOptions.opacity
-      channel.tileLayer.setOpacity(styleOptions.opacity)
-      channel.overviewTileLayer.setOpacity(styleOptions.opacity)
+      opticalPath.style.opacity = styleOptions.opacity
+      opticalPath.tileLayer.setOpacity(styleOptions.opacity)
+      opticalPath.overviewTileLayer.setOpacity(styleOptions.opacity)
     }
 
     const styleVariables = {}
     if (styleOptions.color != null) {
-      channel.style.color = styleOptions.color
-      styleVariables.red = channel.style.color[0]
-      styleVariables.green = channel.style.color[1]
-      styleVariables.blue = channel.style.color[2]
+      opticalPath.style.color = styleOptions.color
+      styleVariables.red = opticalPath.style.color[0]
+      styleVariables.green = opticalPath.style.color[1]
+      styleVariables.blue = opticalPath.style.color[2]
     }
     if (styleOptions.thresholdValues != null) {
-      channel.style.thresholdValues = styleOptions.thresholdValues
+      opticalPath.style.thresholdValues = styleOptions.thresholdValues
       styleVariables.lowerThreshold = styleOptions.thresholdValues[0]
       styleVariables.upperThreshold = styleOptions.thresholdValues[1]
     }
     if (styleOptions.limitValues != null) {
-      const max = channel.maxValue
-      channel.style.limitValues = styleOptions.limitValues
+      const max = opticalPath.maxValue
+      opticalPath.style.limitValues = styleOptions.limitValues
       styleVariables.windowCenter = (
         (styleOptions.limitValues[0] + styleOptions.limitValues[1]) /
         2 /
@@ -1054,106 +1062,106 @@ class VolumeImageViewer {
         max
       )
     }
-    channel.tileLayer.updateStyleVariables(styleVariables)
-    channel.overviewTileLayer.updateStyleVariables(styleVariables)
+    opticalPath.tileLayer.updateStyleVariables(styleVariables)
+    opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
   }
 
-  /** Get the style of a channel.
+  /** Get the style of an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @return {object} Style of optical path
    */
-  getChannelStyle (opticalPathIdentifier) {
-    const channel = this[_channels][opticalPathIdentifier]
-    if (channel === undefined) {
+  getOpticalPathStyle (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
       throw new Error(
         'Cannot get optical path style. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
     }
     return {
-      color: channel.style.color,
-      opacity: channel.style.opacity,
-      thresholdValues: channel.style.thresholdValues,
-      limitValues: channel.style.limitValues
+      color: opticalPath.style.color,
+      opacity: opticalPath.style.opacity,
+      thresholdValues: opticalPath.style.thresholdValues,
+      limitValues: opticalPath.style.limitValues
     }
   }
 
   /**
-   * Get all channels.
+   * Get all optical paths.
    *
-   * @return {Channel[]}
+   * @return {OpticalPath[]}
    */
-  getAllChannels () {
-    const channels = []
-    for (const opticalPathIdentifier in this[_channels]) {
-      channels.push(this[_channels][opticalPathIdentifier].channel)
+  getAllOpticalPaths () {
+    const opticalPaths = []
+    for (const opticalPathIdentifier in this[_opticalPaths]) {
+      opticalPaths.push(this[_opticalPaths][opticalPathIdentifier].opticalPath)
     }
-    return channels
+    return opticalPaths
   }
 
-  /** Activate a channel.
+  /** Activate an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    */
-  activateChannel (opticalPathIdentifier) {
-    const channel = this[_channels][opticalPathIdentifier]
-    if (channel === undefined) {
+  activateOpticalPath (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
       throw new Error(
         'Cannot activate optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
     }
-    if (this.isChannelActive(opticalPathIdentifier)) {
+    if (this.isOpticalPathActive(opticalPathIdentifier)) {
       return
     }
     this[_map].getLayers().insertAt(
       0,
-      channel.tileLayer
+      opticalPath.tileLayer
     )
     this[_overviewMap].getOverviewMap().getLayers().insertAt(
       0,
-      channel.overviewTileLayer
+      opticalPath.overviewTileLayer
     )
   }
 
-  /** Deactivate a channel.
+  /** Deactivate an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    */
-  deactivateChannel (opticalPathIdentifier) {
-    const channel = this[_channels][opticalPathIdentifier]
-    if (channel === undefined) {
+  deactivateOpticalPath (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
       throw new Error(
         'Cannot deactivate optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
     }
-    if (!this.isChannelActive(opticalPathIdentifier)) {
+    if (!this.isOpticalPathActive(opticalPathIdentifier)) {
       return
     }
-    this[_map].removeLayer(channel.tileLayer)
-    channel.tileLayer.dispose()
-    this[_overviewMap].getOverviewMap().removeLayer(channel.overviewTileLayer)
-    channel.overviewTileLayer.dispose()
+    this[_map].removeLayer(opticalPath.tileLayer)
+    opticalPath.tileLayer.dispose()
+    this[_overviewMap].getOverviewMap().removeLayer(opticalPath.overviewTileLayer)
+    opticalPath.overviewTileLayer.dispose()
   }
 
-  /** Determine whether an optical path is active
+  /** Determine whether an optical path is active.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @return {boolean} active
    */
-  isChannelActive (opticalPathIdentifier) {
-    const channel = this[_channels][opticalPathIdentifier]
-    if (channel === undefined) {
+  isOpticalPathActive (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
       return false
     }
     return !!this[_map].getLayers().getArray().find(layer => {
-      return layer === channel.tileLayer
+      return layer === opticalPath.tileLayer
     })
   }
 
-  /** Show a channel.
+  /** Show an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @param {object} styleOptions
@@ -1162,54 +1170,54 @@ class VolumeImageViewer {
    * @param {number[]} styleOptions.thresholdValues - Upper and lower clipping values
    * @param {number[]} styleOptions.limitValues - Upper and lower clipping values
    */
-  showChannel (opticalPathIdentifier, styleOptions = {}) {
-    const channel = this[_channels][opticalPathIdentifier]
-    if (channel === undefined) {
+  showOpticalPath (opticalPathIdentifier, styleOptions = {}) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
       throw new Error(
         'Cannot show optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
     }
     console.info(`show optical path #${opticalPathIdentifier}`)
-    if (!this.isChannelActive(opticalPathIdentifier)) {
-      this.activateChannel(opticalPathIdentifier)
+    if (!this.isOpticalPathActive(opticalPathIdentifier)) {
+      this.activateOpticalPath(opticalPathIdentifier)
     }
-    channel.tileLayer.setVisible(true)
-    channel.overviewTileLayer.setVisible(true)
-    this.setChannelStyle(opticalPathIdentifier, styleOptions)
+    opticalPath.tileLayer.setVisible(true)
+    opticalPath.overviewTileLayer.setVisible(true)
+    this.setOpticalPathStyle(opticalPathIdentifier, styleOptions)
   }
 
-  /** Hide a channel.
+  /** Hide an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    */
-  hideChannel (opticalPathIdentifier) {
-    const channel = this[_channels][opticalPathIdentifier]
-    if (channel === undefined) {
+  hideOpticalPath (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
       throw new Error(
         'Cannot hide optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
     }
-    channel.tileLayer.setVisible(false)
-    channel.overviewTileLayer.setVisible(false)
+    opticalPath.tileLayer.setVisible(false)
+    opticalPath.overviewTileLayer.setVisible(false)
   }
 
   /**
-   * Determine if a channel is visible.
+   * Determine if an optical path is visible.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @returns {boolean}
    */
-  isChannelVisible (opticalPathIdentifier) {
-    const channel = this[_channels][opticalPathIdentifier]
-    if (channel === undefined) {
+  isOpticalPathVisible (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
       throw new Error(
         'Cannot show optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
     }
-    return channel.tileLayer.getVisible()
+    return opticalPath.tileLayer.getVisible()
   }
 
   /**
