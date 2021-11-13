@@ -2102,7 +2102,7 @@ class VolumeImageViewer {
         extent: this[_pyramid].extent,
         projection: this[_projection],
         visible: false,
-        opacity: 1,
+        opacity: 0.9,
         preload: 0,
         style: {
           color: [
