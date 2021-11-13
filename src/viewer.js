@@ -838,17 +838,15 @@ class VolumeImageViewer {
         }
 
         opticalPath.tileLayer = new TileLayer({
-          extent: this[_tileGrid].getExtent(),
+          extent: pyramid.extent,
           source: opticalPath.rasterSource,
           preload: 1,
-          projection: this[_projection],
           style: style
         })
 
         opticalPath.overviewTileLayer = new TileLayer({
-          extent: this[_pyramid].extent,
+          extent: pyramid.extent,
           source: opticalPath.rasterSource,
-          projection: this[_projection],
           preload: 0,
           style: style
         })
@@ -899,16 +897,16 @@ class VolumeImageViewer {
       })
 
       opticalPath.tileLayer = new TileLayer({
-        extent: this[_tileGrid].getExtent(),
+        extent: this[_tileGrid].extent,
         source: opticalPath.rasterSource,
-        projection: this[_projection],
-        preload: 1
+        preload: 1,
+        useInterimTilesOnError: false
       })
       opticalPath.overviewTileLayer = new TileLayer({
         extent: pyramid.extent,
         source: opticalPath.rasterSource,
-        projection: this[_projection],
-        preload: 0
+        preload: 0,
+        useInterimTilesOnError: false
       })
 
       layers.push(opticalPath.tileLayer)
