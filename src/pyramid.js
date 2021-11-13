@@ -139,7 +139,8 @@ function _computeImagePyramid ({ metadata }) {
   const pyramidResolutions = []
   const pyramidOrigins = []
   const pyramidPixelSpacings = []
-  const physicalSizes = []
+  const pyramidImageSizes = []
+  const pyramidPhysicalSizes = []
   const offset = [0, -1]
   const baseTotalPixelMatrixColumns = pyramidBaseMetadata.TotalPixelMatrixColumns
   const baseTotalPixelMatrixRows = pyramidBaseMetadata.TotalPixelMatrixRows
@@ -161,7 +162,11 @@ function _computeImagePyramid ({ metadata }) {
     ])
     pyramidPixelSpacings.push(pixelSpacing)
 
-    physicalSizes.push([
+    pyramidImageSizes.push([
+      totalPixelMatrixColumns,
+      totalPixelMatrixRows
+    ])
+    pyramidPhysicalSizes.push([
       (totalPixelMatrixColumns * pixelSpacing[1]).toFixed(4),
       (totalPixelMatrixRows * pixelSpacing[0]).toFixed(4)
     ])
@@ -184,14 +189,21 @@ function _computeImagePyramid ({ metadata }) {
   pyramidGridSizes.reverse()
   pyramidOrigins.reverse()
   pyramidPixelSpacings.reverse()
+  pyramidImageSizes.reverse()
+  pyramidPhysicalSizes.reverse()
 
   const uniquePhysicalSizes = [
-    ...new Set(physicalSizes.map(v => v.toString()))
+    ...new Set(pyramidPhysicalSizes.map(v => v.toString()))
   ].map(v => v.split(','))
   if (uniquePhysicalSizes.length > 1) {
     console.warn(
-      'images of the image pyramid have different sizes (in millimeter): ',
-      physicalSizes
+      'images of the image pyramid have different sizes: ',
+      '\nsize [mm]: ', pyramidPhysicalSizes,
+      '\npixel spacing [mm]: ', pyramidPixelSpacings,
+      '\nsize [pixels]: ', pyramidImageSizes,
+      '\ntile size [pixels]: ', pyramidTileSizes,
+      '\ntile grid size [tiles]: ', pyramidGridSizes,
+      '\nresolution [factors]: ', pyramidResolutions
     )
   }
 
@@ -436,6 +448,21 @@ function _createTileLoadFunction ({
         `could not load tile "${index}" at level ${z}, ` +
         'this tile does not exist'
       )
+      let pixelArray
+      if (bitsAllocated <= 8) {
+        pixelArray = new Uint8Array(columns * rows * samplesPerPixel)
+      } else {
+        pixelArray = new Float32Array(columns * rows * samplesPerPixel)
+      }
+      // Fill white in case of color and black in case of monochrome.
+      let fillValue = 255
+      if (samplesPerPixel === 1) {
+        fillValue = 0
+      }
+      for (let i = 0; i < pixelArray.length; i++) {
+        pixelArray[i] = fillValue
+      }
+      return pixelArray
     }
   }
   return tileLoadFunction
