@@ -47,10 +47,20 @@ function _computeImagePyramid ({ metadata }) {
       metadata[i].TotalPixelMatrixRows === undefined ||
       metadata[i].TotalPixelMatrixColumns === undefined
     ) {
-      throw new Error(
-        'Images of pyramid must all have attributes ' +
-        '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
-      )
+      const numberOfFrames = Number(metadata[i].NumberOfFrames)
+      if (numberOfFrames === 1) {
+        /*
+         * If the image contains only one frame it is not tiled, and therefore
+         * the size of the total pixel matrix equals the size of the frame.
+         */
+        metadata[i].TotalPixelMatrixRows = metadata[i].Rows
+        metadata[i].TotalPixelMatrixColumns = metadata[i].Columns
+      } else {
+        throw new Error(
+          'Images of pyramid must all have attributes ' +
+          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
+        )
+      }
     }
 
     const { frameMapping, numberOfChannels } = getFrameMapping(metadata[i])

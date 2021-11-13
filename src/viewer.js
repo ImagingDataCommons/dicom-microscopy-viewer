@@ -537,6 +537,7 @@ class VolumeImageViewer {
 
     // Collection of Openlayers "TileLayer" instances
     this[_segments] = {}
+    this[_mappings] = {}
 
     // Collection of Openlayers "Feature" instances
     this[_features] = new Collection([], { unique: true })
@@ -835,6 +836,7 @@ class VolumeImageViewer {
             )
           }
         }
+
         opticalPath.tileLayer = new TileLayer({
           extent: this[_tileGrid].getExtent(),
           source: opticalPath.rasterSource,
@@ -842,11 +844,12 @@ class VolumeImageViewer {
           projection: this[_projection],
           style: style
         })
+
         opticalPath.overviewTileLayer = new TileLayer({
           extent: this[_pyramid].extent,
           source: opticalPath.rasterSource,
           projection: this[_projection],
-          preload: 1,
+          preload: 0,
           style: style
         })
 
@@ -892,12 +895,14 @@ class VolumeImageViewer {
         wrapX: false,
         transition: 0,
         preload: 1,
-        bandCount: 3
+        bandCount: 4
       })
+
       opticalPath.tileLayer = new TileLayer({
         extent: this[_tileGrid].getExtent(),
         source: opticalPath.rasterSource,
-        projection: this[_projection]
+        projection: this[_projection],
+        preload: 1
       })
       opticalPath.overviewTileLayer = new TileLayer({
         extent: pyramid.extent,
@@ -2002,10 +2007,20 @@ class VolumeImageViewer {
         instance.TotalPixelMatrixColumns === undefined ||
         instance.TotalPixelMatrixRows === undefined
       ) {
-        throw new Error(
-          'Segmentation instances must contain attributes ' +
-          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
-        )
+        const numberOfFrames = Number(instance.NumberOfFrames)
+        if (numberOfFrames === 1) {
+          /*
+           * If the image contains only one frame it is not tiled, and therefore
+           * the size of the total pixel matrix equals the size of the frame.
+           */
+          instance.TotalPixelMatrixRows = instance.Rows
+          instance.TotalPixelMatrixColumns = instance.Columns
+        } else {
+          throw new Error(
+            'Segmentation instances must contain attributes ' +
+            '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
+          )
+        }
       }
       if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
         throw new Error(
@@ -2053,6 +2068,7 @@ class VolumeImageViewer {
     for (let i = 0; i < refInstance.SegmentSequence.length; i++) {
       const segmentItem = refInstance.SegmentSequence[i]
       const segmentNumber = Number(segmentItem.SegmentNumber)
+      console.info(`add segment # ${segmentNumber}`)
       let segmentUID = generateUID()
       if (segmentItem.UniqueTrackingIdentifier) {
         segmentUID = segmentItem.UniqueTrackingIdentifier
@@ -2089,7 +2105,7 @@ class VolumeImageViewer {
         projection: this[_projection],
         visible: false,
         opacity: 1,
-        preload: 1,
+        preload: 0,
         style: {
           color: [
             'interpolate',
@@ -2099,7 +2115,6 @@ class VolumeImageViewer {
           ]
         }
       })
-      this[_map].addLayer(layer)
 
       this[_segments][segmentUID] = {
         segment: new Segment({
@@ -2122,6 +2137,8 @@ class VolumeImageViewer {
         overlay: null,
         colormap: colormap
       }
+
+      this[_map].addLayer(layer)
     }
   }
 
@@ -2409,7 +2426,7 @@ class VolumeImageViewer {
       this[_map].addLayer(layer)
 
       this[_mappings][mappingUID] = {
-        segment: new Mapping({
+        mapping: new Mapping({
           uid: mappingUID,
           number: mappingNumber,
           label: mappingLabel,

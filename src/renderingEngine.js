@@ -48,8 +48,7 @@ class RenderingEngine {
     let bitsPerSample
     switch (bitsAllocated) {
       case 1:
-        // Uint8Array
-        pixelArray = dcmjs.data.BitArray.unpack(decodedFrame)
+        pixelArray = dcmjs.data.BitArray.unpack(decodedFrame) // Uint8Array
         bitsPerSample = 8 // unpacked to 8-bit
         break
       case 8:

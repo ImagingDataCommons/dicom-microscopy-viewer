@@ -14,8 +14,8 @@ class Segment {
    * @param {string} options.label - Segment Label
    * @param {string} options.algorithmName - Segment Algorithm Name
    * @param {string} options.algorithmType - Segment Algorithm Type
-   * @param {string} options.propertyCategory - Segmented Property Category
-   * @param {string} options.propertyType - Segmented Property Type
+   * @param {object[]} options.propertyCategory - Segmented Property Category
+   * @param {object[]} options.propertyType - Segmented Property Type
    * @param {string} options.studyInstanceUID - Study Instance UID of Segmentation images
    * @param {string} options.seriesInstanceUID - Series Instance UID of Segmentation images
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Segmentation images

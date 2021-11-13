@@ -11,7 +11,7 @@ class Mapping {
    * @param {Object} options - Options for construction of Segment
    * @param {string} options.uid - Unique tracking identifier
    * @param {number} options.number - Mapping Number (one-based index value)
-   * @param {string} options.label - Mapping LUT Label
+   * @param {string} options.label - Mapping Label
    * @param {string} options.studyInstanceUID - Study Instance UID of Parametric Map images
    * @param {string} options.seriesInstanceUID - Series Instance UID of Parametric Map images
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Parametric Map images
