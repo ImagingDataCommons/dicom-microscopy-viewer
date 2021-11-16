@@ -33,7 +33,6 @@ import {
   VolumeImageViewer
 } from './viewer.js'
 import {
-  BlendingInformation,
   OpticalPath
 } from './opticalPath.js'
 import {
@@ -71,8 +70,7 @@ const metadata = {
   ParametricMap,
   Segmentation,
   VLWholeSlideMicroscopyImage,
-  Comprehensive3DSR,
-  BlendingInformation
+  Comprehensive3DSR
 }
 
 /** Namespace for 3-dimensional spatial coordinates (SCOORD3D).

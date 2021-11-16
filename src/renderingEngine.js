@@ -42,7 +42,7 @@ class RenderingEngine {
   }) {
     const decodedFrame = this._checkImageTypeAndDecode(frame)
 
-    // The OpenLayers WebGL API is able to handle uin8 or float32
+    // The OpenLayers WebGL API is able to handle uint8 or float32
     const signed = pixelRepresentation === 1
     let pixelArray
     let bitsPerSample
@@ -60,14 +60,15 @@ class RenderingEngine {
         bitsPerSample = 8
         break
       case 16:
-        if (signed) {
-          pixelArray = new Float32Array(decodedFrame)
-        } else {
-          pixelArray = new Float32Array(decodedFrame)
-        }
+        pixelArray = new Float32Array(decodedFrame)
         bitsPerSample = 16
         break
+      case 32:
+        pixelArray = new Float32Array(decodedFrame)
+        bitsPerSample = 32
+        break
       default:
+        // TODO: handle Double Float Pixel Data with 64 Bits Allocated
         throw new Error(
           'The pixel bit depth ' + bitsAllocated +
           ' is not supported by the offscreen rendering.'

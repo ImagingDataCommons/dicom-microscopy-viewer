@@ -50,14 +50,14 @@
   "devDependencies": {
     "@babel/core": "7.13.8",
     "@babel/preset-env": "7.13.9",
+    "@rollup/plugin-commonjs": "21.0.1",
+    "@rollup/plugin-json": "4.1.0",
+    "@rollup/plugin-node-resolve": "13.0.6",
     "babel-jest": "26.6.3",
     "jest": "26.6.3",
-    "rollup": "0.63.2",
-    "rollup-plugin-commonjs": "8.3.0",
-    "rollup-plugin-json": "3.1.0",
+    "rollup": "2.59.0",
     "rollup-plugin-node-builtins": "2.1.2",
-    "rollup-plugin-node-resolve": "3.4.0",
-    "rollup-plugin-postcss": "^1.6.3",
+    "rollup-plugin-postcss": "^4.0.1",
     "standard": "^16.0.3"
   },
   "dependencies": {
@@ -66,7 +66,7 @@
     "dicomweb-client": "^0.8.3",
     "image-type": "^4.1",
     "mathjs": "^9.4",
-    "ol": "^6.9"
+    "ol": "^9.6.1"
   },
   "config": {
     "puppeteer_skip_chromium_download": false

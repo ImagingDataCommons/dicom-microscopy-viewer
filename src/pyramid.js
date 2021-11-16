@@ -363,9 +363,11 @@ function _createTileLoadFunction ({
             return pixelArray
           }
         ).catch(
-          () => {
+          (error) => {
             return Promise.reject(
-              new Error(`Failed to load tile "${index}" at level ${z}.`)
+              new Error(
+                `Failed to load tile "${index}" at level ${z}: ${error}.`
+              )
             )
           }
         )
@@ -436,9 +438,11 @@ function _createTileLoadFunction ({
             return pixelArray
           }
         ).catch(
-          () => {
+          (error) => {
             return Promise.reject(
-              new Error(`Failed to load tile "${index}" at level ${z}.`)
+              new Error(
+                `Failed to load tile "${index}" at level ${z}: ${error}`
+              )
             )
           }
         )

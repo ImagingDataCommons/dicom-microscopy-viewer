@@ -1,75 +1,5 @@
 const _attrs = Symbol('_attrs')
 
-/** Information for blending a channel with other channels during display.
- *
- * Provides a set of presentation parameters for a given channel that determine
- * how the channel will be blend (composited) with other channels to create a
- * color image for display.
- *
- * @class
- * @memberof channel
- */
-class BlendingInformation {
-  /*
-  * An interface class to set/get the visualization/presentation
-  * parameters from a channel object
-  *
-  * @param {string} opticalPathIdentifier - Optical path identifier
-  * @param {number[]} color - RGB triplet values in range [0, 255]
-  * @param {number} opacity - Opacity in range [0, 1]
-  * @param {number[]} thresholdValues - Lower and upper clipping threshold values in range [0, 1]
-  * @param {number[]} limitValues - Lower and upper windowing limit values in range [0, 2^bits]
-  * @param {boolean} visible - Whether the channel should be visible
-  */
-  constructor ({
-    opticalPathIdentifier,
-    color,
-    opacity,
-    thresholdValues,
-    limitValues,
-    visible
-  }) {
-    this.opticalPathIdentifier = opticalPathIdentifier
-
-    if (color == null) {
-      throw new Error('Color is required.')
-    }
-    if (!Array.isArray(color)) {
-      throw new Error('Color must be provided as an array.')
-    }
-    if (color.length !== 3) {
-      throw new Error('An RGB color triplet must be provided.')
-    }
-    this.color = [...color]
-
-    this.opacity = opacity
-
-    if (thresholdValues == null) {
-      throw new Error('Threshold values are required.')
-    }
-    if (!Array.isArray(thresholdValues)) {
-      throw new Error('Threshold values must be provided as an array.')
-    }
-    if (thresholdValues.length !== 2) {
-      throw new Error('Two threshold values must be provided.')
-    }
-    this.thresholdValues = [...thresholdValues]
-
-    if (limitValues == null) {
-      throw new Error('Limit values are required.')
-    }
-    if (!Array.isArray(thresholdValues)) {
-      throw new Error('Limit values must be provided as an array.')
-    }
-    if (limitValues.length !== 2) {
-      throw new Error('Two limit values must be provided.')
-    }
-    this.limitValues = [...limitValues]
-
-    this.visible = visible
-  }
-}
-
 /** An Optical Path.
  *
  * An optical path represents a color or a monochromatic image that was acquired
@@ -169,4 +99,4 @@ class OpticalPath {
   }
 }
 
-export { BlendingInformation, OpticalPath }
+export { OpticalPath }

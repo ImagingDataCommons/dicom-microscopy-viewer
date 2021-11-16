@@ -1,6 +1,62 @@
 const _attrs = Symbol('attrs')
 
-/** A Mapping.
+/** A transformation.
+ *
+ * Describes the transformation of a range of stored values into real world
+ * values in a defined unit. The transformation may either be described by a
+ * lookup table (LUT) or alternatively by the slope and intercept parameters if
+ * the transformation can be described by a linear function.
+ */
+class Transformation {
+  /** Creates a new Transformation object.
+   *
+   */
+  constructor ({
+    label,
+    firstValueMapped,
+    lastValueMapped,
+    intercept,
+    slope,
+    lut
+  }) {
+    if (label === undefined) {
+      throw new Error('LUT Label is required.')
+    }
+    this[_attrs].label = label
+
+    if (firstValueMapped === undefined) {
+      throw new Error('Real World Value First Value Mapped is required.')
+    }
+    this[_attrs].firstValueMapped = firstValueMapped
+    if (lastValueMapped === undefined) {
+      throw new Error('Real World Value Last Value Mapped is required.')
+    }
+    this[_attrs].lastValueMapped = lastValueMapped
+
+    if ((intercept === undefined || slope === undefined) && lut === undefined) {
+      throw new Error(
+        'Either LUT Data or Real World Value Slope and ' +
+        'Real World Value Intercept must be provided.'
+      )
+    }
+    if (slope === undefined) {
+      throw new Error('Real World Value Slope is required.')
+    }
+    this[_attrs].slope = slope
+    if (intercept === undefined) {
+      throw new Error('Real World Value Intercept is required.')
+    }
+    this[_attrs].intercept = intercept
+
+    if (lut === undefined) {
+      throw new Error('LUT Data is required.')
+    }
+    this[_attrs].lut = lut
+  }
+
+}
+
+/** A mapping.
  *
  * @class
  * @memberof mapping
@@ -8,7 +64,7 @@ const _attrs = Symbol('attrs')
 class Mapping {
   /* Creates a new Mapping object.
    *
-   * @param {Object} options - Options for construction of Segment
+   * @param {Object} options
    * @param {string} options.uid - Unique tracking identifier
    * @param {number} options.number - Mapping Number (one-based index value)
    * @param {string} options.label - Mapping Label
@@ -136,23 +192,28 @@ function _groupFramesPerMapping (metadata) {
   }
 
   const mappingNumberToFrameNumbers = {}
-  const frameNumberToMappingNumbers = {}
+  const frameNumberToMappingNumber = {}
   Object.values(mappings).forEach((frameIndices, mappingIndex) => {
     const mappingNumber = mappingIndex + 1
     frameIndices.forEach(frameIndex => {
       const frameNumber = frameIndex + 1
-      frameNumberToMappingNumbers[frameNumber] = mappingNumber
-      mappingNumberToFrameNumbers[mappingNumber].push(frameNumber)
+      frameNumberToMappingNumber[frameNumber] = mappingNumber
+      if (mappingNumber in mappingNumberToFrameNumbers) {
+        mappingNumberToFrameNumbers[mappingNumber].push(frameNumber)
+      } else {
+        mappingNumberToFrameNumbers[mappingNumber] = [frameNumber]
+      }
     })
   })
 
   return {
-    frameNumberToMappingNumbers,
+    frameNumberToMappingNumber,
     mappingNumberToFrameNumbers
   }
 }
 
 export {
   _groupFramesPerMapping,
-  Mapping
+  Mapping,
+  Transformation
 }

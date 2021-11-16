@@ -43,15 +43,14 @@ function getFrameMapping (metadata) {
   } else if (metadata.SegmentSequence !== undefined) {
     numberOfSegments = metadata.SegmentSequence.length
     numberOfChannels = numberOfSegments
-  } else if (mappingNumberToFrameNumbers.length > 0) {
-    numberOfMappings = mappingNumberToFrameNumbers.length
+  } else if (Object.keys(mappingNumberToFrameNumbers).length > 0) {
+    numberOfMappings = Object.keys(mappingNumberToFrameNumbers).length
     numberOfChannels = numberOfMappings
   } else {
     throw new Error('Could not determine the number of image channels.')
   }
 
   const tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns)
-  const tilesPerCol = Math.ceil(totalPixelMatrixRows / rows)
   const frameMapping = {}
   /**
    * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018

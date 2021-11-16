@@ -4,11 +4,11 @@ const ColorMapNames = {
   VIRIDIS: 'VIRIDIS',
   INFERNO: 'INFERNO',
   MAGMA: 'MAGMA',
-  BLUE: 'BLUE',
-  RED: 'RED',
+  GRAY: 'GRAY',
   BLUE_RED: 'BLUE_RED',
   PHASE: 'PHASE',
-  JET: 'JET'
+  PORTLAND: 'PORTLAND',
+  HOT: 'HOT'
 }
 
 /** Create a color map.
@@ -24,11 +24,11 @@ function createColorMap ({ name, bins }) {
     INFERNO: ['inferno', false],
     MAGMA: ['magma', false],
     VIRIDIS: ['viridis', false],
-    BLUE: ['freesurface-blue', true],
-    RED: ['freesurface-red', true],
+    GRAY: ['greys', false],
     BLUE_RED: ['RdBu', false],
     PHASE: ['phase', true],
-    JET: ['jet', false]
+    PORTLAND: ['portland', false],
+    HOT: ['HOT', false]
   }
   const params = lut[name]
   if (params === undefined) {
@@ -48,7 +48,7 @@ function createColorMap ({ name, bins }) {
   return colors
 }
 
-/** Create a color table.
+/** Build a color lookup table.
  *
  * @param {object} options
  * @param {number[][]} options.colormap - RGB triplet for each color
@@ -57,7 +57,7 @@ function createColorMap ({ name, bins }) {
  *
  * @returns {number[][]} Interleaved values of the input data and RGB color triplets
  */
-function createColorTable ({ colormap, min, max }) {
+function _buildColorLookupTable ({ colormap, min, max }) {
   const steps = colormap.length
   const delta = (max - min) / (steps - 1)
   const table = new Array(steps * 2)
@@ -68,4 +68,4 @@ function createColorTable ({ colormap, min, max }) {
   return table
 }
 
-export { ColorMapNames, createColorMap, createColorTable }
+export { ColorMapNames, createColorMap, _buildColorLookupTable }

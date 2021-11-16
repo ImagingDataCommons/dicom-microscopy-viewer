@@ -30,6 +30,7 @@ import VectorLayer from 'ol/layer/Vector'
 import View from 'ol/View'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
+import WebGLHelper from 'ol/webgl/Helper'
 
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
@@ -41,14 +42,14 @@ import dcmjs from 'dcmjs'
 import {
   ColorMapNames,
   createColorMap,
-  createColorTable
+  _buildColorLookupTable
 } from './color.js'
 import {
   VLWholeSlideMicroscopyImage,
   groupMonochromeInstances,
   groupColorInstances
 } from './metadata.js'
-import { _groupFramesPerMapping, Mapping } from './mapping.js'
+import { Mapping } from './mapping.js'
 import { ROI } from './roi.js'
 import { Segment } from './segment.js'
 import {
@@ -64,7 +65,7 @@ import {
   getFeatureScoord3dLength,
   getFeatureScoord3dArea
 } from './scoord3dUtils'
-import { BlendingInformation, OpticalPath } from './opticalPath.js'
+import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
   _computeImagePyramid,
@@ -504,13 +505,11 @@ class VolumeImageViewer {
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
    * @param {object[]} options.metadata - An array of DICOM JSON metadata objects or formatted image metadata objects created via "formatMetadata()".
    *        The array shall contain the metadata of all image instances that should be displayed.
-   *        The constructor automatically determines optical paths of monochromatic images for blending.
-   * @param {object[]} options.blendingInformation - An array containing blending information for the optical paths of monochromatic images standard visualization parameters already setup by an external application.
    * @param {object} options.styleOptions - Default style options for annotations.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
-   * @param {number} [options.tilesCacheSize=1000] - initial cache size for a TileImage
+   * @param {number} [options.tilesCacheSize=512] - initial cache size for a TileImage
    */
   constructor (options) {
     this[_options] = options
@@ -582,7 +581,6 @@ class VolumeImageViewer {
       }
     }
 
-    const colormap = createColorMap({ name: ColorMapNames.JET, bins: 50 })
     const monochromeGroups = groupMonochromeInstances(this[_options].metadata)
     const monochromeImageInformation = {}
     monochromeGroups.forEach((group, i) => {
@@ -604,34 +602,10 @@ class VolumeImageViewer {
                   image
                 )
               } else {
-                const blendingInformation = (
-                  this[_options].blendingInformation !== undefined
-                    ? this[_options].blendingInformation.find(info => (
-                        info.opticalPathIdentifier === opticalPathIdentifier
-                      ))
-                    : undefined
-                )
-                if (blendingInformation !== undefined) {
-                  monochromeImageInformation[opticalPathIdentifier] = {
-                    metadata: [image],
-                    blendingInformation,
-                    opticalPath
-                  }
-                } else {
-                  const maxValue = Math.pow(2, bitsAllocated) - 1
-                  const defaultBlendingInformation = new BlendingInformation({
-                    opticalPathIdentifier: `${opticalPathIdentifier}`,
-                    color: [...colormap[i % colormap.length]].slice(0, 3),
-                    opacity: 1.0,
-                    thresholdValues: [0, 1],
-                    limitValues: [0, maxValue],
-                    visible: false
-                  })
-                  monochromeImageInformation[opticalPathIdentifier] = {
-                    metadata: [image],
-                    blendingInformation: defaultBlendingInformation,
-                    opticalPath
-                  }
+                const maxValue = Math.pow(2, bitsAllocated) - 1
+                monochromeImageInformation[opticalPathIdentifier] = {
+                  metadata: [image],
+                  opticalPath
                 }
               }
             })
@@ -742,9 +716,13 @@ class VolumeImageViewer {
     const overviewLayers = []
     this[_opticalPaths] = {}
     if (numChannels > 0) {
+      let channelCount = 0
+      const helper = new WebGLHelper()
+      const overviewHelper = new WebGLHelper()
       for (const opticalPathIdentifier in monochromeImageInformation) {
         const info = monochromeImageInformation[opticalPathIdentifier]
         const pyramid = _computeImagePyramid({ metadata: info.metadata })
+        const maxValue = Math.pow(2, info.metadata[0].BitsAllocated) - 1
         const opticalPath = {
           opticalPathIdentifier,
           opticalPath: new OpticalPath({
@@ -757,13 +735,12 @@ class VolumeImageViewer {
           }),
           pyramid: pyramid,
           style: {
-            color: info.blendingInformation.color,
-            opacity: info.blendingInformation.opacity,
-            thresholdValues: info.blendingInformation.thresholdValues,
-            limitValues: info.blendingInformation.limitValues
+            color: [255, 255, 255],
+            opacity: 1.0,
+            limitValues: [0, maxValue]
           },
           bitsAllocated: info.metadata[0].BitsAllocated,
-          maxValue: Math.pow(2, info.metadata[0].BitsAllocated) - 1
+          maxValue: maxValue
         }
 
         const areImagePyramidsEqual = _areImagePyramidsEqual(
@@ -786,7 +763,6 @@ class VolumeImageViewer {
             renderingEngine: this[_renderingEngine],
             channel: opticalPathIdentifier
           }),
-          crossOrigin: 'Anonymous',
           tileGrid: this[_tileGrid],
           projection: this[_projection],
           wrapX: false,
@@ -794,6 +770,7 @@ class VolumeImageViewer {
           bandCount: 1
         })
 
+        // TODO: use palette color lookup table
         const style = {
           color: [
             'interpolate',
@@ -811,14 +788,12 @@ class VolumeImageViewer {
               ],
               0.5
             ],
-            ['var', 'lowerThreshold'],
+            0,
             [0, 0, 0, 1],
-            ['var', 'upperThreshold'],
+            1,
             ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1]
           ],
           variables: {
-            lowerThreshold: opticalPath.style.thresholdValues[0],
-            upperThreshold: opticalPath.style.thresholdValues[1],
             red: opticalPath.style.color[0],
             green: opticalPath.style.color[1],
             blue: opticalPath.style.color[2],
@@ -841,17 +816,32 @@ class VolumeImageViewer {
           extent: pyramid.extent,
           source: opticalPath.rasterSource,
           preload: 1,
-          style: style
+          style: style,
+          visible: false,
+          useInterimTilesOnError: false,
+          cacheSize: this[_options].tilesCacheSize
+        })
+        opticalPath.tileLayer.helper = helper
+        opticalPath.tileLayer.on('prerender', (event) => {
+          const gl = event.context
+          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
         })
 
         opticalPath.overviewTileLayer = new TileLayer({
           extent: pyramid.extent,
           source: opticalPath.rasterSource,
           preload: 0,
-          style: style
+          style: style,
+          visible: false,
+          useInterimTilesOnError: false
+        })
+        opticalPath.overviewTileLayer.helper = overviewHelper
+        opticalPath.overviewTileLayer.on('prerender', (event) => {
+          const gl = event.context
+          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
         })
 
-        if (info.blendingInformation.visible === true) {
+        if (channelCount === 0) {
           layers.push(opticalPath.tileLayer)
           opticalPath.tileLayer.setVisible(true)
           overviewLayers.push(opticalPath.overviewTileLayer)
@@ -859,6 +849,7 @@ class VolumeImageViewer {
         }
 
         this[_opticalPaths][opticalPathIdentifier] = opticalPath
+        channelCount += 1
       }
     } else {
       const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
@@ -887,26 +878,35 @@ class VolumeImageViewer {
           renderingEngine: this[_renderingEngine],
           channel: opticalPathIdentifier
         }),
-        crossOrigin: 'Anonymous',
         tileGrid: this[_tileGrid],
         projection: this[_projection],
         wrapX: false,
         transition: 0,
         preload: 1,
-        bandCount: 4
+        bandCount: 3
       })
 
       opticalPath.tileLayer = new TileLayer({
         extent: this[_tileGrid].extent,
         source: opticalPath.rasterSource,
         preload: 1,
-        useInterimTilesOnError: false
+        useInterimTilesOnError: false,
+        cacheSize: this[_options].tilesCacheSize
       })
+      opticalPath.tileLayer.on('prerender', (event) => {
+        const gl = event.context
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+      })
+
       opticalPath.overviewTileLayer = new TileLayer({
         extent: pyramid.extent,
         source: opticalPath.rasterSource,
         preload: 0,
         useInterimTilesOnError: false
+      })
+      opticalPath.overviewTileLayer.on('prerender', (event) => {
+        const gl = event.context
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
       })
 
       layers.push(opticalPath.tileLayer)
@@ -1010,12 +1010,25 @@ class VolumeImageViewer {
 
   /** Set the style of an optical path.
    *
+   * The style determine how grayscale stored values of a MONOCHROME2 image
+   * will be transformed into pseudo-color display values.
+   * Grayscale stored values are first transformed into normalized grayscale
+   * display values, which are subsequently transformed into pseudo-color
+   * values in RGB color space.
+   *
+   * The input to the first transformation are grayscale stored values in the
+   * range defined by parameter "limitValues", which specify a window for
+   * optimizing display value intensity and contrast. The resulting normalized
+   * grayscale display values are then used as input to the second
+   * transformation, which maps them to pseudo-color values ranging from black
+   * color (R=0, G=0, B=0) to the color defined by parameter "color" using
+   * linear interpolation.
+   *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @param {object} styleOptions
    * @param {number[]} styleOptions.color - RGB color triplet
    * @param {number} styleOptions.opacity - Opacity
-   * @param {number[]} styleOptions.thresholdValues - Upper and lower clipping values
-   * @param {number[]} styleOptions.limitValues - Upper and lower clipping values
+   * @param {number[]} styleOptions.limitValues - Upper and lower windowing limits
    */
   setOpticalPathStyle (opticalPathIdentifier, styleOptions = {}) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
@@ -1046,11 +1059,6 @@ class VolumeImageViewer {
       styleVariables.red = opticalPath.style.color[0]
       styleVariables.green = opticalPath.style.color[1]
       styleVariables.blue = opticalPath.style.color[2]
-    }
-    if (styleOptions.thresholdValues != null) {
-      opticalPath.style.thresholdValues = styleOptions.thresholdValues
-      styleVariables.lowerThreshold = styleOptions.thresholdValues[0]
-      styleVariables.upperThreshold = styleOptions.thresholdValues[1]
     }
     if (styleOptions.limitValues != null) {
       const max = opticalPath.maxValue
@@ -1085,7 +1093,6 @@ class VolumeImageViewer {
     return {
       color: opticalPath.style.color,
       opacity: opticalPath.style.opacity,
-      thresholdValues: opticalPath.style.thresholdValues,
       limitValues: opticalPath.style.limitValues
     }
   }
@@ -1170,7 +1177,6 @@ class VolumeImageViewer {
    * @param {object} styleOptions
    * @param {number[]} styleOptions.color - RGB color triplet
    * @param {number} styleOptions.opacity - Opacity
-   * @param {number[]} styleOptions.thresholdValues - Upper and lower clipping values
    * @param {number[]} styleOptions.limitValues - Upper and lower clipping values
    */
   showOpticalPath (opticalPathIdentifier, styleOptions = {}) {
@@ -1202,6 +1208,7 @@ class VolumeImageViewer {
         `"${opticalPathIdentifier}".`
       )
     }
+    console.info(`hide optical path #${opticalPathIdentifier}`)
     opticalPath.tileLayer.setVisible(false)
     opticalPath.overviewTileLayer.setVisible(false)
   }
@@ -2072,49 +2079,12 @@ class VolumeImageViewer {
         segmentUID = segmentItem.UniqueTrackingIdentifier
       }
 
-      const rasterSource = new DataTileSource({
-        loader: _createTileLoadFunction({
-          pyramid: fittedPyramid,
-          client: this[_options].client,
-          retrieveRendered: this[_options].retrieveRendered,
-          renderingEngine: this[_renderingEngine],
-          channel: segmentNumber
-        }),
-        crossOrigin: 'Anonymous',
-        tileGrid: tileGrid,
-        projection: this[_projection],
-        wrapX: false,
-        transition: 0,
-        bandCount: 1
-      })
-
       const colormap = createColorMap({
         name: ColorMapNames.VIRIDIS,
         bins: 50
       })
-      const colorTable = createColorTable({
-        colormap: colormap,
-        min: 0,
-        max: 1
-      })
-      const layer = new TileLayer({
-        source: rasterSource,
-        extent: this[_pyramid].extent,
-        projection: this[_projection],
-        visible: false,
-        opacity: 0.9,
-        preload: 0,
-        style: {
-          color: [
-            'interpolate',
-            ['linear'],
-            ['band', 1],
-            ...colorTable
-          ]
-        }
-      })
 
-      this[_segments][segmentUID] = {
+      const segment = {
         segment: new Segment({
           uid: segmentUID,
           number: segmentNumber,
@@ -2130,13 +2100,60 @@ class VolumeImageViewer {
           })
         }),
         segmentationType: refInstance.SegmentationType,
-        rasterSource: rasterSource,
-        tileLayer: layer,
         overlay: null,
-        colormap: colormap
+        colormap: colormap,
+        maxValue: 255
       }
 
-      this[_map].addLayer(layer)
+      segment.rasterSource = new DataTileSource({
+        loader: _createTileLoadFunction({
+          pyramid: fittedPyramid,
+          client: this[_options].client,
+          retrieveRendered: this[_options].retrieveRendered,
+          renderingEngine: this[_renderingEngine],
+          channel: segmentNumber
+        }),
+        tileGrid: tileGrid,
+        projection: this[_projection],
+        wrapX: false,
+        transition: 0,
+        bandCount: 1
+      })
+      segment.rasterSource.on('tileloaderror', (event) => {
+        console.error('error loading segment tile', event)
+      })
+
+      const colorLUT = _buildColorLookupTable({
+        colormap: colormap,
+        min: 0,
+        max: 1
+      })
+      segment.tileLayer = new TileLayer({
+        source: segment.rasterSource,
+        extent: this[_pyramid].extent,
+        projection: this[_projection],
+        visible: false,
+        opacity: 0.9,
+        preload: 0,
+        style: {
+          color: [
+            'interpolate',
+            ['linear'],
+            ['band', 1],
+            ...colorLUT
+          ]
+        },
+        useInterimTilesOnError: false,
+        cacheSize: this[_options].tilesCacheSize
+      })
+      segment.tileLayer.on('prerender', (event) => {
+        const gl = event.context
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+      })
+
+      this[_map].addLayer(segment.tileLayer)
+
+      this[_segments][segmentUID] = segment
     }
   }
 
@@ -2215,7 +2232,6 @@ class VolumeImageViewer {
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
    * @param {object} styleOptions
-   * @param {string} styleOptions.colormap - Name of the color map
    * @param {number} styleOptions.opacity - Opacity
    */
   setSegmentStyle (segmentUID, styleOptions) {
@@ -2363,67 +2379,29 @@ class VolumeImageViewer {
     })
 
     const refInstance = pyramid.metadata[0]
+
+    const sharedFuncGroup = refInstance.SharedFunctionalGroupsSequence[0]
+    const windowCenter = sharedFuncGroup.FrameVOILUTSequence[0].WindowCenter
+    const windowWidth = sharedFuncGroup.FrameVOILUTSequence[0].WindowWidth
     for (let i = 0; i < pyramid.numberOfChannels; i++) {
       const mappingNumber = i + 1
       const mappingLabel = `${mappingNumber}`
       const mappingUID = generateUID()
 
-      const rasterSource = new DataTileSource({
-        loader: _createTileLoadFunction({
-          pyramid: fittedPyramid,
-          client: this[_options].client,
-          retrieveRendered: this[_options].retrieveRendered,
-          renderingEngine: this[_renderingEngine],
-          channel: mappingNumber
-        }),
-        crossOrigin: 'Anonymous',
-        tileGrid: tileGrid,
-        projection: this[_projection],
-        wrapX: false,
-        transition: 0,
-        bandCount: 1
-      })
-
-      // TODO: choose color map based on
-      // Real World Value First/Last Value Mapped
-      const firstValueMapped = 0
-      const lastValueMapped = 1
       let colormap
-      if (firstValueMapped < 0 && lastValueMapped > 0) {
+      if (windowCenter === 0) {
         colormap = createColorMap({
           name: ColorMapNames.BLUE_RED,
           bins: 50
         })
       } else {
         colormap = createColorMap({
-          name: ColorMapNames.INFERNO,
+          name: ColorMapNames.HOT,
           bins: 50
         })
       }
-      const colorTable = createColorTable({
-        colormap: colormap,
-        min: 0,
-        max: 1
-      })
-      const layer = new TileLayer({
-        source: rasterSource,
-        extent: this[_pyramid].extent,
-        projection: this[_projection],
-        visible: false,
-        opacity: 1,
-        preload: 1,
-        style: {
-          color: [
-            'interpolate',
-            ['linear'],
-            ['band', 1], // FIXME: Real World Value Mapping Sequence
-            ...colorTable
-          ]
-        }
-      })
-      this[_map].addLayer(layer)
 
-      this[_mappings][mappingUID] = {
+      const mapping = {
         mapping: new Mapping({
           uid: mappingUID,
           number: mappingNumber,
@@ -2434,11 +2412,73 @@ class VolumeImageViewer {
             return element.SOPInstanceUID
           })
         }),
-        rasterSource: rasterSource,
-        tileLayer: layer,
         overlay: null,
-        colormap: colormap
+        colormap: colormap,
+        maxValue: Math.pow(2, refInstance.BitsAllocated) - 1
       }
+
+      mapping.rasterSource = new DataTileSource({
+        loader: _createTileLoadFunction({
+          pyramid: fittedPyramid,
+          client: this[_options].client,
+          retrieveRendered: this[_options].retrieveRendered,
+          renderingEngine: this[_renderingEngine],
+          channel: mappingNumber
+        }),
+        tileGrid: tileGrid,
+        projection: this[_projection],
+        wrapX: false,
+        transition: 0,
+        bandCount: 1
+      })
+      mapping.rasterSource.on('tileloaderror', (event) => {
+        console.error('error loading mapping tile', event)
+      })
+
+      const colorLUT = _buildColorLookupTable({
+        colormap: colormap,
+        min: 0,
+        max: 1
+      })
+      mapping.tileLayer = new TileLayer({
+        source: mapping.rasterSource,
+        extent: this[_pyramid].extent,
+        projection: this[_projection],
+        visible: false,
+        opacity: 1,
+        preload: 1,
+        style: {
+          color: [
+            'interpolate',
+            ['linear'],
+            [
+              '+',
+              [
+                '/',
+                [
+                  '-',
+                  ['band', 1],
+                  ['var', 'windowCenter']
+                ],
+                ['var', 'windowWidth']
+              ],
+              0.5
+            ],
+            ...colorLUT
+          ],
+          variables: {
+            windowCenter: windowCenter / mapping.maxValue,
+            windowWidth: windowWidth / mapping.maxValue
+          }
+        }
+      })
+      mapping.tileLayer.on('prerender', (event) => {
+        const gl = event.context
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+      })
+      this[_map].addLayer(mapping.tileLayer)
+
+      this[_mappings][mappingUID] = mapping
     }
   }
 
@@ -2466,6 +2506,7 @@ class VolumeImageViewer {
    * @param {string} mappingUID - Unique tracking identifier of a mapping
    * @param {object} styleOptions
    * @param {number} styleOptions.opacity - Opacity
+   * @param {number} styleOptions.limitValues - Opacity
    */
   showMapping (mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
@@ -2815,7 +2856,6 @@ class _NonVolumeImageViewer {
     })
 
     const rasterSource = new Static({
-      crossOrigin: 'Anonymous',
       imageExtent: extent,
       projection: projection,
       imageLoadFunction: imageLoadFunction,
