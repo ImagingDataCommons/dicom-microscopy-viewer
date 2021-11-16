@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: annotations/markups/utils/getShortestLineBetweenOverlayAndFeature.js</title>
+    <title>JSDoc: Class: Segmentation</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,63 +17,138 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: annotations/markups/utils/getShortestLineBetweenOverlayAndFeature.js</h1>
+    <h1 class="page-title">Class: Segmentation</h1>
 
     
 
 
 
+
+<section>
+
+<header>
     
-    <section>
-        <article>
-            <pre class="prettyprint source linenums"><code>import LineString from 'ol/geom/LineString'
-import Circle from 'ol/geom/Circle'
-import { fromCircle } from 'ol/geom/Polygon'
+        <h2><span class="attribs"><span class="type-signature"></span></span>
+            <span class="ancestors"><a href="metadata.html">metadata</a>~</span>Segmentation<span class="signature">()</span><span class="type-signature"></span></h2>
+        
+            <div class="class-description">DICOM Segmentation instance.</div>
+        
+    
+</header>
 
-/**
- * Builds a new LineString instance with the shortest
- * distance between a given overlay and a feature.
- *
- * @param {object} feature The feature
- * @param {object} overlay The overlay instance
- * @returns {LineString} The smallest line between the overlay and feature
- */
-const getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
-  let result
-  let distanceSq = Infinity
+<article>
+    <div class="container-overview">
+    
+        
 
-  let featureGeometry = feature.getGeometry()
+    
+    <h2>Constructor</h2>
+    
 
-  if (featureGeometry instanceof Circle) {
-    featureGeometry = fromCircle(featureGeometry).clone()
-  }
+    
+    <h4 class="name" id="Segmentation"><span class="type-signature"></span>new Segmentation<span class="signature">()</span><span class="type-signature"></span></h4>
+    
 
-  const geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
+    
 
-  (geometry.getCoordinates() || geometry.getExtent()).forEach(coordinates => {
-    const closest = overlay.getPosition()
-    const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
-    if (distanceNew &lt; distanceSq) {
-      distanceSq = distanceNew
-      result = [coordinates, closest]
-    }
-  })
 
-  const coordinates = overlay.getPosition()
-  const closest = geometry.getClosestPoint(coordinates)
-  const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
-  if (distanceNew &lt; distanceSq) {
-    distanceSq = distanceNew
-    result = [closest, coordinates]
-  }
 
-  return new LineString(result)
-}
 
-export default getShortestLineBetweenOverlayAndFeature
-</code></pre>
-        </article>
-    </section>
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="metadata.js.html">metadata.js</a>, <a href="metadata.js.html#line382">line 382</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
 
 
 

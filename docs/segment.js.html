@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: annotations/markups/utils/getShortestLineBetweenOverlayAndFeature.js</title>
+    <title>JSDoc: Source: segment.js</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: annotations/markups/utils/getShortestLineBetweenOverlayAndFeature.js</h1>
+    <h1 class="page-title">Source: segment.js</h1>
 
     
 
@@ -26,51 +26,175 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>import LineString from 'ol/geom/LineString'
-import Circle from 'ol/geom/Circle'
-import { fromCircle } from 'ol/geom/Polygon'
+            <pre class="prettyprint source linenums"><code>const _attrs = Symbol('attrs')
 
-/**
- * Builds a new LineString instance with the shortest
- * distance between a given overlay and a feature.
+/** A segment.
  *
- * @param {object} feature The feature
- * @param {object} overlay The overlay instance
- * @returns {LineString} The smallest line between the overlay and feature
+ * @class
+ * @memberof segment
  */
-const getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
-  let result
-  let distanceSq = Infinity
-
-  let featureGeometry = feature.getGeometry()
-
-  if (featureGeometry instanceof Circle) {
-    featureGeometry = fromCircle(featureGeometry).clone()
-  }
-
-  const geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
-
-  (geometry.getCoordinates() || geometry.getExtent()).forEach(coordinates => {
-    const closest = overlay.getPosition()
-    const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
-    if (distanceNew &lt; distanceSq) {
-      distanceSq = distanceNew
-      result = [coordinates, closest]
+class Segment {
+  /* Creates a new Segment object.
+   *
+   * @param {Object} options - Options for construction of Segment
+   * @param {string} options.uid - Unique tracking identifier
+   * @param {number} options.number - Segment Number (one-based index value)
+   * @param {string} options.label - Segment Label
+   * @param {string} options.algorithmName - Segment Algorithm Name
+   * @param {string} options.algorithmType - Segment Algorithm Type
+   * @param {object[]} options.propertyCategory - Segmented Property Category
+   * @param {object[]} options.propertyType - Segmented Property Type
+   * @param {string} options.studyInstanceUID - Study Instance UID of Segmentation images
+   * @param {string} options.seriesInstanceUID - Series Instance UID of Segmentation images
+   * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Segmentation images
+   */
+  constructor ({
+    uid,
+    number,
+    label,
+    propertyCategory,
+    propertyType,
+    algorithmType,
+    algorithmName,
+    studyInstanceUID,
+    seriesInstanceUID,
+    sopInstanceUIDs
+  }) {
+    this[_attrs] = {}
+    if (uid === undefined) {
+      throw new Error('Unique Tracking Identifier is required.')
+    } else {
+      this[_attrs].uid = uid
     }
-  })
 
-  const coordinates = overlay.getPosition()
-  const closest = geometry.getClosestPoint(coordinates)
-  const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
-  if (distanceNew &lt; distanceSq) {
-    distanceSq = distanceNew
-    result = [closest, coordinates]
+    if (number === undefined) {
+      throw new Error('Segment Number is required.')
+    }
+    this[_attrs].number = number
+
+    if (label === undefined) {
+      throw new Error('Segment Label is required.')
+    }
+    this[_attrs].label = label
+
+    if (propertyCategory === undefined) {
+      throw new Error('Segmented Property Category is required.')
+    }
+    this[_attrs].propertyCategory = propertyCategory
+
+    if (propertyType === undefined) {
+      throw new Error('Segmented Property Type is required.')
+    }
+    this[_attrs].propertyType = propertyType
+
+    if (algorithmName === undefined) {
+      throw new Error('Segment Algorithm Name is required.')
+    }
+    this[_attrs].algorithmType = algorithmType
+
+    if (algorithmType === undefined) {
+      throw new Error('Segment Algorithm Type is required.')
+    }
+    this[_attrs].algorithmName = algorithmName
+
+    if (studyInstanceUID === undefined) {
+      throw new Error('Study Instance UID is required.')
+    }
+    this[_attrs].studyInstanceUID = studyInstanceUID
+
+    if (seriesInstanceUID === undefined) {
+      throw new Error('Series Instance UID is required.')
+    }
+    this[_attrs].seriesInstanceUID = seriesInstanceUID
+
+    if (sopInstanceUIDs === undefined) {
+      throw new Error('SOP Instance UIDs are required.')
+    }
+    this[_attrs].sopInstanceUIDs = sopInstanceUIDs
   }
 
-  return new LineString(result)
+  /** Get Unique Tracking Identifier
+   *
+   * @returns {string} Unique Tracking Identifier
+   */
+  get uid () {
+    return this[_attrs].uid
+  }
+
+  /** Get Segment Number.
+   *
+   * @returns {number} Segment Number
+   */
+  get number () {
+    return this[_attrs].number
+  }
+
+  /** Get Segment Label
+   *
+   * @returns {string} Segment Label
+   */
+  get label () {
+    return this[_attrs].label
+  }
+
+  /** Get Segment Algorithm Name
+   *
+   * @returns {string} Segment Algorithm Name
+   */
+  get algorithmName () {
+    return this[_attrs].algorithmName
+  }
+
+  /** Get Segment Algorithm Type
+   *
+   * @returns {string} Segment Algorithm Type
+   */
+  get algorithmType () {
+    return this[_attrs].algorithmType
+  }
+
+  /** Get Segmented Property Category
+   *
+   * @returns {object} Segmented Property Category
+   */
+  get propertyCategory () {
+    return this[_attrs].propertyCategory
+  }
+
+  /** Get Segmented Property Type
+   *
+   * @returns {object} Segmented Property Type
+   */
+  get propertyType () {
+    return this[_attrs].propertyType
+  }
+
+  /** Get Study Instance UID of Segmentation images.
+   *
+   * @returns {string} Study Instance UID
+   */
+  get studyInstanceUID () {
+    return this[_attrs].studyInstanceUID
+  }
+
+  /** Get Series Instance UID of Segmentation images.
+   *
+   * @returns {string} Series Instance UID
+   */
+  get seriesInstanceUID () {
+    return this[_attrs].seriesInstanceUID
+  }
+
+  /** Get SOP Instance UIDs of Segmentation images.
+   *
+   * @returns {string[]} SOP Instance UIDs
+   */
+  get sopInstanceUIDs () {
+    return this[_attrs].sopInstanceUIDs
+  }
 }
 
-export default getShortestLineBetweenOverlayAndFeature
+export { Segment }
 </code></pre>
         </article>
     </section>

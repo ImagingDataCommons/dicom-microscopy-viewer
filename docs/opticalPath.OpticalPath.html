@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Source: annotations/markups/utils/getShortestLineBetweenOverlayAndFeature.js</title>
+    <title>JSDoc: Class: OpticalPath</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,63 +17,413 @@
 
 <div id="main">
 
-    <h1 class="page-title">Source: annotations/markups/utils/getShortestLineBetweenOverlayAndFeature.js</h1>
+    <h1 class="page-title">Class: OpticalPath</h1>
 
     
 
 
 
+
+<section>
+
+<header>
     
-    <section>
-        <article>
-            <pre class="prettyprint source linenums"><code>import LineString from 'ol/geom/LineString'
-import Circle from 'ol/geom/Circle'
-import { fromCircle } from 'ol/geom/Polygon'
+        <h2><span class="attribs"><span class="type-signature"></span></span>OpticalPath<span class="signature">()</span><span class="type-signature"></span></h2>
+        
+            <div class="class-description">An Optical Path.
 
-/**
- * Builds a new LineString instance with the shortest
- * distance between a given overlay and a feature.
- *
- * @param {object} feature The feature
- * @param {object} overlay The overlay instance
- * @returns {LineString} The smallest line between the overlay and feature
- */
-const getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
-  let result
-  let distanceSq = Infinity
+An optical path represents a color or a monochromatic image that was acquired
+using specific microscopy settings. Usually, an optical path is also
+associated with specific specimen preparation steps, in particular one or
+more staining steps. For example, in immunofluorescence microscopy imaging,
+an optical path is generally associated with a specific fluorescence
+illumination wave length or color (e.g., 568nm in the red spectrum of the
+visible light) and an antibody or a set of antibodies labeled with a
+corresponding fluorophore that can be excited by light at the illumination
+wave length and re-emit light (usually at a slightly higher wave length)
+upon excitation.
 
-  let featureGeometry = feature.getGeometry()
+Note, however, that multiple stains may be applied to the imaging target
+(specimen) during specimen preparation, and multiple images may be acquired
+using different optical paths - either simultaneously or sequentially.
+The content of an image thus depends on the physical properties of the
+tissue stains (fluorophores) as well as the characteristics of the optical
+path (illumination wave length, light and image path filters, etc.).
 
-  if (featureGeometry instanceof Circle) {
-    featureGeometry = fromCircle(featureGeometry).clone()
-  }
+An optical path is identified by an optical path identifier that must be
+unique within the scope of an image acquisition (or multiple cycles of image
+acquisition in case of iterative immunofluorescence imaging).
+The relationship between the optical path and any corresponding staining
+specimen preparation steps may not be explicitly specified.</div>
+        
+    
+</header>
 
-  const geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
+<article>
+    <div class="container-overview">
+    
+        
 
-  (geometry.getCoordinates() || geometry.getExtent()).forEach(coordinates => {
-    const closest = overlay.getPosition()
-    const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
-    if (distanceNew &lt; distanceSq) {
-      distanceSq = distanceNew
-      result = [coordinates, closest]
-    }
-  })
+    
+    <h2>Constructor</h2>
+    
 
-  const coordinates = overlay.getPosition()
-  const closest = geometry.getClosestPoint(coordinates)
-  const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
-  if (distanceNew &lt; distanceSq) {
-    distanceSq = distanceNew
-    result = [closest, coordinates]
-  }
+    
+    <h4 class="name" id="OpticalPath"><span class="type-signature"></span>new OpticalPath<span class="signature">()</span><span class="type-signature"></span></h4>
+    
 
-  return new LineString(result)
-}
+    
 
-export default getShortestLineBetweenOverlayAndFeature
-</code></pre>
-        </article>
-    </section>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="opticalPath.js.html">opticalPath.js</a>, <a href="opticalPath.js.html#line41">line 41</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+        <h3 class="subsection-title">Members</h3>
+
+        
+            
+<h4 class="name" id="identifier"><span class="type-signature"></span>identifier<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    Get Optical Path Identifier
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="opticalPath.js.html">opticalPath.js</a>, <a href="opticalPath.js.html#line73">line 73</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="seriesInstanceUID"><span class="type-signature"></span>seriesInstanceUID<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    Get Series Instance UID of images.
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="opticalPath.js.html">opticalPath.js</a>, <a href="opticalPath.js.html#line89">line 89</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="sopInstanceUIDs"><span class="type-signature"></span>sopInstanceUIDs<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    Get SOP Instance UIDs of images.
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="opticalPath.js.html">opticalPath.js</a>, <a href="opticalPath.js.html#line97">line 97</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="studyInstanceUID"><span class="type-signature"></span>studyInstanceUID<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    Get Study Instance UID of images.
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="opticalPath.js.html">opticalPath.js</a>, <a href="opticalPath.js.html#line81">line 81</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+    
+
+    
+
+    
+
+    
+</article>
+
+</section>
 
 
 

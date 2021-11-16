@@ -50,14 +50,15 @@ import Stroke from 'ol/style/Stroke'
 import Circle from 'ol/style/Circle'
 import Static from 'ol/source/ImageStatic'
 import Overlay from 'ol/Overlay'
-import TileLayer from 'ol/layer/Tile'
-import TileImage from 'ol/source/TileImage'
+import TileLayer from 'ol/layer/WebGLTile'
+import DataTileSource from 'ol/source/DataTile'
 import TileGrid from 'ol/tilegrid/TileGrid'
 import VectorSource from 'ol/source/Vector'
 import VectorLayer from 'ol/layer/Vector'
 import View from 'ol/View'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
+import WebGLHelper from 'ol/webgl/Helper'
 
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
@@ -67,11 +68,18 @@ import * as DICOMwebClient from 'dicomweb-client'
 import dcmjs from 'dcmjs'
 
 import {
+  ColorMapNames,
+  createColorMap,
+  _buildColorLookupTable
+} from './color.js'
+import {
   VLWholeSlideMicroscopyImage,
   groupMonochromeInstances,
   groupColorInstances
 } from './metadata.js'
+import { Mapping } from './mapping.js'
 import { ROI } from './roi.js'
+import { Segment } from './segment.js'
 import {
   computeRotation,
   generateUID,
@@ -85,10 +93,13 @@ import {
   getFeatureScoord3dLength,
   getFeatureScoord3dArea
 } from './scoord3dUtils'
+import { OpticalPath } from './opticalPath.js'
 import {
-  _Channel,
-  BlendingInformation
-} from './channel.js'
+  _areImagePyramidsEqual,
+  _computeImagePyramid,
+  _createTileLoadFunction,
+  _fitImagePyramid
+} from './pyramid.js'
 
 import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
@@ -193,6 +204,37 @@ function _getRotation (metadata) {
   // We want the slide oriented horizontally with the label on the right side
   const correction = 90 * (Math.PI / 180)
   return angle + correction
+}
+
+/** Determine size of browser window.
+ *
+ * @return {number[]} Width and height of the window
+ */
+function _getWindowSize () {
+  let width = 0
+  let height = 0
+  if (typeof window.innerWidth === 'number') {
+    // Non-IE
+    width = window.innerWidth
+    height = window.innerHeight
+  } else if (
+    document.documentElement &amp;&amp; (
+      document.documentElement.clientWidth || document.documentElement.clientHeight
+    )
+  ) {
+    // IE 6+ in 'standards compliant mode'
+    width = document.documentElement.clientWidth
+    height = document.documentElement.clientHeight
+  } else if (
+    document.body &amp;&amp; (
+      document.body.clientWidth || document.body.clientHeight
+    )
+  ) {
+    // IE 4 compatible
+    width = document.body.clientWidth
+    height = document.body.clientHeight
+  }
+  return [width, height]
 }
 
 /** Map style options to OpenLayers style.
@@ -343,7 +385,6 @@ function _updateFeatureEvaluations (feature) {
   }
 
   feature.set(Enums.InternalProperties.Evaluations, evaluations)
-  console.debug(`Evaluations of feature (${feature.getId()}):`, evaluations)
 }
 
 /**
@@ -430,7 +471,6 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     }
 
     feature.set(Enums.InternalProperties.Measurements, measurements)
-    console.debug(`Measurements of feature (${feature.getId()}):`, measurements)
   }
 }
 
@@ -467,21 +507,15 @@ const _features = Symbol('features')
 const _imageLayer = Symbol('imageLayer')
 const _interactions = Symbol('interactions')
 const _map = Symbol('map')
+const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
-const _pyramidMetadata = Symbol('pyramidMetadata')
-const _segmentations = Symbol('segmentations')
-const _channels = Symbol('channels')
-const _colorImage = Symbol('colorImage')
+const _pyramid = Symbol('pyramid')
+const _segments = Symbol('segments')
+const _opticalPaths = Symbol('opticalPaths')
 const _renderingEngine = Symbol('renderingEngine')
 const _rotation = Symbol('rotation')
 const _projection = Symbol('projection')
 const _tileGrid = Symbol('tileGrid')
-const _referenceExtents = Symbol('referenceExtents')
-const _referenceOrigins = Symbol('referenceOrigins')
-const _referenceResolutions = Symbol('referenceResolutions')
-const _referenceGridSizes = Symbol('referenceGridSizes')
-const _referenceTileSizes = Symbol('referenceTileSizes')
-const _referencePixelSpacings = Symbol('referencePixelSpacings')
 const _annotationManager = Symbol('annotationManager')
 const _overviewMap = Symbol('overviewMap')
 
@@ -499,22 +533,14 @@ class VolumeImageViewer {
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
    * @param {object[]} options.metadata - An array of DICOM JSON metadata objects or formatted image metadata objects created via "formatMetadata()".
    *        The array shall contain the metadata of all image instances that should be displayed.
-   *        The constructor automatically determines which instances represent monochromatic channels (optical paths).
-   * @param {object[]} options.blendingInformation - An array containing blending information for the channels with the
-   *        standard visualization parameters already setup by an external application.
    * @param {object} options.styleOptions - Default style options for annotations.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
    * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
-   * @param {boolean} [options.useWebGL=true] - Whether WebGL renderer should be used
-   * @param {number} [options.tilesCacheSize=1000] - initial cache size for a TileImage
+   * @param {number} [options.tilesCacheSize=512] - initial cache size for a TileImage
    */
   constructor (options) {
     this[_options] = options
-    if (!('useWebGL' in this[_options])) {
-      this[_options].useWebGL = true
-    }
-
     if (!('retrieveRendered' in this[_options])) {
       this[_options].retrieveRendered = true
     }
@@ -536,9 +562,9 @@ class VolumeImageViewer {
     }
     this[_options].controls = new Set(this[_options].controls)
 
-    // Collection of Openlayers "VectorLayer" instances indexable by
-    // DICOM Series Instance UID
-    this[_segmentations] = {}
+    // Collection of Openlayers "TileLayer" instances
+    this[_segments] = {}
+    this[_mappings] = {}
 
     // Collection of Openlayers "Feature" instances
     this[_features] = new Collection([], { unique: true })
@@ -558,131 +584,90 @@ class VolumeImageViewer {
       this[_annotationManager].onRemove(e.element)
     })
 
-    // Order all the instances metadata array in channel objects
-    this[_channels] = []
-    const colors = [
-      [0, 0.5, 0.5],
-      [0.5, 0.5, 0],
-      [1, 0, 0],
-      [0.5, 0, 0.5],
-      [0, 1, 0],
-      [0, 0, 1],
-      [1, 1, 1]
-    ]
-
     if (this[_options].metadata.length === 0) {
       throw new Error('Input metadata has no instances.')
     }
 
-    // Group channels by OpticalPathIdentifier
-    const groups = groupMonochromeInstances(this[_options].metadata)
-    // Perform additional checks and create channel objects
-    for (let i = 0; i &lt; groups.length; ++i) {
-      for (let j = 0; j &lt; groups[i].length; ++j) {
-        const channelImage = groups[i][j]
+    // Group color images by opticalPathIdentifier
+    const colorGroups = groupColorInstances(this[_options].metadata)
+    const colorImageInformation = {}
+    if (colorGroups.length > 0) {
+      if (colorGroups.length > 1) {
+        console.warn(
+          'Volume Image Viewer detected more than one color image, ' +
+          'but only one color image can be loaded and visualized at a time. ' +
+          'Only the first detected color image will be loaded.'
+        )
+      }
+      const opticalPathIdentifier = (
+        colorGroups[0][0]
+          .OpticalPathSequence[0]
+          .OpticalPathIdentifier
+      )
+      colorImageInformation[opticalPathIdentifier] = {
+        metadata: colorGroups[0]
+      }
+    }
+
+    const monochromeGroups = groupMonochromeInstances(this[_options].metadata)
+    const monochromeImageInformation = {}
+    monochromeGroups.forEach((group, i) => {
+      group.forEach(image => {
         if (
-          channelImage.DimensionOrganizationType === '3D' ||
-          channelImage.DimensionOrganizationType === '3D_TEMPORAL'
+          image.DimensionOrganizationType === '3D' ||
+          image.DimensionOrganizationType === '3D_TEMPORAL'
         ) {
           throw new Error(
-            'Volume Image Viewer does hot hanlde 3D channel data yet.'
+            'Volume Image Viewer does hot hanlde 3D image data yet.'
           )
-        } else if (channelImage.DimensionOrganizationType === 'TILED_FULL') {
-          if (channelImage.TotalPixelMatrixFocalPlanes !== 1) {
-            continue
-          } else {
-            const opticalPathIdentifier = (
-              channelImage
-                .OpticalPathSequence[0]
-                .OpticalPathIdentifier
-            )
-            const channel = this[_channels].find(channel => {
-              const currentOpticalPathIdentifier = (
-                channel
-                  .blendingInformation
-                  .opticalPathIdentifier
-              )
-              return currentOpticalPathIdentifier === opticalPathIdentifier
-            })
-            if (channel) {
-              channel.addMetadata(channelImage)
-            } else {
-              const blendingInformation = (
-                this[_options].blendingInformation !== undefined
-                  ? this[_options].blendingInformation.find(info => (
-                      info.opticalPathIdentifier === opticalPathIdentifier
-                    ))
-                  : undefined
-              )
-              if (blendingInformation !== undefined) {
-                const newChannel = new _Channel(blendingInformation)
-                newChannel.addMetadata(channelImage)
-                this[_channels].push(newChannel)
+        } else if (image.DimensionOrganizationType === 'TILED_FULL') {
+          if (image.TotalPixelMatrixFocalPlanes === 1) {
+            image.OpticalPathSequence.forEach(opticalPath => {
+              const opticalPathIdentifier = opticalPath.OpticalPathIdentifier
+              const bitsAllocated = image.BitsAllocated
+              if (monochromeImageInformation[opticalPathIdentifier]) {
+                monochromeImageInformation[opticalPathIdentifier].metadata.push(
+                  image
+                )
               } else {
-                const defaultBlendingInformation = new BlendingInformation({
-                  opticalPathIdentifier: `${opticalPathIdentifier}`,
-                  color: [...colors[i % colors.length]],
-                  opacity: 1.0,
-                  thresholdValues: [0, 255],
-                  limitValues: [0, 255],
-                  visible: false
-                })
-
-                const newChannel = new _Channel(defaultBlendingInformation)
-                newChannel.addMetadata(channelImage)
-                this[_channels].push(newChannel)
+                const maxValue = Math.pow(2, bitsAllocated) - 1
+                monochromeImageInformation[opticalPathIdentifier] = {
+                  metadata: [image],
+                  opticalPath
+                }
               }
-            }
+            })
+          } else {
+            console.warn('images with multiple focal planes are not supported')
           }
-        } else if (channelImage.DimensionOrganizationType === 'TILED_SPARSE') {
+        } else if (image.DimensionOrganizationType === 'TILED_SPARSE') {
           /*
            * The spatial location of each tile is explicitly encoded using
            * information in the Per-Frame Functional Group Sequence, and the
            * recipient shall not make any assumption about the spatial position
            * or optical path or order of the encoded frames.
            */
+          // FIXME
           throw new Error(
             'Volume Image Viewer does hot handle TILED_SPARSE ' +
-            'dimension organization for blending of channels yet.'
+            'dimension organization for blending of optical paths yet.'
           )
         }
-      }
+      })
+    })
+
+    const monochromeOpticalPathIdentifiers = Object.keys(monochromeImageInformation)
+    const numChannels = monochromeOpticalPathIdentifiers.length
+    const colorOpticalPathIdentifiers = Object.keys(colorImageInformation)
+    const numColorImages = colorOpticalPathIdentifiers.length
+    if (numChannels === 0 &amp;&amp; numColorImages === 0) {
+      throw new Error('Could not find any channels or color images.')
     }
-
-    // Group color images by opticalPathIdentifier
-    const colorImagesMicroscopyImages = groupColorInstances(
-      this[_options].metadata
-    )
-    if (colorImagesMicroscopyImages.length > 1) {
-      console.warn(
-        'Volume Image Viewer detected more than one color image. ' +
-        'It is possible to load and visualize only one color image at time. ' +
-        'Please check the input metadata. ' +
-        'Only the first detected color image will be loaded.'
-      )
+    if (numChannels > 0 &amp;&amp; numColorImages > 0) {
+      throw new Error('Found both channels and color images.')
     }
-
-    if (colorImagesMicroscopyImages.length >= 1) {
-      const colorImageMicroscopyImages = colorImagesMicroscopyImages[0]
-      if (colorImageMicroscopyImages.length === 0) {
-        throw new Error(
-          'The first detected color image has no metadata available.'
-        )
-      }
-
-      this[_colorImage] = {
-        opticalPathIdentifier: (
-          colorImageMicroscopyImages[0]
-            .OpticalPathSequence[0]
-            .OpticalPathIdentifier
-        ),
-        metadata: []
-      }
-
-      for (let i = 0; i &lt; colorImageMicroscopyImages.length; ++i) {
-        const colorImageMicroscopyImage = colorImageMicroscopyImages[i]
-        this[_colorImage].metadata.push(colorImageMicroscopyImage)
-      }
+    if (numColorImages > 1) {
+      throw new Error('Found more than one color image.')
     }
 
     /*
@@ -694,37 +679,20 @@ class VolumeImageViewer {
      * 2) given (1), we calculcate the tileGrid, projection and rotation objects
      *    using the metadata of the first channel and subsequently apply them to
      *    all the other channels.
-     * 3) If the parameters in (1) are different, it means that we have to
-     *    perfom regridding/reprojection over the data (i.e. registration).
-     *    This, at the moment, is out of scope.
+     * 3) If the parameters in (1) are different, it means that we would have to
+     *    perfom registration, which (at least for now) is out of scope.
      */
-    if (this[_channels].length === 0 &amp;&amp; this[_colorImage] === undefined) {
-      throw new Error('No channels or colorImage found.')
-    }
-
-    let image = null
-    if (this[_channels].length !== 0) {
-      image = this[_channels][0]
+    if (numChannels > 0) {
+      const opticalPathIdentifier = monochromeOpticalPathIdentifiers[0]
+      const info = monochromeImageInformation[opticalPathIdentifier]
+      this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
     } else {
-      image = this[_colorImage]
+      const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
+      const info = colorImageInformation[opticalPathIdentifier]
+      this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
     }
 
-    const geometryArrays = _Channel.deriveImageGeometry(image)
-
-    this[_referenceExtents] = [...geometryArrays[0]]
-    this[_referenceOrigins] = [...geometryArrays[1]]
-    this[_referenceResolutions] = [...geometryArrays[2]]
-    this[_referenceGridSizes] = [...geometryArrays[3]]
-    this[_referenceTileSizes] = [...geometryArrays[4]]
-    this[_referencePixelSpacings] = [...geometryArrays[5]]
-
-    /*
-     * We assume the first channel as the reference one for all the pyramid
-     * parameters. All other channels have to have the same parameters.
-     */
-    this[_pyramidMetadata] = [...image.pyramidMetadata]
-
-    this[_rotation] = _getRotation(image.pyramidBaseMetadata)
+    this[_rotation] = _getRotation(this[_pyramid].metadata[0])
 
     /*
      * Specify projection to prevent default automatic projection
@@ -734,121 +702,246 @@ class VolumeImageViewer {
       code: 'DICOM',
       units: 'm',
       global: true,
-      extent: this[_referenceExtents],
+      extent: this[_pyramid].extent,
       getPointResolution: (pixelRes, point) => {
-        /* DICOM Pixel Spacing has millimeter unit while the projection has
+        /*
+         * DICOM Pixel Spacing has millimeter unit while the projection has
          * meter unit.
          */
         const spacing = getPixelSpacing(
-          this[_pyramidMetadata][this[_pyramidMetadata].length - 1]
+          this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
         )[0]
         return pixelRes * spacing / 10 ** 3
       }
     })
 
     /*
-    * We need to specify the tile grid, since DICOM allows tiles to
-    * have different sizes at each resolution level and a different zoom
-    * factor between individual levels.
-    */
+     * We need to specify the tile grid, since DICOM allows tiles to
+     * have different sizes at each resolution level and a different zoom
+     * factor between individual levels.
+     */
     this[_tileGrid] = new TileGrid({
-      extent: this[_referenceExtents],
-      origins: this[_referenceOrigins],
-      resolutions: this[_referenceResolutions],
-      sizes: this[_referenceGridSizes],
-      tileSizes: this[_referenceTileSizes]
+      extent: this[_pyramid].extent,
+      origins: this[_pyramid].origins,
+      resolutions: this[_pyramid].resolutions,
+      sizes: this[_pyramid].gridSizes,
+      tileSizes: this[_pyramid].tileSizes
     })
 
     const view = new View({
-      center: getCenter(this[_referenceExtents]),
+      center: getCenter(this[_pyramid].extent),
       projection: this[_projection],
       resolutions: this[_tileGrid].getResolutions(),
       rotation: this[_rotation],
       smoothResolutionConstraint: true,
       showFullExtent: true,
-      extent: this[_referenceExtents]
+      extent: this[_pyramid].extent
     })
 
-    // Create a rendering engine object for offscreen rendering
     this[_renderingEngine] = new RenderingEngine()
 
-    // For each channel we build up the OpenLayer objects and
-    // checks that the geometric assumptions are satisfied.
-    this[_channels].forEach((channel) => {
-      // here image is a channel
-      channel.initChannel(
-        image.blendingInformation.opticalPathIdentifier,
-        image.FrameOfReferenceUID,
-        image.ContainerIdentifier,
-        this[_referenceExtents],
-        this[_referenceOrigins],
-        this[_referenceResolutions],
-        this[_referenceGridSizes],
-        this[_referenceTileSizes],
-        this[_referencePixelSpacings],
-        this[_projection],
-        this[_tileGrid],
-        this[_options],
-        this[_renderingEngine]
-      )
-    })
-
-    // build up the OpenLayer objects for the colorImage
-    this._initColorImage()
-
-    this[_drawingSource] = new VectorSource({
-      tileGrid: this[_tileGrid],
-      projection: this[_projection],
-      features: this[_features],
-      wrapX: false
-    })
-
-    this[_drawingLayer] = new VectorLayer({
-      extent: this[_referenceExtents],
-      source: this[_drawingSource],
-      projection: this[_projection],
-      updateWhileAnimating: true,
-      updateWhileInteracting: true
-    })
-
     const layers = []
-    let rasterSourceOverview
-    if (this[_options].blendingInformation !== undefined &amp;&amp; this[_channels].length > 0) {
-      const hasAnyChannelBeenSelected = this[_channels].some(channel => {
-        return channel.blendingInformation.visible
-      })
-      if (hasAnyChannelBeenSelected) {
-        this[_channels].forEach((channel) => {
-          if (channel.blendingInformation.visible === true) {
-            layers.push(channel.tileLayer)
-          }
+    const overviewLayers = []
+    this[_opticalPaths] = {}
+    if (numChannels > 0) {
+      let channelCount = 0
+      const helper = new WebGLHelper()
+      const overviewHelper = new WebGLHelper()
+      for (const opticalPathIdentifier in monochromeImageInformation) {
+        const info = monochromeImageInformation[opticalPathIdentifier]
+        const pyramid = _computeImagePyramid({ metadata: info.metadata })
+        const maxValue = Math.pow(2, info.metadata[0].BitsAllocated) - 1
+        const opticalPath = {
+          opticalPathIdentifier,
+          opticalPath: new OpticalPath({
+            identifier: opticalPathIdentifier,
+            studyInstanceUID: info.metadata[0].StudyInstanceUID,
+            seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
+            sopInstanceUIDs: pyramid.metadata.map(element => {
+              return element.SOPInstanceUID
+            })
+          }),
+          pyramid: pyramid,
+          style: {
+            color: [255, 255, 255],
+            opacity: 1.0,
+            limitValues: [0, maxValue]
+          },
+          bitsAllocated: info.metadata[0].BitsAllocated,
+          maxValue: maxValue
+        }
+
+        const areImagePyramidsEqual = _areImagePyramidsEqual(
+          opticalPath.pyramid,
+          this[_pyramid]
+        )
+        if (!areImagePyramidsEqual) {
+          throw new Error(
+            `Pyramid of optical path "${opticalPathIdentifier}" ` +
+            'is different from reference pyramid.'
+          )
+        }
+
+        opticalPath.rasterSource = new DataTileSource({
+          loader: _createTileLoadFunction({
+            pyramid: opticalPath.pyramid,
+            client: this[_options].client,
+            retrieveRendered: this[_options].retrieveRendered,
+            includeIccProfile: this[_options].includeIccProfile,
+            renderingEngine: this[_renderingEngine],
+            channel: opticalPathIdentifier
+          }),
+          tileGrid: this[_tileGrid],
+          projection: this[_projection],
+          wrapX: false,
+          transition: 0,
+          bandCount: 1
         })
-      } else {
-        this[_channels][0].blendingInformation.visible = true
-        this[_channels][0].tileLayer.setVisible(true)
-        layers.push(this[_channels][0].tileLayer)
+
+        // TODO: use palette color lookup table
+        const style = {
+          color: [
+            'interpolate',
+            ['linear'],
+            [
+              '+',
+              [
+                '/',
+                [
+                  '-',
+                  ['band', 1],
+                  ['var', 'windowCenter']
+                ],
+                ['var', 'windowWidth']
+              ],
+              0.5
+            ],
+            0,
+            [0, 0, 0, 1],
+            1,
+            ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1]
+          ],
+          variables: {
+            red: opticalPath.style.color[0],
+            green: opticalPath.style.color[1],
+            blue: opticalPath.style.color[2],
+            windowCenter: (
+              (
+                opticalPath.style.limitValues[0] +
+                opticalPath.style.limitValues[1]
+              ) / 2 / opticalPath.maxValue
+            ),
+            windowWidth: (
+              (
+                opticalPath.style.limitValues[1] -
+                opticalPath.style.limitValues[0]
+              ) / opticalPath.maxValue
+            )
+          }
+        }
+
+        opticalPath.tileLayer = new TileLayer({
+          extent: pyramid.extent,
+          source: opticalPath.rasterSource,
+          preload: 1,
+          style: style,
+          visible: false,
+          useInterimTilesOnError: false,
+          cacheSize: this[_options].tilesCacheSize
+        })
+        opticalPath.tileLayer.helper = helper
+        opticalPath.tileLayer.on('prerender', (event) => {
+          const gl = event.context
+          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+        })
+
+        opticalPath.overviewTileLayer = new TileLayer({
+          extent: pyramid.extent,
+          source: opticalPath.rasterSource,
+          preload: 0,
+          style: style,
+          visible: false,
+          useInterimTilesOnError: false
+        })
+        opticalPath.overviewTileLayer.helper = overviewHelper
+        opticalPath.overviewTileLayer.on('prerender', (event) => {
+          const gl = event.context
+          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+        })
+
+        if (channelCount === 0) {
+          layers.push(opticalPath.tileLayer)
+          opticalPath.tileLayer.setVisible(true)
+          overviewLayers.push(opticalPath.overviewTileLayer)
+          opticalPath.overviewTileLayer.setVisible(true)
+        }
+
+        this[_opticalPaths][opticalPathIdentifier] = opticalPath
+        channelCount += 1
       }
-      rasterSourceOverview = this[_channels][0].rasterSource
-    } else if (this[_channels].length !== 0) {
-      this[_channels][0].blendingInformation.visible = true
-      this[_channels][0].tileLayer.setVisible(true)
-      layers.push(this[_channels][0].tileLayer)
-      rasterSourceOverview = this[_channels][0].rasterSource
-    } else if (this[_colorImage] !== undefined) {
-      layers.push(this[_colorImage].tileLayer)
-      rasterSourceOverview = this[_colorImage].rasterSource
     } else {
-      throw new Error('Viewer cannot find a color image or a monochrome channel to visualize.')
+      const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
+      const info = colorImageInformation[opticalPathIdentifier]
+      const pyramid = _computeImagePyramid({ metadata: info.metadata })
+      const opticalPath = {
+        opticalPathIdentifier,
+        opticalPath: new OpticalPath({
+          identifier: opticalPathIdentifier,
+          studyInstanceUID: info.metadata[0].StudyInstanceUID,
+          seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
+          sopInstanceUIDs: pyramid.metadata.map(element => {
+            return element.SOPInstanceUID
+          })
+        }),
+        pyramid: pyramid,
+        bitsAllocated: 8,
+        maxValue: 255
+      }
+
+      opticalPath.rasterSource = new DataTileSource({
+        loader: _createTileLoadFunction({
+          pyramid: opticalPath.pyramid,
+          client: this[_options].client,
+          retrieveRendered: this[_options].retrieveRendered,
+          renderingEngine: this[_renderingEngine],
+          channel: opticalPathIdentifier
+        }),
+        tileGrid: this[_tileGrid],
+        projection: this[_projection],
+        wrapX: false,
+        transition: 0,
+        preload: 1,
+        bandCount: 3
+      })
+
+      opticalPath.tileLayer = new TileLayer({
+        extent: this[_tileGrid].extent,
+        source: opticalPath.rasterSource,
+        preload: 1,
+        useInterimTilesOnError: false,
+        cacheSize: this[_options].tilesCacheSize
+      })
+      opticalPath.tileLayer.on('prerender', (event) => {
+        const gl = event.context
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+      })
+
+      opticalPath.overviewTileLayer = new TileLayer({
+        extent: pyramid.extent,
+        source: opticalPath.rasterSource,
+        preload: 0,
+        useInterimTilesOnError: false
+      })
+      opticalPath.overviewTileLayer.on('prerender', (event) => {
+        const gl = event.context
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+      })
+
+      layers.push(opticalPath.tileLayer)
+      overviewLayers.push(opticalPath.overviewTileLayer)
+
+      this[_opticalPaths][opticalPathIdentifier] = opticalPath
     }
-
-    layers.push(this[_drawingLayer])
-
-    const overviewImageLayer = new TileLayer({
-      extent: this[_referenceExtents],
-      source: rasterSourceOverview,
-      projection: this[_projection],
-      preload: 0
-    })
 
     const overviewView = new View({
       projection: this[_projection],
@@ -857,17 +950,32 @@ class VolumeImageViewer {
       minZoom: 0,
       maxZoom: 0,
       constrainOnlyCenter: true,
-      center: getCenter(this[_referenceExtents])
+      center: getCenter(this[_pyramid].extent)
     })
 
     this[_overviewMap] = new OverviewMap({
       view: overviewView,
-      layers: [overviewImageLayer],
+      layers: overviewLayers,
       collapsed: false,
-      collapsible: false
+      collapsible: false,
+      rotateWithView: true
     })
 
-    // Creates the map with the defined layers and view and renders it.
+    this[_drawingSource] = new VectorSource({
+      tileGrid: this[_tileGrid],
+      projection: this[_projection],
+      features: this[_features],
+      wrapX: false
+    })
+    this[_drawingLayer] = new VectorLayer({
+      extent: this[_pyramid].extent,
+      source: this[_drawingSource],
+      projection: this[_projection],
+      updateWhileAnimating: true,
+      updateWhileInteracting: true
+    })
+    layers.push(this[_drawingLayer])
+
     this[_map] = new Map({
       layers,
       view,
@@ -881,11 +989,9 @@ class VolumeImageViewer {
      * OpenLayer's map has default active interactions
      * https://openlayers.org/en/latest/apidoc/module-ol_interaction.html#.defaults
      *
-     * We need to define them here to avoid duplications
-     * of interactions that could cause bugs in the application
-     *
-     * Enabling or disabling interactions could cause side effects on OverviewMap
-     * since it also uses the same interactions in the map
+     * We need to define them here to avoid duplications.
+     * Enabling or disabling interactions could cause side effects on
+     * OverviewMap since it also uses the same interactions in the map
      */
     const defaultInteractions = this[_map].getInteractions().getArray()
     this[_interactions] = {
@@ -925,472 +1031,235 @@ class VolumeImageViewer {
 
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
-      pyramid: this[_pyramidMetadata],
+      pyramid: this[_pyramid].metadata,
       drawingSource: this[_drawingSource]
     })
-
-    // This updates the tiles offscreen rendering when zoom is applied to the view.
-    view.origAnimate = view.animate
-    let currZoom = 0
-    view.animate = (animateSpecs) => {
-      let newZoom = animateSpecs.zoom
-      if (!newZoom) {
-        newZoom = view.getZoomForResolution(animateSpecs.resolution)
-      }
-      if (newZoom) {
-        if (Math.abs(newZoom - currZoom) > 1e-6) {
-          currZoom = newZoom
-          this._updateTilesRenderingAtZoom(newZoom)
-        }
-      }
-      view.origAnimate(animateSpecs)
-    }
-
-    // This updates the tiles offscreen rendering when panning the view.
-    this[_map].on('pointermove', evt => {
-      if (evt.dragging) {
-        this._updateTilesRenderingAtPanning()
-      }
-    })
-
-    let startMoveZoom = 0
-    this[_map].on('movestart', evt => {
-      startMoveZoom = Math.round(evt.frameState.viewState.zoom)
-    })
-
-    this[_map].on('moveend', evt => {
-      const endMoveZoom = Math.round(evt.frameState.viewState.zoom)
-      if (endMoveZoom === startMoveZoom) {
-        this._updateTilesRenderingAtPanning()
-      }
-    })
   }
 
-  /** updates tiles rendering for monochrome channels at zoom interactions
-   * @param {number} zoom - applied zoom
+  /** Set the style of an optical path.
+   *
+   * The style determine how grayscale stored values of a MONOCHROME2 image
+   * will be transformed into pseudo-color display values.
+   * Grayscale stored values are first transformed into normalized grayscale
+   * display values, which are subsequently transformed into pseudo-color
+   * values in RGB color space.
+   *
+   * The input to the first transformation are grayscale stored values in the
+   * range defined by parameter "limitValues", which specify a window for
+   * optimizing display value intensity and contrast. The resulting normalized
+   * grayscale display values are then used as input to the second
+   * transformation, which maps them to pseudo-color values ranging from black
+   * color (R=0, G=0, B=0) to the color defined by parameter "color" using
+   * linear interpolation.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   * @param {object} styleOptions
+   * @param {number[]} styleOptions.color - RGB color triplet
+   * @param {number} styleOptions.opacity - Opacity
+   * @param {number[]} styleOptions.limitValues - Upper and lower windowing limits
    */
-  _updateTilesRenderingAtZoom (zoom) {
-    if (this[_channels] &amp;&amp; this[_channels].length !== 0) {
-      // For each channel check if any tiles at the new zoom
-      // needs to refresh the offscreen coloring rendering.
-      let render = false
-      this[_channels].forEach((channel) => {
-        const channelRender = channel.updateTilesRendering(false, zoom)
-        if (channelRender) {
-          render = true
-        }
-      })
-      if (render) {
-        this[_map].render()
-      }
-    }
-  }
-
-  /** updates tiles rendering for monochrome channels at panning interactions
-   */
-  _updateTilesRenderingAtPanning () {
-    if (this[_channels] &amp;&amp; this[_channels].length !== 0) {
-      // For each channel check if any tiles at the new panning
-      // needs to refresh the offscreen coloring rendering.
-      const tilesCoordRanges = this._transformViewCoordinatesInTilesCoordinates()
-      let render = false
-      this[_channels].forEach((channel) => {
-        const channelRender = channel.updateTilesRendering(
-          false,
-          tilesCoordRanges[2],
-          [tilesCoordRanges[0], tilesCoordRanges[1]]
-        )
-        if (channelRender) {
-          render = true
-        }
-      })
-      if (render) {
-        this[_map].render()
-      }
-    }
-  }
-
-  /** init unique Open Layer objects
-   */
-  _initColorImage () {
-    if (this[_colorImage] === undefined) {
-      return
-    }
-    /*
-     * Define custom tile URL function to retrieve frames via DICOMweb WADO-RS.
-     */
-    const tileUrlFunction = (tileCoord, pixelRatio, projection) => {
-      /*
-       * Variables x and y correspond to the X and Y axes of the slide
-       * coordinate system. Since we want to view the slide horizontally
-       * with the label on the right side, the x axis of the slide
-       * coordinate system is the vertical axis of the viewport and the
-       * y axis of the slide coordinate system the horizontal axis of the
-       * viewport. Note that this is in contrast to the nomenclature used
-       * by Openlayers.
-       */
-
-      const z = tileCoord[0]
-      const y = tileCoord[1] + 1
-      const x = tileCoord[2] + 1
-      const index = x + '-' + y
-
-      const path = this[_colorImage].pyramidFrameMappings[z][index]
-      if (path === undefined) {
-        console.warn('tile ' + index + ' not found at level ' + z)
-        return (null)
-      }
-      let url = this[_options].client.wadoURL +
-        '/studies/' + this[_colorImage].pyramidMetadata[z].StudyInstanceUID +
-        '/series/' + this[_colorImage].pyramidMetadata[z].SeriesInstanceUID +
-        '/instances/' + path
-      if (this[_options].retrieveRendered) {
-        url = url + '/rendered'
-      }
-      return url
-    }
-
-    /*
-     * Define custom tile loader function, which is required because the
-     * WADO-RS response message has content type "multipart/related".
-     */
-    const tileLoadFunction = async (tile, src) => {
-      const img = tile.getImage()
-      const z = tile.tileCoord[0]
-      const columns = this[_colorImage].pyramidMetadata[z].Columns
-      const rows = this[_colorImage].pyramidMetadata[z].Rows
-      const samplesPerPixel = this[_colorImage].pyramidMetadata[z].SamplesPerPixel // number of colors for pixel
-      const bitsAllocated = this[_colorImage].pyramidMetadata[z].BitsAllocated // memory for pixel
-      const pixelRepresentation = this[_colorImage].pyramidMetadata[z].PixelRepresentation // 0 unsigned, 1 signed
-
-      if (src !== null &amp;&amp; samplesPerPixel === 3) {
-        const studyInstanceUID = DICOMwebClient.utils.getStudyInstanceUIDFromUri(src)
-        const seriesInstanceUID = DICOMwebClient.utils.getSeriesInstanceUIDFromUri(src)
-        const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
-        const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
-
-        console.info(`get tile (${tile.tileCoord})`)
-
-        if (this[_options].retrieveRendered) {
-          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
-          const pngMediaType = 'image/png'
-          const transferSyntaxUID = ''
-
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            mediaTypes: [
-              { mediaType: pngMediaType, transferSyntaxUID }
-            ]
-          }
-          if (this[_options].includeIccProfile) {
-            retrieveOptions.queryParams = {
-              iccprofile: 'yes'
-            }
-          }
-
-          this[_options].client.retrieveInstanceFramesRendered(retrieveOptions).then(
-            (renderedFrame) => {
-              const frameData = {
-                frames: renderedFrame
-              }
-
-              img.src = this[_renderingEngine].createURLFromRGBImage(frameData)
-            }
-          )
-        } else {
-          // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
-          // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
-          const jlsMediaType = 'image/jls'
-          const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
-          const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
-          const jp2MediaType = 'image/jp2'
-          const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90'
-          const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91'
-          const jpxMediaType = 'image/jpx'
-          const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
-          const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-          const jpegMediaType = 'image/jpeg'
-          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-
-          const octetStreamMediaType = 'application/octet-stream'
-          const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
-
-          const retrieveOptions = {
-            studyInstanceUID,
-            seriesInstanceUID,
-            sopInstanceUID,
-            frameNumbers,
-            mediaTypes: [
-              { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUIDlossless },
-              { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUID },
-              { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUIDlossless },
-              { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUID },
-              { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUIDlossless },
-              { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUID },
-              { mediaType: jpegMediaType, transferSyntaxUID: jpegTransferSyntaxUID }
-            ]
-          }
-          this[_options].client.retrieveInstanceFrames(retrieveOptions).then(
-            (rawFrames) => {
-              const frameData = {
-                frames: rawFrames[0],
-                bitsAllocated,
-                pixelRepresentation,
-                columns,
-                rows
-              }
-
-              img.src = this[_renderingEngine].createURLFromRGBImage(frameData)
-            }
-          ).catch(
-            () => {
-              // since we can't ask to retrieve both jpeg formats and octet-stream
-              // we use a catch in the case all jpeg formats will fail
-              const retrieveOptions = {
-                studyInstanceUID,
-                seriesInstanceUID,
-                sopInstanceUID,
-                frameNumbers,
-                mediaTypes: [
-                  { mediaType: octetStreamMediaType, transferSyntaxUID: octetStreamTransferSyntaxUID }
-                ]
-              }
-              this[_options].client.retrieveInstanceFrames(retrieveOptions).then(
-                (rawFrames) => {
-                  const frameData = {
-                    frames: rawFrames[0],
-                    bitsAllocated,
-                    pixelRepresentation,
-                    columns,
-                    rows
-                  }
-
-                  img.src = this[_renderingEngine].createURLFromRGBImage(frameData)
-                }
-              )
-            }
-          )
-        }
-      } else {
-        console.warn('could not load tile')
-      }
-    }
-
-    /*
-     * We use the existing TileImage source but customize it to retrieve
-     * frames (load tiles) via DICOMweb WADO-RS.
-     * NOTE: transition = 0 disable OpenLayer transition alpha opacity
-     * NOTE: it is needed a very large initial cacheSize value
-     *       otherwise, the tile caches will be cleared at each zoom
-     *       providing very bad perfomances.
-    */
-    this[_colorImage].rasterSource = new TileImage({
-      crossOrigin: 'Anonymous',
-      tileGrid: this[_tileGrid],
-      projection: this[_projection],
-      wrapX: false,
-      transition: 0,
-      cacheSize: this[_options].tilesCacheSize
-    })
-
-    this[_colorImage].rasterSource.setTileUrlFunction(tileUrlFunction)
-    this[_colorImage].rasterSource.setTileLoadFunction(tileLoadFunction)
-
-    // Create OpenLayer renderer object
-    this[_colorImage].tileLayer = new TileLayer({
-      extent: this[_tileGrid].getExtent(),
-      source: this[_colorImage].rasterSource,
-      projection: this[_projection]
-    })
-  }
-
-  /** Gets the channel or color image given an id
-   * @param {string} opticalPathIdentifier - opticalPath of the channel
-   * @return {Object} _Channel
-   */
-  getOpticalPath (opticalPathIdentifier) {
-    if (this[_channels].length === 0 &amp;&amp; this[_colorImage] === undefined) {
-      throw new Error('No channels or colorImage found.')
-    }
-
-    let channel
-    if (this[_channels].length !== 0) {
-      channel = this[_channels].find(
-        channel => channel.blendingInformation.opticalPathIdentifier === opticalPathIdentifier
+  setOpticalPathStyle (opticalPathIdentifier, styleOptions = {}) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
+      throw new Error(
+        'Cannot set optical path style. Could not find optical path ' +
+        `"${opticalPathIdentifier}".`
       )
     }
 
-    let colorImage
-    if (this[_colorImage] !== undefined) {
-      colorImage = this[_colorImage].opticalPathIdentifier === opticalPathIdentifier
-        ? this[_colorImage]
-        : undefined
+    if (Object.entries(styleOptions).length === 0) {
+      return
     }
 
-    if (channel) {
-      return channel
-    } else if (colorImage) {
-      return colorImage
-    } else {
-      throw new Error('No OpticalPath with ID ' + opticalPathIdentifier + ' has been found.')
-    }
-  }
-
-  /** Gets the channel or color image metadata given an id
-   * @param {string} opticalPathIdentifier - opticalPath of the channel
-   * @return {metadata[]} array with all the instances metadata of the channel
-   */
-  getOpticalPathMetadata (opticalPathIdentifier) {
-    const image = this.getOpticalPath(opticalPathIdentifier)
-    return image.metadata
-  }
-
-  /** Sets the channel visualization/presentation parameters given an id
-   * @param {object} BlendingInformation
-   * @param {string} BlendingInformation.opticalPathIdentifier - channel ID
-   * @param {number[]} BlendingInformation.color - channel rgb color
-   * @param {number} BlendingInformation.opacity - channel opacity
-   * @param {number[]} BlendingInformation.thresholdValues - channel clipping values
-   * @param {boolean} BlendingInformation.visible - channel visibility
-   */
-  setBlendingInformation (blendingInformation) {
-    const {
-      opticalPathIdentifier
-    } = blendingInformation
-
-    const channel = this.getOpticalPath(opticalPathIdentifier)
-    const tilesCoordRanges = this._transformViewCoordinatesInTilesCoordinates()
-
-    if (channel.setBlendingInformation(blendingInformation, tilesCoordRanges)) {
-      this[_map].render()
-    }
-  }
-
-  /** Returns if the channel is being rendered
-   * @returns {number[]} array with tiles X and Y coordinates ranges and zoom level.
-   */
-  _transformViewCoordinatesInTilesCoordinates () {
-    const viewSize = this[_map].getView().calculateExtent(this[_map].getSize())
-    // viewSize: x1, y1, x2, y2
-    const zoomLevel = this[_map].getView().getZoom()
-    const resolution = this[_map].getView().values_.resolution
-    const tilesCoordinates = []
-    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution(
-      [viewSize[0], viewSize[1]], resolution)
+    console.info(
+      `set style for optical path ${opticalPathIdentifier}`,
+      styleOptions
     )
-    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution(
-      [viewSize[0], viewSize[3]], resolution)
-    )
-    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution(
-      [viewSize[2], viewSize[1]], resolution)
-    )
-    tilesCoordinates.push(this[_tileGrid].getTileCoordForCoordAndResolution(
-      [viewSize[2], viewSize[3]], resolution)
-    )
-
-    const tileCoordXRange = {
-      min: Number.MAX_SAFE_INTEGER,
-      max: Number.MIN_SAFE_INTEGER
-    }
-    const tileCoordYRange = {
-      min: Number.MAX_SAFE_INTEGER,
-      max: Number.MIN_SAFE_INTEGER
-    }
-    for (let i = 0; i &lt; tilesCoordinates.length; i++) {
-      // X coordinates
-      if (tilesCoordinates[i][2] &lt; tileCoordXRange.min) {
-        tileCoordXRange.min = tilesCoordinates[i][2]
-      }
-      if (tilesCoordinates[i][2] > tileCoordXRange.max) {
-        tileCoordXRange.max = tilesCoordinates[i][2]
-      }
-      // Y coordinates
-      if (tilesCoordinates[i][1] &lt; tileCoordYRange.min) {
-        tileCoordYRange.min = tilesCoordinates[i][1]
-      }
-      if (tilesCoordinates[i][1] > tileCoordYRange.max) {
-        tileCoordYRange.max = tilesCoordinates[i][1]
-      }
+    if (styleOptions.opacity != null) {
+      opticalPath.style.opacity = styleOptions.opacity
+      opticalPath.tileLayer.setOpacity(styleOptions.opacity)
+      opticalPath.overviewTileLayer.setOpacity(styleOptions.opacity)
     }
 
-    return [tileCoordXRange, tileCoordYRange, zoomLevel]
+    const styleVariables = {}
+    if (styleOptions.color != null) {
+      opticalPath.style.color = styleOptions.color
+      styleVariables.red = opticalPath.style.color[0]
+      styleVariables.green = opticalPath.style.color[1]
+      styleVariables.blue = opticalPath.style.color[2]
+    }
+    if (styleOptions.limitValues != null) {
+      const max = opticalPath.maxValue
+      opticalPath.style.limitValues = styleOptions.limitValues
+      styleVariables.windowCenter = (
+        (styleOptions.limitValues[0] + styleOptions.limitValues[1]) /
+        2 /
+        max
+      )
+      styleVariables.windowWidth = (
+        (styleOptions.limitValues[1] - styleOptions.limitValues[0]) /
+        max
+      )
+    }
+    opticalPath.tileLayer.updateStyleVariables(styleVariables)
+    opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
   }
 
-  /** Gets the channel visualization/presentation parameters given an id
-   * @param {string} opticalPathIdentifier - opticalPath of the channel
-   * @return {object} BlendingInformation
+  /** Get the style of an optical path.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   * @return {object} Style of optical path
    */
-  getBlendingInformation (opticalPathIdentifier) {
-    const channel = this.getOpticalPath(opticalPathIdentifier)
-    return channel.getBlendingInformation()
-  }
-
-  /** Adds the channel to the OpenLayer Map given an id
-   * @param {string} opticalPathIdentifier - opticalPath of the channel
-   */
-  activateOpticalPath (opticalPathIdentifier) {
-    if (this.isOpticalPathActive(opticalPathIdentifier)) {
-      throw new Error('OpticalPath ' + opticalPathIdentifier + ' already activated')
+  getOpticalPathStyle (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
+      throw new Error(
+        'Cannot get optical path style. Could not find optical path ' +
+        `"${opticalPathIdentifier}".`
+      )
     }
-
-    const channel = this.getOpticalPath(opticalPathIdentifier)
-    this[_map].getLayers().insertAt(0, channel.tileLayer)
-  }
-
-  /** Removes the channel to the OpenLayer Map given an id
-   * @param {string} opticalPathIdentifier - opticalPath of the channel
-   */
-  deactivateOpticalPath (opticalPathIdentifier) {
-    if (!this.isOpticalPathActive(opticalPathIdentifier)) {
-      throw new Error('OpticalPath ' + opticalPathIdentifier + ' already deactivated')
+    return {
+      color: opticalPath.style.color,
+      opacity: opticalPath.style.opacity,
+      limitValues: opticalPath.style.limitValues
     }
-
-    const channel = this.getOpticalPath(opticalPathIdentifier)
-    this[_map].removeLayer(channel.tileLayer)
-  }
-
-  /** Returns if the channel is being rendered
-   * @param {string} opticalPathIdentifier - opticalPath of the channel
-   * @return {boolean} active
-   */
-  isOpticalPathActive (opticalPathIdentifier) {
-    const channel = this.getOpticalPath(opticalPathIdentifier)
-    if (channel === null) {
-      return false
-    }
-
-    return !!this[_map].getLayers().getArray().find(layer => {
-      return layer === channel.tileLayer
-    })
-  }
-
-  /** Set the visibility of the channel to true
-   * @param {string} opticalPathIdentifier - opticalPath of the channel
-   */
-  showOpticalPath (opticalPathIdentifier) {
-    const blendingInformation = {
-      visible: true,
-      opticalPathIdentifier: opticalPathIdentifier
-    }
-    this.setBlendingInformation(blendingInformation)
-  }
-
-  /** Set the visibility of the channel to false
-   * @param {string} opticalPathIdentifier - opticalPath of the channel
-   */
-  hideOpticalPath (opticalPathIdentifier) {
-    const blendingInformation = {
-      visible: false,
-      opticalPathIdentifier: opticalPathIdentifier
-    }
-    this.setBlendingInformation(blendingInformation)
   }
 
   /**
-   * Resizes the viewer to fit the viewport.
+   * Get all optical paths.
+   *
+   * @return {OpticalPath[]}
+   */
+  getAllOpticalPaths () {
+    const opticalPaths = []
+    for (const opticalPathIdentifier in this[_opticalPaths]) {
+      opticalPaths.push(this[_opticalPaths][opticalPathIdentifier].opticalPath)
+    }
+    return opticalPaths
+  }
+
+  /** Activate an optical path.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   */
+  activateOpticalPath (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
+      throw new Error(
+        'Cannot activate optical path. Could not find optical path ' +
+        `"${opticalPathIdentifier}".`
+      )
+    }
+    if (this.isOpticalPathActive(opticalPathIdentifier)) {
+      return
+    }
+    this[_map].getLayers().insertAt(
+      0,
+      opticalPath.tileLayer
+    )
+    this[_overviewMap].getOverviewMap().getLayers().insertAt(
+      0,
+      opticalPath.overviewTileLayer
+    )
+  }
+
+  /** Deactivate an optical path.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   */
+  deactivateOpticalPath (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
+      throw new Error(
+        'Cannot deactivate optical path. Could not find optical path ' +
+        `"${opticalPathIdentifier}".`
+      )
+    }
+    if (!this.isOpticalPathActive(opticalPathIdentifier)) {
+      return
+    }
+    this[_map].removeLayer(opticalPath.tileLayer)
+    opticalPath.tileLayer.dispose()
+    this[_overviewMap].getOverviewMap().removeLayer(opticalPath.overviewTileLayer)
+    opticalPath.overviewTileLayer.dispose()
+  }
+
+  /** Determine whether an optical path is active.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   * @return {boolean} active
+   */
+  isOpticalPathActive (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
+      return false
+    }
+    return !!this[_map].getLayers().getArray().find(layer => {
+      return layer === opticalPath.tileLayer
+    })
+  }
+
+  /** Show an optical path.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   * @param {object} styleOptions
+   * @param {number[]} styleOptions.color - RGB color triplet
+   * @param {number} styleOptions.opacity - Opacity
+   * @param {number[]} styleOptions.limitValues - Upper and lower clipping values
+   */
+  showOpticalPath (opticalPathIdentifier, styleOptions = {}) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
+      throw new Error(
+        'Cannot show optical path. Could not find optical path ' +
+        `"${opticalPathIdentifier}".`
+      )
+    }
+    console.info(`show optical path #${opticalPathIdentifier}`)
+    if (!this.isOpticalPathActive(opticalPathIdentifier)) {
+      this.activateOpticalPath(opticalPathIdentifier)
+    }
+    opticalPath.tileLayer.setVisible(true)
+    opticalPath.overviewTileLayer.setVisible(true)
+    this.setOpticalPathStyle(opticalPathIdentifier, styleOptions)
+  }
+
+  /** Hide an optical path.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   */
+  hideOpticalPath (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
+      throw new Error(
+        'Cannot hide optical path. Could not find optical path ' +
+        `"${opticalPathIdentifier}".`
+      )
+    }
+    console.info(`hide optical path #${opticalPathIdentifier}`)
+    opticalPath.tileLayer.setVisible(false)
+    opticalPath.overviewTileLayer.setVisible(false)
+  }
+
+  /**
+   * Determine if an optical path is visible.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   * @returns {boolean}
+   */
+  isOpticalPathVisible (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
+      throw new Error(
+        'Cannot show optical path. Could not find optical path ' +
+        `"${opticalPathIdentifier}".`
+      )
+    }
+    return opticalPath.tileLayer.getVisible()
+  }
+
+  /**
+   * Resize the viewer to fit the viewport.
    *
    * @returns {void}
    */
@@ -1399,7 +1268,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Gets the size of the viewport.
+   * Get the size of the viewport.
    *
    * @return {number[]}
    */
@@ -1408,7 +1277,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Renders the images in the specified viewport container.
+   * Render the images in the specified viewport container.
    *
    * @param {object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
@@ -1453,19 +1322,36 @@ class VolumeImageViewer {
     )
     overviewmapElement.style.border = '1px solid black'
     // Try to fit the overview map into the target control overlay container
-    const resizeFactor = 300
-    let width = Math.abs(this[_referenceExtents][1]) / resizeFactor
-    let height = Math.abs(this[_referenceExtents][2]) / resizeFactor
-    if (width > 400 || height > 400) {
-      width /= 2
-      height /= 2
+    const height = Math.abs(this[_pyramid].extent[1])
+    const width = Math.abs(this[_pyramid].extent[2])
+    const rotation = this[_rotation] / Math.PI * 180
+    const windowSize = _getWindowSize()
+    let targetHeight
+    let resizeFactor
+    let targetWidth
+    if (Math.abs(rotation - 180) &lt; 0.01 || Math.abs(rotation - 0) &lt; 0.01) {
+      if (windowSize[1] > windowSize[0]) {
+        targetHeight = Math.ceil(windowSize[1] * 0.2)
+        resizeFactor = targetHeight / height
+        targetWidth = width * resizeFactor
+      } else {
+        targetWidth = Math.ceil(windowSize[0] * 0.15)
+        resizeFactor = targetWidth / width
+        targetHeight = height * resizeFactor
+      }
+    } else {
+      if (windowSize[1] > windowSize[0]) {
+        targetHeight = Math.ceil(windowSize[1] * 0.2)
+        resizeFactor = targetHeight / width
+        targetWidth = height * resizeFactor
+      } else {
+        targetWidth = Math.ceil(windowSize[0] * 0.15)
+        resizeFactor = targetWidth / height
+        targetHeight = width * resizeFactor
+      }
     }
-    if (width &lt; 150 || height &lt; 150) {
-      width *= 1.5
-      height *= 1.5
-    }
-    overviewmapElement.style.width = `${width}px`
-    overviewmapElement.style.height = `${height}px`
+    overviewmapElement.style.width = `${targetWidth}px`
+    overviewmapElement.style.height = `${targetHeight}px`
 
     const container = this[_map].getTargetElement()
 
@@ -1473,7 +1359,7 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_ADDED,
-        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(e.feature, this[_pyramid].metadata)
       )
     })
 
@@ -1507,7 +1393,7 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_MODIFIED,
-        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(e.feature, this[_pyramid].metadata)
       )
     })
 
@@ -1515,12 +1401,13 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_REMOVED,
-        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(e.feature, this[_pyramid].metadata)
       )
     })
   }
 
-  /** Activates the draw interaction for graphic annotation of regions of interest.
+  /** Activate the draw interaction for graphic annotation of regions of interest.
+   *
    * @param {object} options - Drawing options
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
    * @param {string} options.marker - Marker
@@ -1634,7 +1521,7 @@ class VolumeImageViewer {
       _wireMeasurementsAndQualitativeEvaluationsEvents(
         this[_map],
         event.feature,
-        this[_pyramidMetadata]
+        this[_pyramid].metadata
       )
     })
 
@@ -1647,7 +1534,7 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_DRAWN,
-        this._getROIFromFeature(event.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(event.feature, this[_pyramid].metadata)
       )
     })
 
@@ -1655,8 +1542,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Deactivates draw interaction.
-   * @returns {void}
+   * Deactivate draw interaction.
    */
   deactivateDrawInteraction () {
     console.info('deactivate "draw" interaction')
@@ -1703,7 +1589,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Activates translate interaction.
+   * Activate translate interaction.
    *
    * @param {Object} options - Translation options.
    */
@@ -1730,8 +1616,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Extracts and transforms the region of interest (ROI) from an Openlayers
-   * Feature.
+   * Extract and transform the region of interest (ROI).
    *
    * @param {object} feature - Openlayers Feature
    * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
@@ -1761,7 +1646,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Toggles overview map.
+   * Toggle overview map.
    *
    * @returns {void}
    */
@@ -1780,7 +1665,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Deactivates translate interaction.
+   * Deactivate translate interaction.
    *
    * @returns {void}
    */
@@ -1793,7 +1678,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Activates dragZoom interaction.
+   * Activate dragZoom interaction.
    *
    * @param {object} options - DragZoom options.
    */
@@ -1820,8 +1705,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Deactivates dragZoom interaction.
-   * @returns {void}
+   * Deactivate dragZoom interaction.
    */
   deactivateDragZoomInteraction () {
     console.info('deactivate "dragZoom" interaction')
@@ -1832,7 +1716,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Activates select interaction.
+   * Activate select interaction.
    *
    * @param {object} options selection options.
    */
@@ -1861,7 +1745,7 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_SELECTED,
-        this._getROIFromFeature(e.selected[0], this[_pyramidMetadata])
+        this._getROIFromFeature(e.selected[0], this[_pyramid].metadata)
       )
     })
 
@@ -1869,9 +1753,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Deactivates select interaction.
-   *
-   * @returns {void}
+   * Deactivate select interaction.
    */
   deactivateSelectInteraction () {
     console.info('deactivate "select" interaction')
@@ -1882,7 +1764,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Activates dragpan interaction.
+   * Activate dragpan interaction.
    *
    * @param {Object} options - DragPan options.
    */
@@ -1912,8 +1794,6 @@ class VolumeImageViewer {
 
   /**
    * Deactivate dragpan interaction.
-   *
-   * @returns {void}
    */
   deactivateDragPanInteraction () {
     console.info('deactivate "drag pan" interaction')
@@ -1924,7 +1804,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Activates snap interaction.
+   * Activate snap interaction.
    *
    * @param {Object} options - Snap options.
    */
@@ -1939,9 +1819,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Deactivates snap interaction.
-   *
-   * @returns {void}
+   * Deactivate snap interaction.
    */
   deactivateSnapInteraction () {
     console.info('deactivate "snap" interaction')
@@ -1960,7 +1838,7 @@ class VolumeImageViewer {
     return this[_interactions].select !== undefined
   }
 
-  /** Activates modify interaction.
+  /** Activate modify interaction.
    *
    * @param {object} options - Modification options.
    */
@@ -1970,7 +1848,7 @@ class VolumeImageViewer {
     console.info('activate "modify" interaction')
 
     const modifyOptions = {
-      features: this[_features], // TODO: or source, i.e. 'drawings'???
+      features: this[_features],
       insertVertexCondition: ({ feature }) =>
         feature &amp;&amp; feature.get('vertexEnabled') === true
     }
@@ -1990,7 +1868,9 @@ class VolumeImageViewer {
     this[_map].addInteraction(this[_interactions].modify)
   }
 
-  /** Deactivates modify interaction. */
+  /**
+   * Deactivate modify interaction.
+   */
   deactivateModifyInteraction () {
     console.info('deactivate "modify" interaction')
     if (this[_interactions].modify) {
@@ -2009,7 +1889,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Gets all annotated regions of interest.
+   * Get all annotated regions of interest.
    *
    * @returns {ROI[]} Array of regions of interest.
    */
@@ -2040,7 +1920,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Gets an individual annotated regions of interest.
+   * Get an individual annotated regions of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
    * @returns {ROI} Regions of interest.
@@ -2048,18 +1928,16 @@ class VolumeImageViewer {
   getROI (uid) {
     console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
-    return this._getROIFromFeature(feature, this[_pyramidMetadata])
+    return this._getROIFromFeature(feature, this[_pyramid].metadata)
   }
 
   /**
-   * Adds a measurement to a region of interest.
+   * Add a measurement to a region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
    * @param {object} item - NUM content item representing a measurement
    */
   addROIMeasurement (uid, item) {
-    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
-    console.info(`add measurement "${meaning}" to ROI ${uid}`)
     this[_features].forEach((feature) => {
       const id = feature.getId()
       if (id === uid) {
@@ -2075,7 +1953,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Adds a qualitative evaluation to a region of interest.
+   * Add a qualitative evaluation to a region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
    * @param {object} item - CODE content item representing a qualitative evaluation
@@ -2097,20 +1975,20 @@ class VolumeImageViewer {
     })
   }
 
-  /** Pops the most recently annotated regions of interest.
+  /** Pop the most recently annotated regions of interest.
    *
    * @returns {ROI} Regions of interest.
    */
   popROI () {
     console.info('pop ROI')
     const feature = this[_features].pop()
-    return this._getROIFromFeature(feature, this[_pyramidMetadata])
+    return this._getROIFromFeature(feature, this[_pyramid].metadata)
   }
 
   /**
-   * Adds a regions of interest.
+   * Add a regions of interest.
    *
-   * @param {ROI} item - Regions of interest
+   * @param {ROI} roi - Regions of interest
    * @param {object} styleOptions - Style options
    * @param {object} styleOptions.stroke - Style options for the outline of the geometry
    * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
@@ -2122,7 +2000,7 @@ class VolumeImageViewer {
    */
   addROI (roi, styleOptions) {
     console.info(`add ROI ${roi.uid}`)
-    const geometry = scoord3d2Geometry(roi.scoord3d, this[_pyramidMetadata])
+    const geometry = scoord3d2Geometry(roi.scoord3d, this[_pyramid].metadata)
     const featureOptions = { geometry }
 
     const feature = new Feature(featureOptions)
@@ -2132,7 +2010,7 @@ class VolumeImageViewer {
     _wireMeasurementsAndQualitativeEvaluationsEvents(
       this[_map],
       feature,
-      this[_pyramidMetadata]
+      this[_pyramid].metadata
     )
 
     this[_features].push(feature)
@@ -2143,7 +2021,662 @@ class VolumeImageViewer {
   }
 
   /**
-   * Update properties of regions of interest.
+   * Add segments.
+   *
+   * @param {Segmentation[]} metadata - Metadata of DICOM Segmentation instances
+   */
+  addSegments (metadata) {
+    if (metadata.length === 0) {
+      throw new Error(
+        'Metadata of Segmentation instances needs to be provided to ' +
+        'add segments.'
+      )
+    }
+
+    const refSegmentation = metadata[0]
+    const refImage = this[_pyramid].metadata[0]
+    metadata.forEach(instance => {
+      if (
+        instance.TotalPixelMatrixColumns === undefined ||
+        instance.TotalPixelMatrixRows === undefined
+      ) {
+        const numberOfFrames = Number(instance.NumberOfFrames)
+        if (numberOfFrames === 1) {
+          /*
+           * If the image contains only one frame it is not tiled, and therefore
+           * the size of the total pixel matrix equals the size of the frame.
+           */
+          instance.TotalPixelMatrixRows = instance.Rows
+          instance.TotalPixelMatrixColumns = instance.Columns
+        } else {
+          throw new Error(
+            'Segmentation instances must contain attributes ' +
+            '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
+          )
+        }
+      }
+      if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Segmentation instances must have the same Frame of Reference UID ' +
+          'as the corresponding source images.'
+        )
+      }
+      if (refSegmentation.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Segmentation instances must all have same Frame of Reference UID.'
+        )
+      }
+      if (refSegmentation.SeriesInstanceUID !== instance.SeriesInstanceUID) {
+        throw new Error(
+          'Segmentation instances must all have same Series Instance UID.'
+        )
+      }
+      if (
+        refSegmentation.SegmentSequence.length !==
+        instance.SegmentSequence.length
+      ) {
+        throw new Error(
+          'Segmentation instances must all contain the same number of items ' +
+          'in the Segment Sequence.'
+        )
+      }
+    })
+    console.info(
+      'add segments of Segmentation instances of series ' +
+      `"${refSegmentation.SeriesInstanceUID}"`
+    )
+
+    const pyramid = _computeImagePyramid({ metadata })
+    const fittedPyramid = _fitImagePyramid(pyramid, this[_pyramid])
+
+    const tileGrid = new TileGrid({
+      extent: fittedPyramid.extent,
+      origins: fittedPyramid.origins,
+      resolutions: fittedPyramid.resolutions,
+      sizes: fittedPyramid.gridSizes,
+      tileSizes: fittedPyramid.tileSizes
+    })
+
+    const refInstance = pyramid.metadata[0]
+    for (let i = 0; i &lt; refInstance.SegmentSequence.length; i++) {
+      const segmentItem = refInstance.SegmentSequence[i]
+      const segmentNumber = Number(segmentItem.SegmentNumber)
+      console.info(`add segment # ${segmentNumber}`)
+      let segmentUID = generateUID()
+      if (segmentItem.UniqueTrackingIdentifier) {
+        segmentUID = segmentItem.UniqueTrackingIdentifier
+      }
+
+      const colormap = createColorMap({
+        name: ColorMapNames.VIRIDIS,
+        bins: 50
+      })
+
+      const segment = {
+        segment: new Segment({
+          uid: segmentUID,
+          number: segmentNumber,
+          label: segmentItem.SegmentLabel,
+          algorithmType: segmentItem.SegmentAlgorithmType,
+          algorithmName: segmentItem.SegmentAlgorithmName || '',
+          propertyCategory: segmentItem.SegmentedPropertyCategoryCodeSequence[0],
+          propertyType: segmentItem.SegmentedPropertyTypeCodeSequence[0],
+          studyInstanceUID: refInstance.StudyInstanceUID,
+          seriesInstanceUID: refInstance.SeriesInstanceUID,
+          sopInstanceUIDs: pyramid.metadata.map(element => {
+            return element.SOPInstanceUID
+          })
+        }),
+        segmentationType: refInstance.SegmentationType,
+        overlay: null,
+        colormap: colormap,
+        maxValue: 255
+      }
+
+      segment.rasterSource = new DataTileSource({
+        loader: _createTileLoadFunction({
+          pyramid: fittedPyramid,
+          client: this[_options].client,
+          retrieveRendered: this[_options].retrieveRendered,
+          renderingEngine: this[_renderingEngine],
+          channel: segmentNumber
+        }),
+        tileGrid: tileGrid,
+        projection: this[_projection],
+        wrapX: false,
+        transition: 0,
+        bandCount: 1
+      })
+      segment.rasterSource.on('tileloaderror', (event) => {
+        console.error('error loading segment tile', event)
+      })
+
+      const colorLUT = _buildColorLookupTable({
+        colormap: colormap,
+        min: 0,
+        max: 1
+      })
+      segment.tileLayer = new TileLayer({
+        source: segment.rasterSource,
+        extent: this[_pyramid].extent,
+        projection: this[_projection],
+        visible: false,
+        opacity: 0.9,
+        preload: 0,
+        style: {
+          color: [
+            'interpolate',
+            ['linear'],
+            ['band', 1],
+            ...colorLUT
+          ]
+        },
+        useInterimTilesOnError: false,
+        cacheSize: this[_options].tilesCacheSize
+      })
+      segment.tileLayer.on('prerender', (event) => {
+        const gl = event.context
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+      })
+
+      this[_map].addLayer(segment.tileLayer)
+
+      this[_segments][segmentUID] = segment
+    }
+  }
+
+  /**
+   * Remove a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of a segment
+   */
+  removeSegment (segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        `Cannot remove segment. Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    this[_map].removeLayer(segment.tileLayer)
+    segment.tileLayer.dispose()
+    this[_map].removeOverlay(segment.overlay)
+    delete this[_segments][segmentUID]
+  }
+
+  /**
+   * Show a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of a segment
+   * @param {object} styleOptions
+   * @param {number} styleOptions.opacity - Opacity
+   */
+  showSegment (segmentUID, styleOptions = {}) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        `Cannot show segment. Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    console.info(`show segment #${segmentUID}`)
+    segment.tileLayer.setVisible(true)
+    this.setSegmentStyle(segmentUID, styleOptions)
+  }
+
+  /**
+   * Hide a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of a segment
+   */
+  hideSegment (segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        `Cannot hide segment. Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    console.info(`hide segment #${segmentUID}`)
+    segment.tileLayer.setVisible(false)
+    this[_map].removeOverlay(segment.overlay)
+  }
+
+  /**
+   * Determine if segment is visible.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of a segment
+   * @returns {boolean}
+   */
+  isSegmentVisible (segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        'Cannot determine if segment is visible. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    return segment.tileLayer.getVisible()
+  }
+
+  /** Set the style of a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @param {object} styleOptions
+   * @param {number} styleOptions.opacity - Opacity
+   */
+  setSegmentStyle (segmentUID, styleOptions) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        'Cannot set style of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+
+    if (styleOptions.opacity != null) {
+      segment.tileLayer.setOpacity(styleOptions.opacity)
+    }
+
+    segment.overlay = new Overlay({
+      element: document.createElement('div'),
+      offset: [5, 5]
+    })
+
+    const overlayElement = segment.overlay.getElement()
+    overlayElement.innerHTML = segment.segment.propertyType.CodeMeaning
+    overlayElement.style = {}
+    overlayElement.style.display = 'flex'
+    overlayElement.style.flexDirection = 'column'
+    overlayElement.style.padding = '4px'
+    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
+    overlayElement.style.borderRadius = '4px'
+    overlayElement.style.margin = '1px'
+    overlayElement.style.color = 'black'
+    overlayElement.style.fontWeight = '600'
+    overlayElement.style.fontSize = '12px'
+    overlayElement.style.textAlign = 'center'
+
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    const height = 15
+    const width = 5
+    context.canvas.height = height
+    context.canvas.width = width
+
+    const colors = segment.colormap
+    for (let j = 0; j &lt; colors.length; j++) {
+      const color = colors[colors.length - j - 1]
+      const r = color[0]
+      const g = color[1]
+      const b = color[2]
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`
+      context.fillRect(0, height / colors.length * j, width, 1)
+    }
+    overlayElement.appendChild(canvas)
+
+    const parentElement = overlayElement.parentNode
+    parentElement.style.display = 'inline'
+
+    this[_map].addOverlay(segment.overlay)
+  }
+
+  /** Get the style of a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @returns {object} Style Options
+   */
+  getSegmentStyle (segmentUID, styleOptions) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        'Cannot get style of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+
+    return { opacity: segment.tileLayer.getOpacity() }
+  }
+
+  /**
+   * Get all segments.
+   *
+   * @return {Segment[]}
+   */
+  getAllSegments () {
+    const segments = []
+    for (const segmentUID in this[_segments]) {
+      segments.push(this[_segments][segmentUID].segment)
+    }
+    return segments
+  }
+
+  /**
+   * Add mappings.
+   *
+   * @param {ParametricMap[]} metadata - Metadata of DICOM Parametric Map instances
+   */
+  addMappings (metadata) {
+    if (metadata.length === 0) {
+      throw new Error(
+        'Metadata of Parametric Map instances needs to be provided to ' +
+        'add mappings.'
+      )
+    }
+
+    const refParametricMap = metadata[0]
+    const refImage = this[_pyramid].metadata[0]
+    metadata.forEach(instance => {
+      if (
+        instance.TotalPixelMatrixColumns === undefined ||
+        instance.TotalPixelMatrixRows === undefined
+      ) {
+        throw new Error(
+          'Parametric Map instances must contain attributes ' +
+          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
+        )
+      }
+      if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Parametric Map instances must have the same Frame of Reference UID ' +
+          'as the corresponding source images.'
+        )
+      }
+      if (refParametricMap.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Parametric Map instances must all have same Frame of Reference UID.'
+        )
+      }
+      if (refParametricMap.SeriesInstanceUID !== instance.SeriesInstanceUID) {
+        throw new Error(
+          'Parametric Map instances must all have same Series Instance UID.'
+        )
+      }
+    })
+    console.info(
+      'add mappings of Parametric Map instances of series ' +
+      `"${refParametricMap.SeriesInstanceUID}"`
+    )
+
+    const pyramid = _computeImagePyramid({ metadata })
+    const fittedPyramid = _fitImagePyramid(pyramid, this[_pyramid])
+
+    const tileGrid = new TileGrid({
+      extent: fittedPyramid.extent,
+      origins: fittedPyramid.origins,
+      resolutions: fittedPyramid.resolutions,
+      sizes: fittedPyramid.gridSizes,
+      tileSizes: fittedPyramid.tileSizes
+    })
+
+    const refInstance = pyramid.metadata[0]
+
+    const sharedFuncGroup = refInstance.SharedFunctionalGroupsSequence[0]
+    const windowCenter = sharedFuncGroup.FrameVOILUTSequence[0].WindowCenter
+    const windowWidth = sharedFuncGroup.FrameVOILUTSequence[0].WindowWidth
+    for (let i = 0; i &lt; pyramid.numberOfChannels; i++) {
+      const mappingNumber = i + 1
+      const mappingLabel = `${mappingNumber}`
+      const mappingUID = generateUID()
+
+      let colormap
+      if (windowCenter === 0) {
+        colormap = createColorMap({
+          name: ColorMapNames.BLUE_RED,
+          bins: 50
+        })
+      } else {
+        colormap = createColorMap({
+          name: ColorMapNames.HOT,
+          bins: 50
+        })
+      }
+
+      const mapping = {
+        mapping: new Mapping({
+          uid: mappingUID,
+          number: mappingNumber,
+          label: mappingLabel,
+          studyInstanceUID: refInstance.StudyInstanceUID,
+          seriesInstanceUID: refInstance.SeriesInstanceUID,
+          sopInstanceUIDs: pyramid.metadata.map(element => {
+            return element.SOPInstanceUID
+          })
+        }),
+        overlay: null,
+        colormap: colormap,
+        maxValue: Math.pow(2, refInstance.BitsAllocated) - 1
+      }
+
+      mapping.rasterSource = new DataTileSource({
+        loader: _createTileLoadFunction({
+          pyramid: fittedPyramid,
+          client: this[_options].client,
+          retrieveRendered: this[_options].retrieveRendered,
+          renderingEngine: this[_renderingEngine],
+          channel: mappingNumber
+        }),
+        tileGrid: tileGrid,
+        projection: this[_projection],
+        wrapX: false,
+        transition: 0,
+        bandCount: 1
+      })
+      mapping.rasterSource.on('tileloaderror', (event) => {
+        console.error('error loading mapping tile', event)
+      })
+
+      const colorLUT = _buildColorLookupTable({
+        colormap: colormap,
+        min: 0,
+        max: 1
+      })
+      mapping.tileLayer = new TileLayer({
+        source: mapping.rasterSource,
+        extent: this[_pyramid].extent,
+        projection: this[_projection],
+        visible: false,
+        opacity: 1,
+        preload: 1,
+        style: {
+          color: [
+            'interpolate',
+            ['linear'],
+            [
+              '+',
+              [
+                '/',
+                [
+                  '-',
+                  ['band', 1],
+                  ['var', 'windowCenter']
+                ],
+                ['var', 'windowWidth']
+              ],
+              0.5
+            ],
+            ...colorLUT
+          ],
+          variables: {
+            windowCenter: windowCenter / mapping.maxValue,
+            windowWidth: windowWidth / mapping.maxValue
+          }
+        }
+      })
+      mapping.tileLayer.on('prerender', (event) => {
+        const gl = event.context
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+      })
+      this[_map].addLayer(mapping.tileLayer)
+
+      this[_mappings][mappingUID] = mapping
+    }
+  }
+
+  /**
+   * Remove a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of a mapping
+   */
+  removeMapping (mappingUID) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        `Cannot remove mapping. Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    this[_map].removeLayer(mapping.tileLayer)
+    mapping.tileLayer.dispose()
+    this[_map].removeOverlay(mapping.overlay)
+    delete this[_mappings][mappingUID]
+  }
+
+  /**
+   * Show a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of a mapping
+   * @param {object} styleOptions
+   * @param {number} styleOptions.opacity - Opacity
+   * @param {number} styleOptions.limitValues - Opacity
+   */
+  showMapping (mappingUID, styleOptions = {}) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        `Cannot show mapping. Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    console.info(`show mapping #${mappingUID}`)
+    mapping.tileLayer.setVisible(true)
+    this.setMappingStyle(mappingUID, styleOptions)
+  }
+
+  /**
+   * Hide a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of a mapping
+   */
+  hideMapping (mappingUID) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        `Cannot hide mapping. Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    console.info(`hide mapping #${mappingUID}`)
+    mapping.tileLayer.setVisible(false)
+    this[_map].removeOverlay(mapping.overlay)
+  }
+
+  /**
+   * Determine if mapping is visible.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of a mapping
+   * @returns {boolean}
+   */
+  isMappingVisible (mappingUID) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        'Cannot determine if mapping is visible. ' +
+        `Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    return mapping.tileLayer.getVisible()
+  }
+
+  /** Set the style of a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of mapping
+   * @param {object} styleOptions
+   * @param {string} styleOptions.colormap - Name of the color map
+   * @param {number} styleOptions.opacity - Opacity
+   */
+  setMappingStyle (mappingUID, styleOptions) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        'Cannot set style of mapping. ' +
+        `Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+
+    if (styleOptions.opacity != null) {
+      mapping.tileLayer.setOpacity(styleOptions.opacity)
+    }
+
+    mapping.overlay = new Overlay({
+      element: document.createElement('div'),
+      offset: [5, 5]
+    })
+
+    const overlayElement = mapping.overlay.getElement()
+    overlayElement.innerHTML = mapping.mapping.label
+    overlayElement.style = {}
+    overlayElement.style.display = 'flex'
+    overlayElement.style.flexDirection = 'column'
+    overlayElement.style.padding = '4px'
+    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
+    overlayElement.style.borderRadius = '4px'
+    overlayElement.style.margin = '1px'
+    overlayElement.style.color = 'black'
+    overlayElement.style.fontWeight = '600'
+    overlayElement.style.fontSize = '12px'
+    overlayElement.style.textAlign = 'center'
+
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    const height = 15
+    const width = 5
+    context.canvas.height = height
+    context.canvas.width = width
+
+    const colors = mapping.colormap
+    for (let j = 0; j &lt; colors.length; j++) {
+      const color = colors[colors.length - j - 1]
+      const r = color[0]
+      const g = color[1]
+      const b = color[2]
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`
+      context.fillRect(0, height / colors.length * j, width, 1)
+    }
+    overlayElement.appendChild(canvas)
+
+    const parentElement = overlayElement.parentNode
+    parentElement.style.display = 'inline'
+
+    this[_map].addOverlay(mapping.overlay)
+  }
+
+  /** Get the style of a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of mapping
+   * @returns {object} Style Options
+   */
+  getMappingStyle (mappingUID, styleOptions) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        'Cannot get style of mapping. ' +
+        `Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+
+    return { opacity: mapping.tileLayer.getOpacity() }
+  }
+
+  /**
+   * Get all mappings.
+   *
+   * @return {Mapping[]}
+   */
+  getAllMappings () {
+    const mappings = []
+    for (const mappingUID in this[_mappings]) {
+      mappings.push(this[_mappings][mappingUID].mapping)
+    }
+    return mappings
+  }
+
+  /**
+   * Update properties of a region of interest.
    *
    * @param {object} roi - ROI to be updated
    * @param {string} roi.uid - Unique identifier of the region of interest
@@ -2151,7 +2684,7 @@ class VolumeImageViewer {
    * @param {object} roi.properties.measurements - ROI measurements
    * @param {object} roi.properties.evaluations - ROI evaluations
    * @param {object} roi.properties.label - ROI label
-   * @param {object} roi.properties.marker - ROI marker (this is used while we don't have presentation states)
+   * @param {object} roi.properties.marker - ROI marker
    */
   updateROI ({ uid, properties = {} }) {
     if (!uid) return
@@ -2165,7 +2698,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Sets the style of a region of interest.
+   * Set the style of a region of interest.
    *
    * @param {string} uid - Unique identifier of the regions of interest
    * @param {object} styleOptions - Style options
@@ -2189,18 +2722,25 @@ class VolumeImageViewer {
   }
 
   /**
-   * Adds a new viewport overlay.
+   * Add a new viewport overlay.
    *
    * @param {object} options Overlay options
-   * @param {object} options.element The custom overlay html element
-   * @param {object} options.className Class to style the OpenLayer's overlay container
+   * @param {object} options.element The custom overlay HTML element
+   * @param {string} options.className Class to style the overlay container
+   * @param {number[]} options.offset Horizontal and vertical offset of the overlay container in pixels
    */
-  addViewportOverlay ({ element, className }) {
-    this[_map].addOverlay(new Overlay({ element, className }))
+  addViewportOverlay ({ element, className, offset }) {
+    const overlay = new Overlay({
+      element,
+      className,
+      offset,
+      stopEvent: false
+    })
+    this[_map].addOverlay(overlay)
   }
 
   /**
-   * Removes an individual regions of interest.
+   * Remove an individual regions of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
    */
@@ -2221,9 +2761,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Removes all annotated regions of interest.
-   *
-   * @returns {void}
+   * Remove all annotated regions of interest.
    */
   removeAllROIs () {
     console.info('remove all ROIs')
@@ -2231,8 +2769,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Hides annotated regions of interest such that they are no longer
-   *  visible on the viewport.
+   * Hide annotated regions of interest.
    */
   hideROIs () {
     console.info('hide ROIs')
@@ -2241,8 +2778,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Shows annotated regions of interest such that they become visible
-   *  on the viewport ontop of the images.
+   * Show annotated regions of interest.
    */
   showROIs () {
     console.info('show ROIs')
@@ -2260,12 +2796,12 @@ class VolumeImageViewer {
   }
 
   /**
-   * DICOM metadata for each VL Whole Slide Microscopy Image instance.
+   * Metadata for each DICOM VL Whole Slide Microscopy Image instance.
    *
    * @return {VLWholeSlideMicroscopyImage[]}
    */
   get imageMetadata () {
-    return this[_pyramidMetadata]
+    return this[_pyramid].metadata
   }
 }
 
@@ -2325,12 +2861,12 @@ class _NonVolumeImageViewer {
         mediaTypes: [{ mediaType }],
         queryParams: queryParams
       }
-      options.client
-        .retrieveInstanceRendered(retrieveOptions)
-        .then((thumbnail) => {
+      options.client.retrieveInstanceRendered(retrieveOptions).then(
+        (thumbnail) => {
           const blob = new Blob([thumbnail], { type: mediaType })// eslint-disable-line
           image.getImage().src = window.URL.createObjectURL(blob)
-        })
+        }
+      )
     }
 
     const projection = new Projection({
@@ -2348,7 +2884,6 @@ class _NonVolumeImageViewer {
     })
 
     const rasterSource = new Static({
-      crossOrigin: 'Anonymous',
       imageExtent: extent,
       projection: projection,
       imageLoadFunction: imageLoadFunction,
@@ -2489,13 +3024,13 @@ export { LabelImageViewer, OverviewImageViewer, VolumeImageViewer }
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="mapping.Mapping.html">Mapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_buildColorLookupTable">_buildColorLookupTable</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_createTileLoadFunction">_createTileLoadFunction</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_getWindowSize">_getWindowSize</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Fri Oct 15 2021 08:06:40 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Mon Nov 15 2021 22:37:38 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>
