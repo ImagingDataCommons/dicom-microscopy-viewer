@@ -740,6 +740,7 @@ class VolumeImageViewer {
             limitValues: [0, maxValue]
           },
           bitsAllocated: info.metadata[0].BitsAllocated,
+          minValue: 0,
           maxValue: maxValue
         }
 
@@ -1086,8 +1087,8 @@ class VolumeImageViewer {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath === undefined) {
       throw new Error(
-        'Cannot get optical path style. Could not find optical path ' +
-        `"${opticalPathIdentifier}".`
+        'Cannot get style of optical path. ' +
+        `Could not find optical path "${opticalPathIdentifier}".`
       )
     }
     return {
@@ -1095,6 +1096,22 @@ class VolumeImageViewer {
       opacity: opticalPath.style.opacity,
       limitValues: opticalPath.style.limitValues
     }
+  }
+
+  /** Get image metadata for an optical path.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   * @returns {Segmentation[]} Segmentation image metadata
+   */
+  getOpticalPathImageMetadata (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath === undefined) {
+      throw new Error(
+        'Cannot get image metadata optical path. ' +
+        `Could not find optical path "${opticalPathIdentifier}".`
+      )
+    }
+    return opticalPath.pyramid.metadata
   }
 
   /**
@@ -2099,9 +2116,13 @@ class VolumeImageViewer {
             return element.SOPInstanceUID
           })
         }),
-        segmentationType: refInstance.SegmentationType,
+        pyramid: pyramid,
+        style: {
+          opacity: 1.0
+        },
         overlay: null,
         colormap: colormap,
+        minValue: 0,
         maxValue: 255
       }
 
@@ -2244,6 +2265,7 @@ class VolumeImageViewer {
     const segment = this[_segments][segmentUID]
 
     if (styleOptions.opacity != null) {
+      segment.style.opacity = styleOptions.opacity
       segment.tileLayer.setOpacity(styleOptions.opacity)
     }
 
@@ -2304,7 +2326,23 @@ class VolumeImageViewer {
     }
     const segment = this[_segments][segmentUID]
 
-    return { opacity: segment.tileLayer.getOpacity() }
+    return { opacity: segment.style.opacity }
+  }
+
+  /** Get image metadata for a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @returns {Segmentation[]} Segmentation image metadata
+   */
+  getSegmentImageMetadata (segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        'Cannot get image metadata of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    return segment.pyramid.metadata
   }
 
   /**
@@ -2401,6 +2439,9 @@ class VolumeImageViewer {
         })
       }
 
+      const minValue = -Math.pow(2, refInstance.BitsAllocated) / 2 + 1
+      const maxValue = Math.pow(2, refInstance.BitsAllocated) / 2 - 1
+
       const mapping = {
         mapping: new Mapping({
           uid: mappingUID,
@@ -2412,9 +2453,18 @@ class VolumeImageViewer {
             return element.SOPInstanceUID
           })
         }),
+        pyramid: pyramid,
         overlay: null,
+        style: {
+          opacity: 1.0,
+          limitValues: [
+            windowCenter - windowWidth / 2,
+            windowCenter + windowWidth / 2
+          ]
+        },
         colormap: colormap,
-        maxValue: Math.pow(2, refInstance.BitsAllocated) - 1
+        minValue: minValue,
+        maxValue: maxValue
       }
 
       mapping.rasterSource = new DataTileSource({
@@ -2571,8 +2621,25 @@ class VolumeImageViewer {
     const mapping = this[_mappings][mappingUID]
 
     if (styleOptions.opacity != null) {
+      mapping.style.opacity = styleOptions.opacity
       mapping.tileLayer.setOpacity(styleOptions.opacity)
     }
+
+    const styleVariables = {}
+    if (styleOptions.limitValues != null) {
+      const max = mapping.maxValue
+      mapping.style.limitValues = styleOptions.limitValues
+      styleVariables.windowCenter = (
+        (styleOptions.limitValues[0] + styleOptions.limitValues[1]) /
+        2 /
+        max
+      )
+      styleVariables.windowWidth = (
+        (styleOptions.limitValues[1] - styleOptions.limitValues[0]) /
+        max
+      )
+    }
+    mapping.tileLayer.updateStyleVariables(styleVariables)
 
     mapping.overlay = new Overlay({
       element: document.createElement('div'),
@@ -2631,7 +2698,26 @@ class VolumeImageViewer {
     }
     const mapping = this[_mappings][mappingUID]
 
-    return { opacity: mapping.tileLayer.getOpacity() }
+    return {
+      opacity: mapping.style.opacity,
+      limitValues: mapping.style.limitValues
+    }
+  }
+
+  /** Get image metadata for a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of mapping
+   * @returns {ParametricMap[]} Parametric Map image metadata
+   */
+  getMappingImageMetadata (mappingUID) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        'Cannot get image metadata of mapping. ' +
+        `Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    return mapping.pyramid.metadata
   }
 
   /**
