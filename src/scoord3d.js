@@ -78,7 +78,7 @@ class Point extends Scoord3D {
       throw new Error('coordinates of Point must be an array of length 3')
     }
     if (options.coordinates.some(c => c < 0)) {
-      throw new Error('coordinates of Point must be positive numbers')
+      console.warn('coordinates of Point are negative numbers')
     }
     super({
       coordinates: options.coordinates,
@@ -123,7 +123,7 @@ class Multipoint extends Scoord3D {
       throw new Error('coordinates of Multipoint must be an array of (X,Y,Z) triplets')
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
-      throw new Error('coordinates of Multipoint must be positive numbers')
+      console.warn('coordinates of Multipoint contain positive numbers')
     }
     super({
       coordinates: options.coordinates,
@@ -160,7 +160,7 @@ class Polyline extends Scoord3D {
       throw new Error('coordinates of Polyline must be an array of (X,Y,Z) triplets')
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
-      throw new Error('coordinates of Polyline must be positive numbers')
+      console.warn('coordinates of Polyline contain negative numbers')
     }
     super({
       coordinates: options.coordinates,
@@ -198,7 +198,7 @@ class Polygon extends Scoord3D {
       throw new Error('coordinates of Polygon must be an array of (X,Y,Z) triplets')
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
-      throw new Error('coordinates of Polygon must be positive numbers')
+      console.warn('coordinates of Polygon contain negative numbers')
     }
     const n = options.coordinates.length
     if ((options.coordinates[0][0] !== options.coordinates[n - 1][0]) ||
@@ -247,7 +247,7 @@ class Ellipsoid extends Scoord3D {
       throw new Error('coordinates of Ellipsoid must be an array of (X,Y,Z) triplets')
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
-      throw new Error('coordinates of Ellipsoid must be positive numbers')
+      console.warn('coordinates of Ellipsoid contain negative numbers')
     }
     super({
       coordinates: options.coordinates,
@@ -289,7 +289,7 @@ class Ellipse extends Scoord3D {
       throw new Error('coordinates of Ellipse must be an array of (X,Y,Z) triplets')
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
-      throw new Error('coordinates of Ellipse must be positive numbers')
+      console.warn('coordinates of Ellipse contain negative numbers')
     }
     const firstAxis = [
       options.coordinates[0][0] - options.coordinates[1][0],

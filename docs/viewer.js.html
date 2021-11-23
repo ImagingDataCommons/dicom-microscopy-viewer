@@ -382,7 +382,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
   const unitCodedConceptValue = unitSuffix
   const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
 
-  if (area) {
+  if (area != null) {
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Area',
@@ -400,7 +400,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     })
   }
 
-  if (length) {
+  if (length != null) {
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Length',
@@ -765,7 +765,8 @@ class VolumeImageViewer {
       resolutions: this[_tileGrid].getResolutions(),
       rotation: this[_rotation],
       smoothResolutionConstraint: true,
-      showFullExtent: true
+      showFullExtent: true,
+      extent: this[_referenceExtents]
     })
 
     // Create a rendering engine object for offscreen rendering
@@ -852,7 +853,11 @@ class VolumeImageViewer {
     const overviewView = new View({
       projection: this[_projection],
       rotation: this[_rotation],
-      zoom: 28 /** Default max zoom */
+      zoom: 0,
+      minZoom: 0,
+      maxZoom: 0,
+      constrainOnlyCenter: true,
+      center: getCenter(this[_referenceExtents])
     })
 
     this[_overviewMap] = new OverviewMap({
@@ -870,7 +875,7 @@ class VolumeImageViewer {
       keyboardEventTarget: document
     })
 
-    view.fit(this[_projection].getExtent(), this[_map].getSize())
+    view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
 
     /**
      * OpenLayer's map has default active interactions
@@ -920,7 +925,8 @@ class VolumeImageViewer {
 
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
-      pyramid: this[_pyramidMetadata]
+      pyramid: this[_pyramidMetadata],
+      drawingSource: this[_drawingSource]
     })
 
     // This updates the tiles offscreen rendering when zoom is applied to the view.
@@ -1025,7 +1031,6 @@ class VolumeImageViewer {
        */
 
       const z = tileCoord[0]
-      console.debug('Pyramid level:', z)
       const y = tileCoord[1] + 1
       const x = tileCoord[2] + 1
       const index = x + '-' + y
@@ -1064,7 +1069,7 @@ class VolumeImageViewer {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
 
-        console.info(`retrieve frames ${frameNumbers}`)
+        console.info(`get tile (${tile.tileCoord})`)
 
         if (this[_options].retrieveRendered) {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
@@ -1415,7 +1420,7 @@ class VolumeImageViewer {
     this[_map].setTarget(options.container)
     const view = this[_map].getView()
     const projection = view.getProjection()
-    view.fit(projection.getExtent(), this[_map].getSize())
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
 
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")
     const scaleElement = this[_controls].scale.element
@@ -1441,6 +1446,26 @@ class VolumeImageViewer {
     scaleInnerElement.style.borderBottomColor = 'black'
     scaleInnerElement.style.margin = '1px'
     scaleInnerElement.style.willChange = 'contents,width'
+
+    const overviewElement = this[_overviewMap].element
+    const overviewmapElement = Object.values(overviewElement.children).find(
+      c => c.className === 'ol-overviewmap-map'
+    )
+    overviewmapElement.style.border = '1px solid black'
+    // Try to fit the overview map into the target control overlay container
+    const resizeFactor = 300
+    let width = Math.abs(this[_referenceExtents][1]) / resizeFactor
+    let height = Math.abs(this[_referenceExtents][2]) / resizeFactor
+    if (width > 400 || height > 400) {
+      width /= 2
+      height /= 2
+    }
+    if (width &lt; 150 || height &lt; 150) {
+      width *= 1.5
+      height *= 1.5
+    }
+    overviewmapElement.style.width = `${width}px`
+    overviewmapElement.style.height = `${height}px`
 
     const container = this[_map].getTargetElement()
 
@@ -1748,6 +1773,10 @@ class VolumeImageViewer {
       return
     }
     this[_map].addControl(this[_overviewMap])
+    const map = this[_overviewMap].getOverviewMap()
+    const view = map.getView()
+    const projection = view.getProjection()
+    view.fit(projection.getExtent(), { size: map.getSize() })
   }
 
   /**
@@ -2109,6 +2138,8 @@ class VolumeImageViewer {
     this[_features].push(feature)
 
     _setFeatureStyle(feature, styleOptions)
+    const isVisible = Object.keys(styleOptions).length !== 0
+    this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
   }
 
   /**
@@ -2151,6 +2182,8 @@ class VolumeImageViewer {
       const id = feature.getId()
       if (id === uid) {
         _setFeatureStyle(feature, styleOptions)
+        const isVisible = Object.keys(styleOptions).length !== 0
+        this[_annotationManager].setMarkupVisibility(id, isVisible)
       }
     })
   }
@@ -2334,7 +2367,8 @@ class _NonVolumeImageViewer {
     const view = new View({
       center: getCenter(extent),
       rotation: rotation,
-      projection: projection
+      projection: projection,
+      extent: extent
     })
 
     // Creates the map with the defined layers and view and renders it.
@@ -2345,7 +2379,7 @@ class _NonVolumeImageViewer {
       keyboardEventTarget: document
     })
 
-    view.fit(projection.getExtent(), this[_map].getSize())
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
   }
 
   /** Renders the image in the specified viewport container.
@@ -2359,7 +2393,7 @@ class _NonVolumeImageViewer {
     this[_map].setTarget(options.container)
     const view = this[_map].getView()
     const projection = view.getProjection()
-    view.fit(projection.getExtent(), this[_map].getSize())
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
 
     this[_map].getInteractions().forEach((interaction) => {
       this[_map].removeInteraction(interaction)
@@ -2461,7 +2495,7 @@ export { LabelImageViewer, OverviewImageViewer, VolumeImageViewer }
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Mon Aug 16 2021 15:45:17 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Fri Oct 15 2021 08:06:40 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>
