@@ -795,6 +795,9 @@ class VolumeImageViewer {
             ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1]
           ],
           variables: {
+            glBlendEquation: helper.getGL().FUNC_ADD,
+            glBlendFuncSRC: helper.getGL().ONE,
+            glBlendFuncDST: helper.getGL().ONE,
             red: opticalPath.style.color[0],
             green: opticalPath.style.color[1],
             blue: opticalPath.style.color[2],
