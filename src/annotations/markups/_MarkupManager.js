@@ -14,6 +14,8 @@ import { getUnitSuffix } from '../../utils'
 import { coordinateWithOffset } from '../../scoord3dUtils'
 import defaultStyles from '../styles'
 
+const DEFAULT_MARKUP_OFFSET = 2;
+
 class _MarkupManager {
   constructor ({ map, pyramid, drawingSource, formatters, onClick, onStyle } = {}) {
     this._map = map
@@ -36,7 +38,7 @@ class _MarkupManager {
       source: new VectorSource({ features: this._links })
     })
 
-    this._markupsOverlay = new Overlay({ element: this._styleTag })
+    this._markupsOverlay = new Overlay({ element: this._styleTag, stopEvent: true })
     this._map.addOverlay(this._markupsOverlay)
     this._map.addLayer(this._linksVector)
   }
@@ -57,6 +59,7 @@ class _MarkupManager {
       })
       return
     }
+
     this._markups.forEach((markup) => {
       this._map.addOverlay(markup.overlay)
       this._map.removeOverlay(markup.overlay)
@@ -81,6 +84,15 @@ class _MarkupManager {
    */
   get (id) {
     return this._markups.get(id)
+  }
+
+  /**
+   * Returns all markup overlays
+   *
+   * @return {array} The markup overlays
+   */
+  getOverlays() {
+    return Array.from(this._markups.values()).map(v => v.overlay);
   }
 
   /**
@@ -112,7 +124,19 @@ class _MarkupManager {
   }
 
   /**
-   * Set markup visibility.
+   * Update feature's presentation state property.
+   *
+   * @param {object} options
+   */
+  updatePresentationState({ feature, coordinates }) {
+    feature.set(Enums.InternalProperties.PresentationState, {
+      markup: {
+        coordinates,
+      },
+    });
+  }
+
+  /* Set markup visibility.
    *
    * @param {string} id The markup id
    * @param {boolean} isVisible The markup visibility
@@ -144,14 +168,23 @@ class _MarkupManager {
    *
    * @param {object} options The options
    * @param {Feature} options.feature The feature to plug the measure markup
+   * @param {Style} options.style A custom style
    * @param {string} options.value The inner content of element
+   * @param {string} options.position The position
    * @param {boolean} options.isLinkable Create a link between feature and markup
    * @param {boolean} options.isDraggable Allow markup to be dragged
    * @param {array} offset Markup offset
    * @return {object} The markup object
    */
-  create ({ feature, value = '', isLinkable = true, isDraggable = true }) {
-    const id = feature.getId()
+  create({
+    feature,
+    style,
+    value = "",
+    position,
+    isLinkable = true,
+    isDraggable = true,
+  }) {
+    const id = feature.getId();
     if (!id) {
       console.warn('Failed to create markup, feature id not found')
       return
@@ -162,32 +195,44 @@ class _MarkupManager {
       return this.get(id)
     }
 
-    const markup = { id, isLinkable, isDraggable }
+    const markup = { id, isLinkable, isDraggable, style }
 
     const element = document.createElement('div')
     element.id = markup.isDraggable ? Enums.InternalProperties.Markup : ''
     element.className = 'ol-tooltip ol-tooltip-measure'
     element.innerText = value
 
-    const spacedCoordinate = coordinateWithOffset(feature)
+    const spacedCoordinate = coordinateWithOffset(feature, DEFAULT_MARKUP_OFFSET, this._map)
+
+    element.onpointerdown = event => {
+      event.stopPropagation();
+    }
 
     markup.element = element
     markup.overlay = new Overlay({
       className: 'markup-container',
       positioning: 'center-center',
-      stopEvent: false,
+      stopEvent: true,
       dragging: false,
-      position: spacedCoordinate,
-      element: markup.element
-    })
+      position: position || spacedCoordinate,
+      element: markup.element,
+    });
 
-    this._map.addOverlay(markup.overlay)
-    this._markups.set(id, markup)
+    this.updatePresentationState({
+      feature,
+      coordinates: position || spacedCoordinate,
+    });
+
+    this._map.addOverlay(markup.overlay);
+    this._markups.set(id, markup);
 
     this._drawLink(feature)
     this._wireInternalEvents(feature)
 
-    return markup
+    const isVisible = this._linksVector.getVisible();
+    this.setVisible(isVisible);
+
+    return markup;
   }
 
   /**
@@ -204,6 +249,11 @@ class _MarkupManager {
       Enums.FeatureGeometryEvents.CHANGE,
       ({ target: geometry }) => {
         if (this.has(id)) {
+          const { isShortAxis, isLongAxis } = feature.getProperties();
+          if (isShortAxis, isLongAxis) {
+            return;
+          }
+
           const view = this._map.getView()
           const unitSuffix = getUnitSuffix(view)
           const format = this._getFormatter(feature)
@@ -213,7 +263,6 @@ class _MarkupManager {
             value: output,
             coordinate: geometry.getLastCoordinate()
           })
-          this._drawLink(feature)
         }
       }
     )
@@ -260,12 +309,16 @@ class _MarkupManager {
         markup.isDraggable
       ) {
         /** Doesn't need to have the offset */
-        markup.overlay.setPosition(event.coordinate)
-        this._drawLink(feature)
+        markup.overlay.setPosition(event.coordinate);
+        this.updatePresentationState({
+          feature,
+          coordinates: event.coordinate,
+        });
+        this._drawLink(feature);
       }
     })
 
-    this._map.on(Enums.MapEvents.POINTER_UP, () => {
+    markup.element.addEventListener(Enums.HTMLElementEvents.MOUSE_UP, () => { 
       const markup = this.get(id)
       if (
         markup &&
@@ -275,7 +328,7 @@ class _MarkupManager {
         dragPan.setActive(true)
         markup.overlay.set(dragProperty, false)
       }
-    })
+    });
   }
 
   onDrawAbort ({ feature }) {
@@ -289,7 +342,8 @@ class _MarkupManager {
    * @returns {void}
    */
   _styleTooltip (feature) {
-    const styleOptions = feature.get(Enums.InternalProperties.StyleOptions)
+    const marker = this.get(feature.getId());
+    const styleOptions = marker && marker.style !== undefined ? marker.style : feature.get(Enums.InternalProperties.StyleOptions)
     if (styleOptions && styleOptions.stroke) {
       const { color } = styleOptions.stroke
       const tooltipColor = color || defaultStyles.stroke.color
@@ -302,10 +356,16 @@ class _MarkupManager {
         styles.setStroke(stroke)
         link.setStyle(styles)
       }
-      const marker = this.get(feature.getId())
       if (marker) {
         marker.element.style.color = tooltipColor
       }
+      /**
+       * This is necessary to resolve intermediary error:
+       * 'Two axis of Ellipse must have right angle'
+       * 
+       * TODO: Resolve core problem.
+       */
+      feature.changed();
     }
   }
 
@@ -321,6 +381,13 @@ class _MarkupManager {
         white-space: nowrap;
         font-size: 17px;
         font-weight: bold;
+        text-shadow: 0px 0px 20px rgba(225,225,225,0.6),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%),
+        0px 0px 20px rgb(225 225 225 / 60%);
       }
       .ol-tooltip-measure { opacity: 1; }
       .ol-tooltip-static { color: ${color}; }
@@ -372,10 +439,12 @@ class _MarkupManager {
     }
 
     if (coordinate) {
-      markup.overlay.setPosition(coordinateWithOffset(feature))
+      const padding = (markup.element.offsetWidth + markup.element.offsetHeight) / 2;
+      markup.overlay.setPosition(coordinateWithOffset(feature, DEFAULT_MARKUP_OFFSET + padding, this._map))
     }
 
     this._markups.set(id, markup)
+    this._drawLink(feature)
   }
 
   /**

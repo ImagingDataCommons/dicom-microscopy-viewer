@@ -241,7 +241,6 @@ class _Channel {
         const sopInstanceUID = DICOMwebClient.utils.getSOPInstanceUIDFromUri(src)
         const frameNumbers = DICOMwebClient.utils.getFrameNumbersFromUri(src)
 
-        console.info(`retrieve frames ${frameNumbers}`)
         tile.needToRerender = false
         tile.isLoading = true
 
@@ -302,7 +301,8 @@ class _Channel {
             }
           )
         } else {
-          const jlsMediaType = 'image/jls' // decoded with CharLS
+          const jpegMediaType = 'image/jpeg' // decoded with libJPEG-turbo
+          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
           const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
           const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
           const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
@@ -311,9 +311,7 @@ class _Channel {
           const jpxMediaType = 'image/jpx' // decoded with OpenJPEG
           const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
           const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-          const jpegMediaType = 'image/jpeg' // decoded with libJPEG-turbo
-          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-
+          
           const octetStreamMediaType = 'application/octet-stream'
           const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
 
@@ -323,6 +321,10 @@ class _Channel {
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
+              {
+                mediaType: jpegMediaType,
+                transferSyntaxUID: jpegTransferSyntaxUID
+              },
               {
                 mediaType: jlsMediaType,
                 transferSyntaxUID: jlsTransferSyntaxUIDlossless
@@ -347,10 +349,6 @@ class _Channel {
                 mediaType: jpxMediaType,
                 transferSyntaxUID: jpxTransferSyntaxUID
               },
-              {
-                mediaType: jpegMediaType,
-                transferSyntaxUID: jpegTransferSyntaxUID
-              }
             ]
           }
 
@@ -490,9 +488,10 @@ class _Channel {
     image.FrameOfReferenceUID = image.metadata[0].FrameOfReferenceUID
     for (let i = 0; i < image.metadata.length; ++i) {
       if (image.FrameOfReferenceUID !== image.metadata[i].FrameOfReferenceUID) {
-        throw new Error('Optioncal Path ID ' +
-        image.blendingInformation.opticalPathIdentifier +
-        ' has volume microscopy images with different FrameOfReferenceUID')
+        const msg = `Optical Path ID ${image.opticalPathIdentifier} ` +
+        ` has volume microscopy images with FrameOfReferenceUID=${image.metadata[i].FrameOfReferenceUID}!=${image.FrameOfReferenceUID}`;
+        console.warn(msg);
+        // throw new Error(msg);
       }
     }
 

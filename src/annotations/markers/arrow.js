@@ -6,6 +6,7 @@ import Icon from 'ol/style/Icon'
 
 import Enums from '../../enums'
 import defaultStyles from '../styles'
+import annotationInterface from '../annotationInterface'
 
 /**
  * Format arrow output.
@@ -123,7 +124,7 @@ const _isArrow = (feature) =>
  * @param {object} dependencies.markupManager Markup manager shared instance
  */
 const ArrowMarker = ({ map, markupManager }) => {
-  return {
+  return Object.assign({}, annotationInterface, {
     onAdd: (feature) => {
       if (_isArrow(feature)) {
         _applyStyles(feature, map)
@@ -160,10 +161,7 @@ const ArrowMarker = ({ map, markupManager }) => {
         markupManager.remove(uid)
       }
     },
-    onUpdate: (feature) => {},
-    onDrawEnd: ({ feature }) => {},
-    onDrawAbort: ({ feature }) => {}
-  }
+  })
 }
 
 export default ArrowMarker

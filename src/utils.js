@@ -118,7 +118,7 @@ function buildTransform (options) {
   const offset = options.offset
   const spacing = options.spacing
   return [
-    [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
+    [-orientation[0] * spacing[1], -orientation[3] * spacing[0], offset[0]],
     [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
     [0, 0, 1]
   ]

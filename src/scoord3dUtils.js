@@ -4,7 +4,6 @@ import { default as Circle, default as CircleGeometry } from 'ol/geom/Circle'// 
 import { default as PolygonGeometry, fromCircle } from 'ol/geom/Polygon'// eslint-disable-line
 import { default as PointGeometry } from 'ol/geom/Point'// eslint-disable-line
 import { default as LineStringGeometry } from 'ol/geom/LineString'// eslint-disable-line
-
 import {
   applyInverseTransform,
   applyTransform,
@@ -196,17 +195,23 @@ function coordinateFormatScoord3d2Geometry (coordinates, pyramid) {
  *
  * @param {object} feature feature
  * @param {number} offset offset
+ * @param {object} map map
  * @returns {array} coordinates with offset
  * @private
  */
-function coordinateWithOffset (feature, offset = 70) {
+function coordinateWithOffset (feature, offset, map) {
   const geometry = feature.getGeometry()
   const coordinates = geometry.getLastCoordinate()
   const [x, y] = coordinates
+
+  const view = map.getView()
+  const resolution = view.getResolution()
+  const realOffset = offset * resolution
+
   return !feature.get(Enums.InternalProperties.Marker) &&
     feature.get(Enums.InternalProperties.Markup) === Enums.Markup.TextEvaluation
     ? coordinates
-    : [x - offset, y - offset]
+    : [x - realOffset, y - realOffset]
 }
 
 /**
@@ -232,8 +237,9 @@ function getFeatureArea (feature) {
  * @private
  */
 function getPixelSpacing (metadata) {
-  const functionalGroup = metadata.SharedFunctionalGroupsSequence[0]
-  const pixelMeasures = functionalGroup.PixelMeasuresSequence[0]
+  if(!metadata.SharedFunctionalGroupsSequence ) return metadata.PixelSpacing;
+  const functionalGroup = metadata.SharedFunctionalGroupsSequence[0];
+  const pixelMeasures = functionalGroup.PixelMeasuresSequence[0];
   return pixelMeasures.PixelSpacing
 }
 
@@ -279,7 +285,7 @@ function coordinateFormatGeometry2Scoord3d (coordinates, pyramid) {
     spacing
   })
   coordinates = coordinates.map((c) => {
-    const pixelCoord = [c[0], -(c[1] + 1)]
+    const pixelCoord = [c[0], (c[1] + 1)]
     const slideCoord = applyTransform({ coordinate: pixelCoord, affine })
     return [slideCoord[0], slideCoord[1], 0]
   })
@@ -299,7 +305,7 @@ function coordinateFormatGeometry2Scoord3d (coordinates, pyramid) {
  */
 function geometryCoordinates2scoord3dCoordinates (coordinates, pyramid) {
   return coordinateFormatGeometry2Scoord3d(
-    [coordinates[0], coordinates[1], coordinates[2]],
+    [coordinates[0], coordinates[1], coordinates[2] || 0],
     pyramid
   )
 }

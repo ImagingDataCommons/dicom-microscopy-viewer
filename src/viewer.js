@@ -41,7 +41,7 @@ import dcmjs from 'dcmjs'
 import {
   VLWholeSlideMicroscopyImage,
   groupMonochromeInstances,
-  groupColorInstances
+  groupColorInstances,
 } from './metadata.js'
 import { ROI } from './roi.js'
 import {
@@ -66,7 +66,7 @@ import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 
-function _getInteractionBindingCondition (bindings) {
+function _getInteractionBindingCondition (bindings, condition = () => true) {
   const BUTTONS = {
     left: 1,
     middle: 4,
@@ -125,7 +125,7 @@ function _getInteractionBindingCondition (bindings) {
   }
 
   return (event) => {
-    return _mouseButtonCondition(event) && _modifierKeyCondition(event)
+    return _mouseButtonCondition(event) && _modifierKeyCondition(event) && condition(event)
   }
 }
 
@@ -262,8 +262,14 @@ function _getOpenLayersStyle (styleOptions) {
  * @param {object} properties.marker - ROI marker (this is used while we don't have presentation states)
  * @param {boolean} optSilent - Opt silent update
  */
-function _addROIPropertiesToFeature (feature, properties, optSilent) {
-  const { Label, Measurements, Evaluations, Marker } = Enums.InternalProperties
+function _addROIPropertiesToFeature(feature, properties, optSilent) {
+  const {
+    Label,
+    Measurements,
+    Evaluations,
+    Marker,
+    PresentationState,
+  } = Enums.InternalProperties;
 
   if (properties[Label]) {
     feature.set(Label, properties[Label], optSilent)
@@ -280,28 +286,33 @@ function _addROIPropertiesToFeature (feature, properties, optSilent) {
   if (properties[Marker]) {
     feature.set(Marker, properties[Marker], optSilent)
   }
+
+  if (properties[PresentationState]) {
+    feature.set(PresentationState, properties[PresentationState], optSilent);
+  }
 }
 
 /**
  * Wire measurements and qualitative events to generate content items
  * based on feature properties and geometry changes
  *
- * @param {object} map - The map instance
  * @param {object} feature - The feature instance
- * @param {object} pyramid - The pyramid metadata
+ * @param {object} viewerProperties - The viewer properties
+ * @param {object} viewerProperties.map - The map
+ * @param {object} viewerProperties.drawingSource - The drawing source
+ * @param {object} viewerProperties.pyramid - The pyramid metadata
  * @returns {void}
  */
 function _wireMeasurementsAndQualitativeEvaluationsEvents (
-  map,
   feature,
-  pyramid
+  viewerProperties
 ) {
   /**
    * Update feature measurement properties first and then measurements
    */
-  _updateFeatureMeasurements(map, feature, pyramid)
+  _updateFeatureMeasurements(feature, viewerProperties)
   feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-    _updateFeatureMeasurements(map, feature, pyramid)
+    _updateFeatureMeasurements(feature, viewerProperties)
   })
 
   /**
@@ -320,10 +331,15 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents (
  * @returns {void}
  */
 function _updateFeatureEvaluations (feature) {
-  const evaluations = feature.get(Enums.InternalProperties.Evaluations) || []
-  const label = feature.get(Enums.InternalProperties.Label)
+  const {
+    [Enums.InternalProperties.Evaluations]: featureEvaluations,
+    [Enums.InternalProperties.Label]: featureLabel,
+  } = feature.getProperties();
 
-  if (!label) return
+  const evaluations = featureEvaluations || [];
+  const label = featureLabel;
+
+  if (!label) return;
 
   const evaluation = new dcmjs.sr.valueTypes.TextContentItem({
     name: new dcmjs.sr.coding.CodedConcept({
@@ -352,19 +368,21 @@ function _updateFeatureEvaluations (feature) {
 /**
  * Generate feature measurements from its measurement properties
  *
- * @param {object} map - The map instance
  * @param {object} feature - The feature instance
- * @param {object} pyramid - The pyramid metadata
+ * @param {object} viewerProperties - The viewer properties
+ * @param {object} viewerProperties.map - The map
+ * @param {object} viewerProperties.drawingSource - The drawing source
+ * @param {object} viewerProperties.pyramid - The pyramid metadata
  * @returns {void}
  */
-function _updateFeatureMeasurements (map, feature, pyramid) {
-  if (
-    Enums.Markup.Measurement !== feature.get(Enums.InternalProperties.Markup)
-  ) {
-    return
+function _updateFeatureMeasurements (feature, viewerProperties) {
+  const { map, pyramid, annotationManager } = viewerProperties;
+  const featureMarkup = feature.get(Enums.InternalProperties.Markup);
+
+  if (Enums.Markup.Measurement !== featureMarkup) {
+    return;
   }
 
-  const measurements = feature.get(Enums.InternalProperties.Measurements) || []
   const area = getFeatureScoord3dArea(feature, pyramid)
   const length = getFeatureScoord3dLength(feature, pyramid)
 
@@ -379,14 +397,21 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     km: 'kilometers'
   }
 
-  let measurement
   const view = map.getView()
   const unitSuffix = getUnitSuffix(view)
   const unitCodedConceptValue = unitSuffix
   const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
 
+  const measurements = annotationManager.getMeasurements(feature);
+  if (measurements && measurements.length > 0) {
+    measurements.forEach(measurement => {
+      addOrUpdateMeasurement(feature, measurement);
+    });
+    return;
+  }
+
   if (area != null) {
-    measurement = new dcmjs.sr.valueTypes.NumContentItem({
+    const measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Area',
         value: '42798000',
@@ -401,10 +426,12 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
         })
       ]
     })
+    addOrUpdateMeasurement(feature, measurement);
+    return;
   }
 
   if (length != null) {
-    measurement = new dcmjs.sr.valueTypes.NumContentItem({
+    const measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Length',
         value: '410668003',
@@ -419,9 +446,16 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
         })
       ]
     })
+    addOrUpdateMeasurement(feature, measurement);
+    return;
   }
+}
 
+const addOrUpdateMeasurement = (feature, measurement) => {
   if (measurement) {
+    const featureMeasurements = feature.get(Enums.InternalProperties.Measurements);
+    const measurements = featureMeasurements || []
+
     const index = measurements.findIndex((m) => (
       doContentItemsMatch(m, measurement)
     ))
@@ -435,32 +469,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
     feature.set(Enums.InternalProperties.Measurements, measurements)
     console.debug(`Measurements of feature (${feature.getId()}):`, measurements)
   }
-}
-
-/**
- * Updates the style of a feature.
- *
- * @param {object} styleOptions - Style options
- * @param {object} styleOptions.stroke - Style options for the outline of the geometry
- * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
- * @param {number} styleOptions.stroke.width - Width of the outline
- * @param {object} styleOptions.fill - Style options for body the geometry
- * @param {number[]} styleOptions.fill.color - RGBA color of the body
- * @param {object} styleOptions.image - Style options for image
- */
-function _setFeatureStyle (feature, styleOptions) {
-  if (styleOptions !== undefined) {
-    const style = _getOpenLayersStyle(styleOptions)
-    feature.setStyle(style)
-
-    /**
-     * styleOptions is used internally by internal styled components like markers.
-     * This allows them to take priority over styling since OpenLayers swaps the styles
-     * completely in case of a setStyle happens.
-     */
-    feature.set(Enums.InternalProperties.StyleOptions, styleOptions)
-  }
-}
+};
 
 const _options = Symbol('options')
 const _controls = Symbol('controls')
@@ -553,8 +562,6 @@ class VolumeImageViewer {
       if (e.element.getId() === undefined) {
         e.element.setId(generateUID())
       }
-
-      this[_annotationManager].onAdd(e.element)
     })
 
     this[_features].on('remove', (e) => {
@@ -594,11 +601,7 @@ class VolumeImageViewer {
           if (channelImage.TotalPixelMatrixFocalPlanes !== 1) {
             continue
           } else {
-            const opticalPathIdentifier = (
-              channelImage
-                .OpticalPathSequence[0]
-                .OpticalPathIdentifier
-            )
+            const opticalPathIdentifier = channelImage.OpticalPathSequence[0].OpticalPathIdentifier;
             const channel = this[_channels].find(channel => {
               const currentOpticalPathIdentifier = (
                 channel
@@ -674,11 +677,7 @@ class VolumeImageViewer {
       }
 
       this[_colorImage] = {
-        opticalPathIdentifier: (
-          colorImageMicroscopyImages[0]
-            .OpticalPathSequence[0]
-            .OpticalPathIdentifier
-        ),
+        opticalPathIdentifier: colorImageMicroscopyImages[0].OpticalPathSequence[0].OpticalPathIdentifier,
         metadata: []
       }
 
@@ -930,7 +929,8 @@ class VolumeImageViewer {
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
       pyramid: this[_pyramidMetadata],
-      drawingSource: this[_drawingSource]
+      drawingSource: this[_drawingSource],
+      features: this[_features]
     })
 
     // This updates the tiles offscreen rendering when zoom is applied to the view.
@@ -951,18 +951,18 @@ class VolumeImageViewer {
     }
 
     // This updates the tiles offscreen rendering when panning the view.
-    this[_map].on('pointermove', evt => {
+    this[_map].on(Enums.MapEvents.POINTER_MOVE, evt => {
       if (evt.dragging) {
         this._updateTilesRenderingAtPanning()
       }
     })
 
     let startMoveZoom = 0
-    this[_map].on('movestart', evt => {
+    this[_map].on(Enums.MapEvents.MOVE_START, evt => {
       startMoveZoom = Math.round(evt.frameState.viewState.zoom)
     })
 
-    this[_map].on('moveend', evt => {
+    this[_map].on(Enums.MapEvents.MOVE_END, evt => {
       const endMoveZoom = Math.round(evt.frameState.viewState.zoom)
       if (endMoveZoom === startMoveZoom) {
         this._updateTilesRenderingAtPanning()
@@ -1047,9 +1047,9 @@ class VolumeImageViewer {
       let url = this[_options].client.wadoURL +
         '/studies/' + this[_colorImage].pyramidMetadata[z].StudyInstanceUID +
         '/series/' + this[_colorImage].pyramidMetadata[z].SeriesInstanceUID +
-        '/instances/' + path
-      if (this[_options].retrieveRendered) {
-        url = url + '/rendered'
+        '/instances/' + path;
+      if ( this[_options].retrieveRendered) {
+        url = url + '/rendered'; 
       }
       return url
     }
@@ -1107,6 +1107,8 @@ class VolumeImageViewer {
         } else {
           // allowed mediaTypes: http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_8.7.4.html
           // we use in order: jls, jp2, jpx, jpeg. Finally octet-stream if the first retrieve will fail.
+          const jpegMediaType = 'image/jpeg'
+          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
           const jlsMediaType = 'image/jls'
           const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
           const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
@@ -1116,9 +1118,7 @@ class VolumeImageViewer {
           const jpxMediaType = 'image/jpx'
           const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
           const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-          const jpegMediaType = 'image/jpeg'
-          const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-
+          
           const octetStreamMediaType = 'application/octet-stream'
           const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
 
@@ -1128,13 +1128,13 @@ class VolumeImageViewer {
             sopInstanceUID,
             frameNumbers,
             mediaTypes: [
+              { mediaType: jpegMediaType, transferSyntaxUID: jpegTransferSyntaxUID },
               { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUIDlossless },
               { mediaType: jlsMediaType, transferSyntaxUID: jlsTransferSyntaxUID },
               { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUIDlossless },
               { mediaType: jp2MediaType, transferSyntaxUID: jp2TransferSyntaxUID },
               { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUIDlossless },
               { mediaType: jpxMediaType, transferSyntaxUID: jpxTransferSyntaxUID },
-              { mediaType: jpegMediaType, transferSyntaxUID: jpegTransferSyntaxUID }
             ]
           }
           this[_options].client.retrieveInstanceFrames(retrieveOptions).then(
@@ -1477,16 +1477,50 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement()
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+      let feature = e.feature;
+
+      /**
+       * Example: Silent until all features from a single annotation are done.
+       */
+      const isSilentFeature = e.feature.get(Enums.InternalProperties.IsSilentFeature)
+      if (isSilentFeature == true) {
+        return;
+      }
+
+      /** 
+       * Some features are a composite of other features. 
+       * This function gets the one (normalized) that will map into scoord coordinates. 
+       */
+      const normalizedFeature = this[_annotationManager].getNormalizedFeature(feature);
+      if (normalizedFeature) {
+        feature = normalizedFeature;
+      }
+
+      /** Dont normalize when is annotation hook */
+      this[_annotationManager].onAdd(e.feature)
+
+      console.debug('ROI ADDED', feature);
       publish(
         container,
         EVENT.ROI_ADDED,
-        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(feature, this[_pyramidMetadata])
       )
     })
 
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      if (e.feature !== undefined || e.feature !== null) {
-        const geometry = e.feature.getGeometry()
+      let feature = e.feature;
+
+      /** 
+       * Some features are a composite of other features. 
+       * This function gets the one (normalized) that will map into scoord coordinates. 
+       */
+      const normalizedFeature = this[_annotationManager].getNormalizedFeature(feature);
+      if (normalizedFeature) {
+        feature = normalizedFeature;
+      }
+
+      if (feature !== undefined || feature !== null) {
+        const geometry = feature.getGeometry()
         const type = geometry.getType()
         // The first and last point of a polygon must be identical. The last point
         // is an implementation detail and is hidden from the user in the graphical
@@ -1507,14 +1541,15 @@ class VolumeImageViewer {
           ) {
             coordinates[0][coordinates[0].length - 1] = firstPoint
             geometry.setCoordinates(coordinates, layout)
-            e.feature.setGeometry(geometry)
+            feature.setGeometry(geometry)
           }
         }
       }
+
       publish(
         container,
         EVENT.ROI_MODIFIED,
-        this._getROIFromFeature(e.feature, this[_pyramidMetadata])
+        this._getROIFromFeature(feature, this[_pyramidMetadata])
       )
     })
 
@@ -1525,6 +1560,32 @@ class VolumeImageViewer {
         this._getROIFromFeature(e.feature, this[_pyramidMetadata])
       )
     })
+  }
+
+  /**
+   * Updates the style of a feature.
+   *
+   * @param {Feature} feature - Feature
+   * @param {object} styleOptions - Style options
+   * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+   * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
+   * @param {number} styleOptions.stroke.width - Width of the outline
+   * @param {object} styleOptions.fill - Style options for body the geometry
+   * @param {number[]} styleOptions.fill.color - RGBA color of the body
+   * @param {object} styleOptions.image - Style options for image
+   */
+  setFeatureStyle (feature, styleOptions, optSilent = false) {
+    if (styleOptions !== undefined) {   
+      const style = _getOpenLayersStyle(styleOptions);
+      feature.setStyle(style)
+      /**
+       * styleOptions is used internally by internal styled components like markers.
+       * This allows them to take priority over styling since OpenLayers swaps the styles
+       * completely in case of a setStyle happens.
+       */
+      feature.set(Enums.InternalProperties.StyleOptions, styleOptions, optSilent)
+      this[_annotationManager].onSetFeatureStyle(feature, styleOptions);
+    }
   }
 
   /** Activates the draw interaction for graphic annotation of regions of interest.
@@ -1555,6 +1616,14 @@ class VolumeImageViewer {
       circle: {
         type: 'Circle',
         geometryName: 'Circle'
+      },
+      ellipse: {
+        type: 'LineString',
+        geometryName: 'line',
+        isEllipse: true,
+        maxPoints: 1,
+        minPoints: 1,
+        [Enums.InternalProperties.VertexEnabled]: false
       },
       box: {
         type: 'Circle',
@@ -1596,11 +1665,13 @@ class VolumeImageViewer {
     const internalDrawOptions = { source: this[_drawingSource] }
     const geometryDrawOptions = geometryOptionsMapping[options.geometryType]
     const builtInDrawOptions = {
+      [Enums.InternalProperties.Ellipse]:
+        geometryDrawOptions[Enums.InternalProperties.Ellipse],
       [Enums.InternalProperties.Marker]:
         options[Enums.InternalProperties.Marker],
       [Enums.InternalProperties.Markup]:
         options[Enums.InternalProperties.Markup],
-      vertexEnabled: options.vertexEnabled,
+      [Enums.InternalProperties.VertexEnabled]: options[Enums.InternalProperties.VertexEnabled],
       [Enums.InternalProperties.Label]: options[Enums.InternalProperties.Label]
     }
     const drawOptions = Object.assign(
@@ -1620,7 +1691,7 @@ class VolumeImageViewer {
      * },
      */
     if (options.bindings) {
-      drawOptions.condition = _getInteractionBindingCondition(options.bindings)
+      drawOptions.condition = _getInteractionBindingCondition(options.bindings, drawOptions.condition)
     }
 
     this[_interactions].draw = new Draw(drawOptions)
@@ -1631,17 +1702,21 @@ class VolumeImageViewer {
       event.feature.setId(generateUID())
 
       /** Set external styles before calling internal annotation hooks */
-      _setFeatureStyle(
+      this.setFeatureStyle(
         event.feature,
         options[Enums.InternalProperties.StyleOptions]
       )
 
-      this[_annotationManager].onDrawStart(event)
+      this[_annotationManager].onDrawStart(event, options)
 
       _wireMeasurementsAndQualitativeEvaluationsEvents(
-        this[_map],
         event.feature,
-        this[_pyramidMetadata]
+        {
+          map: this[_map],
+          drawingSource: this[_drawingSource],
+          pyramid: this[_pyramidMetadata],
+          annotationManager: this[_annotationManager]
+        }
       )
     })
 
@@ -1650,7 +1725,8 @@ class VolumeImageViewer {
     })
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
-      this[_annotationManager].onDrawEnd(event)
+      this[_annotationManager].onDrawEnd(event, options)
+
       publish(
         container,
         EVENT.ROI_DRAWN,
@@ -1709,8 +1785,22 @@ class VolumeImageViewer {
     return this[_interactions].translate !== undefined
   }
 
+  /** 
+   * Deactivates translate interaction. 
+   * 
+   * @returns {void}
+   */
+  deactivateTranslateInteraction() {
+    console.info('deactivate "translate" interaction');
+    if (this[_interactions].translate) {
+      this[_map].removeInteraction(this[_interactions].translate);
+      this[_interactions].translate = undefined;
+    }
+  }
+
   /**
-   * Activates translate interaction.
+   * Activates select interaction.
+   *
    *
    * @param {Object} options - Translation options.
    */
@@ -1719,7 +1809,16 @@ class VolumeImageViewer {
 
     console.info('activate "translate" interaction')
 
-    const translateOptions = { layers: [this[_drawingLayer]] }
+    const translateOptions = { 
+      layers: [this[_drawingLayer]],
+      filter: feature => {
+        return feature && feature.get(Enums.InternalProperties.CantBeTranslated) !== true
+      },
+      condition: event => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+        return feature && feature.get(Enums.InternalProperties.CantBeTranslated) !== true
+      },
+    }
 
     /**
      * Get conditional mouse bindings
@@ -1727,11 +1826,38 @@ class VolumeImageViewer {
      */
     if (options.bindings) {
       translateOptions.condition = _getInteractionBindingCondition(
-        options.bindings
+        options.bindings,
+        options.condition
       )
     }
 
     this[_interactions].translate = new Translate(translateOptions)
+
+    /**
+     * This allows feature with sub features to be translated together.
+     */
+    let lastCoordinate = null;
+    map.on(Enums.MapEvents.POINTER_DOWN, ({ coordinate }) => lastCoordinate = coordinate);
+    map.on(Enums.MapEvents.POINTER_UP, () => lastCoordinate = null);
+    this[_interactions].translate.on(Enums.InteractionEvents.TRANSLATING, event => {
+      const newCoordinate = event.coordinate;
+      event.features.forEach(feature => {
+        const { subFeatures } = feature.getProperties();
+        if (subFeatures && subFeatures.length > 0) {
+          subFeatures.forEach(subFeature => {
+            const geometry = subFeature.getGeometry();
+            const coords = lastCoordinate;
+
+            const deltaX = newCoordinate[0] - coords[0];
+            const deltaY = newCoordinate[1] - coords[1];
+
+            geometry.translate(deltaX, deltaY);
+
+            lastCoordinate = event.coordinate;
+          });
+        }
+      });
+    });
 
     this[_map].addInteraction(this[_interactions].translate)
   }
@@ -1848,7 +1974,16 @@ class VolumeImageViewer {
 
     console.info('activate "select" interaction')
 
-    const selectOptions = { layers: [this[_drawingLayer]] }
+    const selectOptions = { 
+      layers: [this[_drawingLayer]],
+      filter: feature => {
+        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+      },
+      condition: event => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+      },
+    }
 
     /**
      * Get conditional mouse bindings
@@ -1856,7 +1991,8 @@ class VolumeImageViewer {
      */
     if (options.bindings) {
       selectOptions.condition = _getInteractionBindingCondition(
-        options.bindings
+        options.bindings,
+        selectOptions.condition
       )
     }
 
@@ -1899,7 +2035,11 @@ class VolumeImageViewer {
     console.info('activate "drag pan" interaction')
 
     const dragPanOptions = {
-      features: this[_features]
+      features: this[_features],
+      condition: event => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+      },
     }
 
     /**
@@ -1908,7 +2048,8 @@ class VolumeImageViewer {
      */
     if (options.bindings) {
       dragPanOptions.condition = _getInteractionBindingCondition(
-        options.bindings
+        options.bindings,
+        options.condition
       )
     }
 
@@ -1939,7 +2080,7 @@ class VolumeImageViewer {
     this.deactivateSnapInteraction()
     console.info('activate "snap" interaction')
     this[_interactions].snap = new Snap({
-      source: this[_drawingSource]
+      source: this[_drawingSource],
     })
 
     this[_map].addInteraction(this[_interactions].snap)
@@ -1978,8 +2119,16 @@ class VolumeImageViewer {
 
     const modifyOptions = {
       features: this[_features], // TODO: or source, i.e. 'drawings'???
+      condition: event => {
+        const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+        return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+      },
       insertVertexCondition: ({ feature }) =>
-        feature && feature.get('vertexEnabled') === true
+        feature && feature.get(Enums.InternalProperties.VertexEnabled) === true,
+        condition: event => {
+          const feature = this[_drawingSource].getClosestFeatureToCoordinate(event.coordinate);
+          return feature && feature.get(Enums.InternalProperties.ReadOnly) !== true
+        }
     }
 
     /**
@@ -1988,7 +2137,8 @@ class VolumeImageViewer {
      */
     if (options.bindings) {
       modifyOptions.condition = _getInteractionBindingCondition(
-        options.bindings
+        options.bindings,
+        modifyOptions.condition
       )
     }
 
@@ -2137,14 +2287,20 @@ class VolumeImageViewer {
     feature.setId(roi.uid)
 
     _wireMeasurementsAndQualitativeEvaluationsEvents(
-      this[_map],
       feature,
-      this[_pyramidMetadata]
+      {
+        map: this[_map],
+        drawingSource: this[_drawingSource],
+        pyramid: this[_pyramidMetadata],
+        annotationManager: this[_annotationManager]
+      }
     )
+
+    /** Style should be set before adding to features array which is tracked elsewhere */
+    this.setFeatureStyle(feature, styleOptions)
 
     this[_features].push(feature)
 
-    _setFeatureStyle(feature, styleOptions)
     const isVisible = Object.keys(styleOptions).length !== 0
     this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
   }
@@ -2188,7 +2344,7 @@ class VolumeImageViewer {
     this[_features].forEach((feature) => {
       const id = feature.getId()
       if (id === uid) {
-        _setFeatureStyle(feature, styleOptions)
+        this.setFeatureStyle(feature, styleOptions)
         const isVisible = Object.keys(styleOptions).length !== 0
         this[_annotationManager].setMarkupVisibility(id, isVisible)
       }

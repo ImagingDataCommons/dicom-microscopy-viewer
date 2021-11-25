@@ -4,6 +4,7 @@ import Style from 'ol/style/Style'
 import Circle from 'ol/style/Circle'
 
 import Enums from '../../enums'
+import annotationInterface from '../annotationInterface'
 
 /**
  * Format free text output.
@@ -67,15 +68,17 @@ const _hasMarker = (feature) => !!feature.get(Enums.InternalProperties.Marker)
  * @returns {void}
  */
 const _onInteractionEventHandler = ({ feature, markupManager }) => {
-  const featureHasMarker = _hasMarker(feature)
+  const featureHasMarker = _hasMarker(feature);
+  const ps = feature.get(Enums.InternalProperties.PresentationState);
   markupManager.create({
     feature,
     value: format(feature),
     isLinkable: featureHasMarker,
-    isDraggable: featureHasMarker
-  })
-  _applyStyle(feature)
-}
+    isDraggable: featureHasMarker,
+    position: ps && ps.markup ? ps.markup.coordinates : null,
+  });
+  _applyStyle(feature);
+};
 
 /**
  * Text evaluation markup definition.
@@ -84,7 +87,7 @@ const _onInteractionEventHandler = ({ feature, markupManager }) => {
  * @param {object} dependencies.markupManager MarkupManager shared instance
  */
 const TextEvaluationMarkup = ({ markupManager }) => {
-  return {
+  return Object.assign({}, annotationInterface, {
     onAdd: (feature) => {
       if (_isTextEvaluation(feature)) {
         _onInteractionEventHandler({ feature, markupManager })
@@ -126,8 +129,7 @@ const TextEvaluationMarkup = ({ markupManager }) => {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },
-    onDrawAbort: ({ feature }) => {}
-  }
+  })
 }
 
 export default TextEvaluationMarkup

@@ -37,14 +37,14 @@ function getFrameMapping (metadata) {
   } else {
     const functionalGroups = metadata.PerFrameFunctionalGroupsSequence
     for (let j = 0; j < numberOfFrames; j++) {
-      const planePositions = functionalGroups[j].PlanePositionSlideSequence[0]
-      const rowPosition = planePositions.RowPositionInTotalImagePixelMatrix
-      const columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix
-      const rowIndex = Math.ceil(rowPosition / rows)
-      const colIndex = Math.ceil(columnPosition / columns)
-      const index = rowIndex + '-' + colIndex
-      const frameNumber = j + 1
-      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
+      const planePositions = functionalGroups[j].PlanePositionSlideSequence[0];
+      const rowPosition = planePositions.RowPositionInTotalImagePixelMatrix;
+      const columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix;
+      const rowIndex = Math.ceil(rowPosition / rows);
+      const colIndex = Math.ceil(columnPosition / columns);
+      const index = rowIndex + '-' + colIndex;
+      const frameNumber = j + 1;
+      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`;
     }
   }
   return frameMapping
@@ -136,7 +136,7 @@ function groupMonochromeInstances (metadata) {
       const pathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
       const channel = channels.find(channel => {
         return channel[0].OpticalPathSequence[0].OpticalPathIdentifier === pathIdentifier
-      })
+      });
 
       if (channel) {
         channel.push(microscopyImage)
@@ -176,17 +176,13 @@ function groupColorInstances (metadata) {
         microscopyImage.PhotometricInterpretation.includes('YBR')
       )
     ) {
-      const opticalPathIdentifier = (
-        microscopyImage
-          .OpticalPathSequence[0]
-          .OpticalPathIdentifier
-      )
+      if( ! microscopyImage.OpticalPathSequence ) {
+        console.log('Microscopy slide missing optical path identifier');
+        microscopyImage.OpticalPathSequence = [{OpticalPathIdentifier:'1'}];
+      }
+      const opticalPathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier;
       const colorImage = colorImages.find(images => {
-        const currentOpticalPathIdentifier = (
-          images[0]
-            .OpticalPathSequence[0]
-            .OpticalPathIdentifier
-        )
+        const currentOpticalPathIdentifier = images[0].OpticalPathSequence[0].OpticalPathIdentifier;
         return currentOpticalPathIdentifier === opticalPathIdentifier
       })
 
