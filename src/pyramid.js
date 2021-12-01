@@ -265,6 +265,30 @@ function _areImagePyramidsEqual (pyramid, refPyramid) {
   return true
 }
 
+function _createEmptyTile ({
+  columns,
+  rows,
+  samplesPerPixel,
+  bitsAllocated,
+  bitsStored
+}) {
+  let pixelArray
+  if (bitsAllocated <= 8) {
+    pixelArray = new Uint8Array(columns * rows * samplesPerPixel)
+  } else {
+    pixelArray = new Float32Array(columns * rows * samplesPerPixel)
+  }
+  // Fill white in case of color and black in case of monochrome.
+  let fillValue = 255
+  if (samplesPerPixel === 1) {
+    fillValue = 0
+  }
+  for (let i = 0; i < pixelArray.length; i++) {
+    pixelArray[i] = fillValue
+  }
+  return pixelArray
+}
+
 /** Create custom tile loader function to retrieve frames via WADO-RS.
  *
  *
@@ -281,6 +305,13 @@ function _createTileLoadFunction ({
     let index = (x + 1) + '-' + (y + 1)
     index += `-${channel}`
 
+    if (pyramid.metadata[z] === undefined) {
+      throw new Error(
+        'Could not load tile ' + index +
+        ' because level ' + z + ' does not exist.'
+      )
+    }
+
     const path = pyramid.frameMappings[z][index]
     let src
     if (path != null) {
@@ -295,17 +326,11 @@ function _createTileLoadFunction ({
       )
     }
 
-    if (pyramid.metadata[z] === undefined) {
-      console.warn(
-        'could not load tile ' + index +
-        ' because level ' + z + ' does not exist'
-      )
-      return
-    }
     const refImage = pyramid.metadata[z]
     const columns = refImage.Columns
     const rows = refImage.Rows
     const bitsAllocated = refImage.BitsAllocated
+    const bitsStored = refImage.BitsStored
     const pixelRepresentation = refImage.PixelRepresentation
     const samplesPerPixel = refImage.SamplesPerPixel
 
@@ -452,21 +477,13 @@ function _createTileLoadFunction ({
         `could not load tile "${index}" at level ${z}, ` +
         'this tile does not exist'
       )
-      let pixelArray
-      if (bitsAllocated <= 8) {
-        pixelArray = new Uint8Array(columns * rows * samplesPerPixel)
-      } else {
-        pixelArray = new Float32Array(columns * rows * samplesPerPixel)
-      }
-      // Fill white in case of color and black in case of monochrome.
-      let fillValue = 255
-      if (samplesPerPixel === 1) {
-        fillValue = 0
-      }
-      for (let i = 0; i < pixelArray.length; i++) {
-        pixelArray[i] = fillValue
-      }
-      return pixelArray
+      return _createEmptyTile({
+        columns,
+        rows,
+        samplesPerPixel,
+        bitsAllocated,
+        bitsStored
+      })
     }
   }
   return tileLoadFunction
@@ -491,6 +508,7 @@ function _fitImagePyramid (pyramid, refPyramid) {
   }
 
   if (matchingLevelIndices.length === 0) {
+    console.error(pyramid, refPyramid)
     throw new Error(
       'Image pyramid cannot be fit to reference image pyramid.'
     )

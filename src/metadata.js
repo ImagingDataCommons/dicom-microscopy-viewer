@@ -2,6 +2,97 @@ import { tagToKeyword } from './dictionary'
 import { SOPClassUIDs } from './enums'
 import { _groupFramesPerMapping } from './mapping'
 
+function _base64ToUint8Array (value) {
+  const blob = window.atob(value)
+  const array = new Uint8Array(blob.length)
+
+  for (let i = 0; i < blob.length; i++) {
+    array[i] = blob.charCodeAt(i)
+  }
+
+  return array
+}
+
+function _base64ToUint16Array (value) {
+  const blob = window.atob(value)
+  const n = Uint16Array.BYTES_PER_ELEMENT
+  const length = blob.length / n
+  const buffer = new ArrayBuffer(n)
+  const view = new DataView(buffer)
+  const array = new Uint16Array(length)
+
+  let p = 0
+  for (let i = 0; i < length; i++) {
+    p = i * n
+    for (let j = 0; j < n; j++) {
+      view.setUint8(j, blob.charCodeAt(p + j))
+    }
+    array[i] = view.getUint16(0, true)
+  }
+
+  return array
+}
+
+function _base64ToUint32Array (value) {
+  const blob = window.atob(value)
+  const n = Uint32Array.BYTES_PER_ELEMENT
+  const length = blob.length / n
+  const buffer = new ArrayBuffer(n)
+  const view = new DataView(buffer)
+  const array = new Uint32Array(length)
+
+  let p = 0
+  for (let i = 0; i < length; i++) {
+    p = i * n
+    for (let j = 0; j < n; j++) {
+      view.setUint8(j, blob.charCodeAt(p + j))
+    }
+    array[i] = view.getUint32(0, true)
+  }
+
+  return array
+}
+
+function _base64ToFloat32Array (value) {
+  const blob = window.atob(value)
+  const n = Float32Array.BYTES_PER_ELEMENT
+  const length = blob.length / n
+  const buffer = new ArrayBuffer(n)
+  const view = new DataView(buffer)
+  const array = new Float32Array(length)
+
+  let p = 0
+  for (let i = 0; i < length; i++) {
+    p = i * n
+    for (let j = 0; j < n; j++) {
+      view.setUint8(j, blob.charCodeAt(p + j))
+    }
+    array[i] = view.getFloat32(0, true)
+  }
+
+  return array
+}
+
+function _base64ToFloat64Array (value) {
+  const blob = window.atob(value)
+  const n = Float64Array.BYTES_PER_ELEMENT
+  const length = blob.length / n
+  const buffer = new ArrayBuffer(n)
+  const view = new DataView(buffer)
+  const array = new Float64Array(length)
+
+  let p = 0
+  for (let i = 0; i < length; i++) {
+    p = i * n
+    for (let j = 0; j < n; j++) {
+      view.setUint8(j, blob.charCodeAt(p + j))
+    }
+    array[i] = view.getFloat64(0, true)
+  }
+
+  return array
+}
+
 /** Determines the mapping of pyramid tile positions to frame numbers.
  *
  * @param {Object} Formatted metadata of a VL Whole Slide Microscopy Image instance
@@ -11,7 +102,6 @@ import { _groupFramesPerMapping } from './mapping'
 function getFrameMapping (metadata) {
   const rows = metadata.Rows
   const columns = metadata.Columns
-  const totalPixelMatrixRows = metadata.TotalPixelMatrixRows
   const totalPixelMatrixColumns = metadata.TotalPixelMatrixColumns
   const sopInstanceUID = metadata.SOPInstanceUID
   const numberOfFrames = Number(metadata.NumberOfFrames || 1)
@@ -124,17 +214,23 @@ function getFrameMapping (metadata) {
  * directly accessed via their keyword (e.g., "SOPInstanceUID").
  * Bulkdata elements will be skipped.
  *
+ * @param {Object} metadata - Metadata structured according to the DICOM JSON model
+ * @param {Callable} bulkDataHandler - Function that receives BulkDataURI as input and returns the retrieved value
  * @param {Object} Metadata structured according to the DICOM JSON model
  * @returns {Object} Formatted metadata
+ *
  * @memberof metadata
  */
-function formatMetadata (metadata) {
+function formatMetadata (metadata, bulkDataHandler) {
   const loadJSONDataset = (elements) => {
     const dataset = {}
     Object.keys(elements).forEach(tag => {
       const keyword = tagToKeyword[tag]
       const vr = elements[tag].vr
       if ('BulkDataURI' in elements[tag]) {
+        if (bulkDataHandler !== undefined) {
+          dataset[keyword] = bulkDataHandler(elements[tag].BulkDataURI)
+        }
         console.debug(`skip bulk data element "${keyword}"`)
       } else if ('Value' in elements[tag]) {
         const value = elements[tag].Value
@@ -155,6 +251,19 @@ function formatMetadata (metadata) {
               dataset[keyword] = value
             }
           }
+        }
+      } else if ('InlineBinary' in elements[tag]) {
+        const value = elements[tag].InlineBinary
+        if (vr === 'OB') {
+          dataset[keyword] = _base64ToUint8Array(value)
+        } else if (vr === 'OW') {
+          dataset[keyword] = _base64ToUint16Array(value)
+        } else if (vr === 'OL') {
+          dataset[keyword] = _base64ToUint32Array(value)
+        } else if (vr === 'OF') {
+          dataset[keyword] = _base64ToFloat32Array(value)
+        } else if (vr === 'OD') {
+          dataset[keyword] = _base64ToFloat64Array(value)
         }
       } else {
         if (vr === 'SQ') {

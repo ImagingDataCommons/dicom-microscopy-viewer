@@ -17,11 +17,13 @@ import ScaleLine from 'ol/control/ScaleLine'
 import Select from 'ol/interaction/Select'
 import Snap from 'ol/interaction/Snap'
 import Translate from 'ol/interaction/Translate'
+import PointGeometry from 'ol/geom/Point'
 import Style from 'ol/style/Style'
 import Stroke from 'ol/style/Stroke'
 import Circle from 'ol/style/Circle'
 import Static from 'ol/source/ImageStatic'
 import Overlay from 'ol/Overlay'
+import PointsLayer from 'ol/layer/WebGLPoints'
 import TileLayer from 'ol/layer/WebGLTile'
 import DataTileSource from 'ol/source/DataTile'
 import TileGrid from 'ol/tilegrid/TileGrid'
@@ -39,6 +41,7 @@ import { getCenter } from 'ol/extent'
 import * as DICOMwebClient from 'dicomweb-client'
 import dcmjs from 'dcmjs'
 
+import { AnnotationGroup } from './annotation.js'
 import {
   ColorMapNames,
   createColorMap,
@@ -49,7 +52,7 @@ import {
   groupMonochromeInstances,
   groupColorInstances
 } from './metadata.js'
-import { Mapping } from './mapping.js'
+import { Mapping, _groupFramesPerMapping } from './mapping.js'
 import { ROI } from './roi.js'
 import { Segment } from './segment.js'
 import {
@@ -59,9 +62,10 @@ import {
   doContentItemsMatch
 } from './utils.js'
 import {
+  scoord3dCoordinates2geometryCoordinates,
+  scoord3d2Geometry,
   getPixelSpacing,
   geometry2Scoord3d,
-  scoord3d2Geometry,
   getFeatureScoord3dLength,
   getFeatureScoord3dArea
 } from './scoord3dUtils'
@@ -489,6 +493,7 @@ const _rotation = Symbol('rotation')
 const _projection = Symbol('projection')
 const _tileGrid = Symbol('tileGrid')
 const _annotationManager = Symbol('annotationManager')
+const _annotationGroups = Symbol('annotationGroups')
 const _overviewMap = Symbol('overviewMap')
 
 /** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -537,6 +542,7 @@ class VolumeImageViewer {
     // Collection of Openlayers "TileLayer" instances
     this[_segments] = {}
     this[_mappings] = {}
+    this[_annotationGroups] = {}
 
     // Collection of Openlayers "Feature" instances
     this[_features] = new Collection([], { unique: true })
@@ -755,7 +761,7 @@ class VolumeImageViewer {
           )
         }
 
-        opticalPath.rasterSource = new DataTileSource({
+        opticalPath.source = new DataTileSource({
           loader: _createTileLoadFunction({
             pyramid: opticalPath.pyramid,
             client: this[_options].client,
@@ -813,38 +819,30 @@ class VolumeImageViewer {
           }
         }
 
-        opticalPath.tileLayer = new TileLayer({
+        opticalPath.layer = new TileLayer({
           extent: pyramid.extent,
-          source: opticalPath.rasterSource,
+          source: opticalPath.source,
           preload: 1,
           style: style,
           visible: false,
           useInterimTilesOnError: false,
           cacheSize: this[_options].tilesCacheSize
         })
-        opticalPath.tileLayer.helper = helper
-        opticalPath.tileLayer.on('prerender', (event) => {
-          const gl = event.context
-          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-        })
+        opticalPath.layer.helper = helper
 
         opticalPath.overviewTileLayer = new TileLayer({
           extent: pyramid.extent,
-          source: opticalPath.rasterSource,
+          source: opticalPath.source,
           preload: 0,
           style: style,
           visible: false,
           useInterimTilesOnError: false
         })
         opticalPath.overviewTileLayer.helper = overviewHelper
-        opticalPath.overviewTileLayer.on('prerender', (event) => {
-          const gl = event.context
-          gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-        })
 
         if (channelCount === 0) {
-          layers.push(opticalPath.tileLayer)
-          opticalPath.tileLayer.setVisible(true)
+          layers.push(opticalPath.layer)
+          opticalPath.layer.setVisible(true)
           overviewLayers.push(opticalPath.overviewTileLayer)
           opticalPath.overviewTileLayer.setVisible(true)
         }
@@ -871,7 +869,7 @@ class VolumeImageViewer {
         maxValue: 255
       }
 
-      opticalPath.rasterSource = new DataTileSource({
+      opticalPath.source = new DataTileSource({
         loader: _createTileLoadFunction({
           pyramid: opticalPath.pyramid,
           client: this[_options].client,
@@ -887,30 +885,22 @@ class VolumeImageViewer {
         bandCount: 3
       })
 
-      opticalPath.tileLayer = new TileLayer({
+      opticalPath.layer = new TileLayer({
         extent: this[_tileGrid].extent,
-        source: opticalPath.rasterSource,
+        source: opticalPath.source,
         preload: 1,
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize
       })
-      opticalPath.tileLayer.on('prerender', (event) => {
-        const gl = event.context
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-      })
 
       opticalPath.overviewTileLayer = new TileLayer({
         extent: pyramid.extent,
-        source: opticalPath.rasterSource,
+        source: opticalPath.source,
         preload: 0,
         useInterimTilesOnError: false
       })
-      opticalPath.overviewTileLayer.on('prerender', (event) => {
-        const gl = event.context
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-      })
 
-      layers.push(opticalPath.tileLayer)
+      layers.push(opticalPath.layer)
       overviewLayers.push(opticalPath.overviewTileLayer)
 
       this[_opticalPaths][opticalPathIdentifier] = opticalPath
@@ -1050,7 +1040,7 @@ class VolumeImageViewer {
     )
     if (styleOptions.opacity != null) {
       opticalPath.style.opacity = styleOptions.opacity
-      opticalPath.tileLayer.setOpacity(styleOptions.opacity)
+      opticalPath.layer.setOpacity(styleOptions.opacity)
       opticalPath.overviewTileLayer.setOpacity(styleOptions.opacity)
     }
 
@@ -1074,7 +1064,7 @@ class VolumeImageViewer {
         max
       )
     }
-    opticalPath.tileLayer.updateStyleVariables(styleVariables)
+    opticalPath.layer.updateStyleVariables(styleVariables)
     opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
   }
 
@@ -1103,7 +1093,7 @@ class VolumeImageViewer {
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @returns {Segmentation[]} Segmentation image metadata
    */
-  getOpticalPathImageMetadata (opticalPathIdentifier) {
+  getOpticalPathMetadata (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath === undefined) {
       throw new Error(
@@ -1144,7 +1134,7 @@ class VolumeImageViewer {
     }
     this[_map].getLayers().insertAt(
       0,
-      opticalPath.tileLayer
+      opticalPath.layer
     )
     this[_overviewMap].getOverviewMap().getLayers().insertAt(
       0,
@@ -1167,8 +1157,8 @@ class VolumeImageViewer {
     if (!this.isOpticalPathActive(opticalPathIdentifier)) {
       return
     }
-    this[_map].removeLayer(opticalPath.tileLayer)
-    opticalPath.tileLayer.dispose()
+    this[_map].removeLayer(opticalPath.layer)
+    opticalPath.layer.dispose()
     this[_overviewMap].getOverviewMap().removeLayer(opticalPath.overviewTileLayer)
     opticalPath.overviewTileLayer.dispose()
   }
@@ -1184,7 +1174,7 @@ class VolumeImageViewer {
       return false
     }
     return !!this[_map].getLayers().getArray().find(layer => {
-      return layer === opticalPath.tileLayer
+      return layer === opticalPath.layer
     })
   }
 
@@ -1204,11 +1194,11 @@ class VolumeImageViewer {
         `"${opticalPathIdentifier}".`
       )
     }
-    console.info(`show optical path #${opticalPathIdentifier}`)
+    console.info(`show optical path ${opticalPathIdentifier}`)
     if (!this.isOpticalPathActive(opticalPathIdentifier)) {
       this.activateOpticalPath(opticalPathIdentifier)
     }
-    opticalPath.tileLayer.setVisible(true)
+    opticalPath.layer.setVisible(true)
     opticalPath.overviewTileLayer.setVisible(true)
     this.setOpticalPathStyle(opticalPathIdentifier, styleOptions)
   }
@@ -1225,8 +1215,8 @@ class VolumeImageViewer {
         `"${opticalPathIdentifier}".`
       )
     }
-    console.info(`hide optical path #${opticalPathIdentifier}`)
-    opticalPath.tileLayer.setVisible(false)
+    console.info(`hide optical path ${opticalPathIdentifier}`)
+    opticalPath.layer.setVisible(false)
     opticalPath.overviewTileLayer.setVisible(false)
   }
 
@@ -1244,7 +1234,7 @@ class VolumeImageViewer {
         `"${opticalPathIdentifier}".`
       )
     }
-    return opticalPath.tileLayer.getVisible()
+    return opticalPath.layer.getVisible()
   }
 
   /**
@@ -1909,10 +1899,10 @@ class VolumeImageViewer {
   }
 
   /**
-   * Get an individual annotated regions of interest.
+   * Get an individual annotated region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
-   * @returns {ROI} Regions of interest.
+   * @returns {ROI} Region of interest.
    */
   getROI (uid) {
     console.info(`get ROI ${uid}`)
@@ -2007,730 +1997,6 @@ class VolumeImageViewer {
     _setFeatureStyle(feature, styleOptions)
     const isVisible = Object.keys(styleOptions).length !== 0
     this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
-  }
-
-  /**
-   * Add segments.
-   *
-   * @param {Segmentation[]} metadata - Metadata of DICOM Segmentation instances
-   */
-  addSegments (metadata) {
-    if (metadata.length === 0) {
-      throw new Error(
-        'Metadata of Segmentation instances needs to be provided to ' +
-        'add segments.'
-      )
-    }
-
-    const refSegmentation = metadata[0]
-    const refImage = this[_pyramid].metadata[0]
-    metadata.forEach(instance => {
-      if (
-        instance.TotalPixelMatrixColumns === undefined ||
-        instance.TotalPixelMatrixRows === undefined
-      ) {
-        const numberOfFrames = Number(instance.NumberOfFrames)
-        if (numberOfFrames === 1) {
-          /*
-           * If the image contains only one frame it is not tiled, and therefore
-           * the size of the total pixel matrix equals the size of the frame.
-           */
-          instance.TotalPixelMatrixRows = instance.Rows
-          instance.TotalPixelMatrixColumns = instance.Columns
-        } else {
-          throw new Error(
-            'Segmentation instances must contain attributes ' +
-            '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
-          )
-        }
-      }
-      if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        throw new Error(
-          'Segmentation instances must have the same Frame of Reference UID ' +
-          'as the corresponding source images.'
-        )
-      }
-      if (refSegmentation.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        throw new Error(
-          'Segmentation instances must all have same Frame of Reference UID.'
-        )
-      }
-      if (refSegmentation.SeriesInstanceUID !== instance.SeriesInstanceUID) {
-        throw new Error(
-          'Segmentation instances must all have same Series Instance UID.'
-        )
-      }
-      if (
-        refSegmentation.SegmentSequence.length !==
-        instance.SegmentSequence.length
-      ) {
-        throw new Error(
-          'Segmentation instances must all contain the same number of items ' +
-          'in the Segment Sequence.'
-        )
-      }
-    })
-    console.info(
-      'add segments of Segmentation instances of series ' +
-      `"${refSegmentation.SeriesInstanceUID}"`
-    )
-
-    const pyramid = _computeImagePyramid({ metadata })
-    const fittedPyramid = _fitImagePyramid(pyramid, this[_pyramid])
-
-    const tileGrid = new TileGrid({
-      extent: fittedPyramid.extent,
-      origins: fittedPyramid.origins,
-      resolutions: fittedPyramid.resolutions,
-      sizes: fittedPyramid.gridSizes,
-      tileSizes: fittedPyramid.tileSizes
-    })
-
-    const refInstance = pyramid.metadata[0]
-    for (let i = 0; i < refInstance.SegmentSequence.length; i++) {
-      const segmentItem = refInstance.SegmentSequence[i]
-      const segmentNumber = Number(segmentItem.SegmentNumber)
-      console.info(`add segment # ${segmentNumber}`)
-      let segmentUID = generateUID()
-      if (segmentItem.UniqueTrackingIdentifier) {
-        segmentUID = segmentItem.UniqueTrackingIdentifier
-      }
-
-      const colormap = createColorMap({
-        name: ColorMapNames.VIRIDIS,
-        bins: 50
-      })
-
-      const segment = {
-        segment: new Segment({
-          uid: segmentUID,
-          number: segmentNumber,
-          label: segmentItem.SegmentLabel,
-          algorithmType: segmentItem.SegmentAlgorithmType,
-          algorithmName: segmentItem.SegmentAlgorithmName || '',
-          propertyCategory: segmentItem.SegmentedPropertyCategoryCodeSequence[0],
-          propertyType: segmentItem.SegmentedPropertyTypeCodeSequence[0],
-          studyInstanceUID: refInstance.StudyInstanceUID,
-          seriesInstanceUID: refInstance.SeriesInstanceUID,
-          sopInstanceUIDs: pyramid.metadata.map(element => {
-            return element.SOPInstanceUID
-          })
-        }),
-        pyramid: pyramid,
-        style: {
-          opacity: 1.0
-        },
-        overlay: null,
-        colormap: colormap,
-        minValue: 0,
-        maxValue: 255
-      }
-
-      segment.rasterSource = new DataTileSource({
-        loader: _createTileLoadFunction({
-          pyramid: fittedPyramid,
-          client: this[_options].client,
-          retrieveRendered: this[_options].retrieveRendered,
-          renderingEngine: this[_renderingEngine],
-          channel: segmentNumber
-        }),
-        tileGrid: tileGrid,
-        projection: this[_projection],
-        wrapX: false,
-        transition: 0,
-        bandCount: 1
-      })
-      segment.rasterSource.on('tileloaderror', (event) => {
-        console.error('error loading segment tile', event)
-      })
-
-      const colorLUT = _buildColorLookupTable({
-        colormap: colormap,
-        min: 0,
-        max: 1
-      })
-      segment.tileLayer = new TileLayer({
-        source: segment.rasterSource,
-        extent: this[_pyramid].extent,
-        projection: this[_projection],
-        visible: false,
-        opacity: 0.9,
-        preload: 0,
-        style: {
-          color: [
-            'interpolate',
-            ['linear'],
-            ['band', 1],
-            ...colorLUT
-          ]
-        },
-        useInterimTilesOnError: false,
-        cacheSize: this[_options].tilesCacheSize
-      })
-      segment.tileLayer.on('prerender', (event) => {
-        const gl = event.context
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-      })
-
-      this[_map].addLayer(segment.tileLayer)
-
-      this[_segments][segmentUID] = segment
-    }
-  }
-
-  /**
-   * Remove a segment.
-   *
-   * @param {string} segmentUID - Unique tracking identifier of a segment
-   */
-  removeSegment (segmentUID) {
-    if (!(segmentUID in this[_segments])) {
-      throw new Error(
-        `Cannot remove segment. Could not find segment "${segmentUID}".`
-      )
-    }
-    const segment = this[_segments][segmentUID]
-    this[_map].removeLayer(segment.tileLayer)
-    segment.tileLayer.dispose()
-    this[_map].removeOverlay(segment.overlay)
-    delete this[_segments][segmentUID]
-  }
-
-  /**
-   * Show a segment.
-   *
-   * @param {string} segmentUID - Unique tracking identifier of a segment
-   * @param {object} styleOptions
-   * @param {number} styleOptions.opacity - Opacity
-   */
-  showSegment (segmentUID, styleOptions = {}) {
-    if (!(segmentUID in this[_segments])) {
-      throw new Error(
-        `Cannot show segment. Could not find segment "${segmentUID}".`
-      )
-    }
-    const segment = this[_segments][segmentUID]
-    console.info(`show segment #${segmentUID}`)
-    segment.tileLayer.setVisible(true)
-    this.setSegmentStyle(segmentUID, styleOptions)
-  }
-
-  /**
-   * Hide a segment.
-   *
-   * @param {string} segmentUID - Unique tracking identifier of a segment
-   */
-  hideSegment (segmentUID) {
-    if (!(segmentUID in this[_segments])) {
-      throw new Error(
-        `Cannot hide segment. Could not find segment "${segmentUID}".`
-      )
-    }
-    const segment = this[_segments][segmentUID]
-    console.info(`hide segment #${segmentUID}`)
-    segment.tileLayer.setVisible(false)
-    this[_map].removeOverlay(segment.overlay)
-  }
-
-  /**
-   * Determine if segment is visible.
-   *
-   * @param {string} segmentUID - Unique tracking identifier of a segment
-   * @returns {boolean}
-   */
-  isSegmentVisible (segmentUID) {
-    if (!(segmentUID in this[_segments])) {
-      throw new Error(
-        'Cannot determine if segment is visible. ' +
-        `Could not find segment "${segmentUID}".`
-      )
-    }
-    const segment = this[_segments][segmentUID]
-    return segment.tileLayer.getVisible()
-  }
-
-  /** Set the style of a segment.
-   *
-   * @param {string} segmentUID - Unique tracking identifier of segment
-   * @param {object} styleOptions
-   * @param {number} styleOptions.opacity - Opacity
-   */
-  setSegmentStyle (segmentUID, styleOptions) {
-    if (!(segmentUID in this[_segments])) {
-      throw new Error(
-        'Cannot set style of segment. ' +
-        `Could not find segment "${segmentUID}".`
-      )
-    }
-    const segment = this[_segments][segmentUID]
-
-    if (styleOptions.opacity != null) {
-      segment.style.opacity = styleOptions.opacity
-      segment.tileLayer.setOpacity(styleOptions.opacity)
-    }
-
-    segment.overlay = new Overlay({
-      element: document.createElement('div'),
-      offset: [5, 5]
-    })
-
-    const overlayElement = segment.overlay.getElement()
-    overlayElement.innerHTML = segment.segment.propertyType.CodeMeaning
-    overlayElement.style = {}
-    overlayElement.style.display = 'flex'
-    overlayElement.style.flexDirection = 'column'
-    overlayElement.style.padding = '4px'
-    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
-    overlayElement.style.borderRadius = '4px'
-    overlayElement.style.margin = '1px'
-    overlayElement.style.color = 'black'
-    overlayElement.style.fontWeight = '600'
-    overlayElement.style.fontSize = '12px'
-    overlayElement.style.textAlign = 'center'
-
-    const canvas = document.createElement('canvas')
-    const context = canvas.getContext('2d')
-    const height = 15
-    const width = 5
-    context.canvas.height = height
-    context.canvas.width = width
-
-    const colors = segment.colormap
-    for (let j = 0; j < colors.length; j++) {
-      const color = colors[colors.length - j - 1]
-      const r = color[0]
-      const g = color[1]
-      const b = color[2]
-      context.fillStyle = `rgb(${r}, ${g}, ${b})`
-      context.fillRect(0, height / colors.length * j, width, 1)
-    }
-    overlayElement.appendChild(canvas)
-
-    const parentElement = overlayElement.parentNode
-    parentElement.style.display = 'inline'
-
-    this[_map].addOverlay(segment.overlay)
-  }
-
-  /** Get the style of a segment.
-   *
-   * @param {string} segmentUID - Unique tracking identifier of segment
-   * @returns {object} Style Options
-   */
-  getSegmentStyle (segmentUID, styleOptions) {
-    if (!(segmentUID in this[_segments])) {
-      throw new Error(
-        'Cannot get style of segment. ' +
-        `Could not find segment "${segmentUID}".`
-      )
-    }
-    const segment = this[_segments][segmentUID]
-
-    return { opacity: segment.style.opacity }
-  }
-
-  /** Get image metadata for a segment.
-   *
-   * @param {string} segmentUID - Unique tracking identifier of segment
-   * @returns {Segmentation[]} Segmentation image metadata
-   */
-  getSegmentImageMetadata (segmentUID) {
-    if (!(segmentUID in this[_segments])) {
-      throw new Error(
-        'Cannot get image metadata of segment. ' +
-        `Could not find segment "${segmentUID}".`
-      )
-    }
-    const segment = this[_segments][segmentUID]
-    return segment.pyramid.metadata
-  }
-
-  /**
-   * Get all segments.
-   *
-   * @return {Segment[]}
-   */
-  getAllSegments () {
-    const segments = []
-    for (const segmentUID in this[_segments]) {
-      segments.push(this[_segments][segmentUID].segment)
-    }
-    return segments
-  }
-
-  /**
-   * Add mappings.
-   *
-   * @param {ParametricMap[]} metadata - Metadata of DICOM Parametric Map instances
-   */
-  addMappings (metadata) {
-    if (metadata.length === 0) {
-      throw new Error(
-        'Metadata of Parametric Map instances needs to be provided to ' +
-        'add mappings.'
-      )
-    }
-
-    const refParametricMap = metadata[0]
-    const refImage = this[_pyramid].metadata[0]
-    metadata.forEach(instance => {
-      if (
-        instance.TotalPixelMatrixColumns === undefined ||
-        instance.TotalPixelMatrixRows === undefined
-      ) {
-        throw new Error(
-          'Parametric Map instances must contain attributes ' +
-          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
-        )
-      }
-      if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        throw new Error(
-          'Parametric Map instances must have the same Frame of Reference UID ' +
-          'as the corresponding source images.'
-        )
-      }
-      if (refParametricMap.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        throw new Error(
-          'Parametric Map instances must all have same Frame of Reference UID.'
-        )
-      }
-      if (refParametricMap.SeriesInstanceUID !== instance.SeriesInstanceUID) {
-        throw new Error(
-          'Parametric Map instances must all have same Series Instance UID.'
-        )
-      }
-    })
-    console.info(
-      'add mappings of Parametric Map instances of series ' +
-      `"${refParametricMap.SeriesInstanceUID}"`
-    )
-
-    const pyramid = _computeImagePyramid({ metadata })
-    const fittedPyramid = _fitImagePyramid(pyramid, this[_pyramid])
-
-    const tileGrid = new TileGrid({
-      extent: fittedPyramid.extent,
-      origins: fittedPyramid.origins,
-      resolutions: fittedPyramid.resolutions,
-      sizes: fittedPyramid.gridSizes,
-      tileSizes: fittedPyramid.tileSizes
-    })
-
-    const refInstance = pyramid.metadata[0]
-
-    const sharedFuncGroup = refInstance.SharedFunctionalGroupsSequence[0]
-    const windowCenter = sharedFuncGroup.FrameVOILUTSequence[0].WindowCenter
-    const windowWidth = sharedFuncGroup.FrameVOILUTSequence[0].WindowWidth
-    for (let i = 0; i < pyramid.numberOfChannels; i++) {
-      const mappingNumber = i + 1
-      const mappingLabel = `${mappingNumber}`
-      const mappingUID = generateUID()
-
-      let colormap
-      if (windowCenter === 0) {
-        colormap = createColorMap({
-          name: ColorMapNames.BLUE_RED,
-          bins: 50
-        })
-      } else {
-        colormap = createColorMap({
-          name: ColorMapNames.HOT,
-          bins: 50
-        })
-      }
-
-      const minValue = -Math.pow(2, refInstance.BitsAllocated) / 2 + 1
-      const maxValue = Math.pow(2, refInstance.BitsAllocated) / 2 - 1
-
-      const mapping = {
-        mapping: new Mapping({
-          uid: mappingUID,
-          number: mappingNumber,
-          label: mappingLabel,
-          studyInstanceUID: refInstance.StudyInstanceUID,
-          seriesInstanceUID: refInstance.SeriesInstanceUID,
-          sopInstanceUIDs: pyramid.metadata.map(element => {
-            return element.SOPInstanceUID
-          })
-        }),
-        pyramid: pyramid,
-        overlay: null,
-        style: {
-          opacity: 1.0,
-          limitValues: [
-            windowCenter - windowWidth / 2,
-            windowCenter + windowWidth / 2
-          ]
-        },
-        colormap: colormap,
-        minValue: minValue,
-        maxValue: maxValue
-      }
-
-      mapping.rasterSource = new DataTileSource({
-        loader: _createTileLoadFunction({
-          pyramid: fittedPyramid,
-          client: this[_options].client,
-          retrieveRendered: this[_options].retrieveRendered,
-          renderingEngine: this[_renderingEngine],
-          channel: mappingNumber
-        }),
-        tileGrid: tileGrid,
-        projection: this[_projection],
-        wrapX: false,
-        transition: 0,
-        bandCount: 1
-      })
-      mapping.rasterSource.on('tileloaderror', (event) => {
-        console.error('error loading mapping tile', event)
-      })
-
-      const colorLUT = _buildColorLookupTable({
-        colormap: colormap,
-        min: 0,
-        max: 1
-      })
-      mapping.tileLayer = new TileLayer({
-        source: mapping.rasterSource,
-        extent: this[_pyramid].extent,
-        projection: this[_projection],
-        visible: false,
-        opacity: 1,
-        preload: 1,
-        style: {
-          color: [
-            'interpolate',
-            ['linear'],
-            [
-              '+',
-              [
-                '/',
-                [
-                  '-',
-                  ['band', 1],
-                  ['var', 'windowCenter']
-                ],
-                ['var', 'windowWidth']
-              ],
-              0.5
-            ],
-            ...colorLUT
-          ],
-          variables: {
-            windowCenter: windowCenter / mapping.maxValue,
-            windowWidth: windowWidth / mapping.maxValue
-          }
-        }
-      })
-      mapping.tileLayer.on('prerender', (event) => {
-        const gl = event.context
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-      })
-      this[_map].addLayer(mapping.tileLayer)
-
-      this[_mappings][mappingUID] = mapping
-    }
-  }
-
-  /**
-   * Remove a mapping.
-   *
-   * @param {string} mappingUID - Unique tracking identifier of a mapping
-   */
-  removeMapping (mappingUID) {
-    if (!(mappingUID in this[_mappings])) {
-      throw new Error(
-        `Cannot remove mapping. Could not find mapping "${mappingUID}".`
-      )
-    }
-    const mapping = this[_mappings][mappingUID]
-    this[_map].removeLayer(mapping.tileLayer)
-    mapping.tileLayer.dispose()
-    this[_map].removeOverlay(mapping.overlay)
-    delete this[_mappings][mappingUID]
-  }
-
-  /**
-   * Show a mapping.
-   *
-   * @param {string} mappingUID - Unique tracking identifier of a mapping
-   * @param {object} styleOptions
-   * @param {number} styleOptions.opacity - Opacity
-   * @param {number} styleOptions.limitValues - Opacity
-   */
-  showMapping (mappingUID, styleOptions = {}) {
-    if (!(mappingUID in this[_mappings])) {
-      throw new Error(
-        `Cannot show mapping. Could not find mapping "${mappingUID}".`
-      )
-    }
-    const mapping = this[_mappings][mappingUID]
-    console.info(`show mapping #${mappingUID}`)
-    mapping.tileLayer.setVisible(true)
-    this.setMappingStyle(mappingUID, styleOptions)
-  }
-
-  /**
-   * Hide a mapping.
-   *
-   * @param {string} mappingUID - Unique tracking identifier of a mapping
-   */
-  hideMapping (mappingUID) {
-    if (!(mappingUID in this[_mappings])) {
-      throw new Error(
-        `Cannot hide mapping. Could not find mapping "${mappingUID}".`
-      )
-    }
-    const mapping = this[_mappings][mappingUID]
-    console.info(`hide mapping #${mappingUID}`)
-    mapping.tileLayer.setVisible(false)
-    this[_map].removeOverlay(mapping.overlay)
-  }
-
-  /**
-   * Determine if mapping is visible.
-   *
-   * @param {string} mappingUID - Unique tracking identifier of a mapping
-   * @returns {boolean}
-   */
-  isMappingVisible (mappingUID) {
-    if (!(mappingUID in this[_mappings])) {
-      throw new Error(
-        'Cannot determine if mapping is visible. ' +
-        `Could not find mapping "${mappingUID}".`
-      )
-    }
-    const mapping = this[_mappings][mappingUID]
-    return mapping.tileLayer.getVisible()
-  }
-
-  /** Set the style of a mapping.
-   *
-   * @param {string} mappingUID - Unique tracking identifier of mapping
-   * @param {object} styleOptions
-   * @param {string} styleOptions.colormap - Name of the color map
-   * @param {number} styleOptions.opacity - Opacity
-   */
-  setMappingStyle (mappingUID, styleOptions) {
-    if (!(mappingUID in this[_mappings])) {
-      throw new Error(
-        'Cannot set style of mapping. ' +
-        `Could not find mapping "${mappingUID}".`
-      )
-    }
-    const mapping = this[_mappings][mappingUID]
-
-    if (styleOptions.opacity != null) {
-      mapping.style.opacity = styleOptions.opacity
-      mapping.tileLayer.setOpacity(styleOptions.opacity)
-    }
-
-    const styleVariables = {}
-    if (styleOptions.limitValues != null) {
-      const max = mapping.maxValue
-      mapping.style.limitValues = styleOptions.limitValues
-      styleVariables.windowCenter = (
-        (styleOptions.limitValues[0] + styleOptions.limitValues[1]) /
-        2 /
-        max
-      )
-      styleVariables.windowWidth = (
-        (styleOptions.limitValues[1] - styleOptions.limitValues[0]) /
-        max
-      )
-    }
-    mapping.tileLayer.updateStyleVariables(styleVariables)
-
-    mapping.overlay = new Overlay({
-      element: document.createElement('div'),
-      offset: [5, 5]
-    })
-
-    const overlayElement = mapping.overlay.getElement()
-    overlayElement.innerHTML = mapping.mapping.label
-    overlayElement.style = {}
-    overlayElement.style.display = 'flex'
-    overlayElement.style.flexDirection = 'column'
-    overlayElement.style.padding = '4px'
-    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
-    overlayElement.style.borderRadius = '4px'
-    overlayElement.style.margin = '1px'
-    overlayElement.style.color = 'black'
-    overlayElement.style.fontWeight = '600'
-    overlayElement.style.fontSize = '12px'
-    overlayElement.style.textAlign = 'center'
-
-    const canvas = document.createElement('canvas')
-    const context = canvas.getContext('2d')
-    const height = 15
-    const width = 5
-    context.canvas.height = height
-    context.canvas.width = width
-
-    const colors = mapping.colormap
-    for (let j = 0; j < colors.length; j++) {
-      const color = colors[colors.length - j - 1]
-      const r = color[0]
-      const g = color[1]
-      const b = color[2]
-      context.fillStyle = `rgb(${r}, ${g}, ${b})`
-      context.fillRect(0, height / colors.length * j, width, 1)
-    }
-    overlayElement.appendChild(canvas)
-
-    const parentElement = overlayElement.parentNode
-    parentElement.style.display = 'inline'
-
-    this[_map].addOverlay(mapping.overlay)
-  }
-
-  /** Get the style of a mapping.
-   *
-   * @param {string} mappingUID - Unique tracking identifier of mapping
-   * @returns {object} Style Options
-   */
-  getMappingStyle (mappingUID, styleOptions) {
-    if (!(mappingUID in this[_mappings])) {
-      throw new Error(
-        'Cannot get style of mapping. ' +
-        `Could not find mapping "${mappingUID}".`
-      )
-    }
-    const mapping = this[_mappings][mappingUID]
-
-    return {
-      opacity: mapping.style.opacity,
-      limitValues: mapping.style.limitValues
-    }
-  }
-
-  /** Get image metadata for a mapping.
-   *
-   * @param {string} mappingUID - Unique tracking identifier of mapping
-   * @returns {ParametricMap[]} Parametric Map image metadata
-   */
-  getMappingImageMetadata (mappingUID) {
-    if (!(mappingUID in this[_mappings])) {
-      throw new Error(
-        'Cannot get image metadata of mapping. ' +
-        `Could not find mapping "${mappingUID}".`
-      )
-    }
-    const mapping = this[_mappings][mappingUID]
-    return mapping.pyramid.metadata
-  }
-
-  /**
-   * Get all mappings.
-   *
-   * @return {Mapping[]}
-   */
-  getAllMappings () {
-    const mappings = []
-    for (const mappingUID in this[_mappings]) {
-      mappings.push(this[_mappings][mappingUID].mapping)
-    }
-    return mappings
   }
 
   /**
@@ -2854,12 +2120,1131 @@ class VolumeImageViewer {
   }
 
   /**
-   * Metadata for each DICOM VL Whole Slide Microscopy Image instance.
+   * Add annotation groups.
    *
-   * @return {VLWholeSlideMicroscopyImage[]}
+   * @param {MicroscopySimpleBulkAnnotations[]} metadata - Metadata of DICOM Microscopy Simple Bulk Annotations instances
    */
-  get imageMetadata () {
-    return this[_pyramid].metadata
+  addAnnotationGroups (metadata) {
+    const refAnnotation = metadata[0]
+    const refImage = this[_pyramid].metadata[0]
+    metadata.forEach(instance => {
+      if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Microscopy Bulk Simple Annotation instances must have the same ' +
+          'Frame of Reference UID as the corresponding source images.'
+        )
+      }
+      if (refAnnotation.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Microscopy Bulk Simple Annotation instances must all have same ' +
+          'Frame of Reference UID.'
+        )
+      }
+      if (refAnnotation.SeriesInstanceUID !== instance.SeriesInstanceUID) {
+        throw new Error(
+          'Microscopy Bulk Simple Annotation instances must all have same ' +
+          'Series Instance UID.'
+        )
+      }
+      if (
+        refAnnotation.AnnotationGroupSequence.length !==
+        instance.AnnotationGroupSequence.length
+      ) {
+        throw new Error(
+          'Microscopy Bulk Simple Annotation instances must all contain the ' +
+          'same number of items in the Annotation Group Sequence.'
+        )
+      }
+    })
+    console.info(
+      'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
+      `of series "${refAnnotation.SeriesInstanceUID}"`
+    )
+
+    refAnnotation.AnnotationGroupSequence.forEach(item => {
+      const annotationGroupUID = item.AnnotationGroupUID
+      const algorithm = item.AnnotationGroupAlgorithmIdentificationSequence[0]
+      const annotationGroup = {
+        annotationGroup: new AnnotationGroup({
+          uid: annotationGroupUID,
+          number: item.AnnotationGroupNumber,
+          label: item.AnnotationGroupLabel,
+          algorithmType: item.AnnotationGroupGenerationType,
+          algorithmName: algorithm.AlgorithmName,
+          propertyCategory: item.AnnotationPropertyCategoryCodeSequence[0],
+          propertyType: item.AnnotationPropertyTypeCodeSequence[0],
+          studyInstanceUID: refAnnotation.StudyInstanceUID,
+          seriesInstanceUID: refAnnotation.SeriesInstanceUID,
+          sopInstanceUIDs: metadata.map(element => {
+            return element.SOPInstanceUID
+          })
+        }),
+        style: {
+          opacity: 1.0,
+          color: [255, 255, 0] // TODO
+        },
+        metadata: metadata
+      }
+
+      annotationGroup.source = new VectorSource({ wrapX: false })
+      const features = []
+
+      // TODO: fetch bulkdata
+      const numberOfAnnotations = Number(item.NumberOfAnnotations)
+      const coordinateType = item.AnnotationCoordinateType
+      let commonZCoordinate
+      let n
+      if (item.CommonZCoordinateValue !== undefined) {
+        commonZCoordinate = Number(item.CommonZCoordinateValue)
+        n = 2
+      } else {
+        commonZCoordinate = Number.NaN
+        if (coordinateType === '2D') {
+          n = 2
+        } else {
+          n = 3
+        }
+      }
+      const graphicType = item.GraphicType
+      let graphicData
+      if ('PointCoordinatesData' in item) {
+        // 32-bit float (single)
+        graphicData = item.PointCoordinatesData
+      } else {
+        // 64-bit float (double)
+        graphicData = item.DoublePointCoordinatesData
+      }
+
+      if (graphicType === 'POLYLINE') {
+        /*
+         * We represent graphics as centroid points, but it's unclear whether
+         * the centroid of a polyline would be meaningful
+         */
+        console.warn(
+          `skip annotation group "${annotationGroupUID}" ` +
+          'with Graphic Type POLYLINE'
+        )
+        return
+      }
+
+      const getCoordinates = (graphicData, offset, commonZCoordinate) => {
+        const point = [
+          graphicData[offset],
+          graphicData[offset + 1]
+        ]
+        if (isNaN(commonZCoordinate)) {
+          point.push(graphicData[offset + 2])
+        } else {
+          point.push(commonZCoordinate)
+        }
+        return point
+      }
+
+      for (let i = 0; i < numberOfAnnotations; i++) {
+        let point
+        if (graphicType === 'POINT') {
+          const length = n
+          const offset = i * length
+          point = getCoordinates(graphicData, offset, commonZCoordinate)
+        } else {
+          // Compute centroid
+          if (graphicType === 'RECTANGLE' || graphicType === 'ELLIPSE') {
+            const length = n * 4
+            const offset = i * length
+            const coordinates = []
+            for (let j = offset; j < offset + length; j++) {
+              const p = getCoordinates(graphicData, j, commonZCoordinate)
+              coordinates.push(p)
+              j += n
+            }
+            if (graphicType === 'ELLIPSE') {
+              const majorAxisFirstEndpoint = coordinates[0]
+              const majorAxisSecondEndpoint = coordinates[1]
+              point = [
+                (majorAxisSecondEndpoint[0] - majorAxisFirstEndpoint[0]) / 2,
+                (majorAxisSecondEndpoint[1] - majorAxisFirstEndpoint[1]) / 2,
+                0 // TODO
+              ]
+            } else if (graphicType === 'RECTANGLE') {
+              const topLeft = coordinates[0]
+              const topRight = coordinates[1]
+              const bottomLeft = coordinates[3]
+              point = [
+                (topRight[0] - topLeft[0]) / 2,
+                (topLeft[1] - bottomLeft[1]) / 2,
+                0 // TODO
+              ]
+            }
+          } else {
+            const index = item.LongPrimitivePointIndexList
+            const offset = index[i] - 1
+            let length
+            if (i < (numberOfAnnotations - 1)) {
+              length = offset - index[i + 1]
+            } else {
+              length = graphicData.length
+            }
+            // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
+            point = [
+              0,
+              0,
+              0 // TODO
+            ]
+            let area = 0
+            for (let j = offset; j < offset + length; j++) {
+              const p0 = getCoordinates(graphicData, j, commonZCoordinate)
+              let p1
+              if (j === (offset + length - n)) {
+                p1 = getCoordinates(graphicData, offset, commonZCoordinate)
+              } else {
+                p1 = getCoordinates(graphicData, j + n, commonZCoordinate)
+              }
+              const a = p0[0] * p1[1] - p1[0] * p0[1]
+              area += a
+              point[0] += (p0[0] + p1[0]) * a
+              point[1] += (p0[1] + p1[1]) * a
+              j += n - 1
+            }
+            area *= 0.5
+            point[0] /= 6 * area
+            point[1] /= 6 * area
+          }
+        }
+        const feat = new Feature({
+          geometry: new PointGeometry(
+            scoord3dCoordinates2geometryCoordinates(
+              point,
+              this[_pyramid].metadata
+            )
+          )
+        })
+        features.push(feat)
+      }
+      annotationGroup.source.addFeatures(features)
+
+      const style = {
+        symbol: {
+          symbolType: 'circle',
+          size: [ // TODO: interpolate exponential zoom
+            'interpolate',
+            ['exponential', 2.5],
+            ['zoom'],
+            10,
+            1,
+            14,
+            32
+          ],
+          rotateWithView: true,
+          color: annotationGroup.style.color,
+          opacity: annotationGroup.style.opacity
+        }
+      }
+      annotationGroup.layer = new PointsLayer({
+        source: annotationGroup.source,
+        style,
+        disableHitDetection: true
+      })
+      annotationGroup.layer.setVisible(false)
+
+      this[_map].addLayer(annotationGroup.layer)
+      this[_annotationGroups][annotationGroupUID] = annotationGroup
+    })
+  }
+
+  /**
+   * Remove an annotation group.
+   *
+   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   */
+  removeAnnotationGroup (annotationGroupUID) {
+    if (!(annotationGroupUID in this[_annotationGroups])) {
+      throw new Error(
+        'Cannot remove annotation group. ' +
+        `Could not find annotation group "${annotationGroupUID}".`
+      )
+    }
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    console.info(`remove annotation group ${annotationGroupUID}`)
+    this[_map].removeLayer(annotationGroup.layer)
+    annotationGroup.layer.dispose()
+    delete this[_annotationGroups][annotationGroupUID]
+  }
+
+  /**
+   * Show an annotation group.
+   *
+   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   */
+  showAnnotationGroup (annotationGroupUID, styleOptions = {}) {
+    if (!(annotationGroupUID in this[_annotationGroups])) {
+      throw new Error(
+        'Cannot show annotation group. ' +
+        `Could not find annotation group "${annotationGroupUID}".`
+      )
+    }
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    console.info(`show annotation group ${annotationGroupUID}`)
+    annotationGroup.layer.setVisible(true)
+    this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
+  }
+
+  /**
+   * Hide an annotation group.
+   *
+   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   */
+  hideAnnotationGroup (annotationGroupUID) {
+    if (!(annotationGroupUID in this[_annotationGroups])) {
+      throw new Error(
+        'Cannot hide annotation group. ' +
+        `Could not find annotation group "${annotationGroupUID}".`
+      )
+    }
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    console.info(`hide annotation group ${annotationGroupUID}`)
+    annotationGroup.layer.setVisible(false)
+  }
+
+  /**
+   * Is annotation group visible.
+   *
+   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   */
+  isAnnotationGroupVisible (annotationGroupUID) {
+    if (!(annotationGroupUID in this[_annotationGroups])) {
+      throw new Error(
+        'Cannot determine if annotation group is visible. ' +
+        `Could not find annotation group "${annotationGroupUID}".`
+      )
+    }
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    return annotationGroup.layer.getVisible()
+  }
+
+  /**
+   * Set style of an annotation group.
+   *
+   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   * @param {object} styleOptions - Style options
+   * @param {number} styleOptions.opacity - Opacity
+   */
+  setAnnotationGroupStyle (annotationGroupUID, styleOptions) {
+    if (!(annotationGroupUID in this[_annotationGroups])) {
+      throw new Error(
+        'Cannot set style of annotation group. ' +
+        `Could not find annotation group "${annotationGroupUID}".`
+      )
+    }
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    if (styleOptions.opacity != null) {
+      annotationGroup.style.opacity = styleOptions.opacity
+      annotationGroup.layer.setOpacity(styleOptions.opacity)
+    }
+  }
+
+  /**
+   * Get style of an annotation group.
+   *
+   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   *
+   * @returns {object} - Style settings
+   */
+  getAnnotationGroupStyle (annotationGroupUID) {
+    if (!(annotationGroupUID in this[_annotationGroups])) {
+      throw new Error(
+        'Cannot get style of annotation group. ' +
+        `Could not find annotation group "${annotationGroupUID}".`
+      )
+    }
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    return {
+      opacity: annotationGroup.style.opacity,
+      color: annotationGroup.style.color
+    }
+  }
+
+  /**
+   * Get all annotation groups.
+   *
+   * @returns {AnnotationGroup[]} - Annotation groups
+   */
+  getAllAnnotationGroups () {
+    const groups = []
+    for (const annotationGroupUID in this[_annotationGroups]) {
+      groups.push(this[_annotationGroups][annotationGroupUID].annotationGroup)
+    }
+    return groups
+  }
+
+  /**
+   * Get annotation group metadata.
+   *
+   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   *
+   * @returns {MicroscopyBulkSimpleAnnotations[]} - Metadata of DICOM Microscopy Bulk Simple Annotations instances
+   */
+  getAnnotationGroupMetadata (annotationGroupUID) {
+    if (!(annotationGroupUID in this[_annotationGroups])) {
+      throw new Error(
+        'Cannot get metadata of annotation group. ' +
+        `Could not find annotation group "${annotationGroupUID}".`
+      )
+    }
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    return annotationGroup.metadata
+  }
+
+  /**
+   * Add segments.
+   *
+   * @param {Segmentation[]} metadata - Metadata of DICOM Segmentation instances
+   */
+  addSegments (metadata) {
+    if (metadata.length === 0) {
+      throw new Error(
+        'Metadata of Segmentation instances needs to be provided to ' +
+        'add segments.'
+      )
+    }
+
+    const refSegmentation = metadata[0]
+    const refImage = this[_pyramid].metadata[0]
+    metadata.forEach(instance => {
+      if (
+        instance.TotalPixelMatrixColumns === undefined ||
+        instance.TotalPixelMatrixRows === undefined
+      ) {
+        const numberOfFrames = Number(instance.NumberOfFrames)
+        if (numberOfFrames === 1) {
+          /*
+           * If the image contains only one frame it is not tiled, and therefore
+           * the size of the total pixel matrix equals the size of the frame.
+           */
+          instance.TotalPixelMatrixRows = instance.Rows
+          instance.TotalPixelMatrixColumns = instance.Columns
+        } else {
+          throw new Error(
+            'Segmentation instances must contain attributes ' +
+            '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
+          )
+        }
+      }
+      if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Segmentation instances must have the same Frame of Reference UID ' +
+          'as the corresponding source images.'
+        )
+      }
+      if (refSegmentation.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Segmentation instances must all have same Frame of Reference UID.'
+        )
+      }
+      if (refSegmentation.SeriesInstanceUID !== instance.SeriesInstanceUID) {
+        throw new Error(
+          'Segmentation instances must all have same Series Instance UID.'
+        )
+      }
+      if (
+        refSegmentation.SegmentSequence.length !==
+        instance.SegmentSequence.length
+      ) {
+        throw new Error(
+          'Segmentation instances must all contain the same number of items ' +
+          'in the Segment Sequence.'
+        )
+      }
+    })
+    console.info(
+      'add segments of Segmentation instances of series ' +
+      `"${refSegmentation.SeriesInstanceUID}"`
+    )
+
+    const pyramid = _computeImagePyramid({ metadata })
+    const fittedPyramid = _fitImagePyramid(pyramid, this[_pyramid])
+
+    const tileGrid = new TileGrid({
+      extent: fittedPyramid.extent,
+      origins: fittedPyramid.origins,
+      resolutions: fittedPyramid.resolutions,
+      sizes: fittedPyramid.gridSizes,
+      tileSizes: fittedPyramid.tileSizes
+    })
+
+    refSegmentation.SegmentSequence.forEach((item, index) => {
+      const segmentNumber = Number(item.SegmentNumber)
+      console.info(`add segment # ${segmentNumber}`)
+      let segmentUID = generateUID()
+      if (item.UniqueTrackingIdentifier) {
+        segmentUID = item.UniqueTrackingIdentifier
+      }
+
+      const colormap = createColorMap({
+        name: ColorMapNames.VIRIDIS,
+        bins: 50
+      })
+
+      const segment = {
+        segment: new Segment({
+          uid: segmentUID,
+          number: segmentNumber,
+          label: item.SegmentLabel,
+          algorithmType: item.SegmentAlgorithmType,
+          algorithmName: item.SegmentAlgorithmName || '',
+          propertyCategory: item.SegmentedPropertyCategoryCodeSequence[0],
+          propertyType: item.SegmentedPropertyTypeCodeSequence[0],
+          studyInstanceUID: refSegmentation.StudyInstanceUID,
+          seriesInstanceUID: refSegmentation.SeriesInstanceUID,
+          sopInstanceUIDs: pyramid.metadata.map(element => {
+            return element.SOPInstanceUID
+          })
+        }),
+        pyramid,
+        style: {
+          opacity: 0.75
+        },
+        overlay: new Overlay({
+          element: document.createElement('div'),
+          offset: [5 + 5 * index + 2, 5]
+        }),
+        colormap,
+        minValue: 0,
+        maxValue: 255
+      }
+
+      segment.source = new DataTileSource({
+        loader: _createTileLoadFunction({
+          pyramid: fittedPyramid,
+          client: this[_options].client,
+          retrieveRendered: this[_options].retrieveRendered,
+          renderingEngine: this[_renderingEngine],
+          channel: segmentNumber
+        }),
+        tileGrid: tileGrid,
+        projection: this[_projection],
+        wrapX: false,
+        transition: 0,
+        bandCount: 1
+      })
+      segment.source.on('tileloaderror', (event) => {
+        console.error('error loading segment tile', event)
+      })
+
+      const colorLUT = _buildColorLookupTable({
+        colormap: colormap,
+        min: 0,
+        max: 1
+      })
+      segment.layer = new TileLayer({
+        source: segment.source,
+        extent: this[_pyramid].extent,
+        projection: this[_projection],
+        visible: false,
+        opacity: 0.9,
+        preload: 0,
+        style: {
+          color: [
+            'interpolate',
+            ['linear'],
+            ['band', 1],
+            ...colorLUT
+          ]
+        },
+        useInterimTilesOnError: false,
+        cacheSize: this[_options].tilesCacheSize
+      })
+
+      this[_map].addLayer(segment.layer)
+
+      this[_segments][segmentUID] = segment
+    })
+  }
+
+  /**
+   * Remove a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of a segment
+   */
+  removeSegment (segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        `Cannot remove segment. Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    this[_map].removeLayer(segment.layer)
+    segment.layer.dispose()
+    this[_map].removeOverlay(segment.overlay)
+    delete this[_segments][segmentUID]
+  }
+
+  /**
+   * Show a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of a segment
+   * @param {object} styleOptions
+   * @param {number} styleOptions.opacity - Opacity
+   */
+  showSegment (segmentUID, styleOptions = {}) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        `Cannot show segment. Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    console.info(`show segment ${segmentUID}`)
+    segment.layer.setVisible(true)
+    this.setSegmentStyle(segmentUID, styleOptions)
+  }
+
+  /**
+   * Hide a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of a segment
+   */
+  hideSegment (segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        `Cannot hide segment. Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    console.info(`hide segment ${segmentUID}`)
+    segment.layer.setVisible(false)
+    this[_map].removeOverlay(segment.overlay)
+  }
+
+  /**
+   * Determine if segment is visible.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of a segment
+   * @returns {boolean}
+   */
+  isSegmentVisible (segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        'Cannot determine if segment is visible. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    return segment.layer.getVisible()
+  }
+
+  /** Set the style of a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @param {object} styleOptions - Style options
+   * @param {number} styleOptions.opacity - Opacity
+   */
+  setSegmentStyle (segmentUID, styleOptions) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        'Cannot set style of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+
+    if (styleOptions.opacity != null) {
+      segment.style.opacity = styleOptions.opacity
+      segment.layer.setOpacity(styleOptions.opacity)
+    }
+
+    const overlayElement = segment.overlay.getElement()
+    overlayElement.innerHTML = segment.segment.propertyType.CodeMeaning
+    overlayElement.style = {}
+    overlayElement.style.display = 'flex'
+    overlayElement.style.flexDirection = 'column'
+    overlayElement.style.padding = '4px'
+    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
+    overlayElement.style.borderRadius = '4px'
+    overlayElement.style.margin = '1px'
+    overlayElement.style.color = 'black'
+    overlayElement.style.fontWeight = '600'
+    overlayElement.style.fontSize = '12px'
+    overlayElement.style.textAlign = 'center'
+
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    const height = 15
+    const width = 5
+    context.canvas.height = height
+    context.canvas.width = width
+
+    const colors = segment.colormap
+    for (let j = 0; j < colors.length; j++) {
+      const color = colors[colors.length - j - 1]
+      const r = color[0]
+      const g = color[1]
+      const b = color[2]
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`
+      context.fillRect(0, height / colors.length * j, width, 1)
+    }
+    overlayElement.appendChild(canvas)
+
+    const parentElement = overlayElement.parentNode
+    parentElement.style.display = 'inline'
+
+    this[_map].addOverlay(segment.overlay)
+  }
+
+  /** Get the style of a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @returns {object} Style settings
+   */
+  getSegmentStyle (segmentUID, styleOptions) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        'Cannot get style of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+
+    return { opacity: segment.style.opacity }
+  }
+
+  /** Get image metadata for a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @returns {Segmentation[]} Segmentation image metadata
+   */
+  getSegmentMetadata (segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        'Cannot get image metadata of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    return segment.pyramid.metadata
+  }
+
+  /**
+   * Get all segments.
+   *
+   * @return {Segment[]}
+   */
+  getAllSegments () {
+    const segments = []
+    for (const segmentUID in this[_segments]) {
+      segments.push(this[_segments][segmentUID].segment)
+    }
+    return segments
+  }
+
+  /**
+   * Add mappings.
+   *
+   * @param {ParametricMap[]} metadata - Metadata of DICOM Parametric Map instances
+   */
+  addMappings (metadata) {
+    if (metadata.length === 0) {
+      throw new Error(
+        'Metadata of Parametric Map instances needs to be provided to ' +
+        'add mappings.'
+      )
+    }
+
+    const refParametricMap = metadata[0]
+    const refImage = this[_pyramid].metadata[0]
+    metadata.forEach(instance => {
+      if (
+        instance.TotalPixelMatrixColumns === undefined ||
+        instance.TotalPixelMatrixRows === undefined
+      ) {
+        throw new Error(
+          'Parametric Map instances must contain attributes ' +
+          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
+        )
+      }
+      if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Parametric Map instances must have the same Frame of Reference UID ' +
+          'as the corresponding source images.'
+        )
+      }
+      if (refParametricMap.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+        throw new Error(
+          'Parametric Map instances must all have same Frame of Reference UID.'
+        )
+      }
+      if (refParametricMap.SeriesInstanceUID !== instance.SeriesInstanceUID) {
+        throw new Error(
+          'Parametric Map instances must all have same Series Instance UID.'
+        )
+      }
+    })
+    console.info(
+      'add mappings of Parametric Map instances of series ' +
+      `"${refParametricMap.SeriesInstanceUID}"`
+    )
+
+    const pyramid = _computeImagePyramid({ metadata })
+    const fittedPyramid = _fitImagePyramid(pyramid, this[_pyramid])
+
+    const tileGrid = new TileGrid({
+      extent: fittedPyramid.extent,
+      origins: fittedPyramid.origins,
+      resolutions: fittedPyramid.resolutions,
+      sizes: fittedPyramid.gridSizes,
+      tileSizes: fittedPyramid.tileSizes
+    })
+
+    const refInstance = pyramid.metadata[0]
+
+    const sharedFuncGroup = refInstance.SharedFunctionalGroupsSequence[0]
+    const frameVOILUT = sharedFuncGroup.FrameVOILUTSequence[0]
+    if (frameVOILUT === undefined) {
+      throw new Error(
+        'The Parametric Map image does not specify a shared frame ' +
+        'Value of Interest (VOI) lookup table (LUT).'
+      )
+    }
+    const windowCenter = frameVOILUT.WindowCenter
+    const windowWidth = frameVOILUT.WindowWidth
+    console.log('DEBUG: ', windowCenter, windowWidth)
+
+    const { mappingNumberToDescriptions } = _groupFramesPerMapping(refInstance)
+
+    let index = 0
+    for (const mappingNumber in mappingNumberToDescriptions) {
+      const mappingLabel = `${mappingNumber}`
+      const mappingUID = generateUID()
+      const mappingDescriptions = mappingNumberToDescriptions[mappingNumber]
+
+      const range = [NaN, NaN]
+      mappingDescriptions.forEach((item, i) => {
+        let firstValueMapped = item.RealWorldValueFirstValueMapped
+        let lastValueMapped = item.RealWorldValueLastValueMapped
+        if (firstValueMapped === undefined && lastValueMapped === undefined) {
+          firstValueMapped = item.DoubleFloatRealWorldValueFirstValueMapped
+          lastValueMapped = item.DoubleFloatRealWorldValueLastValueMapped
+        }
+        const intercept = item.RealWorldValueIntercept
+        const slope = item.RealWorldValueSlope
+        const lowerBound = firstValueMapped * slope + intercept
+        const upperBound = lastValueMapped * slope + intercept
+        if (i === 0) {
+          range[0] = lowerBound
+          range[1] = upperBound
+        } else {
+          range[0] = Math.min(range[0], lowerBound)
+          range[1] = Math.max(range[1], upperBound)
+        }
+      })
+
+      if (isNaN(range[0]) || isNaN(range[1])) {
+        throw new Error('Could not determine range of real world values.')
+      }
+
+      // TODO: build color map based on Real World Value Mapping
+      let colormap
+      if (range[0] < 0 && range[1] > 0) {
+        colormap = createColorMap({
+          name: ColorMapNames.BLUE_RED,
+          bins: 50
+        })
+      } else {
+        colormap = createColorMap({
+          name: ColorMapNames.HOT,
+          bins: 50
+        })
+      }
+
+      const isFloatPixelData = refInstance.BitsAllocated > 16
+      let minValue = 0
+      let maxValue = Math.pow(2, refInstance.BitsAllocated) - 1
+      if (isFloatPixelData) {
+        minValue = -Math.pow(2, refInstance.BitsAllocated) / 2 + 1
+        maxValue = Math.pow(2, refInstance.BitsAllocated) / 2 - 1
+      }
+
+      const mapping = {
+        mapping: new Mapping({
+          uid: mappingUID,
+          number: mappingNumber,
+          label: mappingLabel,
+          studyInstanceUID: refInstance.StudyInstanceUID,
+          seriesInstanceUID: refInstance.SeriesInstanceUID,
+          sopInstanceUIDs: pyramid.metadata.map(element => {
+            return element.SOPInstanceUID
+          })
+        }),
+        pyramid: pyramid,
+        overlay: new Overlay({
+          element: document.createElement('div'),
+          offset: [5 + 100 * index + 2, 5]
+        }),
+        style: {
+          opacity: 1.0,
+          limitValues: [
+            windowCenter - windowWidth / 2,
+            windowCenter + windowWidth / 2
+          ]
+        },
+        colormap: colormap,
+        minValue: minValue,
+        maxValue: maxValue
+      }
+
+      mapping.source = new DataTileSource({
+        loader: _createTileLoadFunction({
+          pyramid: fittedPyramid,
+          client: this[_options].client,
+          retrieveRendered: this[_options].retrieveRendered,
+          renderingEngine: this[_renderingEngine],
+          channel: mappingNumber
+        }),
+        tileGrid: tileGrid,
+        projection: this[_projection],
+        wrapX: false,
+        transition: 0,
+        bandCount: 1
+      })
+
+      const colorLUT = _buildColorLookupTable({
+        colormap: colormap,
+        min: 0,
+        max: 1
+      })
+      mapping.layer = new TileLayer({
+        source: mapping.source,
+        extent: this[_pyramid].extent,
+        projection: this[_projection],
+        visible: false,
+        opacity: 1,
+        preload: 1,
+        style: {
+          color: [
+            'interpolate',
+            ['linear'],
+            [
+              '+',
+              [
+                '/',
+                [
+                  '-',
+                  ['band', 1],
+                  ['var', 'windowCenter']
+                ],
+                ['var', 'windowWidth']
+              ],
+              0.5
+            ],
+            ...colorLUT
+          ],
+          variables: {
+            windowCenter: (windowCenter - minValue) / (maxValue - minValue),
+            windowWidth: (windowWidth - minValue) / (maxValue - minValue)
+          }
+        }
+      })
+      this[_map].addLayer(mapping.layer)
+
+      this[_mappings][mappingUID] = mapping
+
+      index += 1
+    }
+  }
+
+  /**
+   * Remove a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of a mapping
+   */
+  removeMapping (mappingUID) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        `Cannot remove mapping. Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    this[_map].removeLayer(mapping.layer)
+    mapping.layer.dispose()
+    this[_map].removeOverlay(mapping.overlay)
+    delete this[_mappings][mappingUID]
+  }
+
+  /**
+   * Show a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of a mapping
+   * @param {object} styleOptions
+   * @param {number} styleOptions.opacity - Opacity
+   * @param {number} styleOptions.limitValues - Opacity
+   */
+  showMapping (mappingUID, styleOptions = {}) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        `Cannot show mapping. Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    console.info(`show mapping ${mappingUID}`)
+    mapping.layer.setVisible(true)
+    this.setMappingStyle(mappingUID, styleOptions)
+  }
+
+  /**
+   * Hide a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of a mapping
+   */
+  hideMapping (mappingUID) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        `Cannot hide mapping. Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    console.info(`hide mapping ${mappingUID}`)
+    mapping.layer.setVisible(false)
+    this[_map].removeOverlay(mapping.overlay)
+  }
+
+  /**
+   * Determine if mapping is visible.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of a mapping
+   * @returns {boolean}
+   */
+  isMappingVisible (mappingUID) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        'Cannot determine if mapping is visible. ' +
+        `Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    return mapping.layer.getVisible()
+  }
+
+  /** Set the style of a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of mapping
+   * @param {object} styleOptions
+   * @param {string} styleOptions.colormap - Name of the color map
+   * @param {number} styleOptions.opacity - Opacity
+   */
+  setMappingStyle (mappingUID, styleOptions) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        'Cannot set style of mapping. ' +
+        `Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+
+    if (styleOptions.opacity != null) {
+      mapping.style.opacity = styleOptions.opacity
+      mapping.layer.setOpacity(styleOptions.opacity)
+    }
+
+    const styleVariables = {}
+    if (styleOptions.limitValues != null) {
+      const min = mapping.minValue
+      const max = mapping.maxValue
+      mapping.style.limitValues = styleOptions.limitValues
+      styleVariables.windowCenter = (
+        ((styleOptions.limitValues[0] + styleOptions.limitValues[1]) / 2 - min) /
+        (max - min)
+      )
+      styleVariables.windowWidth = (
+        ((styleOptions.limitValues[1] - styleOptions.limitValues[0]) - min) /
+        (max - min)
+      )
+    }
+    mapping.layer.updateStyleVariables(styleVariables)
+
+    const overlayElement = mapping.overlay.getElement()
+    overlayElement.innerHTML = mapping.mapping.label
+    overlayElement.style = {}
+    overlayElement.style.display = 'flex'
+    overlayElement.style.flexDirection = 'column'
+    overlayElement.style.padding = '4px'
+    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
+    overlayElement.style.borderRadius = '4px'
+    overlayElement.style.margin = '1px'
+    overlayElement.style.color = 'black'
+    overlayElement.style.fontWeight = '600'
+    overlayElement.style.fontSize = '12px'
+    overlayElement.style.textAlign = 'center'
+
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    const height = 15
+    const width = 5
+    context.canvas.height = height
+    context.canvas.width = width
+
+    const colors = mapping.colormap
+    for (let j = 0; j < colors.length; j++) {
+      const color = colors[colors.length - j - 1]
+      const r = color[0]
+      const g = color[1]
+      const b = color[2]
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`
+      context.fillRect(0, height / colors.length * j, width, 1)
+    }
+    overlayElement.appendChild(canvas)
+
+    const parentElement = overlayElement.parentNode
+    parentElement.style.display = 'inline'
+
+    console.log(mapping.overlay.getPosition())
+    this[_map].addOverlay(mapping.overlay)
+  }
+
+  /** Get the style of a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of mapping
+   * @returns {object} Style Options
+   */
+  getMappingStyle (mappingUID, styleOptions) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        'Cannot get style of mapping. ' +
+        `Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+
+    return {
+      opacity: mapping.style.opacity,
+      limitValues: mapping.style.limitValues
+    }
+  }
+
+  /** Get image metadata for a mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of mapping
+   * @returns {ParametricMap[]} Parametric Map image metadata
+   */
+  getMappingMetadata (mappingUID) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        'Cannot get image metadata of mapping. ' +
+        `Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    return mapping.pyramid.metadata
+  }
+
+  /**
+   * Get all mappings.
+   *
+   * @return {Mapping[]}
+   */
+  getAllMappings () {
+    const mappings = []
+    for (const mappingUID in this[_mappings]) {
+      mappings.push(this[_mappings][mappingUID].mapping)
+    }
+    return mappings
   }
 }
 
@@ -2941,14 +3326,14 @@ class _NonVolumeImageViewer {
       }
     })
 
-    const rasterSource = new Static({
+    const source = new Static({
       imageExtent: extent,
       projection: projection,
       imageLoadFunction: imageLoadFunction,
       url: '' // will be set by imageLoadFunction()
     })
 
-    this[_imageLayer] = new ImageLayer({ source: rasterSource })
+    this[_imageLayer] = new ImageLayer({ source: source })
 
     // The default rotation is 'horizontal' with the slide label on the right
     let rotation = _getRotation(this[_metadata])

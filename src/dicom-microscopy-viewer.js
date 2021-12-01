@@ -1,4 +1,6 @@
 import EVENTS from './events.js'
+import { AnnotationGroup } from './annotation.js'
+import { Mapping } from './mapping.js'
 import {
   Comprehensive3DSR,
   MicroscopyBulkSimpleAnnotations,
@@ -39,6 +41,15 @@ import {
   Segment
 } from './segment.js'
 
+/** Namespace for annotations.
+ *
+ * @namespace annotation
+ */
+const annotation = {
+  AnnotationGroup,
+}
+
+
 /** Namespace for the viewer.
  *
  * @namespace api
@@ -58,6 +69,14 @@ const viewer = {
   VolumeImageViewer
 }
 
+/** Namespace for mapping.
+ *
+ * @namespace mapping
+ */
+const mapping = {
+  Mapping,
+}
+
 /** Namespace for working with DICOM Metadata.
  *
  * @namespace metadata
@@ -71,6 +90,14 @@ const metadata = {
   Segmentation,
   VLWholeSlideMicroscopyImage,
   Comprehensive3DSR
+}
+
+/** Namespace for optical paths.
+ *
+ * @namespace opticalPath
+ */
+const opticalPath = {
+  OpticalPath
 }
 
 /** Namespace for 3-dimensional spatial coordinates (SCOORD3D).
@@ -124,4 +151,16 @@ const utils = {
   mapPixelCoordToSlideCoord
 }
 
-export { api, events, metadata, roi, scoord3d, segment, utils, viewer }
+export {
+  annotation,
+  api,
+  events,
+  mapping,
+  metadata,
+  opticalPath,
+  roi,
+  scoord3d,
+  segment,
+  utils,
+  viewer
+}

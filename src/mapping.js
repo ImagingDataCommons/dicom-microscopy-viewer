@@ -171,9 +171,12 @@ function _groupFramesPerMapping (metadata) {
     )
     const key = labels.join('-')
     const numFrames = Number(metadata.NumberOfFrames)
-    mappings[key] = [...Array(numFrames).keys()]
+    mappings[key] = {
+      frameNumbers: [...Array(numFrames).keys()].map(index => index + 1),
+      realWorldValueMappings: sharedItem.RealWorldValueMappingSequence
+    }
   } else {
-    // TODO: TILED_FULL?
+    // Dimension Organization TILED_FULL is not defined for Parametric Map
     if (metadata.PerFrameFunctionalGroupsSequence !== undefined) {
       metadata.PerFrameFunctionalGroupsSequence.forEach((frameItem, i) => {
         if (frameItem.RealWorldValueMappingSequence !== undefined) {
@@ -182,21 +185,24 @@ function _groupFramesPerMapping (metadata) {
           )
           const key = labels.join('-')
           if (key in mappings) {
-            mappings[key].push(i)
+            mappings[key].frameNumbers.push(i + 1)
           } else {
-            mappings[key] = [i]
+            mappings[key] = {
+              frameNumbers: [i + 1],
+              realWorldValueMappings: frameItem.RealWorldValueMappingSequence
+            }
           }
         }
       })
     }
   }
 
-  const mappingNumberToFrameNumbers = {}
   const frameNumberToMappingNumber = {}
-  Object.values(mappings).forEach((frameIndices, mappingIndex) => {
+  const mappingNumberToFrameNumbers = {}
+  const mappingNumberToDescriptions = {}
+  Object.values(mappings).forEach((mapping, mappingIndex) => {
     const mappingNumber = mappingIndex + 1
-    frameIndices.forEach(frameIndex => {
-      const frameNumber = frameIndex + 1
+    mapping.frameNumbers.forEach(frameNumber => {
       frameNumberToMappingNumber[frameNumber] = mappingNumber
       if (mappingNumber in mappingNumberToFrameNumbers) {
         mappingNumberToFrameNumbers[mappingNumber].push(frameNumber)
@@ -204,11 +210,13 @@ function _groupFramesPerMapping (metadata) {
         mappingNumberToFrameNumbers[mappingNumber] = [frameNumber]
       }
     })
+    mappingNumberToDescriptions[mappingNumber] = mapping.realWorldValueMappings
   })
 
   return {
     frameNumberToMappingNumber,
-    mappingNumberToFrameNumbers
+    mappingNumberToFrameNumbers,
+    mappingNumberToDescriptions
   }
 }
 
