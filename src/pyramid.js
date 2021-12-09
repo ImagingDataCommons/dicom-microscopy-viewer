@@ -209,7 +209,7 @@ function _computeImagePyramid ({ metadata }) {
 
   /**
    * Frames may extend beyond the size of the total pixel matrix.
-   * The excess pixels are empty, i.e. have only a padding value.
+   * The excess pixels may contain garbage and should not be displayed.
    * We set the extent to the size of the actual image without taken
    * excess pixels into account.
    * Note that the vertical axis is flipped in the used tile source,
@@ -270,7 +270,7 @@ function _createEmptyTile ({
   rows,
   samplesPerPixel,
   bitsAllocated,
-  bitsStored
+  photometricInterpretation
 }) {
   let pixelArray
   if (bitsAllocated <= 8) {
@@ -279,8 +279,8 @@ function _createEmptyTile ({
     pixelArray = new Float32Array(columns * rows * samplesPerPixel)
   }
   // Fill white in case of color and black in case of monochrome.
-  let fillValue = 255
-  if (samplesPerPixel === 1) {
+  let fillValue = Math.pow(2, bitsAllocated) - 1
+  if (photometricInterpretation === 'MONOCHROME2') {
     fillValue = 0
   }
   for (let i = 0; i < pixelArray.length; i++) {
@@ -296,7 +296,6 @@ function _createEmptyTile ({
 function _createTileLoadFunction ({
   pyramid,
   client,
-  retrieveRendered,
   includeIccProfile,
   renderingEngine,
   channel
@@ -330,9 +329,9 @@ function _createTileLoadFunction ({
     const columns = refImage.Columns
     const rows = refImage.Rows
     const bitsAllocated = refImage.BitsAllocated
-    const bitsStored = refImage.BitsStored
     const pixelRepresentation = refImage.PixelRepresentation
     const samplesPerPixel = refImage.SamplesPerPixel
+    const photometricInterpretation = refImage.PhotometricInterpretation
 
     if (src != null) {
       const studyInstanceUID = dwc.utils.getStudyInstanceUIDFromUri(src)
@@ -346,132 +345,101 @@ function _createTileLoadFunction ({
         console.info(`retrieve frame ${frameNumbers} of color image`)
       }
 
-      if (retrieveRendered) {
-        /*
-         * We could use PNG, but at the moment we don't have a PNG decoder
-         * library and thus would have to draw to a canvas, retrieve the
-         * image data and then recompat the array from a RGBA to a 1 component
-         * array for the offscreen rendering engine, which would result in
-         * poor perfomance.
-         */
-        const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
-        const jpegMediaType = 'image/jpeg' // decoded with libjpeg-turbo
-        const transferSyntaxUID = ''
-        const retrieveOptions = {
-          studyInstanceUID,
-          seriesInstanceUID,
-          sopInstanceUID,
-          frameNumbers,
-          mediaTypes: [
-            { mediaType: jp2MediaType, transferSyntaxUID },
-            { mediaType: jpegMediaType, transferSyntaxUID }
-          ]
-        }
-        if (includeIccProfile) {
-          /* Unclear whether the included ICC profile will be correclty
-           * rendered by the browser.
-           */
-          retrieveOptions.queryParams = {
-            iccprofile: 'yes'
-          }
-        }
+      const jpegMediaType = 'image/jpeg'
+      const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
+      const jlsMediaType = 'image/jls'
+      const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
+      const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
+      const jp2MediaType = 'image/jp2'
+      const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90'
+      const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91'
+      const jpxMediaType = 'image/jpx'
+      const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
+      const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
+      const octetStreamMediaType = 'application/octet-stream'
+      const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
 
-        return client.retrieveInstanceFramesRendered(retrieveOptions).then(
-          (renderedFrame) => {
-            const { pixelArray } = renderingEngine.decodeFrame({
-              frame: renderedFrame,
-              bitsAllocated,
-              pixelRepresentation,
-              columns,
-              rows
-            })
-            return pixelArray
-          }
-        ).catch(
-          (error) => {
-            return Promise.reject(
-              new Error(
-                `Failed to load tile "${index}" at level ${z}: ${error}.`
-              )
-            )
-          }
-        )
-      } else {
-        const jpegMediaType = 'image/jpeg'
-        const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-        const jlsMediaType = 'image/jls'
-        const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
-        const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
-        const jp2MediaType = 'image/jp2'
-        const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90'
-        const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91'
-        const jpxMediaType = 'image/jpx'
-        const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
-        const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-        const octetStreamMediaType = 'application/octet-stream'
-        const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
-
-        const retrieveOptions = {
-          studyInstanceUID,
-          seriesInstanceUID,
-          sopInstanceUID,
-          frameNumbers,
-          mediaTypes: [
-            {
-              mediaType: jpegMediaType,
-              transferSyntaxUID: jpegTransferSyntaxUID
-            },
-            {
-              mediaType: jlsMediaType,
-              transferSyntaxUID: jlsTransferSyntaxUIDlossless
-            },
-            {
-              mediaType: jlsMediaType,
-              transferSyntaxUID: jlsTransferSyntaxUID
-            },
-            {
-              mediaType: jp2MediaType,
-              transferSyntaxUID: jp2TransferSyntaxUIDlossless
-            },
-            {
-              mediaType: jp2MediaType,
-              transferSyntaxUID: jp2TransferSyntaxUID
-            },
-            {
-              mediaType: jpxMediaType,
-              transferSyntaxUID: jpxTransferSyntaxUIDlossless
-            },
-            {
-              mediaType: jpxMediaType,
-              transferSyntaxUID: jpxTransferSyntaxUID
-            },
-            {
-              mediaType: octetStreamMediaType,
-              transferSyntaxUID: octetStreamTransferSyntaxUID
-            }
-          ]
-        }
-        return client.retrieveInstanceFrames(retrieveOptions).then(
-          (rawFrames) => {
-            const { pixelArray } = renderingEngine.decodeFrame({
-              frame: rawFrames[0],
-              bitsAllocated,
-              pixelRepresentation,
-              columns,
-              rows
-            })
-            return pixelArray
-          }
-        ).catch(
-          (error) => {
-            return Promise.reject(
-              new Error(
-                `Failed to load tile "${index}" at level ${z}: ${error}`
-              )
-            )
-          }
-        )
+      const mediaTypes = []
+      if (bitsAllocated <= 8) {
+        mediaTypes.push({
+          mediaType: jpegMediaType,
+          transferSyntaxUID: jpegTransferSyntaxUID
+        })
       }
+      mediaTypes.push(...[
+        {
+          mediaType: jlsMediaType,
+          transferSyntaxUID: jlsTransferSyntaxUIDlossless
+        },
+        {
+          mediaType: jlsMediaType,
+          transferSyntaxUID: jlsTransferSyntaxUID
+        },
+        {
+          mediaType: jp2MediaType,
+          transferSyntaxUID: jp2TransferSyntaxUIDlossless
+        },
+        {
+          mediaType: jp2MediaType,
+          transferSyntaxUID: jp2TransferSyntaxUID
+        },
+        {
+          mediaType: jpxMediaType,
+          transferSyntaxUID: jpxTransferSyntaxUIDlossless
+        },
+        {
+          mediaType: jpxMediaType,
+          transferSyntaxUID: jpxTransferSyntaxUID
+        },
+        {
+          mediaType: octetStreamMediaType,
+          transferSyntaxUID: octetStreamTransferSyntaxUID
+        }
+      ])
+
+      const retrieveOptions = {
+        studyInstanceUID,
+        seriesInstanceUID,
+        sopInstanceUID,
+        frameNumbers,
+        mediaTypes
+      }
+      return client.retrieveInstanceFrames(retrieveOptions).then(
+        (rawFrames) => {
+          const { pixelArray } = renderingEngine.decodeFrame({
+            frame: rawFrames[0],
+            bitsAllocated,
+            pixelRepresentation,
+            columns,
+            rows,
+            samplesPerPixel
+          })
+          // The OpenLayers WebGL API is able to handle uint8 or float32
+          if (pixelArray.constructor === Uint8Array) {
+            return pixelArray
+          } else {
+            if (pixelArray.constructor === Float64Array) {
+              // TODO: handle Float64Array using LUT
+              throw new Error(
+                'Double Float Pixel Data is not (yet) supported.'
+              )
+            }
+            return new Float32Array(
+              pixelArray,
+              pixelArray.byteOffset,
+              pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT
+            )
+          }
+        }
+      ).catch(
+        (error) => {
+          return Promise.reject(
+            new Error(
+              `Failed to load tile "${index}" at level ${z}: ${error}`
+            )
+          )
+        }
+      )
     } else {
       console.warn(
         `could not load tile "${index}" at level ${z}, ` +
@@ -482,7 +450,7 @@ function _createTileLoadFunction ({
         rows,
         samplesPerPixel,
         bitsAllocated,
-        bitsStored
+        photometricInterpretation
       })
     }
   }

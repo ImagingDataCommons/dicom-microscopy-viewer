@@ -59,7 +59,9 @@ import {
   computeRotation,
   generateUID,
   getUnitSuffix,
-  doContentItemsMatch
+  doContentItemsMatch,
+  rescale,
+  createWindow
 } from './utils.js'
 import {
   scoord3dCoordinates2geometryCoordinates,
@@ -512,29 +514,25 @@ class VolumeImageViewer {
    *        The array shall contain the metadata of all image instances that should be displayed.
    * @param {object} options.styleOptions - Default style options for annotations.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
-   * @param {boolean} [options.retrieveRendered=true] - Whether image frames should be retrieved via DICOMweb prerendered by the server.
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
    * @param {number} [options.tilesCacheSize=512] - initial cache size for a TileImage
    */
   constructor (options) {
     this[_options] = options
-    if (!('retrieveRendered' in this[_options])) {
-      this[_options].retrieveRendered = true
-    }
 
-    if (!('includeIccProfile' in this[_options])) {
+    if (this[_options].includeIccProfile == null) {
       this[_options].includeIccProfile = false
     }
 
-    if (!('tilesCacheSize' in this[_options])) {
+    if (this[_options].tilesCacheSize == null) {
       this[_options].tilesCacheSize = 1000
     }
 
-    if (!('overview' in this[_options])) {
+    if (this[_options].overview == null) {
       this[_options].overview = {}
     }
 
-    if (!('controls' in this[_options])) {
+    if (this[_options].controls == null) {
       this[_options].controls = []
     }
     this[_options].controls = new Set(this[_options].controls)
@@ -602,13 +600,11 @@ class VolumeImageViewer {
           if (image.TotalPixelMatrixFocalPlanes === 1) {
             image.OpticalPathSequence.forEach(opticalPath => {
               const opticalPathIdentifier = opticalPath.OpticalPathIdentifier
-              const bitsAllocated = image.BitsAllocated
               if (monochromeImageInformation[opticalPathIdentifier]) {
                 monochromeImageInformation[opticalPathIdentifier].metadata.push(
                   image
                 )
               } else {
-                const maxValue = Math.pow(2, bitsAllocated) - 1
                 monochromeImageInformation[opticalPathIdentifier] = {
                   metadata: [image],
                   opticalPath
@@ -728,7 +724,9 @@ class VolumeImageViewer {
       for (const opticalPathIdentifier in monochromeImageInformation) {
         const info = monochromeImageInformation[opticalPathIdentifier]
         const pyramid = _computeImagePyramid({ metadata: info.metadata })
+        const minValue = 0
         const maxValue = Math.pow(2, info.metadata[0].BitsAllocated) - 1
+        const bitsAllocated = info.metadata[0].BitsAllocated
         const opticalPath = {
           opticalPathIdentifier,
           opticalPath: new OpticalPath({
@@ -743,10 +741,10 @@ class VolumeImageViewer {
           style: {
             color: [255, 255, 255],
             opacity: 1.0,
-            limitValues: [0, maxValue]
+            limitValues: [minValue, maxValue]
           },
-          bitsAllocated: info.metadata[0].BitsAllocated,
-          minValue: 0,
+          bitsAllocated: bitsAllocated,
+          minValue: minValue,
           maxValue: maxValue
         }
 
@@ -765,7 +763,6 @@ class VolumeImageViewer {
           loader: _createTileLoadFunction({
             pyramid: opticalPath.pyramid,
             client: this[_options].client,
-            retrieveRendered: this[_options].retrieveRendered,
             includeIccProfile: this[_options].includeIccProfile,
             renderingEngine: this[_renderingEngine],
             channel: opticalPathIdentifier
@@ -776,6 +773,11 @@ class VolumeImageViewer {
           transition: 0,
           bandCount: 1
         })
+
+        const [windowCenter, windowWidth] = createWindow(
+          opticalPath.style.limitValues[0],
+          opticalPath.style.limitValues[1]
+        )
 
         // TODO: use palette color lookup table
         const style = {
@@ -804,18 +806,8 @@ class VolumeImageViewer {
             red: opticalPath.style.color[0],
             green: opticalPath.style.color[1],
             blue: opticalPath.style.color[2],
-            windowCenter: (
-              (
-                opticalPath.style.limitValues[0] +
-                opticalPath.style.limitValues[1]
-              ) / 2 / opticalPath.maxValue
-            ),
-            windowWidth: (
-              (
-                opticalPath.style.limitValues[1] -
-                opticalPath.style.limitValues[0]
-              ) / opticalPath.maxValue
-            )
+            windowCenter: windowCenter,
+            windowWidth: windowWidth
           }
         }
 
@@ -873,7 +865,6 @@ class VolumeImageViewer {
         loader: _createTileLoadFunction({
           pyramid: opticalPath.pyramid,
           client: this[_options].client,
-          retrieveRendered: this[_options].retrieveRendered,
           renderingEngine: this[_renderingEngine],
           channel: opticalPathIdentifier
         }),
@@ -1052,17 +1043,13 @@ class VolumeImageViewer {
       styleVariables.blue = opticalPath.style.color[2]
     }
     if (styleOptions.limitValues != null) {
-      const max = opticalPath.maxValue
       opticalPath.style.limitValues = styleOptions.limitValues
-      styleVariables.windowCenter = (
-        (styleOptions.limitValues[0] + styleOptions.limitValues[1]) /
-        2 /
-        max
+      const [windowCenter, windowWidth] = createWindow(
+        styleOptions.limitValues[0],
+        styleOptions.limitValues[1]
       )
-      styleVariables.windowWidth = (
-        (styleOptions.limitValues[1] - styleOptions.limitValues[0]) /
-        max
-      )
+      styleVariables.windowCenter = windowCenter
+      styleVariables.windowWidth = windowWidth
     }
     opticalPath.layer.updateStyleVariables(styleVariables)
     opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
@@ -2616,7 +2603,6 @@ class VolumeImageViewer {
         loader: _createTileLoadFunction({
           pyramid: fittedPyramid,
           client: this[_options].client,
-          retrieveRendered: this[_options].retrieveRendered,
           renderingEngine: this[_renderingEngine],
           channel: segmentNumber
         }),
@@ -2751,11 +2737,16 @@ class VolumeImageViewer {
       segment.layer.setOpacity(styleOptions.opacity)
     }
 
+    let title = segment.segment.propertyType.CodeMeaning
+    const padding = Math.round((16 - title.length) / 2)
+    title = title.padStart(title.length + padding)
+    title = title.padEnd(title.length + 2 * padding)
     const overlayElement = segment.overlay.getElement()
-    overlayElement.innerHTML = segment.segment.propertyType.CodeMeaning
+    overlayElement.innerHTML = title
     overlayElement.style = {}
     overlayElement.style.display = 'flex'
     overlayElement.style.flexDirection = 'column'
+    overlayElement.style.justifyContent = 'center'
     overlayElement.style.padding = '4px'
     overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
     overlayElement.style.borderRadius = '4px'
@@ -2767,8 +2758,8 @@ class VolumeImageViewer {
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
-    const height = 15
-    const width = 5
+    const height = 30
+    const width = 15
     context.canvas.height = height
     context.canvas.width = width
 
@@ -2905,7 +2896,6 @@ class VolumeImageViewer {
     }
     const windowCenter = frameVOILUT.WindowCenter
     const windowWidth = frameVOILUT.WindowWidth
-    console.log('DEBUG: ', windowCenter, windowWidth)
 
     const { mappingNumberToDescriptions } = _groupFramesPerMapping(refInstance)
 
@@ -2994,7 +2984,6 @@ class VolumeImageViewer {
         loader: _createTileLoadFunction({
           pyramid: fittedPyramid,
           client: this[_options].client,
-          retrieveRendered: this[_options].retrieveRendered,
           renderingEngine: this[_renderingEngine],
           channel: mappingNumber
         }),
@@ -3037,8 +3026,8 @@ class VolumeImageViewer {
             ...colorLUT
           ],
           variables: {
-            windowCenter: (windowCenter - minValue) / (maxValue - minValue),
-            windowWidth: (windowWidth - minValue) / (maxValue - minValue)
+            windowCenter: rescale(windowCenter, minValue, maxValue),
+            windowWidth: rescale(windowWidth, minValue, maxValue)
           }
         }
       })
@@ -3145,25 +3134,35 @@ class VolumeImageViewer {
 
     const styleVariables = {}
     if (styleOptions.limitValues != null) {
-      const min = mapping.minValue
-      const max = mapping.maxValue
       mapping.style.limitValues = styleOptions.limitValues
-      styleVariables.windowCenter = (
-        ((styleOptions.limitValues[0] + styleOptions.limitValues[1]) / 2 - min) /
-        (max - min)
+      const [windowCenter, windowWidth] = createWindow(
+        styleOptions.limitValues[0],
+        styleOptions.limitValues[1]
       )
-      styleVariables.windowWidth = (
-        ((styleOptions.limitValues[1] - styleOptions.limitValues[0]) - min) /
-        (max - min)
+      styleVariables.windowCenter = rescale(
+        windowCenter,
+        mapping.minValue,
+        mapping.mapValue
+      )
+      styleVariables.windowWidth = rescale(
+        windowWidth,
+        mapping.minValue,
+        mapping.mapValue
       )
     }
     mapping.layer.updateStyleVariables(styleVariables)
 
+    let title = mapping.mapping.label
+    // FIXME
+    const padding = Math.round((16 - title.length) / 2)
+    title = title.padStart(title.length + padding)
+    title = title.padEnd(title.length + 2 * padding)
     const overlayElement = mapping.overlay.getElement()
-    overlayElement.innerHTML = mapping.mapping.label
+    overlayElement.innerHTML = title
     overlayElement.style = {}
     overlayElement.style.display = 'flex'
     overlayElement.style.flexDirection = 'column'
+    overlayElement.style.justifyContent = 'center'
     overlayElement.style.padding = '4px'
     overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
     overlayElement.style.borderRadius = '4px'
@@ -3175,8 +3174,8 @@ class VolumeImageViewer {
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
-    const height = 15
-    const width = 5
+    const height = 30
+    const width = 15
     context.canvas.height = height
     context.canvas.width = width
 
@@ -3194,7 +3193,6 @@ class VolumeImageViewer {
     const parentElement = overlayElement.parentNode
     parentElement.style.display = 'inline'
 
-    console.log(mapping.overlay.getPosition())
     this[_map].addOverlay(mapping.overlay)
   }
 
@@ -3357,7 +3355,7 @@ class _NonVolumeImageViewer {
       keyboardEventTarget: document
     })
 
-    view.fit(projection.getExtent(), { size: this[_map].getSize() })
+    // view.fit(projection.getExtent(), { size: this[_map].getSize() })
   }
 
   /** Renders the image in the specified viewport container.

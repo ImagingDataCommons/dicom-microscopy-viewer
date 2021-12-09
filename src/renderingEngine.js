@@ -26,6 +26,57 @@ if (typeof Module === 'object') {
   }
 }
 
+function _castToFloat32Array ({
+  frame,
+  bitsAllocated,
+  pixelRepresentation,
+  rows,
+  columns,
+  samplesPerPixel
+}) {
+  if (bitsAllocated === 8) {
+    const buf = new Uint8Array(
+      frame.buffer,
+      frame.byteOffset,
+      frame.byteLength
+    )
+    return new Float32Array(
+      buf,
+      buf.byteOffset,
+      buf.byteLength
+    )
+  } else if (bitsAllocated === 16) {
+    let buf
+    if (pixelRepresentation === 1) {
+      buf = new Int16Array(
+        frame.buffer,
+        frame.byteOffset,
+        frame.byteLength / 2
+      )
+    } else {
+      buf = new Uint16Array(
+        frame.buffer,
+        frame.byteOffset,
+        frame.byteLength / 2
+      )
+    }
+    return new Float32Array(
+      buf,
+      buf.byteOffset,
+      buf.byteLength / 2
+    )
+  } else if (bitsAllocated === 32) {
+    return new Float32Array(
+      frame.buffer,
+      frame.byteOffset,
+      frame.byteLength / 4
+    )
+  } else {
+    // TODO: check whether data would fit into Float32Array
+    throw new Error('Double Float Pixel Data are not (yet) supported.')
+  }
+}
+
 /** Engine for offscreen rendering of images
  *
  * @class
@@ -38,11 +89,32 @@ class RenderingEngine {
     bitsAllocated,
     pixelRepresentation,
     columns,
-    rows
+    rows,
+    samplesPerPixel
   }) {
-    const decodedFrame = this._checkImageTypeAndDecode(frame)
+    const { decodedFrame, metadata } = this._checkImageTypeAndDecode(frame)
 
-    // The OpenLayers WebGL API is able to handle uint8 or float32
+    if (metadata.bitsAllocated !== bitsAllocated) {
+      throw new Error('Frame does not have expected Bits Allocated.')
+    }
+    if (metadata.rows !== rows) {
+      throw new Error('Frame does not have expected Rows.')
+    }
+    if (metadata.columns !== columns) {
+      throw new Error('Frame does not have expected Columns.')
+    }
+    if (metadata.samplesPerPixel !== samplesPerPixel) {
+      throw new Error('Frame does not have expected Samples Per Pixel.')
+    }
+    if (metadata.pixelRepresentation !== pixelRepresentation) {
+      throw new Error('Frame does not have expected Pixel Representation.')
+    }
+
+    const length = rows * columns * samplesPerPixel * (bitsAllocated / 8)
+    if (length !== decodedFrame.length) {
+      throw new Error('Frame value does not have expected length.')
+    }
+
     const signed = pixelRepresentation === 1
     let pixelArray
     let bitsPerSample
@@ -53,22 +125,45 @@ class RenderingEngine {
         break
       case 8:
         if (signed) {
-          pixelArray = new Float32Array(decodedFrame)
+          pixelArray = new Int8Array(decodedFrame)
         } else {
           pixelArray = new Uint8Array(decodedFrame)
         }
         bitsPerSample = 8
         break
       case 16:
-        pixelArray = new Float32Array(decodedFrame)
+        if (pixelRepresentation === 1) {
+          pixelArray = new Int16Array(
+            decodedFrame.buffer,
+            decodedFrame.byteOffset,
+            decodedFrame.byteLength / 2
+          )
+        } else {
+          pixelArray = new Uint16Array(
+            decodedFrame.buffer,
+            decodedFrame.byteOffset,
+            decodedFrame.byteLength / 2
+          )
+        }
         bitsPerSample = 16
         break
       case 32:
-        pixelArray = new Float32Array(decodedFrame)
+        pixelArray = new Float32Array(
+          decodedFrame.buffer,
+          decodedFrame.byteOffset,
+          decodedFrame.byteLength / 4
+        )
         bitsPerSample = 32
         break
+      case 64:
+        pixelArray = new Float64Array(
+          decodedFrame.buffer,
+          decodedFrame.byteOffset,
+          decodedFrame.byteLength / 8
+        )
+        bitsPerSample = 64
+        break
       default:
-        // TODO: handle Double Float Pixel Data with 64 Bits Allocated
         throw new Error(
           'The pixel bit depth ' + bitsAllocated +
           ' is not supported by the offscreen rendering.'
@@ -97,34 +192,22 @@ class RenderingEngine {
     }
     const mediaType = imageTypeObject.mime
 
-    let decodedFrame
+    let decoder
     if (mediaType === 'image/jpeg') {
       if (!jpegDecoder) {
         throw new Error('JPEG decoder was not initialized.')
       }
-      const { decodedPixelData } = this._decodeInternal(
-        jpegDecoder,
-        byteArray
-      )
-      decodedFrame = decodedPixelData.slice(0)
+      decoder = jpegDecoder
     } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
       if (!jp2jpxDecoder) {
         throw new Error('JPEG 2000 Decoder was not initialized.')
       }
-      const { decodedPixelData } = this._decodeInternal(
-        jp2jpxDecoder,
-        byteArray
-      )
-      decodedFrame = decodedPixelData.slice(0)
+      decoder = jp2jpxDecoder
     } else if (mediaType === 'image/jls') {
       if (!jlsDecoder) {
         throw new Error('JPEG-LS decoder was not initialized.')
       }
-      const { decodedPixelData } = this._decodeInternal(
-        jlsDecoder,
-        byteArray
-      )
-      decodedFrame = decodedPixelData.slice(0)
+      decoder = jlsDecoder
     } else {
       throw new Error(
         'The media type ' + mediaType +
@@ -132,7 +215,18 @@ class RenderingEngine {
       )
     }
 
-    return decodedFrame
+    const { frameBuffer, frameInfo } = this._decodeInternal(decoder, byteArray)
+
+    return {
+      decodedFrame: frameBuffer,
+      metadata: {
+        bitsAllocated: frameInfo.bitsPerSample,
+        rows: frameInfo.height,
+        columns: frameInfo.width,
+        samplesPerPixel: frameInfo.componentCount,
+        pixelRepresentation: frameInfo.isSigned ? 1 : 0
+      }
+    }
   }
 
   /** Returns decoded array
@@ -147,26 +241,9 @@ class RenderingEngine {
     encodedBuffer.set(fullEncodedBitStream)
     decoder.decode()
     return {
-      decodedPixelData: decoder.getDecodedBuffer(),
+      frameBuffer: decoder.getDecodedBuffer(),
       frameInfo: decoder.getFrameInfo()
     }
-  }
-
-  /** Returns the image type
-   *
-   * @param {number[]} pixelData - image array
-   * @returns {string} image type
-   * @private
-   */
-  _getImageDataType (pixelData) {
-    if (pixelData instanceof Int16Array) {
-      return 'int16'
-    } else if (pixelData instanceof Uint16Array) {
-      return 'uint16'
-    } else if (pixelData instanceof Int8Array) {
-      return 'int8'
-    }
-    return 'uint8'
   }
 }
 
