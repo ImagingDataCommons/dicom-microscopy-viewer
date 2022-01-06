@@ -215,27 +215,33 @@ function getFrameMapping (metadata) {
  * Bulkdata elements will be skipped.
  *
  * @param {Object} metadata - Metadata structured according to the DICOM JSON model
- * @param {Callable} bulkDataHandler - Function that receives BulkDataURI as input and returns the retrieved value
  * @param {Object} Metadata structured according to the DICOM JSON model
- * @returns {Object} Formatted metadata
+ * @returns {Object} Formatted dataset and remaining bulkdata
  *
  * @memberof metadata
  */
-function formatMetadata (metadata, bulkDataHandler) {
+function formatMetadata (metadata) {
   const loadJSONDataset = (elements) => {
     const dataset = {}
+    const bulkDataMapping = {}
     Object.keys(elements).forEach(tag => {
       const keyword = tagToKeyword[tag]
       const vr = elements[tag].vr
       if ('BulkDataURI' in elements[tag]) {
-        if (bulkDataHandler !== undefined) {
-          dataset[keyword] = bulkDataHandler(elements[tag].BulkDataURI)
-        }
-        console.debug(`skip bulk data element "${keyword}"`)
+        bulkDataMapping[keyword] = elements[tag]
       } else if ('Value' in elements[tag]) {
         const value = elements[tag].Value
         if (vr === 'SQ') {
-          dataset[keyword] = value.map(item => loadJSONDataset(item))
+          dataset[keyword] = []
+          const mappings = []
+          value.forEach(item => {
+            const loaded = loadJSONDataset(item)
+            dataset[keyword].push(loaded.dataset)
+            mappings.push(loaded.bulkDataMapping)
+          })
+          if (mappings.some(item => Object.keys(item).length > 0)) {
+            bulkDataMapping[keyword] = mappings
+          }
         } else {
           // Handle value multiplicity.
           if (value.length === 1) {
@@ -273,10 +279,10 @@ function formatMetadata (metadata, bulkDataHandler) {
         }
       }
     })
-    return dataset
+    return { dataset, bulkDataMapping }
   }
 
-  const dataset = loadJSONDataset(metadata)
+  const { dataset, bulkDataMapping } = loadJSONDataset(metadata)
 
   // The top level (lowest resolution) image may be a single frame image in
   // which case the "NumberOfFrames" attribute is optional. We include it for
@@ -288,7 +294,7 @@ function formatMetadata (metadata, bulkDataHandler) {
     dataset.NumberOfFrames = 1
   }
 
-  return dataset
+  return { dataset, bulkDataMapping }
 }
 
 /** Group DICOM metadata of monochrome slides by Optical Path Identifier.
@@ -387,16 +393,18 @@ function groupColorInstances (metadata) {
  */
 class VLWholeSlideMicroscopyImage {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
-     */
-  constructor (options) {
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
+   * @params {Callable} options.bulkDataHandler - Callable for retrieving bulk data values (receives BulkDataURI as input and returns the retrieved value)
+   */
+  constructor ({ metadata, bulkDataHandler }) {
     let dataset
-    if ('StudyInstanceUID' in options.metadata) {
+    if ('StudyInstanceUID' in metadata) {
       // Has already been formatted
-      dataset = options.metadata
+      dataset = metadata
     } else {
-      dataset = formatMetadata(options.metadata)
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
     }
     if (dataset.SOPClassUID !== SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE) {
       throw new Error(
@@ -416,11 +424,19 @@ class VLWholeSlideMicroscopyImage {
  */
 class Comprehensive3DSR {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-  constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata in DICOM JSON format
+   * @params {Callable} options.bulkDataHandler - Callable for retrieving bulk data values (receives BulkDataURI as input and returns the retrieved value)
+   */
+  constructor ({ metadata, bulkDataHandler }) {
+    let dataset
+    if ('StudyInstanceUID' in metadata) {
+      // Has already been formatted
+      dataset = metadata
+    } else {
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
+    }
     if (dataset.SOPClassUID !== SOPClassUIDs.COMPREHENSIVE_3D_SR) {
       throw new Error(
         'Cannot construct Comprehensive 3D SR instance ' +
@@ -439,11 +455,18 @@ class Comprehensive3DSR {
  */
 class MicroscopyBulkSimpleAnnotations {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-  constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata of a DICOM Microscopy Bulk Simple Annotations instance in DICOM JSON format
+   */
+  constructor ({ metadata }) {
+    let dataset
+    if ('StudyInstanceUID' in metadata) {
+      // Has already been formatted
+      dataset = metadata
+    } else {
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
+    }
     if (dataset.SOPClassUID !== SOPClassUIDs.MICROSCOPY_BULK_SIMPLE_ANNOTATIONS) {
       throw new Error(
         'Cannot construct Microscopy Bulk Simple Annotations instance ' +
@@ -462,11 +485,18 @@ class MicroscopyBulkSimpleAnnotations {
  */
 class ParametricMap {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-  constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata of a DICOM Parametric Map instance in DICOM JSON format
+   */
+  constructor ({ metadata }) {
+    let dataset
+    if ('StudyInstanceUID' in metadata) {
+      // Has already been formatted
+      dataset = metadata
+    } else {
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
+    }
     if (dataset.SOPClassUID !== SOPClassUIDs.PARAMETRIC_MAP) {
       throw new Error(
         'Cannot construct Parametric Map instance ' +
@@ -485,11 +515,18 @@ class ParametricMap {
  */
 class Segmentation {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-  constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata of a DICOM Segmentation instance in DICOM JSON format
+   */
+  constructor ({ metadata }) {
+    let dataset
+    if ('StudyInstanceUID' in metadata) {
+      // Has already been formatted
+      dataset = metadata
+    } else {
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
+    }
     if (dataset.SOPClassUID !== SOPClassUIDs.SEGMENTATION) {
       throw new Error(
         'Cannot construct Segmentation instance ' +
