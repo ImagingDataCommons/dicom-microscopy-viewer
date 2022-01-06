@@ -79,7 +79,6 @@ import {
   _fitImagePyramid
 } from './pyramid.js'
 
-import { RenderingEngine } from './renderingEngine.js'
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 
@@ -490,7 +489,6 @@ const _metadata = Symbol('metadata')
 const _pyramid = Symbol('pyramid')
 const _segments = Symbol('segments')
 const _opticalPaths = Symbol('opticalPaths')
-const _renderingEngine = Symbol('renderingEngine')
 const _rotation = Symbol('rotation')
 const _projection = Symbol('projection')
 const _tileGrid = Symbol('tileGrid')
@@ -712,8 +710,6 @@ class VolumeImageViewer {
       extent: this[_pyramid].extent
     })
 
-    this[_renderingEngine] = new RenderingEngine()
-
     const layers = []
     const overviewLayers = []
     this[_opticalPaths] = {}
@@ -759,12 +755,11 @@ class VolumeImageViewer {
           )
         }
 
-        opticalPath.source = new DataTileSource({
+        const source = new DataTileSource({
           loader: _createTileLoadFunction({
             pyramid: opticalPath.pyramid,
             client: this[_options].client,
             includeIccProfile: this[_options].includeIccProfile,
-            renderingEngine: this[_renderingEngine],
             channel: opticalPathIdentifier
           }),
           tileGrid: this[_tileGrid],
@@ -779,7 +774,7 @@ class VolumeImageViewer {
           opticalPath.style.limitValues[1]
         )
 
-        // TODO: use palette color lookup table
+        // TODO: use palette color lookup table if available
         const style = {
           color: [
             'interpolate',
@@ -812,8 +807,8 @@ class VolumeImageViewer {
         }
 
         opticalPath.layer = new TileLayer({
+          source,
           extent: pyramid.extent,
-          source: opticalPath.source,
           preload: 1,
           style: style,
           visible: false,
@@ -821,16 +816,26 @@ class VolumeImageViewer {
           cacheSize: this[_options].tilesCacheSize
         })
         opticalPath.layer.helper = helper
+        opticalPath.layer.on('precompose', (event) => {
+          const gl = event.context
+          gl.blendEquation(gl.FUNC_ADD)
+          gl.blendFunc(gl.SRC_COLOR, gl.DST_COLOR)
+        })
 
         opticalPath.overviewTileLayer = new TileLayer({
+          source,
           extent: pyramid.extent,
-          source: opticalPath.source,
           preload: 0,
           style: style,
           visible: false,
           useInterimTilesOnError: false
         })
         opticalPath.overviewTileLayer.helper = overviewHelper
+        opticalPath.overviewTileLayer.on('precompose', (event) => {
+          const gl = event.context
+          gl.blendEquation(gl.FUNC_ADD)
+          gl.blendFunc(gl.SRC_COLOR, gl.DST_COLOR)
+        })
 
         if (channelCount === 0) {
           layers.push(opticalPath.layer)
@@ -861,11 +866,10 @@ class VolumeImageViewer {
         maxValue: 255
       }
 
-      opticalPath.source = new DataTileSource({
+      const source = new DataTileSource({
         loader: _createTileLoadFunction({
           pyramid: opticalPath.pyramid,
           client: this[_options].client,
-          renderingEngine: this[_renderingEngine],
           channel: opticalPathIdentifier
         }),
         tileGrid: this[_tileGrid],
@@ -877,16 +881,16 @@ class VolumeImageViewer {
       })
 
       opticalPath.layer = new TileLayer({
+        source,
         extent: this[_tileGrid].extent,
-        source: opticalPath.source,
         preload: 1,
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize
       })
 
       opticalPath.overviewTileLayer = new TileLayer({
+        source,
         extent: pyramid.extent,
-        source: opticalPath.source,
         preload: 0,
         useInterimTilesOnError: false
       })
@@ -1078,7 +1082,7 @@ class VolumeImageViewer {
   /** Get image metadata for an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
-   * @returns {Segmentation[]} Segmentation image metadata
+   * @returns {VLWholeSlideMicroscopyImage[]} Slide microscopy image metadata
    */
   getOpticalPathMetadata (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
@@ -1144,10 +1148,10 @@ class VolumeImageViewer {
     if (!this.isOpticalPathActive(opticalPathIdentifier)) {
       return
     }
-    this[_map].removeLayer(opticalPath.layer)
     opticalPath.layer.dispose()
-    this[_overviewMap].getOverviewMap().removeLayer(opticalPath.overviewTileLayer)
+    this[_map].removeLayer(opticalPath.layer)
     opticalPath.overviewTileLayer.dispose()
+    this[_overviewMap].getOverviewMap().removeLayer(opticalPath.overviewTileLayer)
   }
 
   /** Determine whether an optical path is active.
@@ -2109,46 +2113,23 @@ class VolumeImageViewer {
   /**
    * Add annotation groups.
    *
-   * @param {MicroscopySimpleBulkAnnotations[]} metadata - Metadata of DICOM Microscopy Simple Bulk Annotations instances
+   * @param {MicroscopySimpleBulkAnnotations} metadata - Metadata of a DICOM Microscopy Simple Bulk Annotations instance
+   * @param {Object} bulkdata - Bulkdata of a DICOM Microscopy Simple Bulk Annotations instance
    */
-  addAnnotationGroups (metadata) {
-    const refAnnotation = metadata[0]
+  addAnnotationGroups (metadata, bulkdata = {}) {
     const refImage = this[_pyramid].metadata[0]
-    metadata.forEach(instance => {
-      if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        throw new Error(
-          'Microscopy Bulk Simple Annotation instances must have the same ' +
-          'Frame of Reference UID as the corresponding source images.'
-        )
-      }
-      if (refAnnotation.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        throw new Error(
-          'Microscopy Bulk Simple Annotation instances must all have same ' +
-          'Frame of Reference UID.'
-        )
-      }
-      if (refAnnotation.SeriesInstanceUID !== instance.SeriesInstanceUID) {
-        throw new Error(
-          'Microscopy Bulk Simple Annotation instances must all have same ' +
-          'Series Instance UID.'
-        )
-      }
-      if (
-        refAnnotation.AnnotationGroupSequence.length !==
-        instance.AnnotationGroupSequence.length
-      ) {
-        throw new Error(
-          'Microscopy Bulk Simple Annotation instances must all contain the ' +
-          'same number of items in the Annotation Group Sequence.'
-        )
-      }
-    })
+    if (refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
+      throw new Error(
+        'Microscopy Bulk Simple Annotation instances must have the same ' +
+        'Frame of Reference UID as the corresponding source images.'
+      )
+    }
     console.info(
       'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
-      `of series "${refAnnotation.SeriesInstanceUID}"`
+      `of series "${metadata.SeriesInstanceUID}"`
     )
 
-    refAnnotation.AnnotationGroupSequence.forEach(item => {
+    metadata.AnnotationGroupSequence.forEach((item, index) => {
       const annotationGroupUID = item.AnnotationGroupUID
       const algorithm = item.AnnotationGroupAlgorithmIdentificationSequence[0]
       const annotationGroup = {
@@ -2160,49 +2141,19 @@ class VolumeImageViewer {
           algorithmName: algorithm.AlgorithmName,
           propertyCategory: item.AnnotationPropertyCategoryCodeSequence[0],
           propertyType: item.AnnotationPropertyTypeCodeSequence[0],
-          studyInstanceUID: refAnnotation.StudyInstanceUID,
-          seriesInstanceUID: refAnnotation.SeriesInstanceUID,
-          sopInstanceUIDs: metadata.map(element => {
-            return element.SOPInstanceUID
-          })
+          studyInstanceUID: metadata.StudyInstanceUID,
+          seriesInstanceUID: metadata.SeriesInstanceUID,
+          sopInstanceUIDs: [metadata.SOPInstanceUID]
         }),
         style: {
           opacity: 1.0,
           color: [255, 255, 0] // TODO
         },
-        metadata: metadata
+        metadata: metadata,
+        bulkdata: bulkdata
       }
 
-      annotationGroup.source = new VectorSource({ wrapX: false })
-      const features = []
-
-      // TODO: fetch bulkdata
-      const numberOfAnnotations = Number(item.NumberOfAnnotations)
-      const coordinateType = item.AnnotationCoordinateType
-      let commonZCoordinate
-      let n
-      if (item.CommonZCoordinateValue !== undefined) {
-        commonZCoordinate = Number(item.CommonZCoordinateValue)
-        n = 2
-      } else {
-        commonZCoordinate = Number.NaN
-        if (coordinateType === '2D') {
-          n = 2
-        } else {
-          n = 3
-        }
-      }
-      const graphicType = item.GraphicType
-      let graphicData
-      if ('PointCoordinatesData' in item) {
-        // 32-bit float (single)
-        graphicData = item.PointCoordinatesData
-      } else {
-        // 64-bit float (double)
-        graphicData = item.DoublePointCoordinatesData
-      }
-
-      if (graphicType === 'POLYLINE') {
+      if (item.GraphicType === 'POLYLINE') {
         /*
          * We represent graphics as centroid points, but it's unclear whether
          * the centroid of a polyline would be meaningful
@@ -2214,100 +2165,15 @@ class VolumeImageViewer {
         return
       }
 
-      const getCoordinates = (graphicData, offset, commonZCoordinate) => {
-        const point = [
-          graphicData[offset],
-          graphicData[offset + 1]
-        ]
-        if (isNaN(commonZCoordinate)) {
-          point.push(graphicData[offset + 2])
-        } else {
-          point.push(commonZCoordinate)
+      // TODO: can we use VectorTileSource?
+      const source = new VectorSource({
+        wrapX: false,
+        rotateWithView: true,
+        overlaps: false,
+        loader: (extent, resolution, projection, success, failure) => {
+          console.log('DEBUG: ', extent, resolution)
         }
-        return point
-      }
-
-      for (let i = 0; i < numberOfAnnotations; i++) {
-        let point
-        if (graphicType === 'POINT') {
-          const length = n
-          const offset = i * length
-          point = getCoordinates(graphicData, offset, commonZCoordinate)
-        } else {
-          // Compute centroid
-          if (graphicType === 'RECTANGLE' || graphicType === 'ELLIPSE') {
-            const length = n * 4
-            const offset = i * length
-            const coordinates = []
-            for (let j = offset; j < offset + length; j++) {
-              const p = getCoordinates(graphicData, j, commonZCoordinate)
-              coordinates.push(p)
-              j += n
-            }
-            if (graphicType === 'ELLIPSE') {
-              const majorAxisFirstEndpoint = coordinates[0]
-              const majorAxisSecondEndpoint = coordinates[1]
-              point = [
-                (majorAxisSecondEndpoint[0] - majorAxisFirstEndpoint[0]) / 2,
-                (majorAxisSecondEndpoint[1] - majorAxisFirstEndpoint[1]) / 2,
-                0 // TODO
-              ]
-            } else if (graphicType === 'RECTANGLE') {
-              const topLeft = coordinates[0]
-              const topRight = coordinates[1]
-              const bottomLeft = coordinates[3]
-              point = [
-                (topRight[0] - topLeft[0]) / 2,
-                (topLeft[1] - bottomLeft[1]) / 2,
-                0 // TODO
-              ]
-            }
-          } else {
-            const index = item.LongPrimitivePointIndexList
-            const offset = index[i] - 1
-            let length
-            if (i < (numberOfAnnotations - 1)) {
-              length = offset - index[i + 1]
-            } else {
-              length = graphicData.length
-            }
-            // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
-            point = [
-              0,
-              0,
-              0 // TODO
-            ]
-            let area = 0
-            for (let j = offset; j < offset + length; j++) {
-              const p0 = getCoordinates(graphicData, j, commonZCoordinate)
-              let p1
-              if (j === (offset + length - n)) {
-                p1 = getCoordinates(graphicData, offset, commonZCoordinate)
-              } else {
-                p1 = getCoordinates(graphicData, j + n, commonZCoordinate)
-              }
-              const a = p0[0] * p1[1] - p1[0] * p0[1]
-              area += a
-              point[0] += (p0[0] + p1[0]) * a
-              point[1] += (p0[1] + p1[1]) * a
-              j += n - 1
-            }
-            area *= 0.5
-            point[0] /= 6 * area
-            point[1] /= 6 * area
-          }
-        }
-        const feat = new Feature({
-          geometry: new PointGeometry(
-            scoord3dCoordinates2geometryCoordinates(
-              point,
-              this[_pyramid].metadata
-            )
-          )
-        })
-        features.push(feat)
-      }
-      annotationGroup.source.addFeatures(features)
+      })
 
       const style = {
         symbol: {
@@ -2316,22 +2182,24 @@ class VolumeImageViewer {
             'interpolate',
             ['exponential', 2.5],
             ['zoom'],
-            10,
+            1,
             1,
             14,
             32
           ],
-          rotateWithView: true,
           color: annotationGroup.style.color,
           opacity: annotationGroup.style.opacity
         }
       }
       annotationGroup.layer = new PointsLayer({
-        source: annotationGroup.source,
+        source,
         style,
         disableHitDetection: true
       })
       annotationGroup.layer.setVisible(false)
+      annotationGroup.layer.on('change:source', (event) => {
+        console.log('DEBUG: ', event)
+      })
 
       this[_map].addLayer(annotationGroup.layer)
       this[_annotationGroups][annotationGroupUID] = annotationGroup
@@ -2371,6 +2239,194 @@ class VolumeImageViewer {
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`show annotation group ${annotationGroupUID}`)
+
+    const index = annotationGroup.annotationGroup.number - 1
+    const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[index]
+    const bulkdataItem = annotationGroup.bulkdata.AnnotationGroupSequence[index]
+
+    const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
+    const coordinateType = metadataItem.AnnotationCoordinateType
+    let commonZCoordinate
+    let n
+    if (metadataItem.CommonZCoordinateValue == null) {
+      commonZCoordinate = Number.NaN
+      if (coordinateType === '2D') {
+        n = 2
+      } else {
+        n = 3
+      }
+    } else {
+      commonZCoordinate = Number(metadataItem.CommonZCoordinateValue)
+      n = 2
+    }
+
+    let promise
+    if ('PointCoordinatesData' in metadataItem) {
+      promise = new Promise((resolve, reject) => {
+        resolve(metadataItem.PointCoordinatesData)
+      })
+    } else if ('DoublePointCoordinatesData' in metadataItem) {
+      promise = new Promise((resolve, reject) => {
+        resolve(metadataItem.DoublePointCoordinatesData)
+      })
+    } else {
+      if (bulkdataItem == null) {
+        throw new Error(
+          `Could not find item #${index + 1} in "AnnotationGroupSequence" ` +
+          `of bulkdata for annotation group "${annotationGroupUID}".`
+        )
+      }
+      if ('PointCoordinatesData' in bulkdataItem) {
+        const retrieveOptions = {
+          BulkDataURI: bulkdataItem.PointCoordinatesData.BulkDataURI
+        }
+        promise = this[_options].client.retrieveBulkData(retrieveOptions).then(
+          data => {
+            const byteArray = new Uint8Array(data[0])
+            return new Float32Array(
+              byteArray.buffer,
+              byteArray.byteOffset,
+              byteArray.byteLength / 4
+            )
+          }
+        )
+      } else if ('DoublePointCoordinatesData' in bulkdataItem) {
+        // FIXME
+        const retrieveOptions = {
+          BulkDataURI: bulkdataItem.DoublePointCoordinatesData.BulkDataURI.replace(
+            'http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs',
+            'http://localhost:8008/dicomweb'
+          )
+        }
+        promise = this[_options].client.retrieveBulkData(retrieveOptions).then(
+          data => {
+            const byteArray = new Uint8Array(data[0])
+            return new Float64Array(
+              byteArray.buffer,
+              byteArray.byteOffset,
+              byteArray.byteLength / 8
+            )
+          }
+        )
+      } else {
+        promise = new Promise((resolve, reject) => {
+          const error = new Error(
+            'Could not find "PointCoordinatesData" or ' +
+            '"DoublePointCoordinatesData" for annotation group ' +
+            `"${annotationGroupUID}" in bulkdata.`
+          )
+          reject(error)
+        })
+      }
+    }
+
+    console.log(
+      `retrieve graphic data for annotation group "${annotationGroupUID}"`
+    )
+    const source = annotationGroup.layer.getSource()
+    promise.then(graphicData => {
+      const features = []
+      const getCoordinates = (graphicData, offset, commonZCoordinate) => {
+        const point = [
+          graphicData[offset],
+          graphicData[offset + 1]
+        ]
+        if (isNaN(commonZCoordinate)) {
+          point.push(graphicData[offset + 2])
+        } else {
+          point.push(commonZCoordinate)
+        }
+        return point
+      }
+
+      const graphicType = metadataItem.GraphicType
+      for (let i = 0; i < numberOfAnnotations; i++) {
+        let point
+        if (graphicType === 'POINT') {
+          const length = n
+          const offset = i * length
+          point = getCoordinates(graphicData, offset, commonZCoordinate)
+        } else {
+          // Compute centroid
+          if (graphicType === 'RECTANGLE' || graphicType === 'ELLIPSE') {
+            const length = n * 4
+            const offset = i * length
+            const coordinates = []
+            for (let j = offset; j < offset + length; j++) {
+              const p = getCoordinates(graphicData, j, commonZCoordinate)
+              coordinates.push(p)
+              j += n - 1
+            }
+            if (graphicType === 'ELLIPSE') {
+              const majorAxisFirstEndpoint = coordinates[0]
+              const majorAxisSecondEndpoint = coordinates[1]
+              point = [
+                (majorAxisSecondEndpoint[0] - majorAxisFirstEndpoint[0]) / 2,
+                (majorAxisSecondEndpoint[1] - majorAxisFirstEndpoint[1]) / 2,
+                0 // TODO
+              ]
+            } else if (graphicType === 'RECTANGLE') {
+              const topLeft = coordinates[0]
+              const topRight = coordinates[1]
+              const bottomLeft = coordinates[3]
+              point = [
+                topLeft[0] + (topRight[0] - topLeft[0]) / 2,
+                topLeft[1] + (topLeft[1] - bottomLeft[1]) / 2,
+                0 // TODO
+              ]
+            }
+          } else {
+            const graphicIndex = metadataItem.LongPrimitivePointIndexList
+            const offset = graphicIndex[i] - 1
+            let length
+            if (i < (numberOfAnnotations - 1)) {
+              length = offset - graphicIndex[i + 1]
+            } else {
+              length = graphicData.length
+            }
+            // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
+            point = [
+              0,
+              0,
+              0 // TODO
+            ]
+            let area = 0
+            for (let j = offset; j < offset + length; j++) {
+              const p0 = getCoordinates(graphicData, j, commonZCoordinate)
+              let p1
+              if (j === (offset + length - n)) {
+                p1 = getCoordinates(graphicData, offset, commonZCoordinate)
+              } else {
+                p1 = getCoordinates(graphicData, j + n, commonZCoordinate)
+              }
+              const a = p0[0] * p1[1] - p1[0] * p0[1]
+              area += a
+              point[0] += (p0[0] + p1[0]) * a
+              point[1] += (p0[1] + p1[1]) * a
+              j += n - 1
+            }
+            area *= 0.5
+            point[0] /= 6 * area
+            point[1] /= 6 * area
+          }
+        }
+        const feat = new Feature({
+          geometry: new PointGeometry(
+            scoord3dCoordinates2geometryCoordinates(
+              point,
+              this[_pyramid].metadata
+            )
+          )
+        })
+        features.push(feat)
+      }
+      console.log(
+        `add n=${features.length} annotations ` +
+        `for annotation group "${annotationGroupUID}"`
+      )
+      source.addFeatures(features)
+    })
+
     annotationGroup.layer.setVisible(true)
     this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
   }
@@ -2599,20 +2655,19 @@ class VolumeImageViewer {
         maxValue: 255
       }
 
-      segment.source = new DataTileSource({
+      const source = new DataTileSource({
         loader: _createTileLoadFunction({
           pyramid: fittedPyramid,
           client: this[_options].client,
-          renderingEngine: this[_renderingEngine],
           channel: segmentNumber
         }),
         tileGrid: tileGrid,
         projection: this[_projection],
         wrapX: false,
-        transition: 0,
-        bandCount: 1
+        bandCount: 1,
+        interpolate: true
       })
-      segment.source.on('tileloaderror', (event) => {
+      source.on('tileloaderror', (event) => {
         console.error('error loading segment tile', event)
       })
 
@@ -2622,12 +2677,13 @@ class VolumeImageViewer {
         max: 1
       })
       segment.layer = new TileLayer({
-        source: segment.source,
+        source,
         extent: this[_pyramid].extent,
         projection: this[_projection],
         visible: false,
         opacity: 0.9,
         preload: 0,
+        transition: 0,
         style: {
           color: [
             'interpolate',
@@ -2980,32 +3036,33 @@ class VolumeImageViewer {
         maxValue: maxValue
       }
 
-      mapping.source = new DataTileSource({
+      const source = new DataTileSource({
         loader: _createTileLoadFunction({
           pyramid: fittedPyramid,
           client: this[_options].client,
-          renderingEngine: this[_renderingEngine],
           channel: mappingNumber
         }),
         tileGrid: tileGrid,
         projection: this[_projection],
         wrapX: false,
-        transition: 0,
-        bandCount: 1
+        bandCount: 1,
+        interpolate: true
       })
 
+      // TODO: use the Palette Color LUT of image if available
       const colorLUT = _buildColorLookupTable({
         colormap: colormap,
         min: 0,
         max: 1
       })
       mapping.layer = new TileLayer({
-        source: mapping.source,
+        source,
         extent: this[_pyramid].extent,
         projection: this[_projection],
         visible: false,
         opacity: 1,
         preload: 1,
+        transition: 0,
         style: {
           color: [
             'interpolate',
@@ -3344,7 +3401,9 @@ class _NonVolumeImageViewer {
       center: getCenter(extent),
       rotation: rotation,
       projection: projection,
-      extent: extent
+      extent: extent,
+      smoothExtentConstraint: true,
+      showFullExtent: true
     })
 
     // Creates the map with the defined layers and view and renders it.
@@ -3355,7 +3414,7 @@ class _NonVolumeImageViewer {
       keyboardEventTarget: document
     })
 
-    // view.fit(projection.getExtent(), { size: this[_map].getSize() })
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
   }
 
   /** Renders the image in the specified viewport container.

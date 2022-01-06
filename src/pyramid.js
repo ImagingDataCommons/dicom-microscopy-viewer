@@ -1,5 +1,6 @@
 import * as dwc from 'dicomweb-client'
 
+import { decodeFrame } from './decode.js'
 import { getFrameMapping } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import { are1DArraysAlmostEqual, are2DArraysAlmostEqual } from './utils.js'
@@ -297,7 +298,6 @@ function _createTileLoadFunction ({
   pyramid,
   client,
   includeIccProfile,
-  renderingEngine,
   channel
 }) {
   const tileLoadFunction = async (z, y, x) => {
@@ -357,7 +357,15 @@ function _createTileLoadFunction ({
       const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
       const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
       const octetStreamMediaType = 'application/octet-stream'
-      const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
+      /*
+       * Use of the "*" transfer syntax is a hack to work around standard
+       * compliance issues of the Google Cloud Healthcare API.
+       * It will return bulkdata encoded with the transfer syntax of the
+       * stored data set (uncompressed or compressed). The decoder can then not
+       * rely on the media type specified by the "Content-Type" header in the
+       * response message, but will need to determine it from the payload.
+       */
+      const octetStreamTransferSyntaxUID = '*'
 
       const mediaTypes = []
       if (bitsAllocated <= 8) {
@@ -406,37 +414,32 @@ function _createTileLoadFunction ({
       }
       return client.retrieveInstanceFrames(retrieveOptions).then(
         (rawFrames) => {
-          const { pixelArray } = renderingEngine.decodeFrame({
-            frame: rawFrames[0],
-            bitsAllocated,
-            pixelRepresentation,
-            columns,
-            rows,
-            samplesPerPixel
-          })
-          // The OpenLayers WebGL API is able to handle uint8 or float32
-          if (pixelArray.constructor === Uint8Array) {
-            return pixelArray
-          } else {
+          try {
+            const { pixelArray } = decodeFrame({
+              frame: rawFrames[0],
+              bitsAllocated,
+              pixelRepresentation,
+              columns,
+              rows,
+              samplesPerPixel
+            })
             if (pixelArray.constructor === Float64Array) {
               // TODO: handle Float64Array using LUT
-              throw new Error(
-                'Double Float Pixel Data is not (yet) supported.'
-              )
+              throw new Error('Double Float Pixel Data is not (yet) supported.')
             }
             return new Float32Array(
               pixelArray,
               pixelArray.byteOffset,
               pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT
             )
+          } catch (error) {
+            console.error('failed to decode frame: ', error)
           }
         }
       ).catch(
         (error) => {
           return Promise.reject(
-            new Error(
-              `Failed to load tile "${index}" at level ${z}: ${error}`
-            )
+            new Error(`Failed to load tile "${index}" at level ${z}: ${error}`)
           )
         }
       )
