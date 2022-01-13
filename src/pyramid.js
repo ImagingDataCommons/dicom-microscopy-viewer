@@ -423,13 +423,15 @@ function _createTileLoadFunction ({
               rows,
               samplesPerPixel
             })
-            if (samplesPerPixel === 3 && bitsAllocated === 8) {
-              return pixelArray
-            }
             if (pixelArray.constructor === Float64Array) {
               // TODO: handle Float64Array using LUT
               throw new Error('Double Float Pixel Data is not (yet) supported.')
             }
+            if (samplesPerPixel === 3 && bitsAllocated === 8) {
+              // Rendering of color images requires unsigned 8-bit integers
+              return pixelArray
+            }
+            // Rendering of grayscale images requires floating point values
             return new Float32Array(
               pixelArray,
               pixelArray.byteOffset,

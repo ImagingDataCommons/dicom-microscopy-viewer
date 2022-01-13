@@ -60,7 +60,6 @@ import {
   generateUID,
   getUnitSuffix,
   doContentItemsMatch,
-  rescale,
   createWindow
 } from './utils.js'
 import {
@@ -3160,8 +3159,8 @@ class VolumeImageViewer {
             ...colorLUT
           ],
           variables: {
-            windowCenter: rescale(windowCenter, minValue, maxValue),
-            windowWidth: rescale(windowWidth, minValue, maxValue)
+            windowCenter: windowCenter,
+            windowWidth: windowWidth
           }
         }
       })
@@ -3273,16 +3272,8 @@ class VolumeImageViewer {
         styleOptions.limitValues[0],
         styleOptions.limitValues[1]
       )
-      styleVariables.windowCenter = rescale(
-        windowCenter,
-        mapping.minValue,
-        mapping.mapValue
-      )
-      styleVariables.windowWidth = rescale(
-        windowWidth,
-        mapping.minValue,
-        mapping.mapValue
-      )
+      styleVariables.windowCenter = windowCenter
+      styleVariables.windowWidth = windowWidth
     }
     mapping.layer.updateStyleVariables(styleVariables)
 
