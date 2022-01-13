@@ -28,6 +28,7 @@
         <article>
             <pre class="prettyprint source linenums"><code>import * as dwc from 'dicomweb-client'
 
+import { decodeFrame } from './decode.js'
 import { getFrameMapping } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import { are1DArraysAlmostEqual, are2DArraysAlmostEqual } from './utils.js'
@@ -237,7 +238,7 @@ function _computeImagePyramid ({ metadata }) {
 
   /**
    * Frames may extend beyond the size of the total pixel matrix.
-   * The excess pixels are empty, i.e. have only a padding value.
+   * The excess pixels may contain garbage and should not be displayed.
    * We set the extent to the size of the actual image without taken
    * excess pixels into account.
    * Note that the vertical axis is flipped in the used tile source,
@@ -293,6 +294,30 @@ function _areImagePyramidsEqual (pyramid, refPyramid) {
   return true
 }
 
+function _createEmptyTile ({
+  columns,
+  rows,
+  samplesPerPixel,
+  bitsAllocated,
+  photometricInterpretation
+}) {
+  let pixelArray
+  if (bitsAllocated &lt;= 8) {
+    pixelArray = new Uint8Array(columns * rows * samplesPerPixel)
+  } else {
+    pixelArray = new Float32Array(columns * rows * samplesPerPixel)
+  }
+  // Fill white in case of color and black in case of monochrome.
+  let fillValue = Math.pow(2, bitsAllocated) - 1
+  if (photometricInterpretation === 'MONOCHROME2') {
+    fillValue = 0
+  }
+  for (let i = 0; i &lt; pixelArray.length; i++) {
+    pixelArray[i] = fillValue
+  }
+  return pixelArray
+}
+
 /** Create custom tile loader function to retrieve frames via WADO-RS.
  *
  *
@@ -300,14 +325,19 @@ function _areImagePyramidsEqual (pyramid, refPyramid) {
 function _createTileLoadFunction ({
   pyramid,
   client,
-  retrieveRendered,
   includeIccProfile,
-  renderingEngine,
   channel
 }) {
   const tileLoadFunction = async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
     index += `-${channel}`
+
+    if (pyramid.metadata[z] === undefined) {
+      throw new Error(
+        'Could not load tile ' + index +
+        ' because level ' + z + ' does not exist.'
+      )
+    }
 
     const path = pyramid.frameMappings[z][index]
     let src
@@ -323,19 +353,13 @@ function _createTileLoadFunction ({
       )
     }
 
-    if (pyramid.metadata[z] === undefined) {
-      console.warn(
-        'could not load tile ' + index +
-        ' because level ' + z + ' does not exist'
-      )
-      return
-    }
     const refImage = pyramid.metadata[z]
     const columns = refImage.Columns
     const rows = refImage.Rows
     const bitsAllocated = refImage.BitsAllocated
     const pixelRepresentation = refImage.PixelRepresentation
     const samplesPerPixel = refImage.SamplesPerPixel
+    const photometricInterpretation = refImage.PhotometricInterpretation
 
     if (src != null) {
       const studyInstanceUID = dwc.utils.getStudyInstanceUIDFromUri(src)
@@ -349,152 +373,119 @@ function _createTileLoadFunction ({
         console.info(`retrieve frame ${frameNumbers} of color image`)
       }
 
-      if (retrieveRendered) {
-        /*
-         * We could use PNG, but at the moment we don't have a PNG decoder
-         * library and thus would have to draw to a canvas, retrieve the
-         * image data and then recompat the array from a RGBA to a 1 component
-         * array for the offscreen rendering engine, which would result in
-         * poor perfomance.
-         */
-        const jp2MediaType = 'image/jp2' // decoded with OpenJPEG
-        const jpegMediaType = 'image/jpeg' // decoded with libjpeg-turbo
-        const transferSyntaxUID = ''
-        const retrieveOptions = {
-          studyInstanceUID,
-          seriesInstanceUID,
-          sopInstanceUID,
-          frameNumbers,
-          mediaTypes: [
-            { mediaType: jp2MediaType, transferSyntaxUID },
-            { mediaType: jpegMediaType, transferSyntaxUID }
-          ]
-        }
-        if (includeIccProfile) {
-          /* Unclear whether the included ICC profile will be correclty
-           * rendered by the browser.
-           */
-          retrieveOptions.queryParams = {
-            iccprofile: 'yes'
-          }
-        }
+      const jpegMediaType = 'image/jpeg'
+      const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
+      const jlsMediaType = 'image/jls'
+      const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
+      const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
+      const jp2MediaType = 'image/jp2'
+      const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90'
+      const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91'
+      const jpxMediaType = 'image/jpx'
+      const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
+      const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
+      const octetStreamMediaType = 'application/octet-stream'
+      /*
+       * Use of the "*" transfer syntax is a hack to work around standard
+       * compliance issues of the Google Cloud Healthcare API.
+       * It will return bulkdata encoded with the transfer syntax of the
+       * stored data set (uncompressed or compressed). The decoder can then not
+       * rely on the media type specified by the "Content-Type" header in the
+       * response message, but will need to determine it from the payload.
+       */
+      const octetStreamTransferSyntaxUID = '*'
 
-        return client.retrieveInstanceFramesRendered(retrieveOptions).then(
-          (renderedFrame) => {
-            const { pixelArray } = renderingEngine.decodeFrame({
-              frame: renderedFrame,
-              bitsAllocated,
-              pixelRepresentation,
-              columns,
-              rows
-            })
-            return pixelArray
-          }
-        ).catch(
-          (error) => {
-            return Promise.reject(
-              new Error(
-                `Failed to load tile "${index}" at level ${z}: ${error}.`
-              )
-            )
-          }
-        )
-      } else {
-        const jpegMediaType = 'image/jpeg'
-        const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-        const jlsMediaType = 'image/jls'
-        const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
-        const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
-        const jp2MediaType = 'image/jp2'
-        const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90'
-        const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91'
-        const jpxMediaType = 'image/jpx'
-        const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
-        const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-        const octetStreamMediaType = 'application/octet-stream'
-        const octetStreamTransferSyntaxUID = '1.2.840.10008.1.2.1'
-
-        const retrieveOptions = {
-          studyInstanceUID,
-          seriesInstanceUID,
-          sopInstanceUID,
-          frameNumbers,
-          mediaTypes: [
-            {
-              mediaType: jpegMediaType,
-              transferSyntaxUID: jpegTransferSyntaxUID
-            },
-            {
-              mediaType: jlsMediaType,
-              transferSyntaxUID: jlsTransferSyntaxUIDlossless
-            },
-            {
-              mediaType: jlsMediaType,
-              transferSyntaxUID: jlsTransferSyntaxUID
-            },
-            {
-              mediaType: jp2MediaType,
-              transferSyntaxUID: jp2TransferSyntaxUIDlossless
-            },
-            {
-              mediaType: jp2MediaType,
-              transferSyntaxUID: jp2TransferSyntaxUID
-            },
-            {
-              mediaType: jpxMediaType,
-              transferSyntaxUID: jpxTransferSyntaxUIDlossless
-            },
-            {
-              mediaType: jpxMediaType,
-              transferSyntaxUID: jpxTransferSyntaxUID
-            },
-            {
-              mediaType: octetStreamMediaType,
-              transferSyntaxUID: octetStreamTransferSyntaxUID
-            }
-          ]
+      const mediaTypes = []
+      if (bitsAllocated &lt;= 8) {
+        mediaTypes.push({
+          mediaType: jpegMediaType,
+          transferSyntaxUID: jpegTransferSyntaxUID
+        })
+      }
+      mediaTypes.push(...[
+        {
+          mediaType: jlsMediaType,
+          transferSyntaxUID: jlsTransferSyntaxUIDlossless
+        },
+        {
+          mediaType: jlsMediaType,
+          transferSyntaxUID: jlsTransferSyntaxUID
+        },
+        {
+          mediaType: jp2MediaType,
+          transferSyntaxUID: jp2TransferSyntaxUIDlossless
+        },
+        {
+          mediaType: jp2MediaType,
+          transferSyntaxUID: jp2TransferSyntaxUID
+        },
+        {
+          mediaType: jpxMediaType,
+          transferSyntaxUID: jpxTransferSyntaxUIDlossless
+        },
+        {
+          mediaType: jpxMediaType,
+          transferSyntaxUID: jpxTransferSyntaxUID
+        },
+        {
+          mediaType: octetStreamMediaType,
+          transferSyntaxUID: octetStreamTransferSyntaxUID
         }
-        return client.retrieveInstanceFrames(retrieveOptions).then(
-          (rawFrames) => {
-            const { pixelArray } = renderingEngine.decodeFrame({
+      ])
+
+      const retrieveOptions = {
+        studyInstanceUID,
+        seriesInstanceUID,
+        sopInstanceUID,
+        frameNumbers,
+        mediaTypes
+      }
+      return client.retrieveInstanceFrames(retrieveOptions).then(
+        (rawFrames) => {
+          try {
+            const { pixelArray } = decodeFrame({
               frame: rawFrames[0],
               bitsAllocated,
               pixelRepresentation,
               columns,
-              rows
+              rows,
+              samplesPerPixel
             })
-            return pixelArray
-          }
-        ).catch(
-          (error) => {
-            return Promise.reject(
-              new Error(
-                `Failed to load tile "${index}" at level ${z}: ${error}`
-              )
+            if (samplesPerPixel === 3 &amp;&amp; bitsAllocated === 8) {
+              return pixelArray
+            }
+            if (pixelArray.constructor === Float64Array) {
+              // TODO: handle Float64Array using LUT
+              throw new Error('Double Float Pixel Data is not (yet) supported.')
+            }
+            return new Float32Array(
+              pixelArray,
+              pixelArray.byteOffset,
+              pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT
             )
+          } catch (error) {
+            console.error('failed to decode frame: ', error)
           }
-        )
-      }
+        }
+      ).catch(
+        (error) => {
+          return Promise.reject(
+            new Error(`Failed to load tile "${index}" at level ${z}: ${error}`)
+          )
+        }
+      )
     } else {
       console.warn(
         `could not load tile "${index}" at level ${z}, ` +
         'this tile does not exist'
       )
-      let pixelArray
-      if (bitsAllocated &lt;= 8) {
-        pixelArray = new Uint8Array(columns * rows * samplesPerPixel)
-      } else {
-        pixelArray = new Float32Array(columns * rows * samplesPerPixel)
-      }
-      // Fill white in case of color and black in case of monochrome.
-      let fillValue = 255
-      if (samplesPerPixel === 1) {
-        fillValue = 0
-      }
-      for (let i = 0; i &lt; pixelArray.length; i++) {
-        pixelArray[i] = fillValue
-      }
-      return pixelArray
+      return _createEmptyTile({
+        columns,
+        rows,
+        samplesPerPixel,
+        bitsAllocated,
+        photometricInterpretation
+      })
     }
   }
   return tileLoadFunction
@@ -519,6 +510,7 @@ function _fitImagePyramid (pyramid, refPyramid) {
   }
 
   if (matchingLevelIndices.length === 0) {
+    console.error(pyramid, refPyramid)
     throw new Error(
       'Image pyramid cannot be fit to reference image pyramid.'
     )
@@ -570,13 +562,13 @@ export {
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="mapping.Mapping.html">Mapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_buildColorLookupTable">_buildColorLookupTable</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_createTileLoadFunction">_createTileLoadFunction</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_getWindowSize">_getWindowSize</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.Mapping.html">Mapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_buildColorLookupTable">_buildColorLookupTable</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_createTileLoadFunction">_createTileLoadFunction</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_getWindowSize">_getWindowSize</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Mon Nov 15 2021 22:37:38 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed Jan 12 2022 19:14:48 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

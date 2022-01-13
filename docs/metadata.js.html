@@ -30,6 +30,97 @@
 import { SOPClassUIDs } from './enums'
 import { _groupFramesPerMapping } from './mapping'
 
+function _base64ToUint8Array (value) {
+  const blob = window.atob(value)
+  const array = new Uint8Array(blob.length)
+
+  for (let i = 0; i &lt; blob.length; i++) {
+    array[i] = blob.charCodeAt(i)
+  }
+
+  return array
+}
+
+function _base64ToUint16Array (value) {
+  const blob = window.atob(value)
+  const n = Uint16Array.BYTES_PER_ELEMENT
+  const length = blob.length / n
+  const buffer = new ArrayBuffer(n)
+  const view = new DataView(buffer)
+  const array = new Uint16Array(length)
+
+  let p = 0
+  for (let i = 0; i &lt; length; i++) {
+    p = i * n
+    for (let j = 0; j &lt; n; j++) {
+      view.setUint8(j, blob.charCodeAt(p + j))
+    }
+    array[i] = view.getUint16(0, true)
+  }
+
+  return array
+}
+
+function _base64ToUint32Array (value) {
+  const blob = window.atob(value)
+  const n = Uint32Array.BYTES_PER_ELEMENT
+  const length = blob.length / n
+  const buffer = new ArrayBuffer(n)
+  const view = new DataView(buffer)
+  const array = new Uint32Array(length)
+
+  let p = 0
+  for (let i = 0; i &lt; length; i++) {
+    p = i * n
+    for (let j = 0; j &lt; n; j++) {
+      view.setUint8(j, blob.charCodeAt(p + j))
+    }
+    array[i] = view.getUint32(0, true)
+  }
+
+  return array
+}
+
+function _base64ToFloat32Array (value) {
+  const blob = window.atob(value)
+  const n = Float32Array.BYTES_PER_ELEMENT
+  const length = blob.length / n
+  const buffer = new ArrayBuffer(n)
+  const view = new DataView(buffer)
+  const array = new Float32Array(length)
+
+  let p = 0
+  for (let i = 0; i &lt; length; i++) {
+    p = i * n
+    for (let j = 0; j &lt; n; j++) {
+      view.setUint8(j, blob.charCodeAt(p + j))
+    }
+    array[i] = view.getFloat32(0, true)
+  }
+
+  return array
+}
+
+function _base64ToFloat64Array (value) {
+  const blob = window.atob(value)
+  const n = Float64Array.BYTES_PER_ELEMENT
+  const length = blob.length / n
+  const buffer = new ArrayBuffer(n)
+  const view = new DataView(buffer)
+  const array = new Float64Array(length)
+
+  let p = 0
+  for (let i = 0; i &lt; length; i++) {
+    p = i * n
+    for (let j = 0; j &lt; n; j++) {
+      view.setUint8(j, blob.charCodeAt(p + j))
+    }
+    array[i] = view.getFloat64(0, true)
+  }
+
+  return array
+}
+
 /** Determines the mapping of pyramid tile positions to frame numbers.
  *
  * @param {Object} Formatted metadata of a VL Whole Slide Microscopy Image instance
@@ -39,7 +130,6 @@ import { _groupFramesPerMapping } from './mapping'
 function getFrameMapping (metadata) {
   const rows = metadata.Rows
   const columns = metadata.Columns
-  const totalPixelMatrixRows = metadata.TotalPixelMatrixRows
   const totalPixelMatrixColumns = metadata.TotalPixelMatrixColumns
   const sopInstanceUID = metadata.SOPInstanceUID
   const numberOfFrames = Number(metadata.NumberOfFrames || 1)
@@ -152,22 +242,34 @@ function getFrameMapping (metadata) {
  * directly accessed via their keyword (e.g., "SOPInstanceUID").
  * Bulkdata elements will be skipped.
  *
+ * @param {Object} metadata - Metadata structured according to the DICOM JSON model
  * @param {Object} Metadata structured according to the DICOM JSON model
- * @returns {Object} Formatted metadata
+ * @returns {Object} Formatted dataset and remaining bulkdata
+ *
  * @memberof metadata
  */
 function formatMetadata (metadata) {
   const loadJSONDataset = (elements) => {
     const dataset = {}
+    const bulkDataMapping = {}
     Object.keys(elements).forEach(tag => {
       const keyword = tagToKeyword[tag]
       const vr = elements[tag].vr
       if ('BulkDataURI' in elements[tag]) {
-        console.debug(`skip bulk data element "${keyword}"`)
+        bulkDataMapping[keyword] = elements[tag]
       } else if ('Value' in elements[tag]) {
         const value = elements[tag].Value
         if (vr === 'SQ') {
-          dataset[keyword] = value.map(item => loadJSONDataset(item))
+          dataset[keyword] = []
+          const mappings = []
+          value.forEach(item => {
+            const loaded = loadJSONDataset(item)
+            dataset[keyword].push(loaded.dataset)
+            mappings.push(loaded.bulkDataMapping)
+          })
+          if (mappings.some(item => Object.keys(item).length > 0)) {
+            bulkDataMapping[keyword] = mappings
+          }
         } else {
           // Handle value multiplicity.
           if (value.length === 1) {
@@ -184,6 +286,19 @@ function formatMetadata (metadata) {
             }
           }
         }
+      } else if ('InlineBinary' in elements[tag]) {
+        const value = elements[tag].InlineBinary
+        if (vr === 'OB') {
+          dataset[keyword] = _base64ToUint8Array(value)
+        } else if (vr === 'OW') {
+          dataset[keyword] = _base64ToUint16Array(value)
+        } else if (vr === 'OL') {
+          dataset[keyword] = _base64ToUint32Array(value)
+        } else if (vr === 'OF') {
+          dataset[keyword] = _base64ToFloat32Array(value)
+        } else if (vr === 'OD') {
+          dataset[keyword] = _base64ToFloat64Array(value)
+        }
       } else {
         if (vr === 'SQ') {
           dataset[keyword] = []
@@ -192,10 +307,10 @@ function formatMetadata (metadata) {
         }
       }
     })
-    return dataset
+    return { dataset, bulkDataMapping }
   }
 
-  const dataset = loadJSONDataset(metadata)
+  const { dataset, bulkDataMapping } = loadJSONDataset(metadata)
 
   // The top level (lowest resolution) image may be a single frame image in
   // which case the "NumberOfFrames" attribute is optional. We include it for
@@ -207,7 +322,7 @@ function formatMetadata (metadata) {
     dataset.NumberOfFrames = 1
   }
 
-  return dataset
+  return { dataset, bulkDataMapping }
 }
 
 /** Group DICOM metadata of monochrome slides by Optical Path Identifier.
@@ -306,16 +421,18 @@ function groupColorInstances (metadata) {
  */
 class VLWholeSlideMicroscopyImage {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
-     */
-  constructor (options) {
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
+   * @params {Callable} options.bulkDataHandler - Callable for retrieving bulk data values (receives BulkDataURI as input and returns the retrieved value)
+   */
+  constructor ({ metadata, bulkDataHandler }) {
     let dataset
-    if ('StudyInstanceUID' in options.metadata) {
+    if ('StudyInstanceUID' in metadata) {
       // Has already been formatted
-      dataset = options.metadata
+      dataset = metadata
     } else {
-      dataset = formatMetadata(options.metadata)
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
     }
     if (dataset.SOPClassUID !== SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE) {
       throw new Error(
@@ -335,11 +452,19 @@ class VLWholeSlideMicroscopyImage {
  */
 class Comprehensive3DSR {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-  constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata in DICOM JSON format
+   * @params {Callable} options.bulkDataHandler - Callable for retrieving bulk data values (receives BulkDataURI as input and returns the retrieved value)
+   */
+  constructor ({ metadata, bulkDataHandler }) {
+    let dataset
+    if ('StudyInstanceUID' in metadata) {
+      // Has already been formatted
+      dataset = metadata
+    } else {
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
+    }
     if (dataset.SOPClassUID !== SOPClassUIDs.COMPREHENSIVE_3D_SR) {
       throw new Error(
         'Cannot construct Comprehensive 3D SR instance ' +
@@ -358,11 +483,18 @@ class Comprehensive3DSR {
  */
 class MicroscopyBulkSimpleAnnotations {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-  constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata of a DICOM Microscopy Bulk Simple Annotations instance in DICOM JSON format
+   */
+  constructor ({ metadata }) {
+    let dataset
+    if ('StudyInstanceUID' in metadata) {
+      // Has already been formatted
+      dataset = metadata
+    } else {
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
+    }
     if (dataset.SOPClassUID !== SOPClassUIDs.MICROSCOPY_BULK_SIMPLE_ANNOTATIONS) {
       throw new Error(
         'Cannot construct Microscopy Bulk Simple Annotations instance ' +
@@ -381,11 +513,18 @@ class MicroscopyBulkSimpleAnnotations {
  */
 class ParametricMap {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-  constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata of a DICOM Parametric Map instance in DICOM JSON format
+   */
+  constructor ({ metadata }) {
+    let dataset
+    if ('StudyInstanceUID' in metadata) {
+      // Has already been formatted
+      dataset = metadata
+    } else {
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
+    }
     if (dataset.SOPClassUID !== SOPClassUIDs.PARAMETRIC_MAP) {
       throw new Error(
         'Cannot construct Parametric Map instance ' +
@@ -404,11 +543,18 @@ class ParametricMap {
  */
 class Segmentation {
   /**
-     * @params {Object} options
-     * @params {Object} options.metadata - Metadata in DICOM JSON format
-     */
-  constructor (options) {
-    const dataset = formatMetadata(options.metadata)
+   * @params {Object} options
+   * @params {Object} options.metadata - Metadata of a DICOM Segmentation instance in DICOM JSON format
+   */
+  constructor ({ metadata }) {
+    let dataset
+    if ('StudyInstanceUID' in metadata) {
+      // Has already been formatted
+      dataset = metadata
+    } else {
+      const formatted = formatMetadata(metadata)
+      dataset = formatted.dataset
+    }
     if (dataset.SOPClassUID !== SOPClassUIDs.SEGMENTATION) {
       throw new Error(
         'Cannot construct Segmentation instance ' +
@@ -441,13 +587,13 @@ export {
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="mapping.Mapping.html">Mapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_buildColorLookupTable">_buildColorLookupTable</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_createTileLoadFunction">_createTileLoadFunction</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_getWindowSize">_getWindowSize</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.Mapping.html">Mapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_buildColorLookupTable">_buildColorLookupTable</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_createTileLoadFunction">_createTileLoadFunction</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_getWindowSize">_getWindowSize</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Mon Nov 15 2021 22:37:38 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed Jan 12 2022 19:14:48 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>
