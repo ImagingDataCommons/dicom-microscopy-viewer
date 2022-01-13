@@ -16,7 +16,9 @@ const EVENTS = {
   ROI_SELECTED: `${PROJECT_NAME}_roi_selected`,
   ROI_MODIFIED: `${PROJECT_NAME}_roi_modified`,
   MOVE_STARTED: `${PROJECT_NAME}_move_started`,
-  MOVE_ENDED: `${PROJECT_NAME}_move_ended`
+  MOVE_ENDED: `${PROJECT_NAME}_move_ended`,
+  LOADING_STARTED: `${PROJECT_NAME}_loading_started`,
+  LOADING_ENDED: `${PROJECT_NAME}_loading_ended`
 }
 
 export default EVENTS

@@ -2159,7 +2159,7 @@ class VolumeImageViewer {
         }),
         style: {
           opacity: 1.0,
-          color: [255, 255, 0] // TODO
+          color: [0, 126, 163] // TODO
         },
         metadata: metadata,
         bulkdata: bulkdata
@@ -2250,6 +2250,8 @@ class VolumeImageViewer {
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`show annotation group ${annotationGroupUID}`)
+    const container = this[_map].getTargetElement()
+    publish(container, EVENT.LOADING_STARTED)
 
     const index = annotationGroup.annotationGroup.number - 1
     const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[index]
@@ -2499,6 +2501,7 @@ class VolumeImageViewer {
         `for annotation group "${annotationGroupUID}"`
       )
       source.addFeatures(features)
+      publish(container, EVENT.LOADING_ENDED)
     })
 
     annotationGroup.layer.setVisible(true)
