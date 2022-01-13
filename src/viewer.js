@@ -82,6 +82,18 @@ import {
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 
+
+function _fixBulkDataURI (uri) {
+  // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
+  // set correctly by the archive:
+  // https://dcm4chee-arc-cs.readthedocs.io/en/latest/networking/config/archiveDevice.html#dcmremapretrieveurl
+  return uri.replace(
+    'arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/',
+    'localhost:8008/dicomweb/'
+  )
+}
+
+
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
     left: 1,
@@ -2165,27 +2177,29 @@ class VolumeImageViewer {
         return
       }
 
-      // TODO: can we use VectorTileSource?
+      // TODO: how to use "loader" with bbox or tile "strategy"?
       const source = new VectorSource({
         wrapX: false,
         rotateWithView: true,
-        overlaps: false,
-        loader: (extent, resolution, projection, success, failure) => {
-          console.log('DEBUG: ', extent, resolution)
-        }
+        overlaps: false
       })
 
+      /*
+       * TODO: Determine optimal sizes based on number of zoom levels and
+       * number of objects, and zoom factor between levels.
+       * Use style variable(s) that can subsequently be updated.
+       */
       const style = {
         symbol: {
           symbolType: 'circle',
-          size: [ // TODO: interpolate exponential zoom
+          size: [
             'interpolate',
-            ['exponential', 2.5],
+            ['linear'],
             ['zoom'],
             1,
-            1,
-            14,
-            32
+            2,
+            this[_pyramid].metadata.length,
+            10
           ],
           color: annotationGroup.style.color,
           opacity: annotationGroup.style.opacity
@@ -2197,9 +2211,6 @@ class VolumeImageViewer {
         disableHitDetection: true
       })
       annotationGroup.layer.setVisible(false)
-      annotationGroup.layer.on('change:source', (event) => {
-        console.log('DEBUG: ', event)
-      })
 
       this[_map].addLayer(annotationGroup.layer)
       this[_annotationGroups][annotationGroupUID] = annotationGroup
@@ -2260,63 +2271,130 @@ class VolumeImageViewer {
       n = 2
     }
 
-    let promise
+    const graphicType = metadataItem.GraphicType
+    const promises = []
     if ('PointCoordinatesData' in metadataItem) {
-      promise = new Promise((resolve, reject) => {
+      const p = new Promise((resolve, reject) => {
         resolve(metadataItem.PointCoordinatesData)
       })
+      promises.push(p)
     } else if ('DoublePointCoordinatesData' in metadataItem) {
-      promise = new Promise((resolve, reject) => {
+      const p = new Promise((resolve, reject) => {
         resolve(metadataItem.DoublePointCoordinatesData)
       })
+      promises.push(p)
     } else {
       if (bulkdataItem == null) {
-        throw new Error(
+        const p = new Promise((resolve, reject) => {
+          const error = new Error(
           `Could not find item #${index + 1} in "AnnotationGroupSequence" ` +
           `of bulkdata for annotation group "${annotationGroupUID}".`
-        )
-      }
-      if ('PointCoordinatesData' in bulkdataItem) {
-        const retrieveOptions = {
-          BulkDataURI: bulkdataItem.PointCoordinatesData.BulkDataURI
-        }
-        promise = this[_options].client.retrieveBulkData(retrieveOptions).then(
-          data => {
-            const byteArray = new Uint8Array(data[0])
-            return new Float32Array(
-              byteArray.buffer,
-              byteArray.byteOffset,
-              byteArray.byteLength / 4
-            )
-          }
-        )
-      } else if ('DoublePointCoordinatesData' in bulkdataItem) {
-        // FIXME
-        const retrieveOptions = {
-          BulkDataURI: bulkdataItem.DoublePointCoordinatesData.BulkDataURI.replace(
-            'http://arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs',
-            'http://localhost:8008/dicomweb'
-          )
-        }
-        promise = this[_options].client.retrieveBulkData(retrieveOptions).then(
-          data => {
-            const byteArray = new Uint8Array(data[0])
-            return new Float64Array(
-              byteArray.buffer,
-              byteArray.byteOffset,
-              byteArray.byteLength / 8
-            )
-          }
-        )
-      } else {
-        promise = new Promise((resolve, reject) => {
-          const error = new Error(
-            'Could not find "PointCoordinatesData" or ' +
-            '"DoublePointCoordinatesData" for annotation group ' +
-            `"${annotationGroupUID}" in bulkdata.`
           )
           reject(error)
         })
+        promises.push(p)
+      } else {
+        if ('PointCoordinatesData' in bulkdataItem) {
+          const retrieveOptions = {
+            BulkDataURI: _fixBulkDataURI(
+              bulkdataItem.PointCoordinatesData.BulkDataURI
+            )
+          }
+          const p = this[_options].client.retrieveBulkData(retrieveOptions).then(
+            data => {
+              const byteArray = new Uint8Array(data[0])
+              return new Float32Array(
+                byteArray.buffer,
+                byteArray.byteOffset,
+                byteArray.byteLength / 4
+              )
+            }
+          )
+          promises.push(p)
+        } else if ('DoublePointCoordinatesData' in bulkdataItem) {
+          const retrieveOptions = {
+            BulkDataURI: _fixBulkDataURI(
+              bulkdataItem.DoublePointCoordinatesData.BulkDataURI
+            )
+          }
+          const p = this[_options].client.retrieveBulkData(retrieveOptions).then(
+            data => {
+              const byteArray = new Uint8Array(data[0])
+              return new Float64Array(
+                byteArray.buffer,
+                byteArray.byteOffset,
+                byteArray.byteLength / 8
+              )
+            }
+          )
+          promises.push(p)
+        } else {
+          const p = new Promise((resolve, reject) => {
+            const error = new Error(
+              'Could not find "PointCoordinatesData" or ' +
+              '"DoublePointCoordinatesData" for annotation group ' +
+              `"${annotationGroupUID}" in bulkdata.`
+            )
+            reject(error)
+          })
+          promises.push(p)
+        }
+      }
+    }
+
+    if ('LongPrimitivePointIndexList' in metadataItem) {
+      const p = new Promise((resolve, reject) => {
+        resolve(metadataItem.LongPrimitivePointIndexList)
+      })
+      promises.push(p)
+    } else {
+      if (bulkdataItem == null) {
+        if (graphicType === 'POLYGON') {
+          const p = new Promise((resolve, reject) => {
+            const error = new Error(
+            `Could not find item #${index + 1} in "AnnotationGroupSequence" ` +
+            `of bulkdata for annotation group "${annotationGroupUID}".`
+            )
+            reject(error)
+          })
+          promises.push(p)
+        } else {
+          const p = new Promise((resolve, reject) => { resolve(null) })
+          promises.push(p)
+        }
+      } else {
+        if ('LongPrimitivePointIndexList' in bulkdataItem) {
+          const retrieveOptions = {
+            BulkDataURI: _fixBulkDataURI(
+              bulkdataItem.LongPrimitivePointIndexList.BulkDataURI
+            )
+          }
+          const p = this[_options].client.retrieveBulkData(retrieveOptions).then(
+            data => {
+              const byteArray = new Uint8Array(data[0])
+              return new Int32Array(
+                byteArray.buffer,
+                byteArray.byteOffset,
+                byteArray.byteLength / 4
+              )
+            }
+          )
+          promises.push(p)
+        } else {
+          if (graphicType === 'POLYGON') {
+            const p = new Promise((resolve, reject) => {
+              const error = new Error(
+                'Could not find "LongPrimitivePointIndexList" ' +
+                `for annotation group "${annotationGroupUID}" in bulkdata.`
+              )
+              reject(error)
+            })
+            promises.push(p)
+          } else {
+            const p = new Promise((resolve, reject) => { resolve(null) })
+            promises.push(p)
+          }
+        }
       }
     }
 
@@ -2324,7 +2402,9 @@ class VolumeImageViewer {
       `retrieve graphic data for annotation group "${annotationGroupUID}"`
     )
     const source = annotationGroup.layer.getSource()
-    promise.then(graphicData => {
+    Promise.all(promises).then(retrievedBulkdata => {
+      const graphicData = retrievedBulkdata[0]
+      const graphicIndex = retrievedBulkdata[1]
       const features = []
       const getCoordinates = (graphicData, offset, commonZCoordinate) => {
         const point = [
@@ -2339,7 +2419,6 @@ class VolumeImageViewer {
         return point
       }
 
-      const graphicType = metadataItem.GraphicType
       for (let i = 0; i < numberOfAnnotations; i++) {
         let point
         if (graphicType === 'POINT') {
@@ -2363,7 +2442,7 @@ class VolumeImageViewer {
               point = [
                 (majorAxisSecondEndpoint[0] - majorAxisFirstEndpoint[0]) / 2,
                 (majorAxisSecondEndpoint[1] - majorAxisFirstEndpoint[1]) / 2,
-                0 // TODO
+                0
               ]
             } else if (graphicType === 'RECTANGLE') {
               const topLeft = coordinates[0]
@@ -2372,11 +2451,10 @@ class VolumeImageViewer {
               point = [
                 topLeft[0] + (topRight[0] - topLeft[0]) / 2,
                 topLeft[1] + (topLeft[1] - bottomLeft[1]) / 2,
-                0 // TODO
+                0
               ]
             }
           } else {
-            const graphicIndex = metadataItem.LongPrimitivePointIndexList
             const offset = graphicIndex[i] - 1
             let length
             if (i < (numberOfAnnotations - 1)) {
@@ -2385,11 +2463,7 @@ class VolumeImageViewer {
               length = graphicData.length
             }
             // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
-            point = [
-              0,
-              0,
-              0 // TODO
-            ]
+            point = [0, 0, 0]
             let area = 0
             for (let j = offset; j < offset + length; j++) {
               const p0 = getCoordinates(graphicData, j, commonZCoordinate)
