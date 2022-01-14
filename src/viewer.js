@@ -9,7 +9,6 @@ import Icon from 'ol/style/Icon'
 import ImageLayer from 'ol/layer/Image'
 import Map from 'ol/Map'
 import Modify from 'ol/interaction/Modify'
-import MouseWheelZoom from 'ol/interaction/MouseWheelZoom'
 import OverviewMap from 'ol/control/OverviewMap'
 import Projection from 'ol/proj/Projection'
 import publish from './eventPublisher'
@@ -37,7 +36,7 @@ import WebGLHelper from 'ol/webgl/Helper'
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter } from 'ol/extent'
-
+import { defaults as defaultInteractions } from 'ol/interaction'
 import * as DICOMwebClient from 'dicomweb-client'
 import dcmjs from 'dcmjs'
 
@@ -81,7 +80,6 @@ import {
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 
-
 function _fixBulkDataURI (uri) {
   // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
   // set correctly by the archive:
@@ -91,7 +89,6 @@ function _fixBulkDataURI (uri) {
     'localhost:8008/dicomweb/'
   )
 }
-
 
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
@@ -949,30 +946,37 @@ class VolumeImageViewer {
       layers,
       view,
       controls: [],
-      keyboardEventTarget: document
+      keyboardEventTarget: document,
+      interactions: defaultInteractions({
+        altShiftDragRotate: true,
+        doubleClickZoom: false,
+        mouseWheelZoom: true,
+        keyboard: false,
+        shiftDragZoom: true,
+        dragPan: true,
+        pinchRotate: true,
+        pinchZoom: true
+      })
     })
 
     view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
 
     /**
-     * OpenLayer's map has default active interactions
-     * https://openlayers.org/en/latest/apidoc/module-ol_interaction.html#.defaults
-     *
-     * We need to define them here to avoid duplications.
+     * OpenLayer's map has default active interactions.
+     * We need to reuse them here to avoid duplications.
      * Enabling or disabling interactions could cause side effects on
      * OverviewMap since it also uses the same interactions in the map
      */
-    const defaultInteractions = this[_map].getInteractions().getArray()
     this[_interactions] = {
       draw: undefined,
       select: undefined,
       translate: undefined,
       modify: undefined,
       snap: undefined,
-      dragPan: defaultInteractions.find((i) => i instanceof DragPan)
+      dragPan: this[_map].getInteractions().getArray().find((i) => {
+        return i instanceof DragPan
+      })
     }
-
-    this[_map].addInteraction(new MouseWheelZoom())
 
     this[_controls] = {
       scale: new ScaleLine({
@@ -2158,7 +2162,7 @@ class VolumeImageViewer {
         }),
         style: {
           opacity: 1.0,
-          color: [0, 126, 163] // TODO
+          color: [253, 231, 37]
         },
         metadata: metadata,
         bulkdata: bulkdata
@@ -2200,6 +2204,7 @@ class VolumeImageViewer {
             this[_pyramid].metadata.length,
             10
           ],
+          // Color based on measurement
           color: annotationGroup.style.color,
           opacity: annotationGroup.style.opacity
         }
@@ -2493,6 +2498,10 @@ class VolumeImageViewer {
             )
           )
         })
+        feat.setProperties({
+          area: i
+        })
+        feat.setId(i + 1)
         features.push(feat)
       }
       console.log(
@@ -2971,8 +2980,16 @@ class VolumeImageViewer {
       )
     }
 
-    const refParametricMap = metadata[0]
     const refImage = this[_pyramid].metadata[0]
+    const refParametricMap = metadata[0]
+    if (refParametricMap.ContentLabel !== 'HEATMAP') {
+      console.warn(
+        'skip mappings because value of "Content Label" attribute of ' +
+        'Parametric Map instances is not "HEATMAP"'
+      )
+      return
+    }
+
     metadata.forEach(instance => {
       if (
         instance.TotalPixelMatrixColumns === undefined ||
