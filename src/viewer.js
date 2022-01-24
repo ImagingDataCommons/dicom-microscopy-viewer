@@ -397,18 +397,21 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
 
   const unitSuffixToMeaningMap = {
     μm: 'micrometer',
+    μm2: 'square micrometer',
     mm: 'millimeter',
+    mm2: 'square millimeter',
     m: 'meters',
-    km: 'kilometers'
+    m2: 'square meters',
+    km2: 'square kilometers'
   }
 
   let measurement
   const view = map.getView()
   const unitSuffix = getUnitSuffix(view)
-  const unitCodedConceptValue = unitSuffix
-  const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
 
   if (area != null) {
+    const unitCodedConceptValue = `${unitSuffix}2`
+    const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Area',
@@ -427,6 +430,8 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
   }
 
   if (length != null) {
+    const unitCodedConceptValue = unitSuffix
+    const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Length',
@@ -587,7 +592,8 @@ class VolumeImageViewer {
           .OpticalPathIdentifier
       )
       colorImageInformation[opticalPathIdentifier] = {
-        metadata: colorGroups[0]
+        metadata: colorGroups[0],
+        opticalPath: this[_options].metadata[0].OpticalPathSequence[0]
       }
     }
 
@@ -735,6 +741,13 @@ class VolumeImageViewer {
           opticalPathIdentifier,
           opticalPath: new OpticalPath({
             identifier: opticalPathIdentifier,
+            illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
+            illuminationWaveLength: info.opticalPath.IlluminationWaveLength,
+            illuminationColor: (
+              info.opticalPath.IlluminationColorCodeSequence
+                ? info.opticalPath.IlluminationColorCodeSequence[0]
+                : undefined
+            ),
             studyInstanceUID: info.metadata[0].StudyInstanceUID,
             seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
             sopInstanceUIDs: pyramid.metadata.map(element => {
@@ -744,7 +757,7 @@ class VolumeImageViewer {
           pyramid: pyramid,
           style: {
             color: [255, 255, 255],
-            opacity: 1.0,
+            opacity: 1,
             limitValues: [minValue, maxValue]
           },
           bitsAllocated: bitsAllocated,
@@ -863,14 +876,19 @@ class VolumeImageViewer {
         opticalPathIdentifier,
         opticalPath: new OpticalPath({
           identifier: opticalPathIdentifier,
+          illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
           studyInstanceUID: info.metadata[0].StudyInstanceUID,
           seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
           sopInstanceUIDs: pyramid.metadata.map(element => {
             return element.SOPInstanceUID
           })
         }),
+        style: {
+          opacity: 1
+        },
         pyramid: pyramid,
         bitsAllocated: 8,
+        minValue: 0,
         maxValue: 255
       }
 
@@ -1086,6 +1104,11 @@ class VolumeImageViewer {
         'Cannot get style of optical path. ' +
         `Could not find optical path "${opticalPathIdentifier}".`
       )
+    }
+    if (opticalPath.style == null) {
+      return {
+        opacity: opticalPath.style.opacity
+      }
     }
     return {
       color: opticalPath.style.color,
@@ -1394,7 +1417,7 @@ class VolumeImageViewer {
   /** Activate the draw interaction for graphic annotation of regions of interest.
    *
    * @param {object} options - Drawing options
-   * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)
+   * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandpolygon, line, freehandline)
    * @param {string} options.marker - Marker
    * @param {string} options.markup - Markup
    * @param {number} options.maxPoints - Geometry max points
@@ -1923,6 +1946,8 @@ class VolumeImageViewer {
    * @param {object} item - NUM content item representing a measurement
    */
   addROIMeasurement (uid, item) {
+    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
+    console.info(`add measurement "${meaning}" to ROI ${uid}`)
     this[_features].forEach((feature) => {
       const id = feature.getId()
       if (id === uid) {
@@ -2498,9 +2523,7 @@ class VolumeImageViewer {
             )
           )
         })
-        feat.setProperties({
-          area: i
-        })
+        feat.setProperties({ area: i })
         feat.setId(i + 1)
         features.push(feat)
       }

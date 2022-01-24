@@ -19,7 +19,7 @@ class _MarkupManager {
     this._map = map
     this._pyramid = pyramid
     this._formatters = formatters
-    this._drawingSource = drawingSource;
+    this._drawingSource = drawingSource
 
     this.onClick = onClick
     this.onStyle = onStyle
@@ -120,13 +120,13 @@ class _MarkupManager {
   setVisibility (id, isVisible) {
     const markup = this.get(id)
     if (!markup) {
-      return;
+      return
     }
 
     const links = this._links.getArray()
     const link = links.find((feature) => feature.getId() === id)
 
-    const feature = this._drawingSource.getFeatureById(id);
+    const feature = this._drawingSource.getFeatureById(id)
 
     if (!isVisible) {
       this._map.removeOverlay(markup.overlay)

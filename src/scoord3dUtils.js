@@ -184,7 +184,7 @@ function coordinateFormatScoord3d2Geometry (coordinates, pyramid) {
     return coordinates[0]
   }
   if (outOfFrame) {
-    console.warning(
+    console.warn(
       'found coordinates outside slide coordinate system 25 x 76 mm'
     )
   }

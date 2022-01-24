@@ -128,7 +128,7 @@ class _AnnotationManager {
    * @param {string} id The markup id
    * @param {boolean} isVisible The markup visibility
    */
-  setMarkupVisibility (id, isVisible) { 
+  setMarkupVisibility (id, isVisible) {
     this.props.markupManager.setVisibility(id, isVisible)
   }
 
