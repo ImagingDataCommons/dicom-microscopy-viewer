@@ -610,7 +610,7 @@ class _Channel {
       * Compute the resolution at each pyramid level, since the zoom
       * factor may not be the same between adjacent pyramid levels.
       */
-      const zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns
+      const zoomFactor = Math.floor(baseTotalPixelMatrixColumns / totalPixelMatrixColumns)
       imageResolutions.push(zoomFactor)
       /*
       * TODO: One may have to adjust the offset slightly due to the
