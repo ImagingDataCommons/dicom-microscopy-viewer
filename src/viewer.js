@@ -42,9 +42,12 @@ import { quantileSeq } from 'mathjs'
 
 import {
   AnnotationGroup,
-  fetchGraphicData,
-  fetchGraphicIndex,
-  fetchMeasurements
+  _fetchGraphicData,
+  _fetchGraphicIndex,
+  _fetchMeasurements,
+  _getCentroid,
+  _getCommonZCoordinate,
+  _getCoordinateDimensionality,
 } from './annotation.js'
 import {
   ColorMapNames,
@@ -149,7 +152,8 @@ function _getInteractionBindingCondition (bindings) {
   }
 }
 
-/** Determines whether image needs to be rotated relative to slide
+/**
+ * Determines whether image needs to be rotated relative to slide
  * coordinate system based on direction cosines.
  * We want to rotate all images such that the X axis of the slide coordinate
  * system is the vertical axis (ordinate) of the viewport and the Y axis
@@ -174,7 +178,9 @@ function _getInteractionBindingCondition (bindings) {
  * is moving in the slide coordinate system when the ROW index changes.
  *
  * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
+ *
  * @returns {number} Rotation in radians
+ *
  * @private
  */
 function _getRotation (metadata) {
@@ -187,9 +193,12 @@ function _getRotation (metadata) {
   return angle + correction
 }
 
-/** Determine size of browser window.
+/**
+ * Determine size of browser window.
  *
  * @return {number[]} Width and height of the window
+ *
+ * @private
  */
 function _getWindowSize () {
   let width = 0
@@ -218,7 +227,8 @@ function _getWindowSize () {
   return [width, height]
 }
 
-/** Map style options to OpenLayers style.
+/**
+ * Map style options to OpenLayers style.
  *
  * @param {object} styleOptions - Style options
  * @param {object} styleOptions.stroke - Style options for the outline of the geometry
@@ -228,6 +238,8 @@ function _getWindowSize () {
  * @param {number[]} styleOptions.fill.color - RGBA color of the body
  * @param {object} styleOptions.image - Style options for image
  * @return {Style} OpenLayers style
+ *
+ * @private
  */
 function _getOpenLayersStyle (styleOptions) {
   const style = new Style()
@@ -281,6 +293,8 @@ function _getOpenLayersStyle (styleOptions) {
  * @param {object} properties.label - ROI label
  * @param {object} properties.marker - ROI marker (this is used while we don't have presentation states)
  * @param {boolean} optSilent - Opt silent update
+ *
+ * @private
  */
 function _addROIPropertiesToFeature (feature, properties, optSilent) {
   const { Label, Measurements, Evaluations, Marker } = Enums.InternalProperties
@@ -303,13 +317,15 @@ function _addROIPropertiesToFeature (feature, properties, optSilent) {
 }
 
 /**
- * Wire measurements and qualitative events to generate content items
- * based on feature properties and geometry changes
+ * Wire measurements and qualitative evaluations to generate content items
+ * based on OpenLayers feature properties and geometry.
  *
  * @param {object} map - The map instance
  * @param {object} feature - The feature instance
  * @param {object} pyramid - The pyramid metadata
  * @returns {void}
+ *
+ * @private
  */
 function _wireMeasurementsAndQualitativeEvaluationsEvents (
   map,
@@ -338,6 +354,8 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents (
  *
  * @param {Feature} feature
  * @returns {void}
+ *
+ * @private
  */
 function _updateFeatureEvaluations (feature) {
   const evaluations = feature.get(Enums.InternalProperties.Evaluations) || []
@@ -375,6 +393,8 @@ function _updateFeatureEvaluations (feature) {
  * @param {object} feature - The feature instance
  * @param {object} pyramid - The pyramid metadata
  * @returns {void}
+ *
+ * @private
  */
 function _updateFeatureMeasurements (map, feature, pyramid) {
   if (
@@ -2302,19 +2322,8 @@ class VolumeImageViewer {
     const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
     const graphicType = metadataItem.GraphicType
     const coordinateType = metadataItem.AnnotationCoordinateType
-    let commonZCoordinate
-    let n
-    if (metadataItem.CommonZCoordinateValue == null) {
-      commonZCoordinate = Number.NaN
-      if (coordinateType === '2D') {
-        n = 2
-      } else {
-        n = 3
-      }
-    } else {
-      commonZCoordinate = Number(metadataItem.CommonZCoordinateValue)
-      n = 2
-    }
+    const coordinateDimensionality = _getCoordinateDimensionality(metadataItem)
+    const commonZCoordinate = _getCommonZCoordinate(metadataItem)
 
     const source = annotationGroup.layer.getSource()
     const features = source.getFeatures()
@@ -2326,98 +2335,15 @@ class VolumeImageViewer {
       return
     }
 
-    const getCoordinates = (graphicData, offset, commonZCoordinate) => {
-      const point = [
-        graphicData[offset],
-        graphicData[offset + 1]
-      ]
-      if (isNaN(commonZCoordinate)) {
-        point.push(graphicData[offset + 2])
-      } else {
-        point.push(commonZCoordinate)
-      }
-      return point
-    }
-
-    const getPointRepresentation = (
-      graphicType, graphicData, commonZCoordinate, i, numberOfAnnotations
-    ) => {
-      let point
-      if (graphicType === 'POINT') {
-        const length = n
-        const offset = i * length
-        point = getCoordinates(graphicData, offset, commonZCoordinate)
-      } else {
-        // Compute centroid
-        if (graphicType === 'RECTANGLE' || graphicType === 'ELLIPSE') {
-          const length = n * 4
-          const offset = i * length
-          const coordinates = []
-          for (let j = offset; j < offset + length; j++) {
-            const p = getCoordinates(graphicData, j, commonZCoordinate)
-            coordinates.push(p)
-            j += n - 1
-          }
-          if (graphicType === 'ELLIPSE') {
-            const majorAxisFirstEndpoint = coordinates[0]
-            const majorAxisSecondEndpoint = coordinates[1]
-            point = [
-              (majorAxisSecondEndpoint[0] - majorAxisFirstEndpoint[0]) / 2,
-              (majorAxisSecondEndpoint[1] - majorAxisFirstEndpoint[1]) / 2,
-              0
-            ]
-          } else if (graphicType === 'RECTANGLE') {
-            const topLeft = coordinates[0]
-            const topRight = coordinates[1]
-            const bottomLeft = coordinates[3]
-            point = [
-              topLeft[0] + (topRight[0] - topLeft[0]) / 2,
-              topLeft[1] + (topLeft[1] - bottomLeft[1]) / 2,
-              0
-            ]
-          }
-        } else {
-          const offset = graphicIndex[i] - 1
-          let length
-          if (i < (numberOfAnnotations - 1)) {
-            length = offset - graphicIndex[i + 1]
-          } else {
-            length = graphicData.length
-          }
-          // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
-          point = [0, 0, 0]
-          let area = 0
-          for (let j = offset; j < offset + length; j++) {
-            const p0 = getCoordinates(graphicData, j, commonZCoordinate)
-            let p1
-            if (j === (offset + length - n)) {
-              p1 = getCoordinates(graphicData, offset, commonZCoordinate)
-            } else {
-              p1 = getCoordinates(graphicData, j + n, commonZCoordinate)
-            }
-            const a = p0[0] * p1[1] - p1[0] * p0[1]
-            area += a
-            point[0] += (p0[0] + p1[0]) * a
-            point[1] += (p0[1] + p1[1]) * a
-            j += n - 1
-          }
-          area *= 0.5
-          point[0] /= 6 * area
-          point[1] /= 6 * area
-        }
-      }
-      return point
-    }
-
     console.log(
       `retrieve bulkdata for annotation group "${annotationGroupUID}"`
     )
     const container = this[_map].getTargetElement()
     publish(container, EVENT.LOADING_STARTED)
     const promises = [
-      fetchGraphicData({ metadataItem, bulkdataItem, client }),
-      fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
-      fetchMeasurements({ metadataItem, bulkdataItem, client })
+      _fetchGraphicData({ metadataItem, bulkdataItem, client }),
+      _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
+      _fetchMeasurements({ metadataItem, bulkdataItem, client })
     ]
     Promise.all(promises).then(retrievedBulkdata => {
       const graphicData = retrievedBulkdata[0]
@@ -2425,8 +2351,14 @@ class VolumeImageViewer {
       const measurements = retrievedBulkdata[2]
 
       for (let i = 0; i < numberOfAnnotations; i++) {
-        const point = getPointRepresentation(
-          graphicType, graphicData, commonZCoordinate, i, numberOfAnnotations
+        const point = _getCentroid(
+          graphicType,
+          graphicData,
+          graphicIndex,
+          coordinateDimensionality,
+          commonZCoordinate,
+          i,
+          numberOfAnnotations
         )
         const feature = new Feature({
           geometry: new PointGeometry(
