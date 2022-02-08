@@ -152,4 +152,234 @@ class AnnotationGroup {
   }
 }
 
-export { AnnotationGroup }
+const _fixBulkDataURI = (uri) => {
+  // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
+  // set correctly by the archive:
+  // https://dcm4chee-arc-cs.readthedocs.io/en/latest/networking/config/archiveDevice.html#dcmremapretrieveurl
+  return uri.replace(
+    'arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/',
+    'localhost:8008/dicomweb/'
+  )
+}
+
+const fetchGraphicData = async ({ metadataItem, bulkdataItem, client }) => {
+  const uid = metadataItem.AnnotationGroupUID
+  const graphicType = metadataItem.GraphicType
+  if ('PointCoordinatesData' in metadataItem) {
+    return metadataItem.PointCoordinatesData
+  } else if ('DoublePointCoordinatesData' in metadataItem) {
+    return metadataItem.DoublePointCoordinatesData
+  } else {
+    if (bulkdataItem == null) {
+      throw new Error(
+        `Could not find bulkdata of annotation group "${uid}".`
+      )
+    } else {
+      if ('PointCoordinatesData' in bulkdataItem) {
+        const retrieveOptions = {
+          BulkDataURI: _fixBulkDataURI(
+            bulkdataItem.PointCoordinatesData.BulkDataURI
+          )
+        }
+        return await client.retrieveBulkData(retrieveOptions).then(data => {
+          const byteArray = new Uint8Array(data[0])
+          return new Float32Array(
+            byteArray.buffer,
+            byteArray.byteOffset,
+            byteArray.byteLength / 4
+          )
+        })
+      } else if ('DoublePointCoordinatesData' in bulkdataItem) {
+        const retrieveOptions = {
+          BulkDataURI: _fixBulkDataURI(
+            bulkdataItem.DoublePointCoordinatesData.BulkDataURI
+          )
+        }
+        return await client.retrieveBulkData(retrieveOptions).then(data => {
+          const byteArray = new Uint8Array(data[0])
+          return new Float64Array(
+            byteArray.buffer,
+            byteArray.byteOffset,
+            byteArray.byteLength / 8
+          )
+        })
+      } else {
+        throw new Error(
+          'Could not find "PointCoordinatesData" or ' +
+          '"DoublePointCoordinatesData" in bulkdata ' +
+          `of annotation group "${uid}".`
+        )
+      }
+    }
+  }
+}
+
+const fetchGraphicIndex = async ({ metadataItem, bulkdataItem, client }) => {
+  const uid = metadataItem.AnnotationGroupUID
+  const graphicType = metadataItem.GraphicType
+  if ('LongPrimitivePointIndexList' in metadataItem) {
+    return metadataItem.LongPrimitivePointIndexList
+  } else {
+    if (bulkdataItem == null) {
+      if (graphicType === 'POLYGON') {
+        throw new Error(
+          `Could not find bulkdata of annotation group "${uid}".`
+        )
+      } else {
+        return null
+      }
+    } else {
+      if ('LongPrimitivePointIndexList' in bulkdataItem) {
+        const retrieveOptions = {
+          BulkDataURI: _fixBulkDataURI(
+            bulkdataItem.LongPrimitivePointIndexList.BulkDataURI
+          )
+        }
+        return await client.retrieveBulkData(retrieveOptions).then(data => {
+          const byteArray = new Uint8Array(data[0])
+          return new Int32Array(
+            byteArray.buffer,
+            byteArray.byteOffset,
+            byteArray.byteLength / 4
+          )
+        })
+      } else {
+        if (graphicType === 'POLYGON') {
+          throw new Error(
+            'Could not find "LongPrimitivePointIndexList" ' +
+            `in bulkdata of annotation group "${uid}".`
+          )
+        } else {
+          return null
+        }
+      }
+    }
+  }
+}
+
+const fetchMeasurmentValues = async ({
+  metadataItem,
+  bulkdataItem,
+  index,
+  client
+}) => {
+  const uid = metadataItem.AnnotationGroupUID
+  const measurementMetadataItem = metadataItem.MeasurementsSequence[index]
+  const valuesMetadataItem = measurementMetadataItem.MeasurementValuesSequence[0]
+  if ('FloatingPointValues' in valuesMetadataItem) {
+    return valuesMetadataItem.FloatingPointValues
+  } else {
+    if (bulkdataItem.MeasurementsSequence == null) {
+      throw new Error(
+        `Could not find item #${index + 1} of "MeasurementSequence" ` +
+        `in bulkdata of annotation group "${uid}".`
+      )
+    } else {
+      const measurementBulkdataItem = bulkdataItem.MeasurementsSequence[index]
+      const valuesBulkdataItem = (
+        measurementBulkdataItem.MeasurementValuesSequence[0]
+      )
+      if ('FloatingPointValues' in valuesBulkdataItem) {
+        const retrieveOptions = {
+          BulkDataURI: _fixBulkDataURI(
+            valuesBulkdataItem.FloatingPointValues.BulkDataURI
+          )
+        }
+        return await client.retrieveBulkData(retrieveOptions).then(data => {
+          const byteArray = new Uint8Array(data[0])
+          return new Float32Array(
+            byteArray.buffer,
+            byteArray.byteOffset,
+            byteArray.byteLength / 4
+          )
+        })
+      } else {
+        throw new Error(
+          `Could not find "FloatingPointValues" in item #${index + 1} ` +
+          'of "MeasurementSequence" in bulkdata ' +
+          `of annotation group "${uid}".`
+        )
+      }
+    }
+  }
+}
+
+const fetchMeasurmentIndices = async ({
+  metadataItem,
+  bulkdataItem,
+  index,
+  client
+}) => {
+  const uid = metadataItem.AnnotationGroupUID
+  if ('AnnotationIndexList' in valuesMetadataItem) {
+    return metadataItem.AnnotationIndexList
+  } else {
+    if (bulkdataItem.MeasurementsSequence == null) {
+      throw new Error(
+        `Could not find item #${index + 1} of "MeasurementSequence" ` +
+        `in bulkdata of annotation group "${uid}".`
+      )
+    } else {
+      const measurementBulkdataItem = bulkdataItem.MeasurementsSequence[
+        measurementMetadataIndex
+      ]
+      const valuesBulkdataItem = (
+        measurementBulkdataItem
+          .MeasurementValuesSequence[0]
+      )
+      if ('AnnotationIndexList' in valuesBulkdataItem) {
+        const retrieveOptions = {
+          BulkDataURI: _fixBulkDataURI(
+            valuesBulkdataItem.AnnotationIndexList.BulkDataURI
+          )
+        }
+        return client.retrieveBulkData(retrieveOptions).then(data => {
+          const byteArray = new Uint8Array(data[0])
+          return new Int32Array(
+            byteArray.buffer,
+            byteArray.byteOffset,
+            byteArray.byteLength / 4
+          )
+        })
+      } else {
+        return null
+      }
+    }
+  }
+}
+
+const fetchMeasurements = async ({ metadataItem, bulkdataItem, client }) => {
+  const uid = metadataItem.AnnotationGroupUID
+  const measurements = []
+  if (metadataItem.MeasurementsSequence !== undefined) {
+    for (let i = 0; i < metadataItem.MeasurementsSequence; i++) {
+      const item = metadataItem.MeasurementsSequence[i]
+      const name = getContentItemNameCodedConcept(item)
+      const values = await getMeasurementValues({
+        metadataItem,
+        bulkdataItem,
+        index: i,
+        client
+      })
+      const indices = await getMeasurementIndices({
+        metadataItem,
+        bulkdataItem,
+        index: i,
+        client
+      })
+      measurments.push({
+        name,
+        values,
+        indices
+      })
+    }
+  }
+  return measurements
+}
+
+export {
+  AnnotationGroup,
+  fetchGraphicData,
+  fetchGraphicIndex,
+  fetchMeasurements,
+}

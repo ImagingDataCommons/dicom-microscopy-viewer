@@ -32,15 +32,20 @@ import View from 'ol/View'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
 import WebGLHelper from 'ol/webgl/Helper'
-
+import TileDebug from 'ol/source/TileDebug'
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
-import * as DICOMwebClient from 'dicomweb-client'
 import dcmjs from 'dcmjs'
+import { quantileSeq } from 'mathjs'
 
-import { AnnotationGroup } from './annotation.js'
+import {
+  AnnotationGroup,
+  fetchGraphicData,
+  fetchGraphicIndex,
+  fetchMeasurements
+} from './annotation.js'
 import {
   ColorMapNames,
   createColorMap,
@@ -59,6 +64,7 @@ import {
   generateUID,
   getUnitSuffix,
   doContentItemsMatch,
+  getContentItemNameCodedConcept,
   createWindow
 } from './utils.js'
 import {
@@ -79,16 +85,6 @@ import {
 
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
-
-function _fixBulkDataURI (uri) {
-  // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
-  // set correctly by the archive:
-  // https://dcm4chee-arc-cs.readthedocs.io/en/latest/networking/config/archiveDevice.html#dcmremapretrieveurl
-  return uri.replace(
-    'arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/',
-    'localhost:8008/dicomweb/'
-  )
-}
 
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
@@ -525,14 +521,14 @@ class VolumeImageViewer {
    *        The array shall contain the metadata of all image instances that should be displayed.
    * @param {object} options.styleOptions - Default style options for annotations.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
-   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
+   * @param {boolean} [options.debug=false] - Whether debug features should be turned on (e.g., display of tile boundaries)
    * @param {number} [options.tilesCacheSize=512] - initial cache size for a TileImage
    */
   constructor (options) {
     this[_options] = options
 
-    if (this[_options].includeIccProfile == null) {
-      this[_options].includeIccProfile = false
+    if (this[_options].debug == null) {
+      this[_options].debug = false
     }
 
     if (this[_options].tilesCacheSize == null) {
@@ -927,6 +923,22 @@ class VolumeImageViewer {
       this[_opticalPaths][opticalPathIdentifier] = opticalPath
     }
 
+    if (this[_options].debug) {
+      const tileDebugSource = new TileDebug({
+        projection: this[_projection],
+        extent: this[_pyramid].extent,
+        tileGrid: this[_tileGrid],
+        wrapX: false,
+        template: '{z}-{x}-{y}'
+      })
+      const tileDebugLayer = new TileLayer({
+        source: tileDebugSource,
+        extent: this[_pyramid].extent,
+        projection: this[_projection]
+      })
+      layers.push(tileDebugLayer)
+    }
+
     const overviewView = new View({
       projection: this[_projection],
       rotation: this[_rotation],
@@ -1069,7 +1081,6 @@ class VolumeImageViewer {
     if (styleOptions.opacity != null) {
       opticalPath.style.opacity = styleOptions.opacity
       opticalPath.layer.setOpacity(styleOptions.opacity)
-      opticalPath.overviewTileLayer.setOpacity(styleOptions.opacity)
     }
 
     const styleVariables = {}
@@ -2187,7 +2198,7 @@ class VolumeImageViewer {
         }),
         style: {
           opacity: 1.0,
-          color: [253, 231, 37]
+          color: '#027ea3'
         },
         metadata: metadata,
         bulkdata: bulkdata
@@ -2227,9 +2238,8 @@ class VolumeImageViewer {
             1,
             2,
             this[_pyramid].metadata.length,
-            10
+            15
           ],
-          // Color based on measurement
           color: annotationGroup.style.color,
           opacity: annotationGroup.style.opacity
         }
@@ -2269,6 +2279,8 @@ class VolumeImageViewer {
    * Show an annotation group.
    *
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   * @param {object} styleOptions
+   * @param {number} styleOptions.measurement - Selected measurement for colorizing annotations
    */
   showAnnotationGroup (annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -2279,14 +2291,13 @@ class VolumeImageViewer {
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`show annotation group ${annotationGroupUID}`)
-    const container = this[_map].getTargetElement()
-    publish(container, EVENT.LOADING_STARTED)
+    const client = this[_options].client
 
     const index = annotationGroup.annotationGroup.number - 1
     const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[index]
     const bulkdataItem = annotationGroup.bulkdata.AnnotationGroupSequence[index]
-
     const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
+    const graphicType = metadataItem.GraphicType
     const coordinateType = metadataItem.AnnotationCoordinateType
     let commonZCoordinate
     let n
@@ -2302,220 +2313,119 @@ class VolumeImageViewer {
       n = 2
     }
 
-    const graphicType = metadataItem.GraphicType
-    const promises = []
-    if ('PointCoordinatesData' in metadataItem) {
-      const p = new Promise((resolve, reject) => {
-        resolve(metadataItem.PointCoordinatesData)
-      })
-      promises.push(p)
-    } else if ('DoublePointCoordinatesData' in metadataItem) {
-      const p = new Promise((resolve, reject) => {
-        resolve(metadataItem.DoublePointCoordinatesData)
-      })
-      promises.push(p)
-    } else {
-      if (bulkdataItem == null) {
-        const p = new Promise((resolve, reject) => {
-          const error = new Error(
-          `Could not find item #${index + 1} in "AnnotationGroupSequence" ` +
-          `of bulkdata for annotation group "${annotationGroupUID}".`
-          )
-          reject(error)
-        })
-        promises.push(p)
-      } else {
-        if ('PointCoordinatesData' in bulkdataItem) {
-          const retrieveOptions = {
-            BulkDataURI: _fixBulkDataURI(
-              bulkdataItem.PointCoordinatesData.BulkDataURI
-            )
-          }
-          const p = this[_options].client.retrieveBulkData(retrieveOptions).then(
-            data => {
-              const byteArray = new Uint8Array(data[0])
-              return new Float32Array(
-                byteArray.buffer,
-                byteArray.byteOffset,
-                byteArray.byteLength / 4
-              )
-            }
-          )
-          promises.push(p)
-        } else if ('DoublePointCoordinatesData' in bulkdataItem) {
-          const retrieveOptions = {
-            BulkDataURI: _fixBulkDataURI(
-              bulkdataItem.DoublePointCoordinatesData.BulkDataURI
-            )
-          }
-          const p = this[_options].client.retrieveBulkData(retrieveOptions).then(
-            data => {
-              const byteArray = new Uint8Array(data[0])
-              return new Float64Array(
-                byteArray.buffer,
-                byteArray.byteOffset,
-                byteArray.byteLength / 8
-              )
-            }
-          )
-          promises.push(p)
-        } else {
-          const p = new Promise((resolve, reject) => {
-            const error = new Error(
-              'Could not find "PointCoordinatesData" or ' +
-              '"DoublePointCoordinatesData" for annotation group ' +
-              `"${annotationGroupUID}" in bulkdata.`
-            )
-            reject(error)
-          })
-          promises.push(p)
-        }
-      }
+    const source = annotationGroup.layer.getSource()
+    const features = source.getFeatures()
+
+    // Data has already been retrieved and cached
+    if (features.length > 0) {
+      this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
+      annotationGroup.layer.setVisible(true)
+      return
     }
 
-    if ('LongPrimitivePointIndexList' in metadataItem) {
-      const p = new Promise((resolve, reject) => {
-        resolve(metadataItem.LongPrimitivePointIndexList)
-      })
-      promises.push(p)
-    } else {
-      if (bulkdataItem == null) {
-        if (graphicType === 'POLYGON') {
-          const p = new Promise((resolve, reject) => {
-            const error = new Error(
-            `Could not find item #${index + 1} in "AnnotationGroupSequence" ` +
-            `of bulkdata for annotation group "${annotationGroupUID}".`
-            )
-            reject(error)
-          })
-          promises.push(p)
-        } else {
-          const p = new Promise((resolve, reject) => { resolve(null) })
-          promises.push(p)
-        }
+    const getCoordinates = (graphicData, offset, commonZCoordinate) => {
+      const point = [
+        graphicData[offset],
+        graphicData[offset + 1]
+      ]
+      if (isNaN(commonZCoordinate)) {
+        point.push(graphicData[offset + 2])
       } else {
-        if ('LongPrimitivePointIndexList' in bulkdataItem) {
-          const retrieveOptions = {
-            BulkDataURI: _fixBulkDataURI(
-              bulkdataItem.LongPrimitivePointIndexList.BulkDataURI
-            )
+        point.push(commonZCoordinate)
+      }
+      return point
+    }
+
+    const getPointRepresentation = (
+      graphicType, graphicData, commonZCoordinate, i, numberOfAnnotations
+    ) => {
+      let point
+      if (graphicType === 'POINT') {
+        const length = n
+        const offset = i * length
+        point = getCoordinates(graphicData, offset, commonZCoordinate)
+      } else {
+        // Compute centroid
+        if (graphicType === 'RECTANGLE' || graphicType === 'ELLIPSE') {
+          const length = n * 4
+          const offset = i * length
+          const coordinates = []
+          for (let j = offset; j < offset + length; j++) {
+            const p = getCoordinates(graphicData, j, commonZCoordinate)
+            coordinates.push(p)
+            j += n - 1
           }
-          const p = this[_options].client.retrieveBulkData(retrieveOptions).then(
-            data => {
-              const byteArray = new Uint8Array(data[0])
-              return new Int32Array(
-                byteArray.buffer,
-                byteArray.byteOffset,
-                byteArray.byteLength / 4
-              )
-            }
-          )
-          promises.push(p)
+          if (graphicType === 'ELLIPSE') {
+            const majorAxisFirstEndpoint = coordinates[0]
+            const majorAxisSecondEndpoint = coordinates[1]
+            point = [
+              (majorAxisSecondEndpoint[0] - majorAxisFirstEndpoint[0]) / 2,
+              (majorAxisSecondEndpoint[1] - majorAxisFirstEndpoint[1]) / 2,
+              0
+            ]
+          } else if (graphicType === 'RECTANGLE') {
+            const topLeft = coordinates[0]
+            const topRight = coordinates[1]
+            const bottomLeft = coordinates[3]
+            point = [
+              topLeft[0] + (topRight[0] - topLeft[0]) / 2,
+              topLeft[1] + (topLeft[1] - bottomLeft[1]) / 2,
+              0
+            ]
+          }
         } else {
-          if (graphicType === 'POLYGON') {
-            const p = new Promise((resolve, reject) => {
-              const error = new Error(
-                'Could not find "LongPrimitivePointIndexList" ' +
-                `for annotation group "${annotationGroupUID}" in bulkdata.`
-              )
-              reject(error)
-            })
-            promises.push(p)
+          const offset = graphicIndex[i] - 1
+          let length
+          if (i < (numberOfAnnotations - 1)) {
+            length = offset - graphicIndex[i + 1]
           } else {
-            const p = new Promise((resolve, reject) => { resolve(null) })
-            promises.push(p)
+            length = graphicData.length
           }
+          // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
+          point = [0, 0, 0]
+          let area = 0
+          for (let j = offset; j < offset + length; j++) {
+            const p0 = getCoordinates(graphicData, j, commonZCoordinate)
+            let p1
+            if (j === (offset + length - n)) {
+              p1 = getCoordinates(graphicData, offset, commonZCoordinate)
+            } else {
+              p1 = getCoordinates(graphicData, j + n, commonZCoordinate)
+            }
+            const a = p0[0] * p1[1] - p1[0] * p0[1]
+            area += a
+            point[0] += (p0[0] + p1[0]) * a
+            point[1] += (p0[1] + p1[1]) * a
+            j += n - 1
+          }
+          area *= 0.5
+          point[0] /= 6 * area
+          point[1] /= 6 * area
         }
       }
+      return point
     }
 
     console.log(
-      `retrieve graphic data for annotation group "${annotationGroupUID}"`
+      `retrieve bulkdata for annotation group "${annotationGroupUID}"`
     )
-    const source = annotationGroup.layer.getSource()
+    const container = this[_map].getTargetElement()
+    publish(container, EVENT.LOADING_STARTED)
+    const promises = [
+      fetchGraphicData({ metadataItem, bulkdataItem, client }),
+      fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
+      fetchMeasurements({ metadataItem, bulkdataItem, client })
+    ]
     Promise.all(promises).then(retrievedBulkdata => {
       const graphicData = retrievedBulkdata[0]
       const graphicIndex = retrievedBulkdata[1]
-      const features = []
-      const getCoordinates = (graphicData, offset, commonZCoordinate) => {
-        const point = [
-          graphicData[offset],
-          graphicData[offset + 1]
-        ]
-        if (isNaN(commonZCoordinate)) {
-          point.push(graphicData[offset + 2])
-        } else {
-          point.push(commonZCoordinate)
-        }
-        return point
-      }
+      const measurements = retrievedBulkdata[2]
 
       for (let i = 0; i < numberOfAnnotations; i++) {
-        let point
-        if (graphicType === 'POINT') {
-          const length = n
-          const offset = i * length
-          point = getCoordinates(graphicData, offset, commonZCoordinate)
-        } else {
-          // Compute centroid
-          if (graphicType === 'RECTANGLE' || graphicType === 'ELLIPSE') {
-            const length = n * 4
-            const offset = i * length
-            const coordinates = []
-            for (let j = offset; j < offset + length; j++) {
-              const p = getCoordinates(graphicData, j, commonZCoordinate)
-              coordinates.push(p)
-              j += n - 1
-            }
-            if (graphicType === 'ELLIPSE') {
-              const majorAxisFirstEndpoint = coordinates[0]
-              const majorAxisSecondEndpoint = coordinates[1]
-              point = [
-                (majorAxisSecondEndpoint[0] - majorAxisFirstEndpoint[0]) / 2,
-                (majorAxisSecondEndpoint[1] - majorAxisFirstEndpoint[1]) / 2,
-                0
-              ]
-            } else if (graphicType === 'RECTANGLE') {
-              const topLeft = coordinates[0]
-              const topRight = coordinates[1]
-              const bottomLeft = coordinates[3]
-              point = [
-                topLeft[0] + (topRight[0] - topLeft[0]) / 2,
-                topLeft[1] + (topLeft[1] - bottomLeft[1]) / 2,
-                0
-              ]
-            }
-          } else {
-            const offset = graphicIndex[i] - 1
-            let length
-            if (i < (numberOfAnnotations - 1)) {
-              length = offset - graphicIndex[i + 1]
-            } else {
-              length = graphicData.length
-            }
-            // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
-            point = [0, 0, 0]
-            let area = 0
-            for (let j = offset; j < offset + length; j++) {
-              const p0 = getCoordinates(graphicData, j, commonZCoordinate)
-              let p1
-              if (j === (offset + length - n)) {
-                p1 = getCoordinates(graphicData, offset, commonZCoordinate)
-              } else {
-                p1 = getCoordinates(graphicData, j + n, commonZCoordinate)
-              }
-              const a = p0[0] * p1[1] - p1[0] * p0[1]
-              area += a
-              point[0] += (p0[0] + p1[0]) * a
-              point[1] += (p0[1] + p1[1]) * a
-              j += n - 1
-            }
-            area *= 0.5
-            point[0] /= 6 * area
-            point[1] /= 6 * area
-          }
-        }
-        const feat = new Feature({
+        const point = getPointRepresentation(
+          graphicType, graphicData, commonZCoordinate, i, numberOfAnnotations
+        )
+        const feature = new Feature({
           geometry: new PointGeometry(
             scoord3dCoordinates2geometryCoordinates(
               point,
@@ -2523,20 +2433,39 @@ class VolumeImageViewer {
             )
           )
         })
-        feat.setProperties({ area: i })
-        feat.setId(i + 1)
-        features.push(feat)
+        const properties = {}
+        measurements.forEach(item => {
+          const name = item.name
+          const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
+          const value = item.values[i]
+          properties[key] = value
+        })
+        feature.setProperties(properties)
+        feature.setId(i + 1)
+        features.push(feature)
       }
+
       console.log(
         `add n=${features.length} annotations ` +
         `for annotation group "${annotationGroupUID}"`
       )
       source.addFeatures(features)
+      const properties = {}
+      measurements.forEach(item => {
+        const name = item.name
+        const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
+        const value = quantileSeq(
+          [...values],
+          [0, 0.015, 0.25, 0.5, 0.75, 0.95, 1]
+        )
+        properties[key] = value
+      })
+      source.setProperties(properties)
       publish(container, EVENT.LOADING_ENDED)
+      this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
     })
 
     annotationGroup.layer.setVisible(true)
-    this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
   }
 
   /**
@@ -2578,6 +2507,7 @@ class VolumeImageViewer {
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
    * @param {object} styleOptions - Style options
    * @param {number} styleOptions.opacity - Opacity
+   * @param {number} styleOptions.measurement - Selected measurement for colorizing annotations
    */
   setAnnotationGroupStyle (annotationGroupUID, styleOptions) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -2590,6 +2520,80 @@ class VolumeImageViewer {
     if (styleOptions.opacity != null) {
       annotationGroup.style.opacity = styleOptions.opacity
       annotationGroup.layer.setOpacity(styleOptions.opacity)
+    }
+
+    const source = annotationGroup.layer.getSource()
+    const name = styleOptions.measurement
+    if (name) {
+      const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
+      const properties = source.getProperties()
+      if (properties[key]) {
+        const colormap = createColorMap({
+          name: ColorMapNames.VIRIDIS,
+          bins: 50
+        })
+        const colorLUT = _buildColorLookupTable({
+          colormap: colormap,
+          min: properties[key][0],
+          max: properties[key][properties[key].length - 2]
+        })
+        const style = {
+          symbol: {
+            symbolType: 'circle',
+            size: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              1,
+              2,
+              this[_pyramid].metadata.length,
+              15
+            ],
+            color: [
+              'interpolate',
+              ['linear'],
+              ['get', key],
+              ...colorLUT
+            ],
+            opacity: annotationGroup.style.opacity
+          }
+        }
+        const newLayer = new PointsLayer({
+          source,
+          style,
+          disableHitDetection: true
+        })
+        this[_map].addLayer(newLayer)
+        this[_map].removeLayer(annotationGroup.layer)
+        annotationGroup.layer.dispose()
+        annotationGroup.layer = newLayer
+      }
+    } else {
+      const style = {
+        symbol: {
+          symbolType: 'circle',
+          size: [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            1,
+            2,
+            this[_pyramid].metadata.length,
+            15
+          ],
+          color: annotationGroup.style.color,
+          opacity: annotationGroup.style.opacity
+        }
+      }
+      const newLayer = new PointsLayer({
+        source,
+        style,
+        disableHitDetection: true
+      })
+      this[_map].addLayer(newLayer)
+      this[_map].removeLayer(annotationGroup.layer)
+      annotationGroup.layer.dispose()
+      annotationGroup.layer = newLayer
     }
   }
 
