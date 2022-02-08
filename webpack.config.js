@@ -12,22 +12,28 @@ const config = {
     }
   },
   module: {
+    noParse: [/(codecs)/],
     rules: [
       {
         test: /\.css$/,
         use: 'css-loader'
-      }
+      },
+      {
+        test: /\.wasm$/,
+        type: 'asset/inline',
+      },
     ]
   },
   experiments: {
-    asyncWebAssembly: true
+    asyncWebAssembly: true,
   },
   target: 'web',
   resolve: {
     fallback: {
       fs: false,
       path: false
-    }
+    },
+    extensions: ['.js', '.wasm']
   }
 }
 

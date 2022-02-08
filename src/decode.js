@@ -1,42 +1,61 @@
-// Allocate decoders
 import imageType from 'image-type'
 import dcmjs from 'dcmjs'
-// import libjpegturbowasm from '@cornerstone/codec-libjpeg-turbo/dist/libjpegturbowasm.js'
-// import OpenJPEGWASM from '@cornerstone/codec-openjpeg/dist/openjpegwasm.js'
-// import CharLSWASM from '@cornerstone/codec-charls/dist/charlswasm.js'
+import openjpegFactory from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.js'
+import openjpegWASM from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.wasm'
+import libjpegFactory from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.js'
+import libjpegWASM from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.wasm'
+import charlsFactory from '@cornerstonejs/codec-charls/dist/charlswasm_decode.js'
+import charlsWASM from '@cornerstonejs/codec-charls/dist/charlswasm_decode.wasm'
 
-let jpegDecoder
-if (typeof libjpegturbowasm === 'function') {
-  libjpegturbowasm().then(function (libjpegturbo) {// eslint-disable-line
-    jpegDecoder = new libjpegturbo.JPEGDecoder()
-    console.info('jpegDecoder initialized.')
-  })
-}
+const decoderMap = {}
+libjpegFactory({
+  locateFile: (f) => {
+    if (f.endsWith('.wasm')) {
+      return libjpegWASM
+    }
+    return f
+  }
+}).then((libjpeg) => {
+  const jpegDecoder = new libjpeg.JPEGDecoder()
+  decoderMap['image/jpeg'] = jpegDecoder
+  console.info('JPEG decoder initialized')
+})
 
-let jp2jpxDecoder
-if (typeof OpenJPEGWASM === 'function') {
-  OpenJPEGWASM().then(function (openjpegwasm) {// eslint-disable-line
-    jp2jpxDecoder = new openjpegwasm.J2KDecoder()
-    console.info('jp2jpxDecoder initialized.')
-  })
-}
+openjpegFactory({
+  locateFile: (f) => {
+    if (f.endsWith('.wasm')) {
+      return openjpegWASM
+    }
+    return f
+  }
+}).then((openjpeg) => {
+  const jpeg2000Decoder = new openjpeg.J2KDecoder()
+  decoderMap['image/jp2'] = jpeg2000Decoder
+  decoderMap['image/jpx'] = jpeg2000Decoder
+  console.info('JPEG 2000 decoder initialized')
+})
 
-let jlsDecoder
-if (typeof CharLSWASM === 'function') {
-  CharLSWASM().then(function (charlswasm) {// eslint-disable-line
-    jlsDecoder = new charlswasm.JpegLSDecoder()
-    console.info('jlsDecoder initialized.')
-  })
-}
+charlsFactory({
+  locateFile: (f) => {
+    if (f.endsWith('.wasm')) {
+      return charlsWASM
+    }
+    return f
+  }
+}).then((charls) => {
+  const jpeglsDecoder = new charls.JpegLSDecoder()
+  decoderMap['image/jls'] = jpeglsDecoder
+  console.info('JPEG LS decoder initialized')
+})
 
-function decodeFrame ({
+const decodeFrame = ({
   frame,
   bitsAllocated,
   pixelRepresentation,
   columns,
   rows,
   samplesPerPixel
-}) {
+}) => {
   const { decodedFrame, metadata } = _checkImageTypeAndDecode({
     frame,
     bitsAllocated,
@@ -64,7 +83,10 @@ function decodeFrame ({
 
   const length = rows * columns * samplesPerPixel * (bitsAllocated / 8)
   if (length !== decodedFrame.length) {
-    throw new Error('Frame value does not have expected length.')
+    throw new Error(
+      'frame value does not have expected length: ' +
+      decodedFrame.length + ' instead of ' + length
+    )
   }
 
   const signed = pixelRepresentation === 1
@@ -128,25 +150,62 @@ function decodeFrame ({
   }
 }
 
-/** Check image type of a compressed array and returns a decoded image
- * NOTE: for png at the moment we don't have a library for decoding,
- *       undefined is returned.
- * @param {number[]} frames - buffer of the image array
- * @returns {obejct} image array, frameInfo and mediaType.
+/** Check image type of a compressed array and returns a decoded image.
  * @private
  */
-function _checkImageTypeAndDecode ({
+const _checkImageTypeAndDecode = ({
   frame,
   bitsAllocated,
   pixelRepresentation,
   columns,
   rows,
   samplesPerPixel
-}) {
-  const byteArray = new Uint8Array(frame)
+}) => {
+  let byteArray = new Uint8Array(frame)
   const imageTypeObject = imageType(byteArray)
 
-  if (imageTypeObject === null) {
+  const toHex = (value) => {
+    return value.toString(16).padStart(2, '0').toUpperCase()
+  }
+
+  let mediaType
+  if (imageTypeObject == null) {
+    /**
+     * This hack is required to recognize JPEG 2000 bit streams that are zero
+     * padded, i.e., that have a "00" byte after the JPEG 2000 End of Image
+     * (EOI) marker "FFD9".
+     */
+    if (
+      toHex(byteArray[byteArray.length - 3]) === 'FF' &&
+      toHex(byteArray[byteArray.length - 2]) === 'D9' &&
+      toHex(byteArray[byteArray.length - 1]) === '00'
+    ) {
+      mediaType = 'image/jp2'
+      byteArray = new Uint8Array(byteArray.buffer, 0, byteArray.length - 1)
+    } else {
+      if (
+        toHex(byteArray[byteArray.length - 2]) === 'FF' &&
+        toHex(byteArray[byteArray.length - 1]) === 'D9'
+      ) {
+        mediaType = 'image/jp2'
+      } else {
+        mediaType = 'application/octet-stream'
+      }
+    }
+  } else {
+    /**
+     * This hack is required to distinguish JPEG-LS from baseline JPEG, which
+     * both contain the JPEG Start of Image (SOI) marker and share the first
+     * three bytes.
+     */
+    if ((toHex(byteArray[3]) === 'F7') || (toHex(byteArray[3]) === 'E8')) {
+      mediaType = 'image/jls'
+    } else {
+      mediaType = imageTypeObject.mime
+    }
+  }
+
+  if (mediaType === 'application/octet-stream') {
     return {
       decodedFrame: byteArray,
       metadata: {
@@ -159,44 +218,8 @@ function _checkImageTypeAndDecode ({
     }
   }
 
-  function toHex (value) {
-    return value.toString(16).padStart(2, '0').toUpperCase()
-  }
-
-  /**
-   * This hack is required to distinguish JPEG-LS from baseline JPEG, which
-   * both contain the JPEG Start of Image (SOI) marker and share the first
-   * three bytes.
-   */
-  let mediaType = imageTypeObject.mime
-  if ((toHex(byteArray[3]) === 'F7') || (toHex(byteArray[3]) === 'E8')) {
-    mediaType = 'image/jls'
-  }
-
-  let decoder
-  if (mediaType === 'image/jpeg') {
-    if (!jpegDecoder) {
-      throw new Error('JPEG decoder was not initialized.')
-    }
-    decoder = jpegDecoder
-  } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
-    if (!jp2jpxDecoder) {
-      throw new Error('JPEG 2000 Decoder was not initialized.')
-    }
-    decoder = jp2jpxDecoder
-  } else if (mediaType === 'image/jls') {
-    if (!jlsDecoder) {
-      throw new Error('JPEG-LS decoder was not initialized.')
-    }
-    decoder = jlsDecoder
-  } else {
-    throw new Error(
-      'The media type ' + mediaType +
-      ' is not supported by the offscreen rendering engine.'
-    )
-  }
-
-  const { frameBuffer, frameInfo } = _decodeImage(decoder, byteArray)
+  const decoder = decoderMap[mediaType]
+  const { frameBuffer, frameInfo } = _decode(decoder, byteArray)
 
   return {
     decodedFrame: frameBuffer,
@@ -218,7 +241,14 @@ function _checkImageTypeAndDecode ({
  * @returns {object} decoded array and frameInfo
  * @private
  */
-function _decodeImage (decoder, byteArray) {
+const _decode = (decoder, byteArray) => {
+  if (decoder == null) {
+    throw new Error(
+      'The media type ' + mediaType +
+      ' is not supported by the offscreen rendering engine.'
+    )
+  }
+
   const encodedBuffer = decoder.getEncodedBuffer(byteArray.length)
   encodedBuffer.set(byteArray)
   decoder.decode()
