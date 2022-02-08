@@ -287,16 +287,7 @@ function _createEmptyTile ({
   return pixelArray
 }
 
-/** Create custom tile loader function to retrieve frames via WADO-RS.
- *
- *
- */
-function _createTileLoadFunction ({
-  pyramid,
-  client,
-  includeIccProfile,
-  channel
-}) {
+function _createTileLoadFunction ({ pyramid, client, channel }) {
   return async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
     index += `-${channel}`

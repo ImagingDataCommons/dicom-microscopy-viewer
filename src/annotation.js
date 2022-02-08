@@ -1,4 +1,5 @@
 const _attrs = Symbol('attrs')
+import { getContentItemNameCodedConcept } from './utils.js'
 
 /** An annotation group.
  *
@@ -162,7 +163,7 @@ const _fixBulkDataURI = (uri) => {
   )
 }
 
-const fetchGraphicData = async ({ metadataItem, bulkdataItem, client }) => {
+async function fetchGraphicData ({ metadataItem, bulkdataItem, client }) {
   const uid = metadataItem.AnnotationGroupUID
   const graphicType = metadataItem.GraphicType
   if ('PointCoordinatesData' in metadataItem) {
@@ -214,7 +215,7 @@ const fetchGraphicData = async ({ metadataItem, bulkdataItem, client }) => {
   }
 }
 
-const fetchGraphicIndex = async ({ metadataItem, bulkdataItem, client }) => {
+async function fetchGraphicIndex ({ metadataItem, bulkdataItem, client }) {
   const uid = metadataItem.AnnotationGroupUID
   const graphicType = metadataItem.GraphicType
   if ('LongPrimitivePointIndexList' in metadataItem) {
@@ -257,12 +258,12 @@ const fetchGraphicIndex = async ({ metadataItem, bulkdataItem, client }) => {
   }
 }
 
-const fetchMeasurmentValues = async ({
+async function _fetchMeasurementValues ({
   metadataItem,
   bulkdataItem,
   index,
   client
-}) => {
+}) {
   const uid = metadataItem.AnnotationGroupUID
   const measurementMetadataItem = metadataItem.MeasurementsSequence[index]
   const valuesMetadataItem = measurementMetadataItem.MeasurementValuesSequence[0]
@@ -304,15 +305,17 @@ const fetchMeasurmentValues = async ({
   }
 }
 
-const fetchMeasurmentIndices = async ({
+async function _fetchMeasurementIndices ({
   metadataItem,
   bulkdataItem,
   index,
   client
-}) => {
+}) {
   const uid = metadataItem.AnnotationGroupUID
+  const measurementMetadataItem = metadataItem.MeasurementsSequence[index]
+  const valuesMetadataItem = measurementMetadataItem.MeasurementValuesSequence[0]
   if ('AnnotationIndexList' in valuesMetadataItem) {
-    return metadataItem.AnnotationIndexList
+    return valuesMetadataItem.AnnotationIndexList
   } else {
     if (bulkdataItem.MeasurementsSequence == null) {
       throw new Error(
@@ -320,9 +323,7 @@ const fetchMeasurmentIndices = async ({
         `in bulkdata of annotation group "${uid}".`
       )
     } else {
-      const measurementBulkdataItem = bulkdataItem.MeasurementsSequence[
-        measurementMetadataIndex
-      ]
+      const measurementBulkdataItem = bulkdataItem.MeasurementsSequence[index]
       const valuesBulkdataItem = (
         measurementBulkdataItem
           .MeasurementValuesSequence[0]
@@ -348,26 +349,26 @@ const fetchMeasurmentIndices = async ({
   }
 }
 
-const fetchMeasurements = async ({ metadataItem, bulkdataItem, client }) => {
+async function fetchMeasurements ({ metadataItem, bulkdataItem, client }) {
   const uid = metadataItem.AnnotationGroupUID
   const measurements = []
   if (metadataItem.MeasurementsSequence !== undefined) {
-    for (let i = 0; i < metadataItem.MeasurementsSequence; i++) {
+    for (let i = 0; i < metadataItem.MeasurementsSequence.length; i++) {
       const item = metadataItem.MeasurementsSequence[i]
       const name = getContentItemNameCodedConcept(item)
-      const values = await getMeasurementValues({
+      const values = await _fetchMeasurementValues({
         metadataItem,
         bulkdataItem,
         index: i,
         client
       })
-      const indices = await getMeasurementIndices({
+      const indices = await _fetchMeasurementIndices({
         metadataItem,
         bulkdataItem,
         index: i,
         client
       })
-      measurments.push({
+      measurements.push({
         name,
         values,
         indices

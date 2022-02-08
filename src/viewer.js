@@ -776,7 +776,6 @@ class VolumeImageViewer {
           loader: _createTileLoadFunction({
             pyramid: opticalPath.pyramid,
             client: this[_options].client,
-            includeIccProfile: this[_options].includeIccProfile,
             channel: opticalPathIdentifier
           }),
           tileGrid: this[_tileGrid],
@@ -1302,77 +1301,18 @@ class VolumeImageViewer {
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render (options) {
-    if (!('container' in options)) {
+    if (options.container == null) {
       console.error('container must be provided for rendering images')
+      return
     }
+
     this[_map].setTarget(options.container)
+
     const view = this[_map].getView()
     const projection = view.getProjection()
+    const containerElement = this[_map].getTargetElement()
+
     view.fit(projection.getExtent(), { size: this[_map].getSize() })
-
-    // Style scale element (overriding default Openlayers CSS "ol-scale-line")
-    const scaleElement = this[_controls].scale.element
-    scaleElement.style.position = 'absolute'
-    scaleElement.style.right = '.5em'
-    scaleElement.style.bottom = '.5em'
-    scaleElement.style.left = 'auto'
-    scaleElement.style.padding = '2px'
-    scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)'
-    scaleElement.style.borderRadius = '4px'
-    scaleElement.style.margin = '1px'
-
-    const scaleInnerElement = this[_controls].scale.innerElement_
-    scaleInnerElement.style.color = 'black'
-    scaleInnerElement.style.fontWeight = '600'
-    scaleInnerElement.style.fontSize = '10px'
-    scaleInnerElement.style.textAlign = 'center'
-    scaleInnerElement.style.borderWidth = '1.5px'
-    scaleInnerElement.style.borderStyle = 'solid'
-    scaleInnerElement.style.borderTop = 'none'
-    scaleInnerElement.style.borderRightColor = 'black'
-    scaleInnerElement.style.borderLeftColor = 'black'
-    scaleInnerElement.style.borderBottomColor = 'black'
-    scaleInnerElement.style.margin = '1px'
-    scaleInnerElement.style.willChange = 'contents,width'
-
-    const overviewElement = this[_overviewMap].element
-    const overviewmapElement = Object.values(overviewElement.children).find(
-      c => c.className === 'ol-overviewmap-map'
-    )
-    overviewmapElement.style.border = '1px solid black'
-    // Try to fit the overview map into the target control overlay container
-    const height = Math.abs(this[_pyramid].extent[1])
-    const width = Math.abs(this[_pyramid].extent[2])
-    const rotation = this[_rotation] / Math.PI * 180
-    const windowSize = _getWindowSize()
-    let targetHeight
-    let resizeFactor
-    let targetWidth
-    if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
-      if (windowSize[1] > windowSize[0]) {
-        targetHeight = Math.ceil(windowSize[1] * 0.2)
-        resizeFactor = targetHeight / height
-        targetWidth = width * resizeFactor
-      } else {
-        targetWidth = Math.ceil(windowSize[0] * 0.15)
-        resizeFactor = targetWidth / width
-        targetHeight = height * resizeFactor
-      }
-    } else {
-      if (windowSize[1] > windowSize[0]) {
-        targetHeight = Math.ceil(windowSize[1] * 0.2)
-        resizeFactor = targetHeight / width
-        targetWidth = height * resizeFactor
-      } else {
-        targetWidth = Math.ceil(windowSize[0] * 0.15)
-        resizeFactor = targetWidth / height
-        targetHeight = width * resizeFactor
-      }
-    }
-    overviewmapElement.style.width = `${targetWidth}px`
-    overviewmapElement.style.height = `${targetHeight}px`
-
-    const container = this[_map].getTargetElement()
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
       publish(
@@ -1423,6 +1363,69 @@ class VolumeImageViewer {
         this._getROIFromFeature(e.feature, this[_pyramid].metadata)
       )
     })
+
+    // Style scale element (overriding default Openlayers CSS "ol-scale-line")
+    const scaleElement = this[_controls].scale.element
+    scaleElement.style.position = 'absolute'
+    scaleElement.style.right = '.5em'
+    scaleElement.style.bottom = '.5em'
+    scaleElement.style.left = 'auto'
+    scaleElement.style.padding = '2px'
+    scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)'
+    scaleElement.style.borderRadius = '4px'
+    scaleElement.style.margin = '1px'
+
+    const scaleInnerElement = this[_controls].scale.innerElement_
+    scaleInnerElement.style.color = 'black'
+    scaleInnerElement.style.fontWeight = '600'
+    scaleInnerElement.style.fontSize = '10px'
+    scaleInnerElement.style.textAlign = 'center'
+    scaleInnerElement.style.borderWidth = '1.5px'
+    scaleInnerElement.style.borderStyle = 'solid'
+    scaleInnerElement.style.borderTop = 'none'
+    scaleInnerElement.style.borderRightColor = 'black'
+    scaleInnerElement.style.borderLeftColor = 'black'
+    scaleInnerElement.style.borderBottomColor = 'black'
+    scaleInnerElement.style.margin = '1px'
+    scaleInnerElement.style.willChange = 'contents,width'
+
+
+    const overviewElement = this[_overviewMap].element
+    const overviewmapElement = Object.values(overviewElement.children).find(
+      c => c.className === 'ol-overviewmap-map'
+    )
+    overviewmapElement.style.border = '1px solid black'
+    // Try to fit the overview map into the target control overlay container
+    const height = Math.abs(this[_pyramid].extent[1])
+    const width = Math.abs(this[_pyramid].extent[2])
+    const rotation = this[_rotation] / Math.PI * 180
+    const windowSize = _getWindowSize()
+    let targetHeight
+    let resizeFactor
+    let targetWidth
+    if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
+      if (windowSize[1] > windowSize[0]) {
+        targetHeight = Math.ceil(windowSize[1] * 0.2)
+        resizeFactor = targetHeight / height
+        targetWidth = width * resizeFactor
+      } else {
+        targetWidth = Math.ceil(windowSize[0] * 0.15)
+        resizeFactor = targetWidth / width
+        targetHeight = height * resizeFactor
+      }
+    } else {
+      if (windowSize[1] > windowSize[0]) {
+        targetHeight = Math.ceil(windowSize[1] * 0.2)
+        resizeFactor = targetHeight / width
+        targetWidth = height * resizeFactor
+      } else {
+        targetWidth = Math.ceil(windowSize[0] * 0.15)
+        resizeFactor = targetWidth / height
+        targetHeight = width * resizeFactor
+      }
+    }
+    overviewmapElement.style.width = `${targetWidth}px`
+    overviewmapElement.style.height = `${targetHeight}px`
   }
 
   /** Activate the draw interaction for graphic annotation of regions of interest.
@@ -2455,14 +2458,17 @@ class VolumeImageViewer {
         const name = item.name
         const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
         const value = quantileSeq(
-          [...values],
+          [...item.values],
           [0, 0.015, 0.25, 0.5, 0.75, 0.95, 1]
         )
         properties[key] = value
       })
       source.setProperties(properties)
+
       publish(container, EVENT.LOADING_ENDED)
       this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
+    }).catch(error => {
+      console.error(error)
     })
 
     annotationGroup.layer.setVisible(true)
@@ -2755,6 +2761,7 @@ class VolumeImageViewer {
           })
         }),
         pyramid,
+        fittedPyramid: fittedPyramid,
         style: {
           opacity: 0.75
         },
@@ -3140,6 +3147,7 @@ class VolumeImageViewer {
           })
         }),
         pyramid: pyramid,
+        fittedPyramid: fittedPyramid,
         overlay: new Overlay({
           element: document.createElement('div'),
           offset: [5 + 100 * index + 2, 5]
@@ -3534,9 +3542,11 @@ class _NonVolumeImageViewer {
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render (options) {
-    if (!('container' in options)) {
+    if (options.container == null) {
       console.error('container must be provided for rendering images')
+      return
     }
+
     this[_map].setTarget(options.container)
     const view = this[_map].getView()
     const projection = view.getProjection()
