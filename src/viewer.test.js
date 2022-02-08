@@ -5,8 +5,6 @@ const testCases = [testCase1, testCase2, testCase3]
 
 const dmv = require('./dicom-microscopy-viewer.js')
 
-jest.mock('./renderingEngine')
-
 describe('dmv.viewer.VolumeImageViewer', () => {
   let viewer
   testCases.forEach((metadata, index) => {
