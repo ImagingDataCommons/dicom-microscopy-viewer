@@ -47,7 +47,7 @@ import {
   _fetchMeasurements,
   _getCentroid,
   _getCommonZCoordinate,
-  _getCoordinateDimensionality,
+  _getCoordinateDimensionality
 } from './annotation.js'
 import {
   ColorMapNames,
@@ -67,16 +67,15 @@ import {
   generateUID,
   getUnitSuffix,
   doContentItemsMatch,
-  getContentItemNameCodedConcept,
   createWindow
 } from './utils.js'
 import {
-  scoord3dCoordinates2geometryCoordinates,
-  scoord3d2Geometry,
+  _scoord3dCoordinates2geometryCoordinates,
+  _scoord3d2Geometry,
   getPixelSpacing,
-  geometry2Scoord3d,
-  getFeatureScoord3dLength,
-  getFeatureScoord3dArea
+  _geometry2Scoord3d,
+  _getFeatureLength,
+  _getFeatureArea
 } from './scoord3dUtils'
 import { OpticalPath } from './opticalPath.js'
 import {
@@ -404,8 +403,8 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
   }
 
   const measurements = feature.get(Enums.InternalProperties.Measurements) || []
-  const area = getFeatureScoord3dArea(feature, pyramid)
-  const length = getFeatureScoord3dLength(feature, pyramid)
+  const area = _getFeatureArea(feature, pyramid)
+  const length = _getFeatureLength(feature, pyramid)
 
   if (area == null && length == null) {
     return
@@ -1336,7 +1335,7 @@ class VolumeImageViewer {
 
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
       publish(
-        container,
+        containerElement,
         EVENT.ROI_ADDED,
         this._getROIFromFeature(e.feature, this[_pyramid].metadata)
       )
@@ -1370,7 +1369,7 @@ class VolumeImageViewer {
         }
       }
       publish(
-        container,
+        containerElement,
         EVENT.ROI_MODIFIED,
         this._getROIFromFeature(e.feature, this[_pyramid].metadata)
       )
@@ -1378,7 +1377,7 @@ class VolumeImageViewer {
 
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
       publish(
-        container,
+        containerElement,
         EVENT.ROI_REMOVED,
         this._getROIFromFeature(e.feature, this[_pyramid].metadata)
       )
@@ -1408,7 +1407,6 @@ class VolumeImageViewer {
     scaleInnerElement.style.borderBottomColor = 'black'
     scaleInnerElement.style.margin = '1px'
     scaleInnerElement.style.willChange = 'contents,width'
-
 
     const overviewElement = this[_overviewMap].element
     const overviewmapElement = Object.values(overviewElement.children).find(
@@ -1448,7 +1446,8 @@ class VolumeImageViewer {
     overviewmapElement.style.height = `${targetHeight}px`
   }
 
-  /** Activate the draw interaction for graphic annotation of regions of interest.
+  /**
+   * Activate the draw interaction for graphic annotation of regions of interest.
    *
    * @param {object} options - Drawing options
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandpolygon, line, freehandline)
@@ -1456,7 +1455,6 @@ class VolumeImageViewer {
    * @param {string} options.markup - Markup
    * @param {number} options.maxPoints - Geometry max points
    * @param {number} options.minPoints - Geometry min points
-   * @param {boolean} options.vertexEnabled - Enable vertex
    * @param {object} options.styleOptions - Style options
    * @param {object} options.styleOptions.stroke - Style options for the outline of the geometry
    * @param {number[]} options.styleOptions.stroke.color - RGBA color of the outline
@@ -1522,7 +1520,6 @@ class VolumeImageViewer {
         options[Enums.InternalProperties.Marker],
       [Enums.InternalProperties.Markup]:
         options[Enums.InternalProperties.Markup],
-      vertexEnabled: options.vertexEnabled,
       [Enums.InternalProperties.Label]: options[Enums.InternalProperties.Label]
     }
     const drawOptions = Object.assign(
@@ -1670,7 +1667,7 @@ class VolumeImageViewer {
     if (feature !== undefined && feature !== null) {
       let scoord3d
       try {
-        scoord3d = geometry2Scoord3d(feature, pyramid)
+        scoord3d = _geometry2Scoord3d(feature, pyramid)
       } catch (error) {
         const uid = feature.getId()
         this.removeROI(uid)
@@ -1891,8 +1888,7 @@ class VolumeImageViewer {
 
     const modifyOptions = {
       features: this[_features],
-      insertVertexCondition: ({ feature }) =>
-        feature && feature.get('vertexEnabled') === true
+      insertVertexCondition: (event) => true
     }
 
     /**
@@ -2044,7 +2040,7 @@ class VolumeImageViewer {
    */
   addROI (roi, styleOptions) {
     console.info(`add ROI ${roi.uid}`)
-    const geometry = scoord3d2Geometry(roi.scoord3d, this[_pyramid].metadata)
+    const geometry = _scoord3d2Geometry(roi.scoord3d, this[_pyramid].metadata)
     const featureOptions = { geometry }
 
     const feature = new Feature(featureOptions)
@@ -2362,7 +2358,7 @@ class VolumeImageViewer {
         )
         const feature = new Feature({
           geometry: new PointGeometry(
-            scoord3dCoordinates2geometryCoordinates(
+            _scoord3dCoordinates2geometryCoordinates(
               point,
               this[_pyramid].metadata
             )
