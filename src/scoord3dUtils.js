@@ -234,7 +234,10 @@ function getFeatureArea (feature) {
 function getPixelSpacing (metadata) {
   const functionalGroup = metadata.SharedFunctionalGroupsSequence[0]
   const pixelMeasures = functionalGroup.PixelMeasuresSequence[0]
-  return pixelMeasures.PixelSpacing
+  return [
+    Number(pixelMeasures.PixelSpacing[0]),
+    Number(pixelMeasures.PixelSpacing[1])
+  ]
 }
 
 /**

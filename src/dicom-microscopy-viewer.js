@@ -46,9 +46,8 @@ import {
  * @namespace annotation
  */
 const annotation = {
-  AnnotationGroup,
+  AnnotationGroup
 }
-
 
 /** Namespace for the viewer.
  *
@@ -74,7 +73,7 @@ const viewer = {
  * @namespace mapping
  */
 const mapping = {
-  Mapping,
+  Mapping
 }
 
 /** Namespace for working with DICOM Metadata.

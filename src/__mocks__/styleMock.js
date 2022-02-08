@@ -1,5 +1,5 @@
 module.exports = {
   process: function() {
-    return "";
+    return ""
   }
-};
+}

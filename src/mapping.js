@@ -53,7 +53,6 @@ class Transformation {
     }
     this[_attrs].lut = lut
   }
-
 }
 
 /** A mapping.

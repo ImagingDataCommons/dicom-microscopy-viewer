@@ -175,14 +175,11 @@ function _computeImagePyramid ({ metadata }) {
     * Compute the resolution at each pyramid level, since the zoom
     * factor may not be the same between adjacent pyramid levels.
     */
-    const zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns
+    const zoomFactor = Math.round(
+      baseTotalPixelMatrixColumns / totalPixelMatrixColumns
+    )
     pyramidResolutions.push(zoomFactor)
 
-    /*
-    * TODO: One may has to adjust the offset slightly due to the
-    * difference between extent of the image at a given resolution level
-    * and the actual number of tiles (frames).
-    */
     pyramidOrigins.push(offset)
   }
   pyramidResolutions.reverse()
@@ -300,7 +297,7 @@ function _createTileLoadFunction ({
   includeIccProfile,
   channel
 }) {
-  const tileLoadFunction = async (z, y, x) => {
+  return async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
     index += `-${channel}`
 
@@ -462,7 +459,6 @@ function _createTileLoadFunction ({
       })
     }
   }
-  return tileLoadFunction
 }
 
 function _fitImagePyramid (pyramid, refPyramid) {

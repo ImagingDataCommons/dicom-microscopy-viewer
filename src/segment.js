@@ -14,8 +14,8 @@ class Segment {
    * @param {string} options.label - Segment Label
    * @param {string} options.algorithmName - Segment Algorithm Name
    * @param {string} options.algorithmType - Segment Algorithm Type
-   * @param {object[]} options.propertyCategory - Segmented Property Category
-   * @param {object[]} options.propertyType - Segmented Property Type
+   * @param {object} options.propertyCategory - Segmented Property Category Code
+   * @param {object} options.propertyType - Segmented Property Type Code
    * @param {string} options.studyInstanceUID - Study Instance UID of Segmentation images
    * @param {string} options.seriesInstanceUID - Series Instance UID of Segmentation images
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Segmentation images
@@ -50,12 +50,12 @@ class Segment {
     this[_attrs].label = label
 
     if (propertyCategory === undefined) {
-      throw new Error('Segmented Property Category is required.')
+      throw new Error('Segmented Property Category Code is required.')
     }
     this[_attrs].propertyCategory = propertyCategory
 
     if (propertyType === undefined) {
-      throw new Error('Segmented Property Type is required.')
+      throw new Error('Segmented Property Type Code is required.')
     }
     this[_attrs].propertyType = propertyType
 
@@ -125,17 +125,17 @@ class Segment {
     return this[_attrs].algorithmType
   }
 
-  /** Get Segmented Property Category
+  /** Get Segmented Property Category Code
    *
-   * @returns {object} Segmented Property Category
+   * @returns {object} Segmented Property Category Code
    */
   get propertyCategory () {
     return this[_attrs].propertyCategory
   }
 
-  /** Get Segmented Property Type
+  /** Get Segmented Property Type Code
    *
-   * @returns {object} Segmented Property Type
+   * @returns {object} Segmented Property Type Code
    */
   get propertyType () {
     return this[_attrs].propertyType

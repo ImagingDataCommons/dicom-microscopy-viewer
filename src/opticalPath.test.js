@@ -4,8 +4,6 @@ import testCase3 from '../test/data/testMultiChannel3.json'
 
 const dmv = require('./dicom-microscopy-viewer.js')
 
-jest.mock('./renderingEngine')
-
 describe('dmv.viewer.VolumeImageViewer', () => {
   let BIOne, BITwo, BIThree, viewer, metadata
 

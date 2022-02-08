@@ -34,12 +34,18 @@ class OpticalPath {
    *
    * @param {Object} options - Options
    * @param {string} options.identifier - Optical Path Identifier
+   * @param {object} options.illuminationType - Illumination Type Code
+   * @param {object} options.illuminationColor - Illumination Color Code
+   * @param {string} options.illuminationWaveLength - Illumination Wave Length
    * @param {string} options.studyInstanceUID - Study Instance UID of VL Whole Slide Microscopy Image instances
    * @param {string} options.seriesInstanceUID - Series Instance UID of VL Whole Slide Microscopy Image instances
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of VL Whole Slide Microscopy Image instances
    */
   constructor ({
     identifier,
+    illuminationType,
+    illuminationColor,
+    illuminationWaveLength,
     studyInstanceUID,
     seriesInstanceUID,
     sopInstanceUIDs
@@ -49,6 +55,13 @@ class OpticalPath {
       throw new Error('Optical Path Identifier is required.')
     }
     this[_attrs].identifier = identifier
+
+    if (illuminationType === undefined) {
+      throw new Error('Illumination Type is required.')
+    }
+    this[_attrs].illuminationType = illuminationType
+
+    this[_attrs].illuminationWaveLength = illuminationWaveLength
 
     if (studyInstanceUID === undefined) {
       throw new Error('Study Instance UID is required.')
@@ -72,6 +85,30 @@ class OpticalPath {
    */
   get identifier () {
     return this[_attrs].identifier
+  }
+
+  /** Get Illumination Type Code.
+   *
+   * @returns {object} Illumination Type Code
+   */
+  get illuminationType () {
+    return this[_attrs].illuminationType
+  }
+
+  /** Get Illumination Color.
+   *
+   * @returns {object} Illumination Color Code
+   */
+  get illuminationColor () {
+    return this[_attrs].illuminationColor
+  }
+
+  /** Get Illumination Wave Length.
+   *
+   * @returns {string | undefined} Illumination Wave Length
+   */
+  get illuminationWaveLength () {
+    return this[_attrs].illuminationWaveLength
   }
 
   /** Get Study Instance UID of images.
