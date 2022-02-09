@@ -88,6 +88,58 @@ import {
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 
+import libjpegFactory from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.js'
+import openjpegFactory from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.js'
+import charlsFactory from '@cornerstonejs/codec-charls/dist/charlswasm_decode.js'
+import libjpegWASM from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.wasm'
+import openjpegWASM from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.wasm'
+import charlsWASM from '@cornerstonejs/codec-charls/dist/charlswasm_decode.wasm'
+
+const libjpeg = libjpegFactory({
+  locateFile: (f) => {
+    if (f.endsWith('.wasm')) {
+      return libjpegWASM
+    }
+    return f
+  }
+})
+
+const openjpeg = openjpegFactory({
+  locateFile: (f) => {
+    if (f.endsWith('.wasm')) {
+      return openjpegWASM
+    }
+    return f
+  }
+})
+
+const charls = charlsFactory({
+  locateFile: (f) => {
+    if (f.endsWith('.wasm')) {
+      return charlsWASM
+    }
+    return f
+  }
+})
+
+async function initializeDecoders () {
+  console.info('initialize JPEG decoder')
+  const jpegDecoder = new libjpeg.JPEGDecoder()
+
+  console.info('initialize JPEG 2000 decoder')
+  const jpeg2000Decoder = new openjpeg.J2KDecoder()
+
+  console.info('initialize JPEG-LS decoder')
+  const jpeglsDecoder = new charls.JpegLSDecoder()
+
+  return {
+    'image/jpeg': jpegDecoder,
+    'image/jp2': jpeg2000Decoder,
+    'image/jpx': jpeg2000Decoder,
+    'image/jls': jpeglsDecoder
+  }
+}
+
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
     left: 1,
@@ -506,6 +558,7 @@ function _setFeatureStyle (feature, styleOptions) {
 
 const _options = Symbol('options')
 const _controls = Symbol('controls')
+const _decoders = Symbol('decoders')
 const _drawingLayer = Symbol('drawingLayer')
 const _drawingSource = Symbol('drawingSource')
 const _features = Symbol('features')
@@ -777,7 +830,12 @@ class VolumeImageViewer {
           },
           bitsAllocated: bitsAllocated,
           minValue: minValue,
-          maxValue: maxValue
+          maxValue: maxValue,
+          loaderParams: {
+            pyramid: pyramid,
+            client: this[_options].client,
+            channel: opticalPathIdentifier
+          }
         }
 
         const areImagePyramidsEqual = _areImagePyramidsEqual(
@@ -792,17 +850,22 @@ class VolumeImageViewer {
         }
 
         const source = new DataTileSource({
-          loader: _createTileLoadFunction({
-            pyramid: opticalPath.pyramid,
-            client: this[_options].client,
-            channel: opticalPathIdentifier
-          }),
           tileGrid: this[_tileGrid],
           projection: this[_projection],
           wrapX: false,
           transition: 0,
           bandCount: 1
         })
+        source.on('tileloaderror', (event) => {
+          console.error('error loading optical path tile', event)
+        })
+        if (this[_decoders] != null) {
+          const loader = _createTileLoadFunction({
+            decoders: this[_decoders],
+            ...opticalPath.loaderParams
+          })
+          source.setLoader(loader)
+        }
 
         const [windowCenter, windowWidth] = createWindow(
           opticalPath.style.limitValues[0],
@@ -903,15 +966,15 @@ class VolumeImageViewer {
         pyramid: pyramid,
         bitsAllocated: 8,
         minValue: 0,
-        maxValue: 255
+        maxValue: 255,
+        loaderParams: {
+          pyramid: pyramid,
+          client: this[_options].client,
+          channel: opticalPathIdentifier
+        }
       }
 
       const source = new DataTileSource({
-        loader: _createTileLoadFunction({
-          pyramid: opticalPath.pyramid,
-          client: this[_options].client,
-          channel: opticalPathIdentifier
-        }),
         tileGrid: this[_tileGrid],
         projection: this[_projection],
         wrapX: false,
@@ -919,6 +982,16 @@ class VolumeImageViewer {
         preload: 1,
         bandCount: 3
       })
+      source.on('tileloaderror', (event) => {
+        console.error('error loading optical path tile', event)
+      })
+      if (this[_decoders] != null) {
+        const loader = _createTileLoadFunction({
+          decoders: this[_decoders],
+          ...opticalPath.loaderParams
+        })
+        source.setLoader(loader)
+      }
 
       opticalPath.layer = new TileLayer({
         source,
@@ -1325,125 +1398,145 @@ class VolumeImageViewer {
       return
     }
 
-    this[_map].setTarget(options.container)
+    console.info('initialize decoders')
+    initializeDecoders().then(decoders => {
+      console.info('provide decoders to loaders')
+      this[_decoders] = decoders
 
-    const view = this[_map].getView()
-    const projection = view.getProjection()
-    const containerElement = this[_map].getTargetElement()
+      const itemsRequiringDecoders = [
+        ...Object.values(this[_opticalPaths]),
+        ...Object.values(this[_segments]),
+        ...Object.values(this[_mappings])
+      ]
+      itemsRequiringDecoders.forEach(item => {
+        const source = item.layer.getSource()
+        const loader = _createTileLoadFunction({
+          decoders,
+          ...item.loaderParams
+        })
+        source.setLoader(loader)
+      })
 
-    view.fit(projection.getExtent(), { size: this[_map].getSize() })
+      this[_map].setTarget(options.container)
 
-    this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      publish(
-        containerElement,
-        EVENT.ROI_ADDED,
-        this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-      )
-    })
+      const view = this[_map].getView()
+      const projection = view.getProjection()
+      const containerElement = this[_map].getTargetElement()
 
-    this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      if (e.feature !== undefined || e.feature !== null) {
-        const geometry = e.feature.getGeometry()
-        const type = geometry.getType()
-        // The first and last point of a polygon must be identical. The last point
-        // is an implementation detail and is hidden from the user in the graphical
-        // interface. However, we must update the last point in case the first
-        // point has been modified by the user.
-        if (type === 'Polygon') {
-          // NOTE: Polygon in GeoJSON format contains an array of geometries,
-          // where the first element represents the coordinates of the outer ring
-          // and the second element represents the coordinates of the inner ring
-          // (in our case the inner ring should not be present).
-          const layout = geometry.getLayout()
-          const coordinates = geometry.getCoordinates()
-          const firstPoint = coordinates[0][0]
-          const lastPoint = coordinates[0][coordinates[0].length - 1]
-          if (
-            firstPoint[0] !== lastPoint[0] ||
-            firstPoint[1] !== lastPoint[1]
-          ) {
-            coordinates[0][coordinates[0].length - 1] = firstPoint
-            geometry.setCoordinates(coordinates, layout)
-            e.feature.setGeometry(geometry)
+      view.fit(projection.getExtent(), { size: this[_map].getSize() })
+
+      this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+        publish(
+          containerElement,
+          EVENT.ROI_ADDED,
+          this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+        )
+      })
+
+      this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+        if (e.feature !== undefined || e.feature !== null) {
+          const geometry = e.feature.getGeometry()
+          const type = geometry.getType()
+          // The first and last point of a polygon must be identical. The last point
+          // is an implementation detail and is hidden from the user in the graphical
+          // interface. However, we must update the last point in case the first
+          // point has been modified by the user.
+          if (type === 'Polygon') {
+            // NOTE: Polygon in GeoJSON format contains an array of geometries,
+            // where the first element represents the coordinates of the outer ring
+            // and the second element represents the coordinates of the inner ring
+            // (in our case the inner ring should not be present).
+            const layout = geometry.getLayout()
+            const coordinates = geometry.getCoordinates()
+            const firstPoint = coordinates[0][0]
+            const lastPoint = coordinates[0][coordinates[0].length - 1]
+            if (
+              firstPoint[0] !== lastPoint[0] ||
+              firstPoint[1] !== lastPoint[1]
+            ) {
+              coordinates[0][coordinates[0].length - 1] = firstPoint
+              geometry.setCoordinates(coordinates, layout)
+              e.feature.setGeometry(geometry)
+            }
           }
         }
-      }
-      publish(
-        containerElement,
-        EVENT.ROI_MODIFIED,
-        this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+        publish(
+          containerElement,
+          EVENT.ROI_MODIFIED,
+          this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+        )
+      })
+
+      this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
+        publish(
+          containerElement,
+          EVENT.ROI_REMOVED,
+          this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+        )
+      })
+
+      // Style scale element (overriding default Openlayers CSS "ol-scale-line")
+      const scaleElement = this[_controls].scale.element
+      scaleElement.style.position = 'absolute'
+      scaleElement.style.right = '.5em'
+      scaleElement.style.bottom = '.5em'
+      scaleElement.style.left = 'auto'
+      scaleElement.style.padding = '2px'
+      scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)'
+      scaleElement.style.borderRadius = '4px'
+      scaleElement.style.margin = '1px'
+
+      const scaleInnerElement = this[_controls].scale.innerElement_
+      scaleInnerElement.style.color = 'black'
+      scaleInnerElement.style.fontWeight = '600'
+      scaleInnerElement.style.fontSize = '10px'
+      scaleInnerElement.style.textAlign = 'center'
+      scaleInnerElement.style.borderWidth = '1.5px'
+      scaleInnerElement.style.borderStyle = 'solid'
+      scaleInnerElement.style.borderTop = 'none'
+      scaleInnerElement.style.borderRightColor = 'black'
+      scaleInnerElement.style.borderLeftColor = 'black'
+      scaleInnerElement.style.borderBottomColor = 'black'
+      scaleInnerElement.style.margin = '1px'
+      scaleInnerElement.style.willChange = 'contents,width'
+
+      const overviewElement = this[_overviewMap].element
+      const overviewmapElement = Object.values(overviewElement.children).find(
+        c => c.className === 'ol-overviewmap-map'
       )
-    })
-
-    this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(
-        containerElement,
-        EVENT.ROI_REMOVED,
-        this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-      )
-    })
-
-    // Style scale element (overriding default Openlayers CSS "ol-scale-line")
-    const scaleElement = this[_controls].scale.element
-    scaleElement.style.position = 'absolute'
-    scaleElement.style.right = '.5em'
-    scaleElement.style.bottom = '.5em'
-    scaleElement.style.left = 'auto'
-    scaleElement.style.padding = '2px'
-    scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)'
-    scaleElement.style.borderRadius = '4px'
-    scaleElement.style.margin = '1px'
-
-    const scaleInnerElement = this[_controls].scale.innerElement_
-    scaleInnerElement.style.color = 'black'
-    scaleInnerElement.style.fontWeight = '600'
-    scaleInnerElement.style.fontSize = '10px'
-    scaleInnerElement.style.textAlign = 'center'
-    scaleInnerElement.style.borderWidth = '1.5px'
-    scaleInnerElement.style.borderStyle = 'solid'
-    scaleInnerElement.style.borderTop = 'none'
-    scaleInnerElement.style.borderRightColor = 'black'
-    scaleInnerElement.style.borderLeftColor = 'black'
-    scaleInnerElement.style.borderBottomColor = 'black'
-    scaleInnerElement.style.margin = '1px'
-    scaleInnerElement.style.willChange = 'contents,width'
-
-    const overviewElement = this[_overviewMap].element
-    const overviewmapElement = Object.values(overviewElement.children).find(
-      c => c.className === 'ol-overviewmap-map'
-    )
-    overviewmapElement.style.border = '1px solid black'
-    // Try to fit the overview map into the target control overlay container
-    const height = Math.abs(this[_pyramid].extent[1])
-    const width = Math.abs(this[_pyramid].extent[2])
-    const rotation = this[_rotation] / Math.PI * 180
-    const windowSize = _getWindowSize()
-    let targetHeight
-    let resizeFactor
-    let targetWidth
-    if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
-      if (windowSize[1] > windowSize[0]) {
-        targetHeight = Math.ceil(windowSize[1] * 0.2)
-        resizeFactor = targetHeight / height
-        targetWidth = width * resizeFactor
+      overviewmapElement.style.border = '1px solid black'
+      // Try to fit the overview map into the target control overlay container
+      const height = Math.abs(this[_pyramid].extent[1])
+      const width = Math.abs(this[_pyramid].extent[2])
+      const rotation = this[_rotation] / Math.PI * 180
+      const windowSize = _getWindowSize()
+      let targetHeight
+      let resizeFactor
+      let targetWidth
+      if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
+        if (windowSize[1] > windowSize[0]) {
+          targetHeight = Math.ceil(windowSize[1] * 0.2)
+          resizeFactor = targetHeight / height
+          targetWidth = width * resizeFactor
+        } else {
+          targetWidth = Math.ceil(windowSize[0] * 0.15)
+          resizeFactor = targetWidth / width
+          targetHeight = height * resizeFactor
+        }
       } else {
-        targetWidth = Math.ceil(windowSize[0] * 0.15)
-        resizeFactor = targetWidth / width
-        targetHeight = height * resizeFactor
+        if (windowSize[1] > windowSize[0]) {
+          targetHeight = Math.ceil(windowSize[1] * 0.2)
+          resizeFactor = targetHeight / width
+          targetWidth = height * resizeFactor
+        } else {
+          targetWidth = Math.ceil(windowSize[0] * 0.15)
+          resizeFactor = targetWidth / height
+          targetHeight = width * resizeFactor
+        }
       }
-    } else {
-      if (windowSize[1] > windowSize[0]) {
-        targetHeight = Math.ceil(windowSize[1] * 0.2)
-        resizeFactor = targetHeight / width
-        targetWidth = height * resizeFactor
-      } else {
-        targetWidth = Math.ceil(windowSize[0] * 0.15)
-        resizeFactor = targetWidth / height
-        targetHeight = width * resizeFactor
-      }
-    }
-    overviewmapElement.style.width = `${targetWidth}px`
-    overviewmapElement.style.height = `${targetHeight}px`
+      overviewmapElement.style.width = `${targetWidth}px`
+      overviewmapElement.style.height = `${targetHeight}px`
+    })
   }
 
   /**
@@ -2317,7 +2410,6 @@ class VolumeImageViewer {
     const bulkdataItem = annotationGroup.bulkdata.AnnotationGroupSequence[index]
     const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
     const graphicType = metadataItem.GraphicType
-    const coordinateType = metadataItem.AnnotationCoordinateType
     const coordinateDimensionality = _getCoordinateDimensionality(metadataItem)
     const commonZCoordinate = _getCommonZCoordinate(metadataItem)
 
@@ -2689,7 +2781,6 @@ class VolumeImageViewer {
           })
         }),
         pyramid,
-        fittedPyramid: fittedPyramid,
         style: {
           opacity: 0.75
         },
@@ -2699,15 +2790,15 @@ class VolumeImageViewer {
         }),
         colormap,
         minValue: 0,
-        maxValue: 255
-      }
-
-      const source = new DataTileSource({
-        loader: _createTileLoadFunction({
+        maxValue: 255,
+        loaderParams: {
           pyramid: fittedPyramid,
           client: this[_options].client,
           channel: segmentNumber
-        }),
+        }
+      }
+
+      const source = new DataTileSource({
         tileGrid: tileGrid,
         projection: this[_projection],
         wrapX: false,
@@ -2717,6 +2808,13 @@ class VolumeImageViewer {
       source.on('tileloaderror', (event) => {
         console.error('error loading segment tile', event)
       })
+      if (this[_decoders] != null) {
+        const loader = _createTileLoadFunction({
+          decoders: this[_decoders],
+          ...segment.loaderParams
+        })
+        source.setLoader(loader)
+      }
 
       const colorLUT = _buildColorLookupTable({
         colormap: colormap,
@@ -3075,7 +3173,6 @@ class VolumeImageViewer {
           })
         }),
         pyramid: pyramid,
-        fittedPyramid: fittedPyramid,
         overlay: new Overlay({
           element: document.createElement('div'),
           offset: [5 + 100 * index + 2, 5]
@@ -3089,21 +3186,31 @@ class VolumeImageViewer {
         },
         colormap: colormap,
         minValue: minValue,
-        maxValue: maxValue
-      }
-
-      const source = new DataTileSource({
-        loader: _createTileLoadFunction({
+        maxValue: maxValue,
+        loaderParams: {
           pyramid: fittedPyramid,
           client: this[_options].client,
           channel: mappingNumber
-        }),
+        }
+      }
+
+      const source = new DataTileSource({
         tileGrid: tileGrid,
         projection: this[_projection],
         wrapX: false,
         bandCount: 1,
         interpolate: true
       })
+      source.on('tileloaderror', (event) => {
+        console.error('error loading mapping tile', event)
+      })
+      if (this[_decoders] != null) {
+        const loader = _createTileLoadFunction({
+          decoders: this[_decoders],
+          ...mapping.loaderParams
+        })
+        source.setLoader(loader)
+      }
 
       // TODO: use the Palette Color LUT of image if available
       const colorLUT = _buildColorLookupTable({
@@ -3387,6 +3494,9 @@ class _NonVolumeImageViewer {
       width, // max X
       -1 // max Y
     ]
+
+    // Will only be initialized upon rendering
+    this[_decoders] = null
 
     const imageLoadFunction = (image, src) => {
       console.info('load image')

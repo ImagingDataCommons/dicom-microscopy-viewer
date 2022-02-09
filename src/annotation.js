@@ -1,5 +1,6 @@
-const _attrs = Symbol('attrs')
 import { getContentItemNameCodedConcept } from './utils.js'
+
+const _attrs = Symbol('attrs')
 
 /** An annotation group.
  *
@@ -181,7 +182,6 @@ async function _fetchGraphicData ({
   client
 }) {
   const uid = metadataItem.AnnotationGroupUID
-  const graphicType = metadataItem.GraphicType
   if ('PointCoordinatesData' in metadataItem) {
     return metadataItem.PointCoordinatesData
   } else if ('DoublePointCoordinatesData' in metadataItem) {
@@ -424,7 +424,6 @@ async function _fetchMeasurements ({
   bulkdataItem,
   client
 }) {
-  const uid = metadataItem.AnnotationGroupUID
   const measurements = []
   if (metadataItem.MeasurementsSequence !== undefined) {
     for (let i = 0; i < metadataItem.MeasurementsSequence.length; i++) {
@@ -639,23 +638,23 @@ function _getPolygonCentroid (
   annotationIndex,
   numberOfAnnotations
 ) {
-  const offset = graphicIndex[i] - 1
+  const offset = graphicIndex[annotationIndex] - 1
   let length
   if (annotationIndex < (numberOfAnnotations - 1)) {
-    length = offset - graphicIndex[i + 1]
+    length = offset - graphicIndex[annotationIndex + 1]
   } else {
     length = graphicData.length
   }
   // https://en.wikipedia.org/wiki/Centroid#Of_a_polygon
-  point = [0, 0, 0]
+  const point = [0, 0, 0]
   let area = 0
   for (let j = offset; j < offset + length; j++) {
     const p0 = _getCoordinates(graphicData, j, commonZCoordinate)
     let p1
-    if (j === (offset + length - n)) {
+    if (j === (offset + length - numberOfAnnotations)) {
       p1 = _getCoordinates(graphicData, offset, commonZCoordinate)
     } else {
-      p1 = _getCoordinates(graphicData, j + n, commonZCoordinate)
+      p1 = _getCoordinates(graphicData, j + numberOfAnnotations, commonZCoordinate)
     }
     const a = p0[0] * p1[1] - p1[0] * p0[1]
     area += a
@@ -735,7 +734,6 @@ const _getCentroid = (
     )
   }
 }
-
 
 export {
   AnnotationGroup,

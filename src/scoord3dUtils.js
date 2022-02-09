@@ -1,9 +1,9 @@
 import Enums from './enums'
 import { Point, Polyline, Polygon, Ellipse } from './scoord3d.js'
-import { default as Circle, default as CircleGeometry } from 'ol/geom/Circle'// eslint-disable-line
-import { default as PolygonGeometry, fromCircle } from 'ol/geom/Polygon'// eslint-disable-line
-import { default as PointGeometry } from 'ol/geom/Point'// eslint-disable-line
-import { default as LineStringGeometry } from 'ol/geom/LineString'// eslint-disable-line
+import CircleGeometry from 'ol/geom/Circle'
+import PolygonGeometry, { fromCircle } from 'ol/geom/Polygon'
+import PointGeometry from 'ol/geom/Point'
+import LineStringGeometry from 'ol/geom/LineString'
 
 import {
   applyInverseTransform,
@@ -201,7 +201,7 @@ function _geometryCoordinates2scoord3dCoordinates (coordinates, pyramid) {
     spacing
   })
   coordinates = coordinates.map((c) => {
-    const pixelCoord = [c[0] - 0.5, -(c[1] + 0.5 + 1)]
+    const pixelCoord = [c[0], -(c[1] + 1)]
     const slideCoord = applyTransform({ coordinate: pixelCoord, affine })
     return [slideCoord[0], slideCoord[1], 0]
   })
@@ -249,7 +249,7 @@ function _scoord3dCoordinates2geometryCoordinates (coordinates, pyramid) {
       coordinate: slideCoord,
       affine
     })
-    return [pixelCoord[0] + 0.5, -(pixelCoord[1] - 0.5 + 1), 0]
+    return [pixelCoord[0], -(pixelCoord[1] + 1), 0]
   })
   if (transform) {
     return coordinates[0]

@@ -1,54 +1,8 @@
 import imageType from 'image-type'
 import dcmjs from 'dcmjs'
-import openjpegFactory from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.js'
-import openjpegWASM from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.wasm'
-import libjpegFactory from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.js'
-import libjpegWASM from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.wasm'
-import charlsFactory from '@cornerstonejs/codec-charls/dist/charlswasm_decode.js'
-import charlsWASM from '@cornerstonejs/codec-charls/dist/charlswasm_decode.wasm'
-
-const decoderMap = {}
-libjpegFactory({
-  locateFile: (f) => {
-    if (f.endsWith('.wasm')) {
-      return libjpegWASM
-    }
-    return f
-  }
-}).then((libjpeg) => {
-  const jpegDecoder = new libjpeg.JPEGDecoder()
-  decoderMap['image/jpeg'] = jpegDecoder
-  console.info('JPEG decoder initialized')
-})
-
-openjpegFactory({
-  locateFile: (f) => {
-    if (f.endsWith('.wasm')) {
-      return openjpegWASM
-    }
-    return f
-  }
-}).then((openjpeg) => {
-  const jpeg2000Decoder = new openjpeg.J2KDecoder()
-  decoderMap['image/jp2'] = jpeg2000Decoder
-  decoderMap['image/jpx'] = jpeg2000Decoder
-  console.info('JPEG 2000 decoder initialized')
-})
-
-charlsFactory({
-  locateFile: (f) => {
-    if (f.endsWith('.wasm')) {
-      return charlsWASM
-    }
-    return f
-  }
-}).then((charls) => {
-  const jpeglsDecoder = new charls.JpegLSDecoder()
-  decoderMap['image/jls'] = jpeglsDecoder
-  console.info('JPEG LS decoder initialized')
-})
 
 const decodeFrame = ({
+  decoders,
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -57,6 +11,7 @@ const decodeFrame = ({
   samplesPerPixel
 }) => {
   const { decodedFrame, metadata } = _checkImageTypeAndDecode({
+    decoders,
     frame,
     bitsAllocated,
     pixelRepresentation,
@@ -154,6 +109,7 @@ const decodeFrame = ({
  * @private
  */
 const _checkImageTypeAndDecode = ({
+  decoders,
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -218,8 +174,7 @@ const _checkImageTypeAndDecode = ({
     }
   }
 
-  const decoder = decoderMap[mediaType]
-  const { frameBuffer, frameInfo } = _decode(decoder, byteArray)
+  const { frameBuffer, frameInfo } = _decode(decoders[mediaType], byteArray)
 
   return {
     decodedFrame: frameBuffer,
@@ -242,13 +197,6 @@ const _checkImageTypeAndDecode = ({
  * @private
  */
 const _decode = (decoder, byteArray) => {
-  if (decoder == null) {
-    throw new Error(
-      'The media type ' + mediaType +
-      ' is not supported by the offscreen rendering engine.'
-    )
-  }
-
   const encodedBuffer = decoder.getEncodedBuffer(byteArray.length)
   encodedBuffer.set(byteArray)
   decoder.decode()

@@ -287,7 +287,7 @@ function _createEmptyTile ({
   return pixelArray
 }
 
-function _createTileLoadFunction ({ pyramid, client, channel }) {
+function _createTileLoadFunction ({ decoders, pyramid, client, channel }) {
   return async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
     index += `-${channel}`
@@ -356,12 +356,6 @@ function _createTileLoadFunction ({ pyramid, client, channel }) {
       const octetStreamTransferSyntaxUID = '*'
 
       const mediaTypes = []
-      if (bitsAllocated <= 8) {
-        mediaTypes.push({
-          mediaType: jpegMediaType,
-          transferSyntaxUID: jpegTransferSyntaxUID
-        })
-      }
       mediaTypes.push(...[
         {
           mediaType: jlsMediaType,
@@ -392,6 +386,12 @@ function _createTileLoadFunction ({ pyramid, client, channel }) {
           transferSyntaxUID: octetStreamTransferSyntaxUID
         }
       ])
+      if (bitsAllocated <= 8) {
+        mediaTypes.push({
+          mediaType: jpegMediaType,
+          transferSyntaxUID: jpegTransferSyntaxUID
+        })
+      }
 
       const retrieveOptions = {
         studyInstanceUID,
@@ -404,6 +404,7 @@ function _createTileLoadFunction ({ pyramid, client, channel }) {
         (rawFrames) => {
           try {
             const { pixelArray } = decodeFrame({
+              decoders,
               frame: rawFrames[0],
               bitsAllocated,
               pixelRepresentation,

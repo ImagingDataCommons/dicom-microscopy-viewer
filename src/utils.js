@@ -96,7 +96,7 @@ function computeRotation (options) {
 }
 
 /**
- * Builds an affine transformation matrix to map coordinates in the Total
+ * Build an affine transformation matrix to map coordinates in the Total
  * Pixel Matrix into the slide coordinate system.
  *
  * @param {Object} options - Options
@@ -139,21 +139,28 @@ function buildTransform ({ offset, orientation, spacing }) {
     throw new Error('Option "spacing" must be an array with 2 elements.')
   }
 
-  return [
+  const affine = [
     [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
     [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
     [0, 0, 1]
   ]
+  const correction = [
+    [1.0, 0.0, 0.0, -0.5],
+    [0.0, 1.0, 0.0, -0.5],
+    [0.0, 0.0, 1.0, 0.0],
+    [0.0, 0.0, 0.0, 1.0]
+  ]
+  return multiply(affine, correction)
 }
 
 /**
- * Apply an affine transformation to a coordinate in the Total Pixel Matrix
- * to map it into the slide coordinate system.
+ * Apply an affine transformation to an image coordinate in the total pixel
+ * matrix to map it into the slide coordinate system.
  *
  * @param {Object} options - Options
- * @params {number[]} options.coordinate - (Row, Column) position in the Total Pixel Matrix
+ * @params {number[]} options.coordinate - (column, row) image coordinate
  * @params {number[][]} options.affine - 3x3 affine transformation matrix
- * @returns {number[]} (X, Y) position in the slide coordinate system
+ * @returns {number[]} (x, y) reference coordinate
  */
 function applyTransform ({ coordinate, affine }) {
   if (coordinate == null) {
@@ -234,22 +241,28 @@ function buildInverseTransform ({ offset, orientation, spacing }) {
     throw new Error('Option "spacing" must be an array with 2 elements.')
   }
 
-  const m = [
+  const affine = inv([
     [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
     [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
     [0, 0, 1]
+  ])
+  const correction = [
+    [1.0, 0.0, 0.0, 0.5],
+    [0.0, 1.0, 0.0, 0.5],
+    [0.0, 0.0, 1.0, 0.0],
+    [0.0, 0.0, 0.0, 1.0]
   ]
-  return inv(m)
+  return multiply(correction, affine)
 }
 
 /**
- * Apply an affine transformation to a coordinate in the slide coordinate
- * system to map it into the Total Pixel Matrix.
+ * Apply an affine transformation to a reference coordinate in the slide
+ * coordinate system to map it into the total pixel matrix.
  *
  * @param {Object} options - Options
- * @params {number[]} options.coordinate - (X, Y) position in the slide coordinate system
+ * @params {number[]} options.coordinate - (x, y) reference coordinate
  * @params {number[][]} options.affine - 3x3 affine transformation matrix
- * @returns {number[]} (Row, Column) position in the Total Pixel Matrix
+ * @returns {number[]} (column, row) image coordinate
  */
 function applyInverseTransform ({ coordinate, affine }) {
   if (coordinate == null) {
@@ -282,21 +295,21 @@ function applyInverseTransform ({ coordinate, affine }) {
 
   const pixelCoordinate = multiply(affine, slideCoordinate)
 
-  const row = Number(pixelCoordinate[1][0].toFixed(4))
   const col = Number(pixelCoordinate[0][0].toFixed(4))
+  const row = Number(pixelCoordinate[1][0].toFixed(4))
   return [col, row]
 }
 
 /**
- * Map 2D (Column, Row) image coordinate in the Total Pixel Matrix
- * to 3D (X, Y, Z) slide coordinates in the Frame of Reference.
+ * Map 2D (column, row) image coordinates in the Total Pixel Matrix
+ * to 3D (x, y, z) slide coordinates in the Frame of Reference.
  *
  * @param {Object} options - Options
  * @param {number[]} options.offset - X and Y offset in the slide coordinate system
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
- * @param {number[]} options.point - Column and Row position of the point in the Total Pixel Matrix
- * @returns {number[]} X, Y and Z position of the point in the slide coordinate system
+ * @param {number[]} options.point - (colum, row) image coordinates
+ * @returns {number[]} (x, y, z) slide coordinates
  * @memberof utils
  */
 function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing }) {
@@ -319,15 +332,15 @@ function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing }) {
 }
 
 /**
- * Map 3D (X, Y, Z) slide coordinate in to the Frame of Reference to
- * 2D (Column, Row) image coordinate in the Total Pixel Matrix.
+ * Map 3D (x, y, z) slide coordinates in the Frame of Reference to
+ * 2D (column, row) image coordinates in the Total Pixel Matrix.
  *
  * @param {Object} options - Options
  * @param {number[]} options.offset - X and Y offset in the slide coordinate system
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
- * @param {number[]} options.point - X, Y and Z position of the point in the slide coordinate system
- * @returns {number[]} Column and Row position of the point in the Total Pixel Matrix
+ * @param {number[]} options.point - (x, y, z) slide coordinates
+ * @returns {number[]} (row, column) image coordinates
  * @memberof utils
  */
 function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
