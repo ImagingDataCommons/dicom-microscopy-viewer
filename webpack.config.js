@@ -12,20 +12,16 @@ const config = {
     }
   },
   module: {
-    noParse: [/(codecs)/],
+    noParse: [/(codec)/],
     rules: [
       {
         test: /\.css$/,
         use: 'css-loader'
-      },
-      {
-        test: /\.wasm$/,
-        type: 'asset/inline',
-      },
+      }
     ]
   },
   experiments: {
-    asyncWebAssembly: true,
+    asyncWebAssembly: true
   },
   target: 'web',
   resolve: {

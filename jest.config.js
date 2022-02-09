@@ -10,12 +10,13 @@ module.exports = {
   ],
   moduleFileExtensions: ['js', 'wasm', 'json'],
   transform: {
+    '^.+_decode\\.js$': '<rootDir>/src/__mocks__/emscriptenMock.js',
     '^.+\\.js$': 'babel-jest',
     '\\.(css|less|sass|scss)$': '<rootDir>/src/__mocks__/styleMock.js',
-    '\\.(wasm)$': "<rootDir>/src/__mocks__/fileMock.js"
+    '\\.(wasm)$': '<rootDir>/src/__mocks__/wasmMock.js'
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(ol|@cornerstonejs)/)', // <- exclude the OL lib
+    'node_modules/(?!(ol|@cornerstonejs)/)' // <- exclude OpenLayers libraries
   ],
   testMatch: [
     '<rootDir>/src/**/*.test.js'

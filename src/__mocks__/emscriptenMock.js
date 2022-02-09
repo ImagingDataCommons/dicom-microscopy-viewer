@@ -1,5 +1,5 @@
 module.exports = {
   process: () => {
-    return ''
+    return 'module.exports = () => {}'
   }
 }
