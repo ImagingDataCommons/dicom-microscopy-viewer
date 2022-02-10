@@ -20,7 +20,7 @@
     ]
   },
   "scripts": {
-    "test": "standard 'src/*.js' && jest --verbose",
+    "test": "standard 'src/*.js' && jest --silent",
     "build": "webpack --mode=production",
     "build:dev": "webpack --mode=development",
     "prepublishOnly": "npm run buildProd",
@@ -52,6 +52,7 @@
     "babel-jest": "27.5",
     "css-loader": "^6.6",
     "jest": "^27.5",
+    "jest-canvas-mock": "^2.3.1",
     "standard": "^16.0",
     "webpack": "^5.68",
     "webpack-cli": "^4.9"

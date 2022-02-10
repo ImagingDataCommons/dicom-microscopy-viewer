@@ -2,6 +2,9 @@ import { tagToKeyword } from './dictionary'
 import { SOPClassUIDs } from './enums'
 import { _groupFramesPerMapping } from './mapping'
 
+const _metadata = Symbol('metadata')
+const _bulkdataReferences = Symbol('bulkdataReferences')
+
 function _base64ToUint8Array (value) {
   const blob = window.atob(value)
   const array = new Uint8Array(blob.length)
@@ -223,12 +226,12 @@ function getFrameMapping (metadata) {
 function formatMetadata (metadata) {
   const loadJSONDataset = (elements) => {
     const dataset = {}
-    const bulkDataMapping = {}
+    const bulkdataReferences = {}
     Object.keys(elements).forEach(tag => {
       const keyword = tagToKeyword[tag]
       const vr = elements[tag].vr
       if ('BulkDataURI' in elements[tag]) {
-        bulkDataMapping[keyword] = elements[tag]
+        bulkdataReferences[keyword] = elements[tag]
       } else if ('Value' in elements[tag]) {
         const value = elements[tag].Value
         if (vr === 'SQ') {
@@ -237,10 +240,10 @@ function formatMetadata (metadata) {
           value.forEach(item => {
             const loaded = loadJSONDataset(item)
             dataset[keyword].push(loaded.dataset)
-            mappings.push(loaded.bulkDataMapping)
+            mappings.push(loaded.bulkdataReferences)
           })
           if (mappings.some(item => Object.keys(item).length > 0)) {
-            bulkDataMapping[keyword] = mappings
+            bulkdataReferences[keyword] = mappings
           }
         } else {
           // Handle value multiplicity.
@@ -279,10 +282,10 @@ function formatMetadata (metadata) {
         }
       }
     })
-    return { dataset, bulkDataMapping }
+    return { dataset, bulkdataReferences }
   }
 
-  const { dataset, bulkDataMapping } = loadJSONDataset(metadata)
+  const { dataset, bulkdataReferences } = loadJSONDataset(metadata)
 
   // The top level (lowest resolution) image may be a single frame image in
   // which case the "NumberOfFrames" attribute is optional. We include it for
@@ -294,38 +297,46 @@ function formatMetadata (metadata) {
     dataset.NumberOfFrames = 1
   }
 
-  return { dataset, bulkDataMapping }
+  return { dataset, bulkdataReferences }
 }
 
-/** Group DICOM metadata of monochrome slides by Optical Path Identifier.
+/**
+ * Group DICOM metadata of monochrome slides by Optical Path Identifier.
  *
- * @param {Object[]} metadata - DICOM JSON objects representing metadata of VL Whole Slide Microscopy Image instances.
+ * @param {Object[]} images - DICOM VL Whole Slide Microscopy Image instances.
  *
- * @returns {Object[]} Groups of formatted VLWholeSlideMicroscopyImage instances
+ * @returns {Object[][]} Groups of DICOM VL Whole Slide Microscopy Image instances
  * @memberof metadata
  */
-function groupMonochromeInstances (metadata) {
+function groupMonochromeInstances (images) {
   const channels = []
-  for (let i = 0; i < metadata.length; ++i) {
-    const microscopyImage = new VLWholeSlideMicroscopyImage({
-      metadata: metadata[i]
-    })
-    if (microscopyImage.ImageType[2] !== 'VOLUME') {
+  for (let i = 0; i < images.length; ++i) {
+    if (images[i].ImageType[2] !== 'VOLUME') {
       continue
     }
 
-    if (microscopyImage.SamplesPerPixel === 1 &&
-        microscopyImage.PhotometricInterpretation === 'MONOCHROME2') {
-      // this is a monochrome channel
-      const pathIdentifier = microscopyImage.OpticalPathSequence[0].OpticalPathIdentifier
-      const channel = channels.find(channel => {
-        return channel[0].OpticalPathSequence[0].OpticalPathIdentifier === pathIdentifier
+    if (images[i].SamplesPerPixel === 1 &&
+        images[i].PhotometricInterpretation === 'MONOCHROME2'
+    ) {
+      const opticalPathIdentifier = (
+        images[i]
+          .OpticalPathSequence[0]
+          .OpticalPathIdentifier
+      )
+      const group = channels.find(group => {
+        const currentOpticalPathIdentifier = (
+          group[0]
+            .OpticalPathSequence[0]
+            .OpticalPathIdentifier
+        )
+        return currentOpticalPathIdentifier === opticalPathIdentifier
       })
 
-      if (channel) {
-        channel.push(microscopyImage)
+      if (group) {
+        group.push(images[i])
       } else {
-        channels.push([microscopyImage])
+        const group = [images[i]]
+        channels.push(group)
       }
     }
   }
@@ -333,56 +344,78 @@ function groupMonochromeInstances (metadata) {
   return channels
 }
 
-/** Group DICOM metadata of color images slides by Optical Path Identifier.
+/**
+ * Group DICOM metadata of color images slides by Optical Path Identifier.
  *
- * @param {Object[]} metadata
+ * @param {Object[]} images - DICOM VL Whole Slide Microscopy Image instances.
  *
- * @returns {Object[]} groups of VLWholeSlideMicroscopyImages
+ * @returns {Object[][]} Groups of DICOM VL Whole Slide Microscopy Image instances
  * @memberof metadata
  */
-function groupColorInstances (metadata) {
+function groupColorInstances (images) {
   const colorImages = []
-  for (let i = 0; i < metadata.length; ++i) {
-    const microscopyImage = new VLWholeSlideMicroscopyImage({
-      metadata: metadata[i]
-    })
+  for (let i = 0; i < images.length; ++i) {
     if (
-      microscopyImage.ImageType[2] === 'LABEL' ||
-      microscopyImage.ImageType[2] === 'OVERVIEW'
+      images[i].ImageType[2] === 'LABEL' ||
+      images[i].ImageType[2] === 'OVERVIEW'
     ) {
       continue
     }
 
     if (
-      microscopyImage.SamplesPerPixel !== 1 &&
+      images[i].SamplesPerPixel !== 1 &&
       (
-        microscopyImage.PhotometricInterpretation === 'RGB' ||
-        microscopyImage.PhotometricInterpretation.includes('YBR')
+        images[i].PhotometricInterpretation === 'RGB' ||
+        images[i].PhotometricInterpretation.includes('YBR')
       )
     ) {
       const opticalPathIdentifier = (
-        microscopyImage
+        images[i]
           .OpticalPathSequence[0]
           .OpticalPathIdentifier
       )
-      const colorImage = colorImages.find(images => {
+      const group = colorImages.find(group => {
         const currentOpticalPathIdentifier = (
-          images[0]
+          group[0]
             .OpticalPathSequence[0]
             .OpticalPathIdentifier
         )
         return currentOpticalPathIdentifier === opticalPathIdentifier
       })
 
-      if (colorImage) {
-        colorImage.push(microscopyImage)
+      if (group) {
+        group.push(images[i])
       } else {
-        colorImages.push([microscopyImage])
+        const group = [images[i]]
+        colorImages.push(group)
       }
     }
   }
 
   return colorImages
+}
+
+class SOPClass {
+  constructor ({ metadata }) {
+    if (metadata == null) {
+      throw new Error(
+        'Cannot construct SOP Instance because no metadata was provided.'
+      )
+    }
+    const { dataset, bulkdataReferences } = formatMetadata(metadata)
+    Object.assign(this, dataset)
+    this[_metadata] = metadata
+    this[_bulkdataReferences] = bulkdataReferences
+    Object.freeze(this)
+  }
+
+  get json () {
+    return this[_metadata]
+  }
+
+  get bulkdataReferences () {
+    return this[_bulkdataReferences]
+  }
 }
 
 /** DICOM VL Whole Slide Microscopy Image instance
@@ -391,29 +424,19 @@ function groupColorInstances (metadata) {
  * @class
  * @memberof metadata
  */
-class VLWholeSlideMicroscopyImage {
+class VLWholeSlideMicroscopyImage extends SOPClass {
   /**
    * @params {Object} options
    * @params {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
-   * @params {Callable} options.bulkDataHandler - Callable for retrieving bulk data values (receives BulkDataURI as input and returns the retrieved value)
    */
-  constructor ({ metadata, bulkDataHandler }) {
-    let dataset
-    if ('StudyInstanceUID' in metadata) {
-      // Has already been formatted
-      dataset = metadata
-    } else {
-      const formatted = formatMetadata(metadata)
-      dataset = formatted.dataset
-    }
-    if (dataset.SOPClassUID !== SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE) {
+  constructor ({ metadata }) {
+    super({ metadata })
+    if (this.SOPClassUID !== SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE) {
       throw new Error(
         'Cannot construct VL Whole Slide Microscopy Image instance ' +
-        `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+        `given dataset with SOP Class UID "${this.SOPClassUID}"`
       )
     }
-
-    Object.assign(this, dataset)
   }
 }
 
@@ -422,29 +445,19 @@ class VLWholeSlideMicroscopyImage {
  * @class
  * @memberof metadata
  */
-class Comprehensive3DSR {
+class Comprehensive3DSR extends SOPClass {
   /**
    * @params {Object} options
-   * @params {Object} options.metadata - Metadata in DICOM JSON format
-   * @params {Callable} options.bulkDataHandler - Callable for retrieving bulk data values (receives BulkDataURI as input and returns the retrieved value)
+   * @params {Object} options.metadata - Metadata of DICOM Structured Report instance in DICOM JSON format
    */
-  constructor ({ metadata, bulkDataHandler }) {
-    let dataset
-    if ('StudyInstanceUID' in metadata) {
-      // Has already been formatted
-      dataset = metadata
-    } else {
-      const formatted = formatMetadata(metadata)
-      dataset = formatted.dataset
-    }
-    if (dataset.SOPClassUID !== SOPClassUIDs.COMPREHENSIVE_3D_SR) {
+  constructor ({ metadata }) {
+    super({ metadata })
+    if (this.SOPClassUID !== SOPClassUIDs.COMPREHENSIVE_3D_SR) {
       throw new Error(
         'Cannot construct Comprehensive 3D SR instance ' +
-          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`
       )
     }
-
-    Object.assign(this, dataset)
   }
 }
 
@@ -453,28 +466,19 @@ class Comprehensive3DSR {
  * @class
  * @memberof metadata
  */
-class MicroscopyBulkSimpleAnnotations {
+class MicroscopyBulkSimpleAnnotations extends SOPClass {
   /**
    * @params {Object} options
    * @params {Object} options.metadata - Metadata of a DICOM Microscopy Bulk Simple Annotations instance in DICOM JSON format
    */
   constructor ({ metadata }) {
-    let dataset
-    if ('StudyInstanceUID' in metadata) {
-      // Has already been formatted
-      dataset = metadata
-    } else {
-      const formatted = formatMetadata(metadata)
-      dataset = formatted.dataset
-    }
-    if (dataset.SOPClassUID !== SOPClassUIDs.MICROSCOPY_BULK_SIMPLE_ANNOTATIONS) {
+    super({ metadata })
+    if (this.SOPClassUID !== SOPClassUIDs.MICROSCOPY_BULK_SIMPLE_ANNOTATIONS) {
       throw new Error(
         'Cannot construct Microscopy Bulk Simple Annotations instance ' +
-          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`
       )
     }
-
-    Object.assign(this, dataset)
   }
 }
 
@@ -483,28 +487,19 @@ class MicroscopyBulkSimpleAnnotations {
  * @class
  * @memberof metadata
  */
-class ParametricMap {
+class ParametricMap extends SOPClass {
   /**
    * @params {Object} options
    * @params {Object} options.metadata - Metadata of a DICOM Parametric Map instance in DICOM JSON format
    */
   constructor ({ metadata }) {
-    let dataset
-    if ('StudyInstanceUID' in metadata) {
-      // Has already been formatted
-      dataset = metadata
-    } else {
-      const formatted = formatMetadata(metadata)
-      dataset = formatted.dataset
-    }
-    if (dataset.SOPClassUID !== SOPClassUIDs.PARAMETRIC_MAP) {
+    super({ metadata })
+    if (this.SOPClassUID !== SOPClassUIDs.PARAMETRIC_MAP) {
       throw new Error(
         'Cannot construct Parametric Map instance ' +
-          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`
       )
     }
-
-    Object.assign(this, dataset)
   }
 }
 
@@ -513,28 +508,19 @@ class ParametricMap {
  * @class
  * @memberof metadata
  */
-class Segmentation {
+class Segmentation extends SOPClass {
   /**
    * @params {Object} options
    * @params {Object} options.metadata - Metadata of a DICOM Segmentation instance in DICOM JSON format
    */
   constructor ({ metadata }) {
-    let dataset
-    if ('StudyInstanceUID' in metadata) {
-      // Has already been formatted
-      dataset = metadata
-    } else {
-      const formatted = formatMetadata(metadata)
-      dataset = formatted.dataset
-    }
-    if (dataset.SOPClassUID !== SOPClassUIDs.SEGMENTATION) {
+    super({ metadata })
+    if (this.SOPClassUID !== SOPClassUIDs.SEGMENTATION) {
       throw new Error(
         'Cannot construct Segmentation instance ' +
-          `given dataset with SOP Class UID "${dataset.SOPClassUID}"`
+        `given dataset with SOP Class UID "${this.SOPClassUID}"`
       )
     }
-
-    Object.assign(this, dataset)
   }
 }
 

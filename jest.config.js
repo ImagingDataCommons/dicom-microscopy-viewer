@@ -16,12 +16,13 @@ module.exports = {
     '\\.(wasm)$': '<rootDir>/src/__mocks__/wasmMock.js'
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(ol|@cornerstonejs)/)' // <- exclude OpenLayers libraries
+    'node_modules/(?!(ol|@cornerstonejs)/)' // <- transform libraries
   ],
   testMatch: [
     '<rootDir>/src/**/*.test.js'
   ],
   testPathIgnorePatterns: [
     '<rootDir>/node_modules'
-  ]
+  ],
+  setupFiles: ['jest-canvas-mock']
 }

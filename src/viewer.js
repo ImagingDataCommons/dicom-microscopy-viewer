@@ -55,9 +55,9 @@ import {
   _buildColorLookupTable
 } from './color.js'
 import {
-  VLWholeSlideMicroscopyImage,
   groupMonochromeInstances,
-  groupColorInstances
+  groupColorInstances,
+  VLWholeSlideMicroscopyImage
 } from './metadata.js'
 import { Mapping, _groupFramesPerMapping } from './mapping.js'
 import { ROI } from './roi.js'
@@ -122,7 +122,7 @@ const charls = charlsFactory({
   }
 })
 
-async function initializeDecoders () {
+async function _initializeDecoders () {
   console.info('initialize JPEG decoder')
   const jpegDecoder = new libjpeg.JPEGDecoder()
 
@@ -556,7 +556,6 @@ function _setFeatureStyle (feature, styleOptions) {
   }
 }
 
-const _options = Symbol('options')
 const _controls = Symbol('controls')
 const _decoders = Symbol('decoders')
 const _drawingLayer = Symbol('drawingLayer')
@@ -567,6 +566,7 @@ const _interactions = Symbol('interactions')
 const _map = Symbol('map')
 const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
+const _options = Symbol('options')
 const _pyramid = Symbol('pyramid')
 const _segments = Symbol('segments')
 const _opticalPaths = Symbol('opticalPaths')
@@ -589,7 +589,7 @@ class VolumeImageViewer {
    *
    * @param {object} options
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
-   * @param {object[]} options.metadata - An array of DICOM JSON metadata objects or formatted image metadata objects created via "formatMetadata()".
+   * @param {object[]} options.metadata - An array of DICOM JSON metadata objects
    *        The array shall contain the metadata of all image instances that should be displayed.
    * @param {object} options.styleOptions - Default style options for annotations.
    * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
@@ -639,12 +639,29 @@ class VolumeImageViewer {
       this[_annotationManager].onRemove(e.element)
     })
 
+    if (this[_options].metadata.constructor.name !== 'Array') {
+      throw new Error('Input metadata must be an array.')
+    }
+
     if (this[_options].metadata.length === 0) {
-      throw new Error('Input metadata has no instances.')
+      throw new Error('Input metadata array is empty.')
+    }
+
+    if (this[_options].metadata.some((item) => typeof item !== 'object')) {
+      throw new Error('Input metadata must be an array of objects.')
+    }
+
+    // We also accept metadata in raw JSON format for backwards compatibility
+    if (this[_options].metadata[0].SOPClassUID != null) {
+      this[_metadata] = this[_options].metadata
+    } else {
+      this[_metadata] = this[_options].metadata.map(instance => {
+        return new VLWholeSlideMicroscopyImage({ metadata: instance })
+      })
     }
 
     // Group color images by opticalPathIdentifier
-    const colorGroups = groupColorInstances(this[_options].metadata)
+    const colorGroups = groupColorInstances(this[_metadata])
     const colorImageInformation = {}
     if (colorGroups.length > 0) {
       if (colorGroups.length > 1) {
@@ -661,11 +678,11 @@ class VolumeImageViewer {
       )
       colorImageInformation[opticalPathIdentifier] = {
         metadata: colorGroups[0],
-        opticalPath: this[_options].metadata[0].OpticalPathSequence[0]
+        opticalPath: this[_metadata][0].OpticalPathSequence[0]
       }
     }
 
-    const monochromeGroups = groupMonochromeInstances(this[_options].metadata)
+    const monochromeGroups = groupMonochromeInstances(this[_metadata])
     const monochromeImageInformation = {}
     monochromeGroups.forEach((group, i) => {
       group.forEach(image => {
@@ -857,7 +874,10 @@ class VolumeImageViewer {
           bandCount: 1
         })
         source.on('tileloaderror', (event) => {
-          console.error('error loading optical path tile', event)
+          console.error(
+            `error loading tile of optical path "${opticalPathIdentifier}"`,
+            event
+          )
         })
         if (this[_decoders] != null) {
           const loader = _createTileLoadFunction({
@@ -918,6 +938,12 @@ class VolumeImageViewer {
           const gl = event.context
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.DST_COLOR)
+        })
+        opticalPath.layer.on('error', (event) => {
+          console.error(
+            `error rendering optical path "${opticalPathIdentifier}"`,
+            event
+          )
         })
 
         opticalPath.overviewTileLayer = new TileLayer({
@@ -983,7 +1009,10 @@ class VolumeImageViewer {
         bandCount: 3
       })
       source.on('tileloaderror', (event) => {
-        console.error('error loading optical path tile', event)
+        console.error(
+          `error loading tile of optical path "${opticalPathIdentifier}"`,
+          event
+        )
       })
       if (this[_decoders] != null) {
         const loader = _createTileLoadFunction({
@@ -999,6 +1028,12 @@ class VolumeImageViewer {
         preload: 1,
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize
+      })
+      opticalPath.layer.on('error', (event) => {
+        console.error(
+          `error rendering optical path "${opticalPathIdentifier}"`,
+          event
+        )
       })
 
       opticalPath.overviewTileLayer = new TileLayer({
@@ -1288,10 +1323,12 @@ class VolumeImageViewer {
     if (!this.isOpticalPathActive(opticalPathIdentifier)) {
       return
     }
-    opticalPath.layer.dispose()
     this[_map].removeLayer(opticalPath.layer)
+    opticalPath.layer.dispose()
+    this[_overviewMap].getOverviewMap().removeLayer(
+      opticalPath.overviewTileLayer
+    )
     opticalPath.overviewTileLayer.dispose()
-    this[_overviewMap].getOverviewMap().removeLayer(opticalPath.overviewTileLayer)
   }
 
   /** Determine whether an optical path is active.
@@ -1387,6 +1424,30 @@ class VolumeImageViewer {
   }
 
   /**
+   * Clean up.
+   *
+   * Release allocated memory and clear the viewport.
+   */
+  cleanup () {
+    const itemsRequiringDisposal = [
+      ...Object.values(this[_opticalPaths]),
+      ...Object.values(this[_segments]),
+      ...Object.values(this[_mappings]),
+      ...Object.values(this[_annotationGroups])
+    ]
+    itemsRequiringDisposal.forEach(item => {
+      console.log('DEBUG: ', item.layer.helper)
+      item.layer.dispose()
+      this[_map].removeLayer(item.layer)
+      if (item.overlay) {
+        item.overlay.dispose()
+        this[_map].removeOverlay(item.overlay)
+      }
+      this[_features].clear()
+    })
+  }
+
+  /**
    * Render the images in the specified viewport container.
    *
    * @param {object} options - Rendering options.
@@ -1399,7 +1460,7 @@ class VolumeImageViewer {
     }
 
     console.info('initialize decoders')
-    initializeDecoders().then(decoders => {
+    _initializeDecoders().then(decoders => {
       console.info('provide decoders to loaders')
       this[_decoders] = decoders
 
@@ -1536,6 +1597,7 @@ class VolumeImageViewer {
       }
       overviewmapElement.style.width = `${targetWidth}px`
       overviewmapElement.style.height = `${targetHeight}px`
+      this[_overviewMap].getOverviewMap().updateSize()
     })
   }
 
@@ -1767,10 +1829,11 @@ class VolumeImageViewer {
         throw error
       }
 
-      const properties = feature.getProperties()
-      // Remove geometry from properties mapping
-      const geometryName = feature.getGeometryName()
-      delete properties[geometryName]
+      const featureProperties = feature.getProperties()
+      const properties = {
+        measurements: featureProperties.measurements,
+        evaluations: featureProperties.evaluations
+      }
       const uid = feature.getId()
       const roi = new ROI({ scoord3d, properties, uid })
       return roi
@@ -2131,8 +2194,17 @@ class VolumeImageViewer {
    * @param {object} styleOptions.image - Style options for image
    *
    */
-  addROI (roi, styleOptions) {
+  addROI (roi, styleOptions = {}) {
     console.info(`add ROI ${roi.uid}`)
+
+    const frameOfReferenceUID = this[_pyramid].metadata.FrameOfReferenceUID
+    if (roi.frameOfReferenceUID !== frameOfReferenceUID) {
+      throw new Error(
+        `Frame of Reference UID of ROI ${roi.uid} does not match ` +
+        'Frame of Reference UID of source images.'
+      )
+    }
+
     const geometry = _scoord3d2Geometry(roi.scoord3d, this[_pyramid].metadata)
     const featureOptions = { geometry }
 
@@ -2188,7 +2260,7 @@ class VolumeImageViewer {
    * @param {object} styleOptions.image - Style options for image
    *
    */
-  setROIStyle (uid, styleOptions) {
+  setROIStyle (uid, styleOptions = {}) {
     this[_features].forEach((feature) => {
       const id = feature.getId()
       if (id === uid) {
@@ -2276,10 +2348,9 @@ class VolumeImageViewer {
   /**
    * Add annotation groups.
    *
-   * @param {MicroscopySimpleBulkAnnotations} metadata - Metadata of a DICOM Microscopy Simple Bulk Annotations instance
-   * @param {Object} bulkdata - Bulkdata of a DICOM Microscopy Simple Bulk Annotations instance
+   * @param {MicroscopyBulkSimpleAnnotations} metadata - Metadata of a DICOM Microscopy Simple Bulk Annotations instance
    */
-  addAnnotationGroups (metadata, bulkdata = {}) {
+  addAnnotationGroups (metadata) {
     const refImage = this[_pyramid].metadata[0]
     if (refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
       throw new Error(
@@ -2312,8 +2383,7 @@ class VolumeImageViewer {
           opacity: 1.0,
           color: '#027ea3'
         },
-        metadata: metadata,
-        bulkdata: bulkdata
+        metadata: metadata
       }
 
       if (item.GraphicType === 'POLYLINE') {
@@ -2328,11 +2398,117 @@ class VolumeImageViewer {
         return
       }
 
-      // TODO: how to use "loader" with bbox or tile "strategy"?
+      // We need to bind those variables to constants for the loader function
+      const client = this[_options].client
+      const pyramid = this[_pyramid].metadata
+
+      /**
+       * In the loader function "this" is bound to the vector source.
+       */
+      function loader (extent, resolution, projection, success, failure) {
+        // TODO: figure out how to use "loader" with bbox or tile "strategy"?
+        const index = annotationGroup.annotationGroup.number - 1
+        const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[index]
+        /**
+         * Bulkdata may not be available, since it's possible that all information
+         * has been included into the metadata by value as InlineBinary. It must
+         * only be provided if information has been included by reference as
+         * BulkDataURI.
+         */
+        const bulkdataReferences = annotationGroup.metadata.bulkdataReferences
+        let bulkdataItem
+        if (bulkdataReferences.AnnotationGroupSequence != null) {
+          bulkdataItem = bulkdataReferences.AnnotationGroupSequence[index]
+        }
+
+        const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
+        const graphicType = metadataItem.GraphicType
+        const coordinateDimensionality = _getCoordinateDimensionality(metadataItem)
+        const commonZCoordinate = _getCommonZCoordinate(metadataItem)
+
+        const features = this.getFeatures()
+        if (features.length > 0) {
+          success(features)
+          return
+        }
+
+        const promises = [
+          _fetchGraphicData({ metadataItem, bulkdataItem, client }),
+          _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
+          _fetchMeasurements({ metadataItem, bulkdataItem, client })
+        ]
+        Promise.all(promises).then(retrievedBulkdata => {
+          const graphicData = retrievedBulkdata[0]
+          const graphicIndex = retrievedBulkdata[1]
+          const measurements = retrievedBulkdata[2]
+
+          for (let i = 0; i < numberOfAnnotations; i++) {
+            const point = _getCentroid(
+              graphicType,
+              graphicData,
+              graphicIndex,
+              coordinateDimensionality,
+              commonZCoordinate,
+              i,
+              numberOfAnnotations
+            )
+            const feature = new Feature({
+              geometry: new PointGeometry(
+                _scoord3dCoordinates2geometryCoordinates(point, pyramid)
+              )
+            })
+            const properties = {}
+            measurements.forEach(item => {
+              const name = item.name
+              const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
+              const value = item.values[i]
+              properties[key] = value
+            })
+            feature.setProperties(properties)
+            feature.setId(i + 1)
+            features.push(feature)
+          }
+
+          console.log(
+            `add n=${features.length} annotations ` +
+            `for annotation group "${annotationGroupUID}"`
+          )
+          this.addFeatures(features)
+          const properties = {}
+          measurements.forEach(item => {
+            const name = item.name
+            const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
+            const value = quantileSeq(
+              [...item.values],
+              [0, 0.015, 0.25, 0.5, 0.75, 0.95, 1]
+            )
+            properties[key] = value
+          })
+          this.setProperties(properties)
+          success(features)
+        }).catch(error => {
+          console.error(error)
+          failure()
+        })
+      }
+
       const source = new VectorSource({
+        loader,
         wrapX: false,
         rotateWithView: true,
         overlaps: false
+      })
+      source.on('featuresloadstart', (event) => {
+        const container = this[_map].getTargetElement()
+        publish(container, EVENT.LOADING_STARTED)
+      })
+      source.on('featuresloadend', (event) => {
+        const container = this[_map].getTargetElement()
+        publish(container, EVENT.LOADING_ENDED)
+      })
+      source.on('featureserror', (event) => {
+        const container = this[_map].getTargetElement()
+        publish(container, EVENT.LOADING_ENDED)
       })
 
       /*
@@ -2403,11 +2579,44 @@ class VolumeImageViewer {
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`show annotation group ${annotationGroupUID}`)
-    const client = this[_options].client
+    this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
+    annotationGroup.layer.setVisible(true)
+  }
+
+  _retrieveAnnotationGroupBulkdata (annotationGroupUID) {
+    if (!(annotationGroupUID in this[_annotationGroups])) {
+      throw new Error(
+        'Cannot retrieve bulkdata of annotation group. ' +
+        `Could not find annotation group "${annotationGroupUID}".`
+      )
+    }
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    console.log(
+      `retrieve bulkdata for annotation group "${annotationGroupUID}"`
+    )
+    const container = this[_map].getTargetElement()
+    if (container == null) {
+      throw new Error(
+        'Cannot retrieve bulkdata of annotation group. ' +
+        'Viewport has not been rendered. Call render() first.'
+      )
+    }
+    publish(container, EVENT.LOADING_STARTED)
 
     const index = annotationGroup.annotationGroup.number - 1
     const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[index]
-    const bulkdataItem = annotationGroup.bulkdata.AnnotationGroupSequence[index]
+    /**
+     * Bulkdata may not be available, since it's possible that all information
+     * has been included into the metadata by value as InlineBinary. It must
+     * only be provided if information has been included by reference as
+     * BulkDataURI.
+     */
+    const bulkdataReferences = annotationGroup.metadata.bulkdataReferences
+    let bulkdataItem
+    if (bulkdataReferences.AnnotationGroupSequence != null) {
+      bulkdataItem = bulkdataReferences.AnnotationGroupSequence[index]
+    }
+
     const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
     const graphicType = metadataItem.GraphicType
     const coordinateDimensionality = _getCoordinateDimensionality(metadataItem)
@@ -2416,18 +2625,7 @@ class VolumeImageViewer {
     const source = annotationGroup.layer.getSource()
     const features = source.getFeatures()
 
-    // Data has already been retrieved and cached
-    if (features.length > 0) {
-      this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
-      annotationGroup.layer.setVisible(true)
-      return
-    }
-
-    console.log(
-      `retrieve bulkdata for annotation group "${annotationGroupUID}"`
-    )
-    const container = this[_map].getTargetElement()
-    publish(container, EVENT.LOADING_STARTED)
+    const client = this[_options].client
     const promises = [
       _fetchGraphicData({ metadataItem, bulkdataItem, client }),
       _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
@@ -2484,14 +2682,11 @@ class VolumeImageViewer {
         properties[key] = value
       })
       source.setProperties(properties)
-
       publish(container, EVENT.LOADING_ENDED)
-      this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
     }).catch(error => {
       console.error(error)
+      publish(container, EVENT.LOADING_ENDED)
     })
-
-    annotationGroup.layer.setVisible(true)
   }
 
   /**
@@ -2535,7 +2730,7 @@ class VolumeImageViewer {
    * @param {number} styleOptions.opacity - Opacity
    * @param {number} styleOptions.measurement - Selected measurement for colorizing annotations
    */
-  setAnnotationGroupStyle (annotationGroupUID, styleOptions) {
+  setAnnotationGroupStyle (annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
       throw new Error(
         'Cannot set style of annotation group. ' +
@@ -2678,7 +2873,7 @@ class VolumeImageViewer {
   /**
    * Add segments.
    *
-   * @param {Segmentation[]} metadata - Metadata of DICOM Segmentation instances
+   * @param {Segmentation[]} metadata - Metadata of one or more DICOM Segmentation instances
    */
   addSegments (metadata) {
     if (metadata.length === 0) {
@@ -2687,7 +2882,6 @@ class VolumeImageViewer {
         'add segments.'
       )
     }
-
     const refSegmentation = metadata[0]
     const refImage = this[_pyramid].metadata[0]
     metadata.forEach(instance => {
@@ -2695,20 +2889,10 @@ class VolumeImageViewer {
         instance.TotalPixelMatrixColumns === undefined ||
         instance.TotalPixelMatrixRows === undefined
       ) {
-        const numberOfFrames = Number(instance.NumberOfFrames)
-        if (numberOfFrames === 1) {
-          /*
-           * If the image contains only one frame it is not tiled, and therefore
-           * the size of the total pixel matrix equals the size of the frame.
-           */
-          instance.TotalPixelMatrixRows = instance.Rows
-          instance.TotalPixelMatrixColumns = instance.Columns
-        } else {
-          throw new Error(
-            'Segmentation instances must contain attributes ' +
-            '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
-          )
-        }
+        throw new Error(
+          'Segmentation instances must contain attributes ' +
+          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
+        )
       }
       if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
         throw new Error(
@@ -2756,8 +2940,8 @@ class VolumeImageViewer {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment # ${segmentNumber}`)
       let segmentUID = generateUID()
-      if (item.UniqueTrackingIdentifier) {
-        segmentUID = item.UniqueTrackingIdentifier
+      if (item.TrackingUID) {
+        segmentUID = item.TrackingUID
       }
 
       const colormap = createColorMap({
@@ -2806,9 +2990,9 @@ class VolumeImageViewer {
         interpolate: true
       })
       source.on('tileloaderror', (event) => {
-        console.error('error loading segment tile', event)
+        console.error(`error loading tile of segment "${segmentUID}"`, event)
       })
-      if (this[_decoders] != null) {
+      if (this[_decoders]) {
         const loader = _createTileLoadFunction({
           decoders: this[_decoders],
           ...segment.loaderParams
@@ -2839,6 +3023,9 @@ class VolumeImageViewer {
         },
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize
+      })
+      segment.layer.on('error', (event) => {
+        console.error(`error rendering segment "${segmentUID}"`, event)
       })
 
       this[_map].addLayer(segment.layer)
@@ -2924,7 +3111,7 @@ class VolumeImageViewer {
    * @param {object} styleOptions - Style options
    * @param {number} styleOptions.opacity - Opacity
    */
-  setSegmentStyle (segmentUID, styleOptions) {
+  setSegmentStyle (segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         'Cannot set style of segment. ' +
@@ -2986,7 +3173,7 @@ class VolumeImageViewer {
    * @param {string} segmentUID - Unique tracking identifier of segment
    * @returns {object} Style settings
    */
-  getSegmentStyle (segmentUID, styleOptions) {
+  getSegmentStyle (segmentUID) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         'Cannot get style of segment. ' +
@@ -3030,7 +3217,7 @@ class VolumeImageViewer {
   /**
    * Add mappings.
    *
-   * @param {ParametricMap[]} metadata - Metadata of DICOM Parametric Map instances
+   * @param {ParametricMap[]} metadata - Metadata of one or more DICOM Parametric Map instances
    */
   addMappings (metadata) {
     if (metadata.length === 0) {
@@ -3111,11 +3298,24 @@ class VolumeImageViewer {
     let index = 0
     for (const mappingNumber in mappingNumberToDescriptions) {
       const mappingLabel = `${mappingNumber}`
-      const mappingUID = generateUID()
       const mappingDescriptions = mappingNumberToDescriptions[mappingNumber]
+      const refItem = mappingDescriptions[0]
+      let mappingUID = generateUID()
+      if (refItem.TrackingUID != null) {
+        mappingUID = refItem.TrackingUID
+      }
 
       const range = [NaN, NaN]
       mappingDescriptions.forEach((item, i) => {
+        if (item.TrackingUID != null) {
+          if (item.TrackingUID !== mappingUID) {
+            throw new Error(
+              `Item #${i + 1} of Real World Value Mapping Sequence ` +
+              `of frame #${index + 1} has unexpected Tracking UID. ` +
+              'All items must have the same unique identifier value.'
+            )
+          }
+        }
         let firstValueMapped = item.RealWorldValueFirstValueMapped
         let lastValueMapped = item.RealWorldValueLastValueMapped
         if (firstValueMapped === undefined && lastValueMapped === undefined) {
@@ -3157,8 +3357,8 @@ class VolumeImageViewer {
       let minValue = 0
       let maxValue = Math.pow(2, refInstance.BitsAllocated) - 1
       if (isFloatPixelData) {
-        minValue = -Math.pow(2, refInstance.BitsAllocated) / 2 + 1
-        maxValue = Math.pow(2, refInstance.BitsAllocated) / 2 - 1
+        minValue = -(Math.pow(2, refInstance.BitsAllocated) - 1) / 2
+        maxValue = (Math.pow(2, refInstance.BitsAllocated) - 1) / 2
       }
 
       const mapping = {
@@ -3202,9 +3402,9 @@ class VolumeImageViewer {
         interpolate: true
       })
       source.on('tileloaderror', (event) => {
-        console.error('error loading mapping tile', event)
+        console.error(`error loading tile of mapping "${mappingUID}"`, event)
       })
-      if (this[_decoders] != null) {
+      if (this[_decoders]) {
         const loader = _createTileLoadFunction({
           decoders: this[_decoders],
           ...mapping.loaderParams
@@ -3250,6 +3450,9 @@ class VolumeImageViewer {
             windowWidth: windowWidth
           }
         }
+      })
+      mapping.layer.on('error', (event) => {
+        console.error(`error rendering mapping "${mappingUID}"`, event)
       })
       this[_map].addLayer(mapping.layer)
 
@@ -3338,7 +3541,7 @@ class VolumeImageViewer {
    * @param {string} styleOptions.colormap - Name of the color map
    * @param {number} styleOptions.opacity - Opacity
    */
-  setMappingStyle (mappingUID, styleOptions) {
+  setMappingStyle (mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot set style of mapping. ' +
@@ -3413,7 +3616,7 @@ class VolumeImageViewer {
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @returns {object} Style Options
    */
-  getMappingStyle (mappingUID, styleOptions) {
+  getMappingStyle (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot get style of mapping. ' +
@@ -3477,9 +3680,14 @@ class _NonVolumeImageViewer {
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
    */
   constructor (options) {
-    this[_metadata] = new VLWholeSlideMicroscopyImage({
-      metadata: options.metadata
-    })
+    // We also accept metadata in raw JSON format for backwards compatibility
+    if (options.metadata.SOPClassUID != null) {
+      this[_metadata] = options.metadata
+    } else {
+      this[_metadata] = options.metadata.map(instance => {
+        return new VLWholeSlideMicroscopyImage({ metadata: instance })
+      })
+    }
 
     if (this[_metadata].ImageType[2] === 'VOLUME') {
       throw new Error('Viewer cannot render images of type VOLUME.')
@@ -3494,9 +3702,6 @@ class _NonVolumeImageViewer {
       width, // max X
       -1 // max Y
     ]
-
-    // Will only be initialized upon rendering
-    this[_decoders] = null
 
     const imageLoadFunction = (image, src) => {
       console.info('load image')
@@ -3575,7 +3780,16 @@ class _NonVolumeImageViewer {
     view.fit(projection.getExtent(), { size: this[_map].getSize() })
   }
 
-  /** Renders the image in the specified viewport container.
+  /**
+   * Clean up.
+   *
+   * Release allocated memory and clear the viewport.
+   */
+  cleanup () {}
+
+  /**
+   * Render the image in the specified viewport container.
+   *
    * @param {object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
@@ -3611,6 +3825,9 @@ class _NonVolumeImageViewer {
    */
   resize () {
     this[_map].updateSize()
+    if (this[_overviewMap]) {
+      this[_overviewMap].getOverviewMap().updateSize()
+    }
   }
 
   /**

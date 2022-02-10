@@ -8,6 +8,21 @@ const _attrs = Symbol('attrs')
  * @memberof annotation
  */
 class AnnotationGroup {
+  /**
+   * Create a new Annotation Group object.
+   *
+   * @param {Object} options - Options for construction of Annotation Group
+   * @param {string} options.uid - Unique tracking identifier
+   * @param {number} options.number - Annotation Group Number (one-based index value)
+   * @param {string} options.label - Annotation Group Label
+   * @param {string} options.algorithmName - Annotation Group Algorithm Name
+   * @param {object} options.algorithmType - Annotation Group Algorithm Type
+   * @param {object} options.propertyCategory - Annotation Property Category Code
+   * @param {object} options.propertyType - Annotation Property Type Code
+   * @param {string} options.studyInstanceUID - Study Instance UID of Annotation instances
+   * @param {string} options.seriesInstanceUID - Series Instance UID of Annotation instances
+   * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Annotation instances
+   */
   constructor ({
     uid,
     number,
@@ -21,53 +36,53 @@ class AnnotationGroup {
     sopInstanceUIDs
   }) {
     this[_attrs] = {}
-    if (uid === undefined) {
+    if (uid == null) {
       throw new Error('Annotation Group UID is required.')
     } else {
       this[_attrs].uid = uid
     }
 
-    if (number === undefined) {
+    if (number == null) {
       throw new Error('Annotation Group Number is required.')
     }
     this[_attrs].number = number
 
-    if (label === undefined) {
+    if (label == null) {
       throw new Error('Annotation Group Label is required.')
     }
     this[_attrs].label = label
 
-    if (propertyCategory === undefined) {
+    if (propertyCategory == null) {
       throw new Error('Annotation Property Category is required.')
     }
     this[_attrs].propertyCategory = propertyCategory
 
-    if (propertyType === undefined) {
+    if (propertyType == null) {
       throw new Error('Annotation Property Type is required.')
     }
     this[_attrs].propertyType = propertyType
 
-    if (algorithmName === undefined) {
+    if (algorithmName == null) {
       throw new Error('Annotation Group Algorithm Name is required.')
     }
     this[_attrs].algorithmType = algorithmType
 
-    if (algorithmType === undefined) {
+    if (algorithmType == null) {
       throw new Error('Annotation Group Generation Type is required.')
     }
     this[_attrs].algorithmName = algorithmName
 
-    if (studyInstanceUID === undefined) {
+    if (studyInstanceUID == null) {
       throw new Error('Study Instance UID is required.')
     }
     this[_attrs].studyInstanceUID = studyInstanceUID
 
-    if (seriesInstanceUID === undefined) {
+    if (seriesInstanceUID == null) {
       throw new Error('Series Instance UID is required.')
     }
     this[_attrs].seriesInstanceUID = seriesInstanceUID
 
-    if (sopInstanceUIDs === undefined) {
+    if (sopInstanceUIDs == null) {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
@@ -107,7 +122,7 @@ class AnnotationGroup {
 
   /** Get Annotation Group Generation Type
    *
-   * @returns {string} Annotation Group Generation Type
+   * @returns {object} Annotation Group Generation Type
    */
   get algorithmType () {
     return this[_attrs].algorithmType
@@ -315,7 +330,11 @@ async function _fetchMeasurementValues ({
   if ('FloatingPointValues' in valuesMetadataItem) {
     return valuesMetadataItem.FloatingPointValues
   } else {
-    if (bulkdataItem.MeasurementsSequence == null) {
+    if (bulkdataItem == null) {
+      throw new Error(
+        `Could not find bulkdata of annotation group "${uid}".`
+      )
+    } else if (bulkdataItem.MeasurementsSequence == null) {
       throw new Error(
         `Could not find item #${index + 1} of "MeasurementSequence" ` +
         `in bulkdata of annotation group "${uid}".`
@@ -375,7 +394,11 @@ async function _fetchMeasurementIndices ({
   if ('AnnotationIndexList' in valuesMetadataItem) {
     return valuesMetadataItem.AnnotationIndexList
   } else {
-    if (bulkdataItem.MeasurementsSequence == null) {
+    if (bulkdataItem == null) {
+      throw new Error(
+        `Could not find bulkdata of annotation group "${uid}".`
+      )
+    } else if (bulkdataItem.MeasurementsSequence == null) {
       throw new Error(
         `Could not find item #${index + 1} of "MeasurementSequence" ` +
         `in bulkdata of annotation group "${uid}".`

@@ -1,19 +1,21 @@
 const _attrs = Symbol('attrs')
 
-/** A segment.
+/**
+ * A segment.
  *
  * @class
  * @memberof segment
  */
 class Segment {
-  /* Creates a new Segment object.
+  /**
+   * Create a new Segment object.
    *
    * @param {Object} options - Options for construction of Segment
    * @param {string} options.uid - Unique tracking identifier
    * @param {number} options.number - Segment Number (one-based index value)
    * @param {string} options.label - Segment Label
    * @param {string} options.algorithmName - Segment Algorithm Name
-   * @param {string} options.algorithmType - Segment Algorithm Type
+   * @param {object} options.algorithmType - Segment Algorithm Type
    * @param {object} options.propertyCategory - Segmented Property Category Code
    * @param {object} options.propertyType - Segmented Property Type Code
    * @param {string} options.studyInstanceUID - Study Instance UID of Segmentation images
@@ -119,7 +121,7 @@ class Segment {
 
   /** Get Segment Algorithm Type
    *
-   * @returns {string} Segment Algorithm Type
+   * @returns {object} Segment Algorithm Type
    */
   get algorithmType () {
     return this[_attrs].algorithmType

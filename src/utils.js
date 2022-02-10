@@ -145,10 +145,9 @@ function buildTransform ({ offset, orientation, spacing }) {
     [0, 0, 1]
   ]
   const correction = [
-    [1.0, 0.0, 0.0, -0.5],
-    [0.0, 1.0, 0.0, -0.5],
-    [0.0, 0.0, 1.0, 0.0],
-    [0.0, 0.0, 0.0, 1.0]
+    [1.0, 0.0, -0.5],
+    [0.0, 1.0, -0.5],
+    [0.0, 0.0, 1.0]
   ]
   return multiply(affine, correction)
 }
@@ -247,10 +246,9 @@ function buildInverseTransform ({ offset, orientation, spacing }) {
     [0, 0, 1]
   ])
   const correction = [
-    [1.0, 0.0, 0.0, 0.5],
-    [0.0, 1.0, 0.0, 0.5],
-    [0.0, 0.0, 1.0, 0.0],
-    [0.0, 0.0, 0.0, 1.0]
+    [1.0, 0.0, 0.5],
+    [0.0, 1.0, 0.5],
+    [0.0, 0.0, 1.0]
   ]
   return multiply(correction, affine)
 }
