@@ -826,6 +826,7 @@ class VolumeImageViewer {
           opticalPathIdentifier,
           opticalPath: new OpticalPath({
             identifier: opticalPathIdentifier,
+            description: info.opticalPath.OpticalPathDescription,
             illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
             illuminationWaveLength: info.opticalPath.IlluminationWaveLength,
             illuminationColor: (
@@ -980,6 +981,7 @@ class VolumeImageViewer {
         opticalPathIdentifier,
         opticalPath: new OpticalPath({
           identifier: opticalPathIdentifier,
+          description: info.opticalPath.OpticalPathDescription,
           illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
           studyInstanceUID: info.metadata[0].StudyInstanceUID,
           seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
@@ -1437,7 +1439,6 @@ class VolumeImageViewer {
       ...Object.values(this[_annotationGroups])
     ]
     itemsRequiringDisposal.forEach(item => {
-      console.log('DEBUG: ', item.layer.helper)
       item.layer.dispose()
       this[_map].removeLayer(item.layer)
       if (item.overlay) {

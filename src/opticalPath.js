@@ -34,6 +34,7 @@ class OpticalPath {
    *
    * @param {Object} options - Options
    * @param {string} options.identifier - Optical Path Identifier
+   * @param {string} options.description - Optical Path Description
    * @param {object} options.illuminationType - Illumination Type Code
    * @param {object} options.illuminationColor - Illumination Color Code
    * @param {string} options.illuminationWaveLength - Illumination Wave Length
@@ -43,6 +44,7 @@ class OpticalPath {
    */
   constructor ({
     identifier,
+    description,
     illuminationType,
     illuminationColor,
     illuminationWaveLength,
@@ -55,6 +57,7 @@ class OpticalPath {
       throw new Error('Optical Path Identifier is required.')
     }
     this[_attrs].identifier = identifier
+    this[_attrs].description = description
 
     if (illuminationType === undefined) {
       throw new Error('Illumination Type is required.')
@@ -85,6 +88,14 @@ class OpticalPath {
    */
   get identifier () {
     return this[_attrs].identifier
+  }
+
+  /** Get Optical Path Description
+   *
+   * @returns {string} Optical Path Description
+   */
+  get description () {
+    return this[_attrs].description
   }
 
   /** Get Illumination Type Code.
