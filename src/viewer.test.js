@@ -269,7 +269,11 @@ const testCases = [
             sopInstanceUIDs: [
               '1.2.826.0.1.3680043.10.511.3.97885701157697100824037867909594934'
             ]
-          })
+          }),
+          style: {
+            limitValues: [0, 255],
+            opacity: 1
+          }
         },
         '1.2.826.0.1.3680043.10.511.3.41048468254862710418744291748294259': {
           description: new dmv.mapping.Mapping({
@@ -281,7 +285,8 @@ const testCases = [
             sopInstanceUIDs: [
               '1.2.826.0.1.3680043.10.511.3.97885701157697100824037867909594934'
             ]
-          })
+          }),
+          style: {}
         }
       }
     }
@@ -833,7 +838,7 @@ describe.each(testCases)('test viewer API for annotation groups of "$name"', ({
     viewer = undefined
   })
 
-  it('should add annotation groups', () => {
+  it('should add and remove annotation groups', () => {
     expect(viewer.getAllAnnotationGroups().length).toEqual(0)
     inputs.annotations.forEach(metadata => {
       viewer.addAnnotationGroups(metadata)
@@ -842,6 +847,8 @@ describe.each(testCases)('test viewer API for annotation groups of "$name"', ({
     expect(annotationGroups.length).toEqual(
       Object.keys(expectations.annotationGroups).length
     )
+    viewer.removeAllAnnotationGroups()
+    expect(viewer.getAllAnnotationGroups().length).toEqual(0)
   })
 
   it('should change annotation group visibility', () => {
@@ -913,13 +920,15 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
     viewer = undefined
   })
 
-  it('should add segments', () => {
+  it('should add and remove segments', () => {
     expect(viewer.getAllSegments().length).toEqual(0)
     inputs.segmentations.forEach(metadata => {
       viewer.addSegments(metadata)
     })
     const segments = viewer.getAllSegments()
     expect(segments.length).toEqual(Object.keys(expectations.segments).length)
+    viewer.removeAllSegments()
+    expect(viewer.getAllSegments().length).toEqual(0)
   })
 
   it('should change segment visibility', () => {
@@ -989,13 +998,15 @@ describe.each(testCases)('test viewer API for mappings of "$name"', ({
     viewer = undefined
   })
 
-  it('should add mappings', () => {
+  it('should add and remove mappings', () => {
     expect(viewer.getAllMappings().length).toEqual(0)
     inputs.maps.forEach(metadata => {
-      viewer.addMapping(metadata)
+      viewer.addMappings(metadata)
     })
     const mappings = viewer.getAllMappings()
     expect(mappings.length).toEqual(Object.keys(expectations.mappings).length)
+    viewer.removeAllMappings()
+    expect(viewer.getAllMappings().length).toEqual(0)
   })
 
   it('should change mapping visibility', () => {
