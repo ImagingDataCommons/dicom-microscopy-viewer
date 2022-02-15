@@ -2568,6 +2568,15 @@ class VolumeImageViewer {
   }
 
   /**
+   * Remove all annotation groups.
+   */
+  removeAllAnnotationGroups () {
+    Object.keys(this[_annotationGroups]).forEach(annotationGroupUID => {
+      this.removeAnnotationGroup(annotationGroupUID)
+    })
+  }
+
+  /**
    * Show an annotation group.
    *
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
@@ -3057,6 +3066,15 @@ class VolumeImageViewer {
   }
 
   /**
+   * Remove all segments.
+   */
+  removeAllSegments () {
+    Object.keys(this[_segments]).forEach(segmentUID => {
+      this.removeSegment(segmentUID)
+    })
+  }
+
+  /**
    * Show a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of a segment
@@ -3384,8 +3402,8 @@ class VolumeImageViewer {
         style: {
           opacity: 1.0,
           limitValues: [
-            windowCenter - windowWidth / 2,
-            windowCenter + windowWidth / 2
+            Math.ceil(windowCenter - windowWidth / 2),
+            Math.floor(windowCenter + windowWidth / 2)
           ]
         },
         colormap: colormap,
@@ -3482,6 +3500,15 @@ class VolumeImageViewer {
     mapping.layer.dispose()
     this[_map].removeOverlay(mapping.overlay)
     delete this[_mappings][mappingUID]
+  }
+
+  /**
+   * Remove all mappings.
+   */
+  removeAllMappings () {
+    Object.keys(this[_mappings]).forEach(mappingUID => {
+      this.removeMapping(mappingUID)
+    })
   }
 
   /**
