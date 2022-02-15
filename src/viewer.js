@@ -204,6 +204,8 @@ function _getInteractionBindingCondition (bindings) {
 }
 
 /**
+ * Get rotation of image relative to the slide coordinate system.
+ *
  * Determines whether image needs to be rotated relative to slide
  * coordinate system based on direction cosines.
  * We want to rotate all images such that the X axis of the slide coordinate
@@ -213,19 +215,19 @@ function _getInteractionBindingCondition (bindings) {
  * There are only planar rotations, since the total pixel matrix is
  * parallel to the slide surface. Here, we further assume that rows and
  * columns of total pixel matrix are parallel to the borders of the slide,
- * i.e. the x and y axis of the slide coordinate system.
+ * i.e. the X and Y axes of the slide coordinate system.
  *
  * The row direction (left to right) of the Total Pixel Matrix
- * is defined by the first three values.
+ * is defined by the first three Image Orientation Slide values.
  * The three values specify how the direction changes from the last pixel
  * to the first pixel in the row along each of the three axes of the
- * slide coordinate system (x, y, z), i.e. it express in which direction one
+ * slide coordinate system (X, Y, Z), i.e. it express in which direction one
  * is moving in the slide coordinate system when the COLUMN index changes.
  * The column direction (top to bottom) of the Total Pixel Matrix
- * is defined by the second three values.
+ * is defined by the second three Image Orientation Slide values.
  * The three values specify how the direction changes from the last pixel
  * to the first pixel in the column along each of the three axes of the
- * slide coordinate system (x, y, z), i.e. it express in which direction one
+ * slide coordinate system (X, Y, Z), i.e. it express in which direction one
  * is moving in the slide coordinate system when the ROW index changes.
  *
  * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
@@ -3821,7 +3823,7 @@ class _NonVolumeImageViewer {
   }
 
   /**
-   * Resizes the viewer to fit the viewport.
+   * Resize the viewer to fit the viewport.
    *
    * @returns {void}
    */
@@ -3833,7 +3835,7 @@ class _NonVolumeImageViewer {
   }
 
   /**
-   * Gets the size of the viewport.
+   * Get the size of the viewport.
    *
    * @return {number[]}
    */
