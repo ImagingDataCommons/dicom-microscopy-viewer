@@ -936,8 +936,9 @@ class VolumeImageViewer {
         opticalPath.layer.helper = helper
         opticalPath.layer.on('precompose', (event) => {
           const gl = event.context
+          gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
-          gl.blendFunc(gl.SRC_COLOR, gl.DST_COLOR)
+          gl.blendFunc(gl.SRC_COLOR, gl.ONE)
         })
         opticalPath.layer.on('error', (event) => {
           console.error(
@@ -958,7 +959,7 @@ class VolumeImageViewer {
         opticalPath.overviewTileLayer.on('precompose', (event) => {
           const gl = event.context
           gl.blendEquation(gl.FUNC_ADD)
-          gl.blendFunc(gl.SRC_COLOR, gl.DST_COLOR)
+          gl.blendFunc(gl.SRC_COLOR, gl.ONE)
         })
 
         if (channelCount === 0) {
