@@ -1329,11 +1329,9 @@ class VolumeImageViewer {
       return
     }
     this[_map].removeLayer(opticalPath.layer)
-    opticalPath.layer.dispose()
     this[_overviewMap].getOverviewMap().removeLayer(
       opticalPath.overviewTileLayer
     )
-    opticalPath.overviewTileLayer.dispose()
   }
 
   /** Determine whether an optical path is active.
