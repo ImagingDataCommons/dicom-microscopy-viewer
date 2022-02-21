@@ -59,7 +59,7 @@ import {
   groupColorInstances,
   VLWholeSlideMicroscopyImage
 } from './metadata.js'
-import { Mapping, _groupFramesPerMapping } from './mapping.js'
+import { ParameterMapping, _groupFramesPerMapping } from './mapping.js'
 import { ROI } from './roi.js'
 import { Segment } from './segment.js'
 import {
@@ -961,6 +961,7 @@ class VolumeImageViewer {
         opticalPath.overviewTileLayer.helper = overviewHelper
         opticalPath.overviewTileLayer.on('precompose', (event) => {
           const gl = event.context
+          gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
         })
@@ -3235,11 +3236,11 @@ class VolumeImageViewer {
   }
 
   /**
-   * Add mappings.
+   * Add parameter mappings.
    *
    * @param {ParametricMap[]} metadata - Metadata of one or more DICOM Parametric Map instances
    */
-  addMappings (metadata) {
+  addParameterMappings (metadata) {
     if (metadata.length === 0) {
       throw new Error(
         'Metadata of Parametric Map instances needs to be provided to ' +
@@ -3382,7 +3383,7 @@ class VolumeImageViewer {
       }
 
       const mapping = {
-        mapping: new Mapping({
+        mapping: new ParameterMapping({
           uid: mappingUID,
           number: mappingNumber,
           label: mappingLabel,
@@ -3483,11 +3484,11 @@ class VolumeImageViewer {
   }
 
   /**
-   * Remove a mapping.
+   * Remove a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of a mapping
    */
-  removeMapping (mappingUID) {
+  removeParameterMapping (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         `Cannot remove mapping. Could not find mapping "${mappingUID}".`
@@ -3501,23 +3502,23 @@ class VolumeImageViewer {
   }
 
   /**
-   * Remove all mappings.
+   * Remove all parameter mappings.
    */
-  removeAllMappings () {
+  removeAllParameterMappings () {
     Object.keys(this[_mappings]).forEach(mappingUID => {
-      this.removeMapping(mappingUID)
+      this.removeParameterMapping(mappingUID)
     })
   }
 
   /**
-   * Show a mapping.
+   * Show a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of a mapping
    * @param {object} styleOptions
    * @param {number} styleOptions.opacity - Opacity
    * @param {number} styleOptions.limitValues - Opacity
    */
-  showMapping (mappingUID, styleOptions = {}) {
+  showParameterMapping (mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         `Cannot show mapping. Could not find mapping "${mappingUID}".`
@@ -3526,15 +3527,15 @@ class VolumeImageViewer {
     const mapping = this[_mappings][mappingUID]
     console.info(`show mapping ${mappingUID}`)
     mapping.layer.setVisible(true)
-    this.setMappingStyle(mappingUID, styleOptions)
+    this.setParameterMappingStyle(mappingUID, styleOptions)
   }
 
   /**
-   * Hide a mapping.
+   * Hide a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of a mapping
    */
-  hideMapping (mappingUID) {
+  hideParameterMapping (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         `Cannot hide mapping. Could not find mapping "${mappingUID}".`
@@ -3547,12 +3548,12 @@ class VolumeImageViewer {
   }
 
   /**
-   * Determine if mapping is visible.
+   * Determine if parameter mapping is visible.
    *
    * @param {string} mappingUID - Unique tracking identifier of a mapping
    * @returns {boolean}
    */
-  isMappingVisible (mappingUID) {
+  isParameterMappingVisible (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot determine if mapping is visible. ' +
@@ -3563,14 +3564,14 @@ class VolumeImageViewer {
     return mapping.layer.getVisible()
   }
 
-  /** Set the style of a mapping.
+  /** Set the style of a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @param {object} styleOptions
    * @param {string} styleOptions.colormap - Name of the color map
    * @param {number} styleOptions.opacity - Opacity
    */
-  setMappingStyle (mappingUID, styleOptions = {}) {
+  setParameterMappingStyle (mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot set style of mapping. ' +
@@ -3640,12 +3641,12 @@ class VolumeImageViewer {
     this[_map].addOverlay(mapping.overlay)
   }
 
-  /** Get the style of a mapping.
+  /** Get the style of a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @returns {object} Style Options
    */
-  getMappingStyle (mappingUID) {
+  getParameterMappingStyle (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot get style of mapping. ' +
@@ -3660,12 +3661,12 @@ class VolumeImageViewer {
     }
   }
 
-  /** Get image metadata for a mapping.
+  /** Get image metadata for a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @returns {ParametricMap[]} Parametric Map image metadata
    */
-  getMappingMetadata (mappingUID) {
+  getParameterMappingMetadata (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot get image metadata of mapping. ' +
@@ -3677,11 +3678,11 @@ class VolumeImageViewer {
   }
 
   /**
-   * Get all mappings.
+   * Get all parameter mappings.
    *
-   * @return {Mapping[]}
+   * @return {ParameterMapping[]}
    */
-  getAllMappings () {
+  getAllParameterMappings () {
     const mappings = []
     for (const mappingUID in this[_mappings]) {
       mappings.push(this[_mappings][mappingUID].mapping)

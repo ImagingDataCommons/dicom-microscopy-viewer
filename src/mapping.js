@@ -55,13 +55,13 @@ class Transformation {
   }
 }
 
-/** A mapping.
+/** A parameter mapping.
  *
  * @class
  * @memberof mapping
  */
-class Mapping {
-  /* Creates a new Mapping object.
+class ParameterMapping {
+  /* Creates a new ParameterMapping object.
    *
    * @param {Object} options
    * @param {string} options.uid - Unique tracking identifier
@@ -221,6 +221,6 @@ function _groupFramesPerMapping (metadata) {
 
 export {
   _groupFramesPerMapping,
-  Mapping,
+  ParameterMapping,
   Transformation
 }

@@ -1,6 +1,6 @@
 import EVENTS from './events.js'
 import { AnnotationGroup } from './annotation.js'
-import { Mapping } from './mapping.js'
+import { ParameterMapping } from './mapping.js'
 import {
   Comprehensive3DSR,
   MicroscopyBulkSimpleAnnotations,
@@ -73,7 +73,7 @@ const viewer = {
  * @namespace mapping
  */
 const mapping = {
-  Mapping
+  ParameterMapping
 }
 
 /** Namespace for working with DICOM Metadata.

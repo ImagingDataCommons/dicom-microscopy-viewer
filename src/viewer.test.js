@@ -260,7 +260,7 @@ const testCases = [
       },
       mappings: {
         '1.2.826.0.1.3680043.10.511.3.12513676296929162651625754360127915': {
-          description: new dmv.mapping.Mapping({
+          description: new dmv.mapping.ParameterMapping({
             uid: '1.2.826.0.1.3680043.10.511.3.12513676296929162651625754360127915',
             number: '1',
             label: 'Nontumor',
@@ -276,7 +276,7 @@ const testCases = [
           }
         },
         '1.2.826.0.1.3680043.10.511.3.41048468254862710418744291748294259': {
-          description: new dmv.mapping.Mapping({
+          description: new dmv.mapping.ParameterMapping({
             uid: '1.2.826.0.1.3680043.10.511.3.41048468254862710418744291748294259',
             number: '2',
             label: 'Tumor',
@@ -999,54 +999,54 @@ describe.each(testCases)('test viewer API for mappings of "$name"', ({
   })
 
   it('should add and remove mappings', () => {
-    expect(viewer.getAllMappings().length).toEqual(0)
+    expect(viewer.getAllParameterMappings().length).toEqual(0)
     inputs.maps.forEach(metadata => {
-      viewer.addMappings(metadata)
+      viewer.addParameterMappings(metadata)
     })
-    const mappings = viewer.getAllMappings()
+    const mappings = viewer.getAllParameterMappings()
     expect(mappings.length).toEqual(Object.keys(expectations.mappings).length)
-    viewer.removeAllMappings()
-    expect(viewer.getAllMappings().length).toEqual(0)
+    viewer.removeAllParameterMappings()
+    expect(viewer.getAllParameterMappings().length).toEqual(0)
   })
 
   it('should change mapping visibility', () => {
     inputs.maps.forEach(metadata => {
-      viewer.addMappings(metadata)
+      viewer.addParameterMappings(metadata)
     })
     const mappingUIDs = Object.keys(expectations.mappings)
     if (mappingUIDs.length > 0) {
       const index = 0
       const uid = mappingUIDs[index]
       let isVisible
-      viewer.showMapping(uid)
-      isVisible = viewer.isMappingVisible(uid)
+      viewer.showParameterMapping(uid)
+      isVisible = viewer.isParameterMappingVisible(uid)
       expect(isVisible).toBeTruthy()
-      viewer.hideMapping(uid)
-      isVisible = viewer.isMappingVisible(uid)
+      viewer.hideParameterMapping(uid)
+      isVisible = viewer.isParameterMappingVisible(uid)
       expect(isVisible).toBeFalsy()
-      viewer.showMapping(uid)
-      isVisible = viewer.isMappingVisible(uid)
+      viewer.showParameterMapping(uid)
+      isVisible = viewer.isParameterMappingVisible(uid)
       expect(isVisible).toBeTruthy()
     }
   })
 
   it('should return default mapping style', () => {
     inputs.maps.forEach(metadata => {
-      viewer.addMappings(metadata)
+      viewer.addParameterMappings(metadata)
       const uid = (
         metadata[0]
           .PerFrameFunctionalGroupsSequence[0]
           .RealWorldValueMappingSequence[0]
           .TrackingUID
       )
-      const style = viewer.getMappingStyle(uid)
+      const style = viewer.getParameterMappingStyle(uid)
       expect(style).toEqual(expectations.mappings[uid].style)
     })
   })
 
   it('should set mapping style', () => {
     inputs.maps.forEach(metadata => {
-      viewer.addMappings(metadata)
+      viewer.addParameterMappings(metadata)
     })
     const mappingUIDs = Object.keys(expectations.mappings)
     if (mappingUIDs.length > 0) {
@@ -1055,8 +1055,8 @@ describe.each(testCases)('test viewer API for mappings of "$name"', ({
       const styleOptions = {
         opacity: 0.7
       }
-      viewer.setMappingStyle(uid, styleOptions)
-      const style = viewer.getMappingStyle(uid)
+      viewer.setParameterMappingStyle(uid, styleOptions)
+      const style = viewer.getParameterMappingStyle(uid)
       const expectedStyle = JSON.parse(JSON.stringify(style))
       Object.keys(styleOptions).forEach(key => {
         expectedStyle[key] = styleOptions[key]
