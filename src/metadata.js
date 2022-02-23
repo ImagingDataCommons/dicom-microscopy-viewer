@@ -96,7 +96,7 @@ function _base64ToFloat64Array (value) {
   return array
 }
 
-/** Determines the mapping of pyramid tile positions to frame numbers.
+/** Determine the mapping of pyramid tile positions to frame numbers.
  *
  * @param {Object} Formatted metadata of a VL Whole Slide Microscopy Image instance
  * @returns {Object} Mapping of pyramid tile position (Row-Column) to frame URI
@@ -118,7 +118,7 @@ function getFrameMapping (metadata) {
    *  - mappings (Parametric Map)
    */
   let numberOfChannels = 0
-  const numberOfFocalPlanes = Number(metadata.TotalPixelMatrixFocalPlanes || 1)
+  const numberOfFocalPlanes = Number(metadata.NumberOfFocalPlanes || 1)
   if (numberOfFocalPlanes > 1) {
     throw new Error('Images with multiple focal planes are not yet supported.')
   }
@@ -130,10 +130,10 @@ function getFrameMapping (metadata) {
   let numberOfOpticalPaths = 0
   let numberOfSegments = 0
   let numberOfMappings = 0
-  if (metadata.NumberOfOpticalPaths !== undefined) {
+  if (metadata.OpticalPathSequence != null) {
     numberOfOpticalPaths = Number(metadata.NumberOfOpticalPaths || 1)
     numberOfChannels = numberOfOpticalPaths
-  } else if (metadata.SegmentSequence !== undefined) {
+  } else if (metadata.SegmentSequence != null) {
     numberOfSegments = metadata.SegmentSequence.length
     numberOfChannels = numberOfSegments
   } else if (Object.keys(mappingNumberToFrameNumbers).length > 0) {
@@ -182,19 +182,26 @@ function getFrameMapping (metadata) {
       frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
     }
   } else {
-    const functionalGroups = metadata.PerFrameFunctionalGroupsSequence
+    const sharedFuncGroups = metadata.SharedFunctionalGroupsSequence
+    const perframeFuncGroups = metadata.PerFrameFunctionalGroupsSequence
     for (let j = 0; j < numberOfFrames; j++) {
-      const planePositions = functionalGroups[j].PlanePositionSlideSequence[0]
+      const planePositions = perframeFuncGroups[j].PlanePositionSlideSequence[0]
       const rowPosition = planePositions.RowPositionInTotalImagePixelMatrix
       const columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix
       const rowIndex = Math.ceil(rowPosition / rows)
       const colIndex = Math.ceil(columnPosition / columns)
       let channelIdentifier
-      if (numberOfOpticalPaths > 0) {
-        const opticalPath = functionalGroups[j].OpticalPathIdentificationSequence[0]
+      if (numberOfOpticalPaths === 1) {
+        const opticalPath = sharedFuncGroups[0].OpticalPathIdentificationSequence[0]
         channelIdentifier = opticalPath.OpticalPathIdentifier
-      } else if (numberOfSegments > 0) {
-        const segment = functionalGroups[j].SegmentIdentificationSequence[0]
+      } else if (numberOfOpticalPaths > 1) {
+        const opticalPath = perframeFuncGroups[j].OpticalPathIdentificationSequence[0]
+        channelIdentifier = opticalPath.OpticalPathIdentifier
+      } else if (numberOfSegments === 1) {
+        const segment = sharedFuncGroups[0].SegmentIdentificationSequence[0]
+        channelIdentifier = String(segment.ReferencedSegmentNumber)
+      } else if (numberOfSegments > 1) {
+        const segment = perframeFuncGroups[j].SegmentIdentificationSequence[0]
         channelIdentifier = String(segment.ReferencedSegmentNumber)
       } else if (numberOfMappings > 0) {
         channelIdentifier = String(frameNumberToMappingNumber[j + 1])
@@ -212,10 +219,13 @@ function getFrameMapping (metadata) {
   }
 }
 
-/** Formats DICOM metadata structured according to the DICOM JSON model into a
- * more human friendly representation, where values of data elements can be
- * directly accessed via their keyword (e.g., "SOPInstanceUID").
- * Bulkdata elements will be skipped.
+/**
+ * Format DICOM metadata structured according to the DICOM JSON model.
+ *
+ * Transforms the DICOM JSON representation into a more human friendly
+ * representation, where values of data elements can be directly accessed via
+ * their keyword (e.g., "SOPInstanceUID").
+ * Bulkdata elements will be extracted and returned as a separate mapping.
  *
  * @param {Object} metadata - Metadata structured according to the DICOM JSON model
  * @param {Object} Metadata structured according to the DICOM JSON model
@@ -310,36 +320,32 @@ function formatMetadata (metadata) {
  */
 function groupMonochromeInstances (images) {
   const channels = []
-  for (let i = 0; i < images.length; ++i) {
-    if (images[i].ImageType[2] !== 'VOLUME') {
-      continue
-    }
-
-    if (images[i].SamplesPerPixel === 1 &&
-        images[i].PhotometricInterpretation === 'MONOCHROME2'
+  images.forEach(img => {
+    if (
+      img.SamplesPerPixel === 1 &&
+      img.PhotometricInterpretation === 'MONOCHROME2' &&
+      (img.ImageType[2] === 'VOLUME' || img.ImageType[2] === 'THUMBNAIL')
     ) {
-      const opticalPathIdentifier = (
-        images[i]
-          .OpticalPathSequence[0]
-          .OpticalPathIdentifier
-      )
-      const group = channels.find(group => {
-        const currentOpticalPathIdentifier = (
-          group[0]
-            .OpticalPathSequence[0]
-            .OpticalPathIdentifier
-        )
-        return currentOpticalPathIdentifier === opticalPathIdentifier
-      })
+      img.OpticalPathSequence.forEach((opticalPathItem, opticalPathIndex) => {
+        const opticalPathIdentifier = opticalPathItem.OpticalPathIdentifier
+        const index = channels.findIndex(group => {
+          const id = (
+            group[0]
+              .OpticalPathSequence[opticalPathIndex]
+              .OpticalPathIdentifier
+          )
+          return id === opticalPathIdentifier
+        })
 
-      if (group) {
-        group.push(images[i])
-      } else {
-        const group = [images[i]]
-        channels.push(group)
-      }
+        if (index >= 0) {
+          channels[index].push(img)
+        } else {
+          const group = [img]
+          channels.push(group)
+        }
+      })
     }
-  }
+  })
 
   return channels
 }

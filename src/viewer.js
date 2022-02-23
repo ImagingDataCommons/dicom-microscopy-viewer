@@ -695,7 +695,7 @@ class VolumeImageViewer {
           throw new Error(
             'Volume Image Viewer does hot hanlde 3D image data yet.'
           )
-        } else if (image.DimensionOrganizationType === 'TILED_FULL') {
+        } else {
           if (image.TotalPixelMatrixFocalPlanes === 1) {
             image.OpticalPathSequence.forEach(opticalPath => {
               const opticalPathIdentifier = opticalPath.OpticalPathIdentifier
@@ -713,18 +713,6 @@ class VolumeImageViewer {
           } else {
             console.warn('images with multiple focal planes are not supported')
           }
-        } else if (image.DimensionOrganizationType === 'TILED_SPARSE') {
-          /*
-           * The spatial location of each tile is explicitly encoded using
-           * information in the Per-Frame Functional Group Sequence, and the
-           * recipient shall not make any assumption about the spatial position
-           * or optical path or order of the encoded frames.
-           */
-          // FIXME
-          throw new Error(
-            'Volume Image Viewer does hot handle TILED_SPARSE ' +
-            'dimension organization for blending of optical paths yet.'
-          )
         }
       })
     })
@@ -820,6 +808,7 @@ class VolumeImageViewer {
       const overviewHelper = new WebGLHelper()
       for (const opticalPathIdentifier in monochromeImageInformation) {
         const info = monochromeImageInformation[opticalPathIdentifier]
+        console.log('DEBUG: ', opticalPathIdentifier, info)
         const pyramid = _computeImagePyramid({ metadata: info.metadata })
         const minValue = 0
         const maxValue = Math.pow(2, info.metadata[0].BitsAllocated) - 1
@@ -1074,11 +1063,10 @@ class VolumeImageViewer {
     const overviewView = new View({
       projection: this[_projection],
       rotation: this[_rotation],
-      zoom: 0,
+      constrainOnlyCenter: true,
       minZoom: 0,
       maxZoom: 0,
-      constrainOnlyCenter: true,
-      center: getCenter(this[_pyramid].extent)
+      extent: this[_pyramid].extent
     })
 
     this[_overviewMap] = new OverviewMap({

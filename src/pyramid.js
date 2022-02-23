@@ -12,6 +12,7 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual } from './utils.js'
  * @static
  */
 function _computeImagePyramid ({ metadata }) {
+  console.log('DEBUG [PYRAMD]:', metadata)
   if (metadata.length === 0) {
     throw new Error(
       'No image metadata was provided to computate image pyramid structure.'
@@ -44,11 +45,12 @@ function _computeImagePyramid ({ metadata }) {
         'Images of pyramid must all have the same Container Identifier.'
       )
     }
+
+    const numberOfFrames = Number(metadata[i].NumberOfFrames || 1)
     if (
       metadata[i].TotalPixelMatrixRows === undefined ||
       metadata[i].TotalPixelMatrixColumns === undefined
     ) {
-      const numberOfFrames = Number(metadata[i].NumberOfFrames)
       if (numberOfFrames === 1) {
         /*
          * If the image contains only one frame it is not tiled, and therefore
@@ -63,6 +65,8 @@ function _computeImagePyramid ({ metadata }) {
         )
       }
     }
+    const cols = metadata[i].TotalPixelMatrixColumns
+    const rows = metadata[i].TotalPixelMatrixRows
 
     const { frameMapping, numberOfChannels } = getFrameMapping(metadata[i])
     if (i > 0) {
@@ -74,13 +78,6 @@ function _computeImagePyramid ({ metadata }) {
       }
     } else {
       pyramidNumberOfChannels = numberOfChannels
-    }
-
-    const cols = metadata[i].TotalPixelMatrixColumns
-    const rows = metadata[i].TotalPixelMatrixRows
-    let numberOfFrames = metadata[i].NumberOfFrames
-    if (numberOfFrames === undefined) {
-      numberOfFrames = 1
     }
 
     /*
@@ -108,10 +105,11 @@ function _computeImagePyramid ({ metadata }) {
         )
       }
       if (!('SOPInstanceUIDOfConcatenationSource' in metadata[i])) {
-        throw new Error(
-          'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
-          'for concatenation parts.'
-        )
+        // FIXME
+        // throw new Error(
+        //   'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
+        //   'for concatenation parts.'
+        // )
       }
       const sopInstanceUID = metadata[i].SOPInstanceUIDOfConcatenationSource
       pyramidMetadata[index].SOPInstanceUID = sopInstanceUID
@@ -237,27 +235,51 @@ function _computeImagePyramid ({ metadata }) {
 function _areImagePyramidsEqual (pyramid, refPyramid) {
   // Check that all the channels have the same pyramid parameters
   if (!are2DArraysAlmostEqual(pyramid.extent, refPyramid.extent)) {
-    console.warn('Pyramid has different extent as reference pyramid.')
+    console.warn(
+      'pyramid has different extent as reference pyramid: ',
+      pyramid.extent,
+      refPyramid.extent
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.origins, refPyramid.origins)) {
-    console.warn('Pyramid has different origins as reference pyramid.')
+    console.warn(
+      'pyramid has different origins as reference pyramid: ',
+      pyramid.origins,
+      refPyramid.origins
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.resolutions, refPyramid.resolutions)) {
-    console.warn('Pyramid has different resolutions as reference pyramid.')
+    console.warn(
+      'pyramid has different resolutions as reference pyramid: ',
+      pyramid.resolutions,
+      refPyramid.resolutions
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.gridSizes, refPyramid.gridSizes)) {
-    console.warn('Pyramid has different grid sizes as reference pyramid.')
+    console.warn(
+      'pyramid has different grid sizes as reference pyramid: ',
+      pyramid.gridSizes,
+      refPyramid.gridSizes
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.tileSizes, refPyramid.tileSizes)) {
-    console.warn('Pyramid has different tile sizes as reference pyramid.')
+    console.warn(
+      'pyramid has different tile sizes as reference pyramid: ',
+      pyramid.tileSizes,
+      refPyramid.tileSizes
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.pixelSpacings, refPyramid.pixelSpacings)) {
-    console.warn('Pyramid has different pixel spacings as reference pyramid.')
+    console.warn(
+      'pyramid has different pixel spacings as reference pyramid: ',
+      pyramid.pixelSpacings,
+      refPyramid.pixelSpacings
+    )
     return false
   }
   return true
