@@ -1,7 +1,7 @@
 import * as dwc from 'dicomweb-client'
 
 import { decodeFrame } from './decode.js'
-import { getFrameMapping } from './metadata.js'
+import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import { are1DArraysAlmostEqual, are2DArraysAlmostEqual } from './utils.js'
 
@@ -12,7 +12,6 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual } from './utils.js'
  * @static
  */
 function _computeImagePyramid ({ metadata }) {
-  console.log('DEBUG [PYRAMD]:', metadata)
   if (metadata.length === 0) {
     throw new Error(
       'No image metadata was provided to computate image pyramid structure.'
@@ -47,26 +46,8 @@ function _computeImagePyramid ({ metadata }) {
     }
 
     const numberOfFrames = Number(metadata[i].NumberOfFrames || 1)
-    if (
-      metadata[i].TotalPixelMatrixRows === undefined ||
-      metadata[i].TotalPixelMatrixColumns === undefined
-    ) {
-      if (numberOfFrames === 1) {
-        /*
-         * If the image contains only one frame it is not tiled, and therefore
-         * the size of the total pixel matrix equals the size of the frame.
-         */
-        metadata[i].TotalPixelMatrixRows = metadata[i].Rows
-        metadata[i].TotalPixelMatrixColumns = metadata[i].Columns
-      } else {
-        throw new Error(
-          'Images of pyramid must all have attributes ' +
-          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
-        )
-      }
-    }
-    const cols = metadata[i].TotalPixelMatrixColumns
-    const rows = metadata[i].TotalPixelMatrixRows
+    const cols = metadata[i].TotalPixelMatrixColumns || metadata[i].Columns
+    const rows = metadata[i].TotalPixelMatrixRows || metadata[i].Rows
 
     const { frameMapping, numberOfChannels } = getFrameMapping(metadata[i])
     if (i > 0) {
@@ -87,36 +68,47 @@ function _computeImagePyramid ({ metadata }) {
     let alreadyExists = false
     let index = null
     for (let j = 0; j < pyramidMetadata.length; j++) {
-      if (
-        (pyramidMetadata[j].TotalPixelMatrixColumns === cols) &&
-        (pyramidMetadata[j].TotalPixelMatrixRows === rows)
-      ) {
+      const c = (
+        pyramidMetadata[j].TotalPixelMatrixColumns ||
+        pyramidMetadata[j].Columns
+      )
+      const r = (
+        pyramidMetadata[j].TotalPixelMatrixRows ||
+        pyramidMetadata[j].Rows
+      )
+      if (r === rows && c === cols) {
         alreadyExists = true
         index = j
       }
     }
     if (alreadyExists) {
       Object.assign(pyramidFrameMappings[index], frameMapping)
-      // Update with information obtained from current concatentation part.
-      pyramidMetadata[index].NumberOfFrames += numberOfFrames
+      /*
+       * Create a new SOP Instance with metadata updated from current
+       * concatentation part.
+       */
+      const rawMetadata = pyramidMetadata[index].json
+      rawMetadata['00280008'].Value[0] += numberOfFrames
       if ('PerFrameFunctionalGroupsSequence' in metadata[index]) {
-        pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
+        rawMetadata['52009230'].Value.push(
           ...metadata[i].PerFrameFunctionalGroupsSequence
         )
       }
       if (!('SOPInstanceUIDOfConcatenationSource' in metadata[i])) {
-        // FIXME
-        // throw new Error(
-        //   'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
-        //   'for concatenation parts.'
-        // )
+        throw new Error(
+          'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
+          'for concatenation parts.'
+        )
       }
       const sopInstanceUID = metadata[i].SOPInstanceUIDOfConcatenationSource
-      pyramidMetadata[index].SOPInstanceUID = sopInstanceUID
-      delete pyramidMetadata[index].SOPInstanceUIDOfConcatenationSource
-      delete pyramidMetadata[index].ConcatenationUID
-      delete pyramidMetadata[index].InConcatenationNumber
-      delete pyramidMetadata[index].ConcatenationFrameOffsetNumber
+      rawMetadata['00080018'].Value[0] = sopInstanceUID
+      delete rawMetadata['00200242'] // SOPInstanceUIDOfConcatenationSource
+      delete rawMetadata['00209161'] // ConcatentationUID
+      delete rawMetadata['00209162'] // InConcatenationNumber
+      delete rawMetadata['00209228'] // ConcatenationFrameOffsetNumber
+      pyramidMetadata[index] = new VLWholeSlideMicroscopyImage({
+        metadata: rawMetadata
+      })
     } else {
       pyramidMetadata.push(metadata[i])
       pyramidFrameMappings.push(frameMapping)
@@ -298,10 +290,16 @@ function _createEmptyTile ({
   } else {
     pixelArray = new Float32Array(columns * rows * samplesPerPixel)
   }
+
   // Fill white in case of color and black in case of monochrome.
   let fillValue = Math.pow(2, bitsAllocated) - 1
   if (photometricInterpretation === 'MONOCHROME2') {
-    fillValue = 0
+    if (bitsAllocated <= 16) {
+      fillValue = 0
+    } else {
+      // Float pixel data
+      fillValue = -(Math.pow(2, bitsAllocated) - 1) / 2
+    }
   }
   for (let i = 0; i < pixelArray.length; i++) {
     pixelArray[i] = fillValue

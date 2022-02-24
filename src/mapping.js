@@ -1,6 +1,7 @@
 const _attrs = Symbol('attrs')
 
-/** A transformation.
+/**
+ * A transformation.
  *
  * Describes the transformation of a range of stored values into real world
  * values in a defined unit. The transformation may either be described by a
@@ -8,8 +9,8 @@ const _attrs = Symbol('attrs')
  * the transformation can be described by a linear function.
  */
 class Transformation {
-  /** Creates a new Transformation object.
-   *
+  /**
+   * Create a new Transformation object.
    */
   constructor ({
     label,
@@ -77,7 +78,7 @@ class ParameterMapping {
     label,
     studyInstanceUID,
     seriesInstanceUID,
-    sopInstanceUIDs
+    sopInstanceUIDs,
   }) {
     this[_attrs] = {}
     if (uid === undefined) {
@@ -110,9 +111,12 @@ class ParameterMapping {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+
+    Object.freeze(this)
   }
 
-  /** Get Unique Tracking Identifier
+  /**
+   * Get Unique Tracking Identifier
    *
    * @returns {string} Unique Tracking Identifier
    */
@@ -120,7 +124,8 @@ class ParameterMapping {
     return this[_attrs].uid
   }
 
-  /** Get Mapping Number.
+  /**
+   * Get Mapping Number.
    *
    * @returns {number} Segment Number
    */
@@ -128,7 +133,8 @@ class ParameterMapping {
     return this[_attrs].number
   }
 
-  /** Get Mapping Label
+  /**
+   * Get Mapping Label
    *
    * @returns {string} Segment Label
    */
@@ -136,7 +142,8 @@ class ParameterMapping {
     return this[_attrs].label
   }
 
-  /** Get Study Instance UID of Parametric Map images.
+  /**
+   * Get Study Instance UID of Parametric Map images.
    *
    * @returns {string} Study Instance UID
    */
@@ -144,7 +151,8 @@ class ParameterMapping {
     return this[_attrs].studyInstanceUID
   }
 
-  /** Get Series Instance UID of Parametric Map images.
+  /**
+   * Get Series Instance UID of Parametric Map images.
    *
    * @returns {string} Series Instance UID
    */
@@ -152,7 +160,8 @@ class ParameterMapping {
     return this[_attrs].seriesInstanceUID
   }
 
-  /** Get SOP Instance UIDs of Parametric Map images.
+  /**
+   * Get SOP Instance UIDs of Parametric Map images.
    *
    * @returns {string[]} SOP Instance UIDs
    */

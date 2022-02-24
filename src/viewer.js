@@ -50,9 +50,10 @@ import {
   _getCoordinateDimensionality
 } from './annotation.js'
 import {
-  ColorMapNames,
+  ColorMaps,
   createColorMap,
-  _buildColorLookupTable
+  PaletteColorLookupTable,
+  _buildPaletteColorLookupTable
 } from './color.js'
 import {
   groupMonochromeInstances,
@@ -558,6 +559,101 @@ function _setFeatureStyle (feature, styleOptions) {
   }
 }
 
+function _getColorStyle ({
+  windowCenter,
+  windowWidth,
+  colormap
+}) {
+  // First, rescale values of interest in window to range [0, 1]
+  const minMappedValue = 0
+  const maxMappedValue = 1
+  const rescaleExpression = [
+    'clamp',
+    [
+      '+',
+      [
+        '*',
+        [
+          '+',
+          [
+            '/',
+            [
+              '-',
+              ['band', 1],
+              [
+                '-',
+                ['var', 'windowCenter'],
+                0.5
+              ]
+            ],
+            [
+              '-',
+              ['var', 'windowWidth'],
+              1
+            ]
+          ],
+          0.5
+        ],
+        [
+          '-',
+          maxMappedValue,
+          minMappedValue
+        ]
+      ],
+      minMappedValue
+    ],
+    minMappedValue,
+    maxMappedValue
+  ]
+
+  // Second, rescale values of interest to range [0, 1]
+  const minIndexValue = 0
+  const maxIndexValue = colormap.length
+  const indexExpression = [
+    'clamp',
+    [
+      '+',
+      [
+        '/',
+        [
+          '*',
+          [
+            '-',
+            rescaleExpression,
+            minMappedValue
+          ],
+          [
+            '-',
+            maxIndexValue,
+            minIndexValue
+          ]
+        ],
+        [
+          '-',
+          maxMappedValue,
+          minMappedValue
+        ]
+      ],
+      minIndexValue
+    ],
+    minIndexValue,
+    maxIndexValue
+  ]
+
+  const expression = [
+    'palette',
+    indexExpression,
+    colormap
+  ]
+
+  const variables = {
+    windowCenter,
+    windowWidth
+  }
+
+  return { expression, variables }
+}
+
 const _controls = Symbol('controls')
 const _decoders = Symbol('decoders')
 const _drawingLayer = Symbol('drawingLayer')
@@ -578,6 +674,7 @@ const _tileGrid = Symbol('tileGrid')
 const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
 const _overviewMap = Symbol('overviewMap')
+
 
 /** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
@@ -665,61 +762,38 @@ class VolumeImageViewer {
     // Group color images by opticalPathIdentifier
     const colorGroups = groupColorInstances(this[_metadata])
     const colorImageInformation = {}
-    if (colorGroups.length > 0) {
-      if (colorGroups.length > 1) {
+    let colorOpticalPathIdentifiers = Object.keys(colorGroups)
+    if (colorOpticalPathIdentifiers.length > 0) {
+      const id = colorOpticalPathIdentifiers[0]
+      if (colorOpticalPathIdentifiers.length > 1) {
         console.warn(
           'Volume Image Viewer detected more than one color image, ' +
           'but only one color image can be loaded and visualized at a time. ' +
           'Only the first detected color image will be loaded.'
         )
+        colorOpticalPathIdentifiers = [id]
       }
-      const opticalPathIdentifier = (
-        colorGroups[0][0]
-          .OpticalPathSequence[0]
-          .OpticalPathIdentifier
-      )
-      colorImageInformation[opticalPathIdentifier] = {
-        metadata: colorGroups[0],
+      colorImageInformation[id] = {
+        metadata: colorGroups[id],
         opticalPath: this[_metadata][0].OpticalPathSequence[0]
       }
     }
 
     const monochromeGroups = groupMonochromeInstances(this[_metadata])
+    const monochromeOpticalPathIdentifiers = Object.keys(monochromeGroups)
     const monochromeImageInformation = {}
-    monochromeGroups.forEach((group, i) => {
-      group.forEach(image => {
-        if (
-          image.DimensionOrganizationType === '3D' ||
-          image.DimensionOrganizationType === '3D_TEMPORAL'
-        ) {
-          throw new Error(
-            'Volume Image Viewer does hot hanlde 3D image data yet.'
-          )
-        } else {
-          if (image.TotalPixelMatrixFocalPlanes === 1) {
-            image.OpticalPathSequence.forEach(opticalPath => {
-              const opticalPathIdentifier = opticalPath.OpticalPathIdentifier
-              if (monochromeImageInformation[opticalPathIdentifier]) {
-                monochromeImageInformation[opticalPathIdentifier].metadata.push(
-                  image
-                )
-              } else {
-                monochromeImageInformation[opticalPathIdentifier] = {
-                  metadata: [image],
-                  opticalPath
-                }
-              }
-            })
-          } else {
-            console.warn('images with multiple focal planes are not supported')
-          }
-        }
+    monochromeOpticalPathIdentifiers.forEach(id => {
+      const refImage = monochromeGroups[id][0]
+      const opticalPath = refImage.OpticalPathSequence.find(item => {
+        return item.OpticalPathIdentifier === id
       })
+      monochromeImageInformation[id] = {
+        metadata: monochromeGroups[id],
+        opticalPath
+      }
     })
 
-    const monochromeOpticalPathIdentifiers = Object.keys(monochromeImageInformation)
     const numChannels = monochromeOpticalPathIdentifiers.length
-    const colorOpticalPathIdentifiers = Object.keys(colorImageInformation)
     const numColorImages = colorOpticalPathIdentifiers.length
     if (numChannels === 0 && numColorImages === 0) {
       throw new Error('Could not find any channels or color images.')
@@ -794,7 +868,9 @@ class VolumeImageViewer {
       projection: this[_projection],
       resolutions: this[_tileGrid].getResolutions(),
       rotation: this[_rotation],
+      constrainOnlyCenter: false,
       smoothResolutionConstraint: true,
+      smoothExtentConstraint: false,
       showFullExtent: true,
       extent: this[_pyramid].extent
     })
@@ -808,11 +884,11 @@ class VolumeImageViewer {
       const overviewHelper = new WebGLHelper()
       for (const opticalPathIdentifier in monochromeImageInformation) {
         const info = monochromeImageInformation[opticalPathIdentifier]
-        console.log('DEBUG: ', opticalPathIdentifier, info)
         const pyramid = _computeImagePyramid({ metadata: info.metadata })
-        const minValue = 0
-        const maxValue = Math.pow(2, info.metadata[0].BitsAllocated) - 1
+        console.info(`channel "${opticalPathIdentifier}"`, pyramid)
         const bitsAllocated = info.metadata[0].BitsAllocated
+        const minStoredValue = 0
+        const maxStoredValue = Math.pow(2, bitsAllocated) - 1
         const opticalPath = {
           opticalPathIdentifier,
           opticalPath: new OpticalPath({
@@ -835,11 +911,12 @@ class VolumeImageViewer {
           style: {
             color: [255, 255, 255],
             opacity: 1,
-            limitValues: [minValue, maxValue]
+            limitValues: [minStoredValue, maxStoredValue]
           },
           bitsAllocated: bitsAllocated,
-          minValue: minValue,
-          maxValue: maxValue,
+          isMonochrome: true,
+          minStoredValue,
+          maxStoredValue,
           loaderParams: {
             pyramid: pyramid,
             client: this[_options].client,
@@ -884,7 +961,10 @@ class VolumeImageViewer {
           opticalPath.style.limitValues[1]
         )
 
-        // TODO: use palette color lookup table if available
+        /*
+         * If no Palette Color Lookup Table is available, dont' create a
+         * lookup table, but let WebGL do it on the fly via the interpolation.
+         */
         const style = {
           color: [
             'interpolate',
@@ -911,8 +991,8 @@ class VolumeImageViewer {
             red: opticalPath.style.color[0],
             green: opticalPath.style.color[1],
             blue: opticalPath.style.color[2],
-            windowCenter: windowCenter,
-            windowWidth: windowWidth
+            windowCenter,
+            windowWidth
           }
         }
 
@@ -986,8 +1066,9 @@ class VolumeImageViewer {
         },
         pyramid: pyramid,
         bitsAllocated: 8,
-        minValue: 0,
-        maxValue: 255,
+        isMonochrome: false,
+        minStoredValue: 0,
+        maxStoredValue: 255,
         loaderParams: {
           pyramid: pyramid,
           client: this[_options].client,
@@ -1063,7 +1144,9 @@ class VolumeImageViewer {
     const overviewView = new View({
       projection: this[_projection],
       rotation: this[_rotation],
-      constrainOnlyCenter: true,
+      constrainOnlyCenter: false,
+      smoothExtentConstraint: true,
+      smoothResolutionConstraint: true,
       minZoom: 0,
       maxZoom: 0,
       extent: this[_pyramid].extent
@@ -1204,23 +1287,28 @@ class VolumeImageViewer {
     }
 
     const styleVariables = {}
-    if (styleOptions.color != null) {
-      opticalPath.style.color = styleOptions.color
-      styleVariables.red = opticalPath.style.color[0]
-      styleVariables.green = opticalPath.style.color[1]
-      styleVariables.blue = opticalPath.style.color[2]
+    if (opticalPath.isMonochrome) {
+      if (styleOptions.color != null) {
+        opticalPath.style.color = styleOptions.color
+        styleVariables.red = opticalPath.style.color[0]
+        styleVariables.green = opticalPath.style.color[1]
+        styleVariables.blue = opticalPath.style.color[2]
+      }
+      if (styleOptions.limitValues != null) {
+        opticalPath.style.limitValues = [
+          Math.max(styleOptions.limitValues[0], opticalPath.minStoredValue),
+          Math.min(styleOptions.limitValues[1], opticalPath.maxStoredValue)
+        ]
+        const [windowCenter, windowWidth] = createWindow(
+          styleOptions.limitValues[0],
+          styleOptions.limitValues[1]
+        )
+        styleVariables.windowCenter = windowCenter
+        styleVariables.windowWidth = windowWidth
+      }
+      opticalPath.layer.updateStyleVariables(styleVariables)
+      opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
     }
-    if (styleOptions.limitValues != null) {
-      opticalPath.style.limitValues = styleOptions.limitValues
-      const [windowCenter, windowWidth] = createWindow(
-        styleOptions.limitValues[0],
-        styleOptions.limitValues[1]
-      )
-      styleVariables.windowCenter = windowCenter
-      styleVariables.windowWidth = windowWidth
-    }
-    opticalPath.layer.updateStyleVariables(styleVariables)
-    opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
   }
 
   /** Get the style of an optical path.
@@ -2750,10 +2838,10 @@ class VolumeImageViewer {
       const properties = source.getProperties()
       if (properties[key]) {
         const colormap = createColorMap({
-          name: ColorMapNames.VIRIDIS,
+          name: ColorMaps.VIRIDIS,
           bins: 50
         })
-        const colorLUT = _buildColorLookupTable({
+        const colorLUT = _buildPaletteColorLookupTable({
           colormap: colormap,
           min: properties[key][0],
           max: properties[key][properties[key].length - 2]
@@ -2936,6 +3024,13 @@ class VolumeImageViewer {
       tileSizes: fittedPyramid.tileSizes
     })
 
+    let minStoredValue = 0
+    let maxStoredValue = 255
+    if (refSegmentation.SegmentationType === 'BINARY') {
+      minStoredValue = 0
+      maxStoredValue = 1
+    }
+
     refSegmentation.SegmentSequence.forEach((item, index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment # ${segmentNumber}`)
@@ -2945,7 +3040,7 @@ class VolumeImageViewer {
       }
 
       const colormap = createColorMap({
-        name: ColorMapNames.VIRIDIS,
+        name: ColorMaps.VIRIDIS,
         bins: 50
       })
 
@@ -2972,9 +3067,13 @@ class VolumeImageViewer {
           element: document.createElement('div'),
           offset: [5 + 5 * index + 2, 5]
         }),
-        colormap,
-        minValue: 0,
-        maxValue: 255,
+        paletteColorLUT: _buildPaletteColorLookupTable({
+          colormap,
+          firstValueMapped: 0,
+          bitsPerEntry: 8
+        }),
+        minStoredValue,
+        maxStoredValue,
         loaderParams: {
           pyramid: fittedPyramid,
           client: this[_options].client,
@@ -3000,26 +3099,25 @@ class VolumeImageViewer {
         source.setLoader(loader)
       }
 
-      const colorLUT = _buildColorLookupTable({
-        colormap: colormap,
-        min: 0,
-        max: 1
+      const [windowCenter, windowWidth] = createWindow(
+        minStoredValue,
+        maxStoredValue
+      )
+      const { expression, variables } = _getColorStyle({
+        windowCenter,
+        windowWidth,
+        colormap: segment.paletteColorLUT.entries
       })
       segment.layer = new TileLayer({
         source,
         extent: this[_pyramid].extent,
-        projection: this[_projection],
         visible: false,
         opacity: 0.9,
         preload: 0,
         transition: 0,
         style: {
-          color: [
-            'interpolate',
-            ['linear'],
-            ['band', 1],
-            ...colorLUT
-          ]
+          color: expression,
+          variables
         },
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize
@@ -3160,7 +3258,7 @@ class VolumeImageViewer {
     context.canvas.height = height
     context.canvas.width = width
 
-    const colors = segment.colormap
+    const colors = segment.paletteColorLUT.entries
     for (let j = 0; j < colors.length; j++) {
       const color = colors[colors.length - j - 1]
       const r = color[0]
@@ -3344,30 +3442,36 @@ class VolumeImageViewer {
         }
       })
 
+      // TODO: include real world values in legend
       if (isNaN(range[0]) || isNaN(range[1])) {
         throw new Error('Could not determine range of real world values.')
       }
 
-      // TODO: build color map based on Real World Value Mapping
       let colormap
-      if (range[0] < 0 && range[1] > 0) {
+      const isFloatPixelData = refInstance.BitsAllocated > 16
+      let minStoredValue = 0
+      let maxStoredValue = Math.pow(2, refInstance.BitsAllocated) - 1
+      if (isFloatPixelData) {
+        minStoredValue = -(Math.pow(2, refInstance.BitsAllocated) - 1) / 2
+        maxStoredValue = (Math.pow(2, refInstance.BitsAllocated) - 1) / 2
+      }
+      if (refInstance.PixelPresentation === 'MONOCHROME') {
         colormap = createColorMap({
-          name: ColorMapNames.BLUE_RED,
-          bins: 50
+          name: ColorMaps.GRAY,
+          bins: Math.pow(2, 8)
         })
       } else {
-        colormap = createColorMap({
-          name: ColorMapNames.HOT,
-          bins: 50
-        })
-      }
-
-      const isFloatPixelData = refInstance.BitsAllocated > 16
-      let minValue = 0
-      let maxValue = Math.pow(2, refInstance.BitsAllocated) - 1
-      if (isFloatPixelData) {
-        minValue = -(Math.pow(2, refInstance.BitsAllocated) - 1) / 2
-        maxValue = (Math.pow(2, refInstance.BitsAllocated) - 1) / 2
+        if (range[0] < 0 && range[1] > 0) {
+          colormap = createColorMap({
+            name: ColorMaps.BLUE_RED,
+            bins: Math.pow(2, 8)
+          })
+        } else {
+          colormap = createColorMap({
+            name: ColorMaps.HOT,
+            bins: Math.pow(2, 8)
+          })
+        }
       }
 
       const mapping = {
@@ -3393,9 +3497,19 @@ class VolumeImageViewer {
             Math.floor(windowCenter + windowWidth / 2)
           ]
         },
-        colormap: colormap,
-        minValue: minValue,
-        maxValue: maxValue,
+        /*
+         * The Palette Color Lookup Table applies to the 8-bit values in range
+         * [0, 255] that are obtained by scaling stored pixel values between the
+         * limits of Values of Interest (VOI) defined by the window center and
+         * width.
+         */
+        paletteColorLUT: _buildPaletteColorLookupTable({
+          colormap,
+          firstValueMapped: 0,
+          bitsPerEntry: 8
+        }),
+        minStoredValue,
+        maxStoredValue,
         loaderParams: {
           pyramid: fittedPyramid,
           client: this[_options].client,
@@ -3421,11 +3535,10 @@ class VolumeImageViewer {
         source.setLoader(loader)
       }
 
-      // TODO: use the Palette Color LUT of image if available
-      const colorLUT = _buildColorLookupTable({
-        colormap: colormap,
-        min: 0,
-        max: 1
+      const { expression, variables } = _getColorStyle({
+        windowCenter,
+        windowWidth,
+        colormap: mapping.paletteColorLUT.entries
       })
       mapping.layer = new TileLayer({
         source,
@@ -3436,28 +3549,8 @@ class VolumeImageViewer {
         preload: 1,
         transition: 0,
         style: {
-          color: [
-            'interpolate',
-            ['linear'],
-            [
-              '+',
-              [
-                '/',
-                [
-                  '-',
-                  ['band', 1],
-                  ['var', 'windowCenter']
-                ],
-                ['var', 'windowWidth']
-              ],
-              0.5
-            ],
-            ...colorLUT
-          ],
-          variables: {
-            windowCenter: windowCenter,
-            windowWidth: windowWidth
-          }
+          color: expression,
+          variables
         }
       })
       mapping.layer.on('error', (event) => {
@@ -3575,10 +3668,13 @@ class VolumeImageViewer {
 
     const styleVariables = {}
     if (styleOptions.limitValues != null) {
-      mapping.style.limitValues = styleOptions.limitValues
+      mapping.style.limitValues = [
+        Math.max(styleOptions.limitValues[0], mapping.minStoredValue),
+        Math.min(styleOptions.limitValues[1], mapping.maxStoredValue)
+      ]
       const [windowCenter, windowWidth] = createWindow(
-        styleOptions.limitValues[0],
-        styleOptions.limitValues[1]
+        mapping.style.limitValues[0],
+        mapping.style.limitValues[1]
       )
       styleVariables.windowCenter = windowCenter
       styleVariables.windowWidth = windowWidth
@@ -3612,7 +3708,7 @@ class VolumeImageViewer {
     context.canvas.height = height
     context.canvas.width = width
 
-    const colors = mapping.colormap
+    const colors = mapping.paletteColorLUT.entries
     for (let j = 0; j < colors.length; j++) {
       const color = colors[colors.length - j - 1]
       const r = color[0]

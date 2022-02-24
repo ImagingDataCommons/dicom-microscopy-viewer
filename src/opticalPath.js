@@ -1,6 +1,7 @@
 const _attrs = Symbol('_attrs')
 
-/** An Optical Path.
+/**
+ * An Optical Path.
  *
  * An optical path represents a color or a monochromatic image that was acquired
  * using specific microscopy settings. Usually, an optical path is also
@@ -80,9 +81,12 @@ class OpticalPath {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+
+    Object.freeze(this)
   }
 
-  /** Get Optical Path Identifier
+  /**
+   * Get Optical Path Identifier
    *
    * @returns {string} Optical Path Identifier
    */
@@ -90,7 +94,8 @@ class OpticalPath {
     return this[_attrs].identifier
   }
 
-  /** Get Optical Path Description
+  /**
+   * Get Optical Path Description
    *
    * @returns {string} Optical Path Description
    */
@@ -98,7 +103,8 @@ class OpticalPath {
     return this[_attrs].description
   }
 
-  /** Get Illumination Type Code.
+  /**
+   * Get Illumination Type Code.
    *
    * @returns {object} Illumination Type Code
    */
@@ -106,7 +112,8 @@ class OpticalPath {
     return this[_attrs].illuminationType
   }
 
-  /** Get Illumination Color.
+  /**
+   * Get Illumination Color.
    *
    * @returns {object} Illumination Color Code
    */
@@ -114,7 +121,8 @@ class OpticalPath {
     return this[_attrs].illuminationColor
   }
 
-  /** Get Illumination Wave Length.
+  /**
+   * Get Illumination Wave Length.
    *
    * @returns {string | undefined} Illumination Wave Length
    */
@@ -122,7 +130,8 @@ class OpticalPath {
     return this[_attrs].illuminationWaveLength
   }
 
-  /** Get Study Instance UID of images.
+  /**
+   * Get Study Instance UID of images.
    *
    * @returns {string} Study Instance UID
    */
@@ -130,7 +139,8 @@ class OpticalPath {
     return this[_attrs].studyInstanceUID
   }
 
-  /** Get Series Instance UID of images.
+  /**
+   * Get Series Instance UID of images.
    *
    * @returns {string} Series Instance UID
    */
@@ -138,7 +148,8 @@ class OpticalPath {
     return this[_attrs].seriesInstanceUID
   }
 
-  /** Get SOP Instance UIDs of images.
+  /**
+   * Get SOP Instance UIDs of images.
    *
    * @returns {string[]} SOP Instance UIDs
    */

@@ -85,9 +85,12 @@ class Segment {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+
+    Object.freeze(this)
   }
 
-  /** Get Unique Tracking Identifier
+  /**
+   * Get Unique Tracking Identifier
    *
    * @returns {string} Unique Tracking Identifier
    */
@@ -95,7 +98,8 @@ class Segment {
     return this[_attrs].uid
   }
 
-  /** Get Segment Number.
+  /**
+   * Get Segment Number.
    *
    * @returns {number} Segment Number
    */
@@ -103,7 +107,8 @@ class Segment {
     return this[_attrs].number
   }
 
-  /** Get Segment Label
+  /**
+   * Get Segment Label
    *
    * @returns {string} Segment Label
    */
@@ -111,7 +116,8 @@ class Segment {
     return this[_attrs].label
   }
 
-  /** Get Segment Algorithm Name
+  /**
+   * Get Segment Algorithm Name
    *
    * @returns {string} Segment Algorithm Name
    */
@@ -119,7 +125,8 @@ class Segment {
     return this[_attrs].algorithmName
   }
 
-  /** Get Segment Algorithm Type
+  /**
+   * Get Segment Algorithm Type
    *
    * @returns {object} Segment Algorithm Type
    */
@@ -127,7 +134,8 @@ class Segment {
     return this[_attrs].algorithmType
   }
 
-  /** Get Segmented Property Category Code
+  /**
+   * Get Segmented Property Category Code
    *
    * @returns {object} Segmented Property Category Code
    */
@@ -135,7 +143,8 @@ class Segment {
     return this[_attrs].propertyCategory
   }
 
-  /** Get Segmented Property Type Code
+  /**
+   * Get Segmented Property Type Code
    *
    * @returns {object} Segmented Property Type Code
    */
@@ -143,7 +152,8 @@ class Segment {
     return this[_attrs].propertyType
   }
 
-  /** Get Study Instance UID of Segmentation images.
+  /**
+   * Get Study Instance UID of Segmentation images.
    *
    * @returns {string} Study Instance UID
    */
@@ -151,7 +161,8 @@ class Segment {
     return this[_attrs].studyInstanceUID
   }
 
-  /** Get Series Instance UID of Segmentation images.
+  /**
+   * Get Series Instance UID of Segmentation images.
    *
    * @returns {string} Series Instance UID
    */
@@ -159,7 +170,8 @@ class Segment {
     return this[_attrs].seriesInstanceUID
   }
 
-  /** Get SOP Instance UIDs of Segmentation images.
+  /**
+   * Get SOP Instance UIDs of Segmentation images.
    *
    * @returns {string[]} SOP Instance UIDs
    */

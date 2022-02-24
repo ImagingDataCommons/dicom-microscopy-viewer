@@ -106,6 +106,7 @@ function getFrameMapping (metadata) {
   const rows = metadata.Rows
   const columns = metadata.Columns
   const totalPixelMatrixColumns = metadata.TotalPixelMatrixColumns
+  const totalPixelMatrixRows = metadata.TotalPixelMatrixRows
   const sopInstanceUID = metadata.SOPInstanceUID
   const numberOfFrames = Number(metadata.NumberOfFrames || 1)
   const frameOffsetNumber = Number(metadata.ConcatenationFrameOffsetNumber || 0)
@@ -117,7 +118,6 @@ function getFrameMapping (metadata) {
    *  - segments (Segmentation)
    *  - mappings (Parametric Map)
    */
-  let numberOfChannels = 0
   const numberOfFocalPlanes = Number(metadata.NumberOfFocalPlanes || 1)
   if (numberOfFocalPlanes > 1) {
     throw new Error('Images with multiple focal planes are not yet supported.')
@@ -127,6 +127,7 @@ function getFrameMapping (metadata) {
     mappingNumberToFrameNumbers,
     frameNumberToMappingNumber
   } = _groupFramesPerMapping(metadata)
+  let numberOfChannels = 0
   let numberOfOpticalPaths = 0
   let numberOfSegments = 0
   let numberOfMappings = 0
@@ -143,7 +144,8 @@ function getFrameMapping (metadata) {
     throw new Error('Could not determine the number of image channels.')
   }
 
-  const tilesPerRow = Math.ceil(totalPixelMatrixColumns / columns)
+  const tileColumns = Math.ceil(totalPixelMatrixColumns / columns)
+  const tileRows = Math.ceil(totalPixelMatrixRows / rows)
   const frameMapping = {}
   /**
    * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
@@ -155,31 +157,39 @@ function getFrameMapping (metadata) {
   if (dimensionOrganizationType === 'TILED_FULL') {
     const offset = frameOffsetNumber + 1
     const limit = frameOffsetNumber + numberOfFrames
-    for (let j = offset; j <= limit; j++) {
-      const rowIndex = Math.ceil(j / (tilesPerRow * numberOfChannels))
-      const n = (
-        j -
-        (rowIndex * tilesPerRow * numberOfChannels) +
-        (tilesPerRow * numberOfChannels)
-      )
-      const colIndex = Math.ceil(n / numberOfChannels)
-      const channelIndex = Math.ceil(n / tilesPerRow)
-      let channelIdentifier
-      if (numberOfOpticalPaths > 0) {
-        const opticalPath = metadata.OpticalPathSequence[channelIndex - 1]
-        channelIdentifier = opticalPath.OpticalPathIdentifier
-      } else if (numberOfSegments > 0) {
-        const segment = metadata.SegmentIdentificationSequence[channelIndex - 1]
-        channelIdentifier = String(segment.ReferencedSegmentNumber)
-      } else if (numberOfMappings > 0) {
-        // TODO: ensure that frames are mapped accordingly
-        channelIdentifier = String(frameNumberToMappingNumber[j + 1])
-      } else {
-        throw new Error(`Could not determine channel of frame ${j}.`)
+    let n = 1
+    // Forth, along "channels"
+    for (let i = 0; i < numberOfChannels; i++) {
+      // Third, along the depth direction from glass slide -> coverslip
+      for (let p = 0; p < numberOfFocalPlanes; p++) {
+        // Second, along the column direction from top -> bottom
+        for (let r = 0; r < tileRows; r++) {
+          // First, along the row direction from left -> right
+          for (let c = 0; c < tileColumns; c++) {
+            /*
+             * The standard currently only defines TILED_FULL for optical paths
+             * and not any other types of "channels" such as segments or
+             * parameter mappings.
+             */
+            let channelIdentifier
+            if (numberOfOpticalPaths > 0) {
+              const opticalPath = metadata.OpticalPathSequence[i]
+              channelIdentifier = opticalPath.OpticalPathIdentifier
+            } else if (numberOfSegments > 0) {
+              const segment = metadata.SegmentIdentificationSequence[i]
+              channelIdentifier = String(segment.ReferencedSegmentNumber)
+            } else if (numberOfMappings > 0) {
+              // TODO: ensure that frames are mapped accordingly
+              channelIdentifier = String(frameNumberToMappingNumber[n])
+            } else {
+              throw new Error(`Could not determine channel of frame #${n}.`)
+            }
+            const index = `${r + 1}-${c + 1}-${channelIdentifier}`
+            frameMapping[index] = `${sopInstanceUID}/frames/${n}`
+            n += 1
+          }
+        }
       }
-      const index = rowIndex + '-' + colIndex + '-' + channelIdentifier
-      const frameNumber = j - offset + 1
-      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
     }
   } else {
     const sharedFuncGroups = metadata.SharedFunctionalGroupsSequence
@@ -192,23 +202,51 @@ function getFrameMapping (metadata) {
       const colIndex = Math.ceil(columnPosition / columns)
       let channelIdentifier
       if (numberOfOpticalPaths === 1) {
-        const opticalPath = sharedFuncGroups[0].OpticalPathIdentificationSequence[0]
-        channelIdentifier = opticalPath.OpticalPathIdentifier
+        try {
+          channelIdentifier = String(
+            sharedFuncGroups[0]
+              .OpticalPathIdentificationSequence[0]
+              .OpticalPathIdentifier
+          )
+        } catch {
+          channelIdentifier = String(
+            perframeFuncGroups[0]
+              .OpticalPathIdentificationSequence[0]
+              .OpticalPathIdentifier
+          )
+        }
       } else if (numberOfOpticalPaths > 1) {
-        const opticalPath = perframeFuncGroups[j].OpticalPathIdentificationSequence[0]
-        channelIdentifier = opticalPath.OpticalPathIdentifier
+        channelIdentifier = String(
+          perframeFuncGroups[0]
+            .OpticalPathIdentificationSequence[0]
+            .OpticalPathIdentifier
+        )
       } else if (numberOfSegments === 1) {
-        const segment = sharedFuncGroups[0].SegmentIdentificationSequence[0]
-        channelIdentifier = String(segment.ReferencedSegmentNumber)
+        try {
+          channelIdentifier = String(
+            sharedFuncGroups[0]
+              .SegmentIdentificationSequence[0]
+              .ReferencedSegmentNumber
+          )
+        } catch {
+          channelIdentifier = String(
+            perframeFuncGroups[0]
+              .SegmentIdentificationSequence[0]
+              .ReferencedSegmentNumber
+          )
+        }
       } else if (numberOfSegments > 1) {
-        const segment = perframeFuncGroups[j].SegmentIdentificationSequence[0]
-        channelIdentifier = String(segment.ReferencedSegmentNumber)
+        channelIdentifier = String(
+          perframeFuncGroups[0]
+            .SegmentIdentificationSequence[0]
+            .ReferencedSegmentNumber
+        )
       } else if (numberOfMappings > 0) {
         channelIdentifier = String(frameNumberToMappingNumber[j + 1])
       } else {
         throw new Error(`Could not determine channel of frame ${j}.`)
       }
-      const index = rowIndex + '-' + colIndex + '-' + channelIdentifier
+      const index = `${rowIndex}-${colIndex}-${channelIdentifier}`
       const frameNumber = j + 1
       frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
     }
@@ -315,11 +353,11 @@ function formatMetadata (metadata) {
  *
  * @param {Object[]} images - DICOM VL Whole Slide Microscopy Image instances.
  *
- * @returns {Object[][]} Groups of DICOM VL Whole Slide Microscopy Image instances
+ * @returns {Object} Groups of DICOM VL Whole Slide Microscopy Image instances
  * @memberof metadata
  */
 function groupMonochromeInstances (images) {
-  const channels = []
+  const channels = {}
   images.forEach(img => {
     if (
       img.SamplesPerPixel === 1 &&
@@ -327,26 +365,15 @@ function groupMonochromeInstances (images) {
       (img.ImageType[2] === 'VOLUME' || img.ImageType[2] === 'THUMBNAIL')
     ) {
       img.OpticalPathSequence.forEach((opticalPathItem, opticalPathIndex) => {
-        const opticalPathIdentifier = opticalPathItem.OpticalPathIdentifier
-        const index = channels.findIndex(group => {
-          const id = (
-            group[0]
-              .OpticalPathSequence[opticalPathIndex]
-              .OpticalPathIdentifier
-          )
-          return id === opticalPathIdentifier
-        })
-
-        if (index >= 0) {
-          channels[index].push(img)
+        const id = opticalPathItem.OpticalPathIdentifier
+        if (id in channels) {
+          channels[id].push(img)
         } else {
-          const group = [img]
-          channels.push(group)
+          channels[id] = [img]
         }
       })
     }
   })
-
   return channels
 }
 
@@ -355,50 +382,29 @@ function groupMonochromeInstances (images) {
  *
  * @param {Object[]} images - DICOM VL Whole Slide Microscopy Image instances.
  *
- * @returns {Object[][]} Groups of DICOM VL Whole Slide Microscopy Image instances
+ * @returns {Object} Groups of DICOM VL Whole Slide Microscopy Image instances
  * @memberof metadata
  */
 function groupColorInstances (images) {
-  const colorImages = []
-  for (let i = 0; i < images.length; ++i) {
+  const channels = {}
+  images.forEach(img => {
     if (
-      images[i].ImageType[2] === 'LABEL' ||
-      images[i].ImageType[2] === 'OVERVIEW'
-    ) {
-      continue
-    }
-
-    if (
-      images[i].SamplesPerPixel !== 1 &&
+      img.SamplesPerPixel !== 1 &&
+      (img.ImageType[2] === 'THUMBNAIL' || img.ImageType[2] === 'VOLUME') &&
       (
-        images[i].PhotometricInterpretation === 'RGB' ||
-        images[i].PhotometricInterpretation.includes('YBR')
+        img.PhotometricInterpretation === 'RGB' ||
+        img.PhotometricInterpretation.includes('YBR')
       )
     ) {
-      const opticalPathIdentifier = (
-        images[i]
-          .OpticalPathSequence[0]
-          .OpticalPathIdentifier
-      )
-      const group = colorImages.find(group => {
-        const currentOpticalPathIdentifier = (
-          group[0]
-            .OpticalPathSequence[0]
-            .OpticalPathIdentifier
-        )
-        return currentOpticalPathIdentifier === opticalPathIdentifier
-      })
-
-      if (group) {
-        group.push(images[i])
+      const id = img.OpticalPathSequence[0].OpticalPathIdentifier
+      if (id in channels) {
+        channels[id].push(img)
       } else {
-        const group = [images[i]]
-        colorImages.push(group)
+        channels[id] = [img]
       }
     }
-  }
-
-  return colorImages
+  })
+  return channels
 }
 
 class SOPClass {
