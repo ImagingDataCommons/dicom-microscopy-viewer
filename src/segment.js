@@ -21,6 +21,7 @@ class Segment {
    * @param {string} options.studyInstanceUID - Study Instance UID of Segmentation images
    * @param {string} options.seriesInstanceUID - Series Instance UID of Segmentation images
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Segmentation images
+   * @param {string|undefined} options.paletteColorLookupTableUID - Palette Color Lookup Table UID
    */
   constructor ({
     uid,
@@ -32,7 +33,8 @@ class Segment {
     algorithmName,
     studyInstanceUID,
     seriesInstanceUID,
-    sopInstanceUIDs
+    sopInstanceUIDs,
+    paletteColorLookupTableUID
   }) {
     this[_attrs] = {}
     if (uid === undefined) {
@@ -85,6 +87,8 @@ class Segment {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+
+    this[_attrs].paletteColorLookupTableUID = paletteColorLookupTableUID
 
     Object.freeze(this)
   }
@@ -177,6 +181,15 @@ class Segment {
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
+  }
+
+  /**
+   * Get Palette Color Lookup Table UID.
+   *
+   * @returns {string} Palette Color Lookup Table UID
+   */
+  get paletteColorLookupTableUID () {
+    return this[_attrs].paletteColorLookupTableUID
   }
 }
 

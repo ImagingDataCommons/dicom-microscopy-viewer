@@ -559,15 +559,19 @@ function _setFeatureStyle (feature, styleOptions) {
   }
 }
 
-function _getColorStyle ({
+function _getColorPaletteStyle ({
   windowCenter,
   windowWidth,
   colormap
 }) {
-  // First, rescale values of interest in window to range [0, 1]
+  /*
+   * The Palette Color Lookup Table applies to the index values in the range
+   * [0, n] that are obtained by scaling stored pixel values between the lower
+   * and upper value of interest (VOI) defined by the window center and width.
+   */
   const minMappedValue = 0
-  const maxMappedValue = 1
-  const rescaleExpression = [
+  const maxMappedValue = colormap.length
+  const indexExpression = [
     'clamp',
     [
       '+',
@@ -606,40 +610,6 @@ function _getColorStyle ({
     maxMappedValue
   ]
 
-  // Second, rescale values of interest to range [0, 1]
-  const minIndexValue = 0
-  const maxIndexValue = colormap.length
-  const indexExpression = [
-    'clamp',
-    [
-      '+',
-      [
-        '/',
-        [
-          '*',
-          [
-            '-',
-            rescaleExpression,
-            minMappedValue
-          ],
-          [
-            '-',
-            maxIndexValue,
-            minIndexValue
-          ]
-        ],
-        [
-          '-',
-          maxMappedValue,
-          minMappedValue
-        ]
-      ],
-      minIndexValue
-    ],
-    minIndexValue,
-    maxIndexValue
-  ]
-
   const expression = [
     'palette',
     indexExpression,
@@ -651,7 +621,7 @@ function _getColorStyle ({
     windowWidth
   }
 
-  return { expression, variables }
+  return { color: expression, variables }
 }
 
 const _controls = Symbol('controls')
@@ -889,11 +859,40 @@ class VolumeImageViewer {
         const bitsAllocated = info.metadata[0].BitsAllocated
         const minStoredValue = 0
         const maxStoredValue = Math.pow(2, bitsAllocated) - 1
+        let paletteColorLookupTableUID
+        let paletteColorLookupTable
+        if (info.opticalPath.PaletteColorLookupTableSequence) {
+          const item = info.opticalPath.PaletteColorLookupTableSequence[0]
+          paletteColorLookupTableUID = (
+            item.PaletteColorLookupTableUID
+              ? item.PaletteColorLookupTableUID
+              : generateUID()
+          )
+          /*
+           * TODO: If the LUT Data are large, the elements may be bulkdata and
+           * then have to be retrieved separately. However, for optical paths
+           * they are typically communicated as Segmented LUT Data and thus
+           * relatively small.
+           */
+          paletteColorLookupTable = new PaletteColorLookupTable({
+            uid: item.PaletteColorLookupTableUID,
+            redDescriptor: item.RedPaletteColorLookupTableDescriptor,
+            greenDescriptor: item.GreenPaletteColorLookupTableDescriptor,
+            blueDescriptor: item.BluePaletteColorLookupTableDescriptor,
+            redData: item.RedPaletteColorLookupTableData,
+            greenData: item.GreenPaletteColorLookupTableData,
+            blueData: item.BluePaletteColorLookupTableData,
+            redSegmentedData: item.SegmentedRedPaletteColorLookupTableData,
+            greenSegmentedData: item.SegmentedGreenPaletteColorLookupTableData,
+            blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData
+          })
+        }
         const opticalPath = {
           opticalPathIdentifier,
           opticalPath: new OpticalPath({
             identifier: opticalPathIdentifier,
             description: info.opticalPath.OpticalPathDescription,
+            isMonochromatic: true,
             illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
             illuminationWaveLength: info.opticalPath.IlluminationWaveLength,
             illuminationColor: (
@@ -905,16 +904,18 @@ class VolumeImageViewer {
             seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
             sopInstanceUIDs: pyramid.metadata.map(element => {
               return element.SOPInstanceUID
-            })
+            }),
+            paletteColorLookupTableUID
           }),
           pyramid: pyramid,
           style: {
             color: [255, 255, 255],
             opacity: 1,
-            limitValues: [minStoredValue, maxStoredValue]
+            limitValues: [minStoredValue, maxStoredValue],
+            paletteColorLookupTable: paletteColorLookupTable
           },
           bitsAllocated: bitsAllocated,
-          isMonochrome: true,
+          isColorable: paletteColorLookupTableUID == null,
           minStoredValue,
           maxStoredValue,
           loaderParams: {
@@ -961,38 +962,47 @@ class VolumeImageViewer {
           opticalPath.style.limitValues[1]
         )
 
-        /*
-         * If no Palette Color Lookup Table is available, dont' create a
-         * lookup table, but let WebGL do it on the fly via the interpolation.
-         */
-        const style = {
-          color: [
-            'interpolate',
-            ['linear'],
-            [
-              '+',
-              [
-                '/',
-                [
-                  '-',
-                  ['band', 1],
-                  ['var', 'windowCenter']
-                ],
-                ['var', 'windowWidth']
-              ],
-              0.5
-            ],
-            0,
-            [0, 0, 0, 1],
-            1,
-            ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1]
-          ],
-          variables: {
-            red: opticalPath.style.color[0],
-            green: opticalPath.style.color[1],
-            blue: opticalPath.style.color[2],
+        let style
+        if (opticalPath.style.paletteColorLookupTable) {
+          style = _getColorPaletteStyle({
             windowCenter,
-            windowWidth
+            windowWidth,
+            colormap: opticalPath.style.paletteColorLookupTable.data
+          })
+        } else {
+          /*
+           * If no Palette Color Lookup Table is available, don't create one
+           * but let WebGL interpolate colors for improved performance.
+           */
+          style = {
+            color: [
+              'interpolate',
+              ['linear'],
+              [
+                '+',
+                [
+                  '/',
+                  [
+                    '-',
+                    ['band', 1],
+                    ['var', 'windowCenter']
+                  ],
+                  ['var', 'windowWidth']
+                ],
+                0.5
+              ],
+              0,
+              [0, 0, 0, 1],
+              1,
+              ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1]
+            ],
+            variables: {
+              red: opticalPath.style.color[0],
+              green: opticalPath.style.color[1],
+              blue: opticalPath.style.color[2],
+              windowCenter,
+              windowWidth
+            }
           }
         }
 
@@ -1055,6 +1065,7 @@ class VolumeImageViewer {
           identifier: opticalPathIdentifier,
           description: info.opticalPath.OpticalPathDescription,
           illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
+          isMonochromatic: false,
           studyInstanceUID: info.metadata[0].StudyInstanceUID,
           seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
           sopInstanceUIDs: pyramid.metadata.map(element => {
@@ -1066,7 +1077,6 @@ class VolumeImageViewer {
         },
         pyramid: pyramid,
         bitsAllocated: 8,
-        isMonochrome: false,
         minStoredValue: 0,
         maxStoredValue: 255,
         loaderParams: {
@@ -1242,7 +1252,8 @@ class VolumeImageViewer {
     })
   }
 
-  /** Set the style of an optical path.
+  /**
+   * Set the style of an optical path.
    *
    * The style determine how grayscale stored values of a MONOCHROME2 image
    * will be transformed into pseudo-color display values.
@@ -1278,7 +1289,7 @@ class VolumeImageViewer {
     }
 
     console.info(
-      `set style for optical path ${opticalPathIdentifier}`,
+      `set style for optical path "${opticalPathIdentifier}"`,
       styleOptions
     )
     if (styleOptions.opacity != null) {
@@ -1287,12 +1298,18 @@ class VolumeImageViewer {
     }
 
     const styleVariables = {}
-    if (opticalPath.isMonochrome) {
+    if (opticalPath.opticalPath.isMonochromatic) {
       if (styleOptions.color != null) {
-        opticalPath.style.color = styleOptions.color
-        styleVariables.red = opticalPath.style.color[0]
-        styleVariables.green = opticalPath.style.color[1]
-        styleVariables.blue = opticalPath.style.color[2]
+        if (opticalPath.opticalPath.isColorable) {
+          opticalPath.style.color = styleOptions.color
+          styleVariables.red = opticalPath.style.color[0]
+          styleVariables.green = opticalPath.style.color[1]
+          styleVariables.blue = opticalPath.style.color[2]
+        } else {
+          console.warn(
+            `optical path "${opticalPathIdentifier}" is not colorable`
+          )
+        }
       }
       if (styleOptions.limitValues != null) {
         opticalPath.style.limitValues = [
@@ -1311,32 +1328,67 @@ class VolumeImageViewer {
     }
   }
 
-  /** Get the style of an optical path.
+  /**
+   * Determine whether an optical path is colorable.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   * @return {boolean} yes/no answer
+   */
+  isOpticalPathColorable (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath == null) {
+      return false
+    }
+    return opticalPath.opticalPath.isColorable
+  }
+
+  /**
+   * Determine whether an optical path is monochromatic.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   * @return {boolean} yes/no answer
+   */
+  isOpticalPathMonochromatic (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath == null) {
+      return false
+    }
+    return opticalPath.opticalisMonochromatic
+  }
+
+  /**
+   * Get the style of an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @return {object} Style of optical path
    */
   getOpticalPathStyle (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
-    if (opticalPath === undefined) {
+    if (opticalPath == null) {
       throw new Error(
         'Cannot get style of optical path. ' +
         `Could not find optical path "${opticalPathIdentifier}".`
       )
     }
-    if (opticalPath.style == null) {
+    if (opticalPath.opticalPath.isMonochromatic) {
+      if (opticalPath.opticalPath.isColorable) {
+        return {
+          color: opticalPath.style.color,
+          opacity: opticalPath.style.opacity,
+          limitValues: opticalPath.style.limitValues
+        }
+      }
       return {
-        opacity: opticalPath.style.opacity
+        paletteColorLookupTable: opticalPath.style.paletteColorLookupTable,
+        opacity: opticalPath.style.opacity,
+        limitValues: opticalPath.style.limitValues
       }
     }
-    return {
-      color: opticalPath.style.color,
-      opacity: opticalPath.style.opacity,
-      limitValues: opticalPath.style.limitValues
-    }
+    return { opacity: opticalPath.style.opacity }
   }
 
-  /** Get image metadata for an optical path.
+  /**
+   * Get image metadata for an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @returns {VLWholeSlideMicroscopyImage[]} Slide microscopy image metadata
@@ -1365,7 +1417,8 @@ class VolumeImageViewer {
     return opticalPaths
   }
 
-  /** Activate an optical path.
+  /**
+   * Activate an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    */
@@ -1390,7 +1443,8 @@ class VolumeImageViewer {
     )
   }
 
-  /** Deactivate an optical path.
+  /**
+   * Deactivate an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    */
@@ -1411,7 +1465,8 @@ class VolumeImageViewer {
     )
   }
 
-  /** Determine whether an optical path is active.
+  /**
+   * Determine whether an optical path is active.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @return {boolean} active
@@ -1426,7 +1481,8 @@ class VolumeImageViewer {
     })
   }
 
-  /** Show an optical path.
+  /**
+   * Show an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @param {object} styleOptions
@@ -1451,7 +1507,8 @@ class VolumeImageViewer {
     this.setOpticalPathStyle(opticalPathIdentifier, styleOptions)
   }
 
-  /** Hide an optical path.
+  /**
+   * Hide an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    */
@@ -2842,7 +2899,7 @@ class VolumeImageViewer {
           bins: 50
         })
         const colorLUT = _buildPaletteColorLookupTable({
-          colormap: colormap,
+          data: colormap,
           min: properties[key][0],
           max: properties[key][properties[key].length - 2]
         })
@@ -3061,16 +3118,16 @@ class VolumeImageViewer {
         }),
         pyramid,
         style: {
-          opacity: 0.75
+          opacity: 0.75,
+          paletteColorLookupTable: _buildPaletteColorLookupTable({
+            data: colormap,
+            firstValueMapped: 0,
+            bitsPerEntry: 8
+          })
         },
         overlay: new Overlay({
           element: document.createElement('div'),
           offset: [5 + 5 * index + 2, 5]
-        }),
-        paletteColorLUT: _buildPaletteColorLookupTable({
-          colormap,
-          firstValueMapped: 0,
-          bitsPerEntry: 8
         }),
         minStoredValue,
         maxStoredValue,
@@ -3103,11 +3160,6 @@ class VolumeImageViewer {
         minStoredValue,
         maxStoredValue
       )
-      const { expression, variables } = _getColorStyle({
-        windowCenter,
-        windowWidth,
-        colormap: segment.paletteColorLUT.entries
-      })
       segment.layer = new TileLayer({
         source,
         extent: this[_pyramid].extent,
@@ -3115,10 +3167,11 @@ class VolumeImageViewer {
         opacity: 0.9,
         preload: 0,
         transition: 0,
-        style: {
-          color: expression,
-          variables
-        },
+        style: _getColorPaletteStyle({
+          windowCenter,
+          windowWidth,
+          colormap: segment.style.paletteColorLookupTable.data
+        }),
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize
       })
@@ -3258,7 +3311,7 @@ class VolumeImageViewer {
     context.canvas.height = height
     context.canvas.width = width
 
-    const colors = segment.paletteColorLUT.entries
+    const colors = segment.style.paletteColorLookupTable.data
     for (let j = 0; j < colors.length; j++) {
       const color = colors[colors.length - j - 1]
       const r = color[0]
@@ -3289,7 +3342,10 @@ class VolumeImageViewer {
     }
     const segment = this[_segments][segmentUID]
 
-    return { opacity: segment.style.opacity }
+    return {
+      opacity: segment.style.opacity,
+      paletteColorLookupTable: segment.style.paletteColorLookupTable
+    }
   }
 
   /** Get image metadata for a segment.
@@ -3495,19 +3551,13 @@ class VolumeImageViewer {
           limitValues: [
             Math.ceil(windowCenter - windowWidth / 2),
             Math.floor(windowCenter + windowWidth / 2)
-          ]
+          ],
+          paletteColorLookupTable: _buildPaletteColorLookupTable({
+            data: colormap,
+            firstValueMapped: 0,
+            bitsPerEntry: 8
+          })
         },
-        /*
-         * The Palette Color Lookup Table applies to the 8-bit values in range
-         * [0, 255] that are obtained by scaling stored pixel values between the
-         * limits of Values of Interest (VOI) defined by the window center and
-         * width.
-         */
-        paletteColorLUT: _buildPaletteColorLookupTable({
-          colormap,
-          firstValueMapped: 0,
-          bitsPerEntry: 8
-        }),
         minStoredValue,
         maxStoredValue,
         loaderParams: {
@@ -3535,11 +3585,6 @@ class VolumeImageViewer {
         source.setLoader(loader)
       }
 
-      const { expression, variables } = _getColorStyle({
-        windowCenter,
-        windowWidth,
-        colormap: mapping.paletteColorLUT.entries
-      })
       mapping.layer = new TileLayer({
         source,
         extent: this[_pyramid].extent,
@@ -3548,10 +3593,11 @@ class VolumeImageViewer {
         opacity: 1,
         preload: 1,
         transition: 0,
-        style: {
-          color: expression,
-          variables
-        }
+        style: _getColorPaletteStyle({
+          windowCenter,
+          windowWidth,
+          colormap: mapping.style.paletteColorLookupTable.data
+        })
       })
       mapping.layer.on('error', (event) => {
         console.error(`error rendering mapping "${mappingUID}"`, event)
@@ -3649,7 +3695,6 @@ class VolumeImageViewer {
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @param {object} styleOptions
-   * @param {string} styleOptions.colormap - Name of the color map
    * @param {number} styleOptions.opacity - Opacity
    */
   setParameterMappingStyle (mappingUID, styleOptions = {}) {
@@ -3708,7 +3753,7 @@ class VolumeImageViewer {
     context.canvas.height = height
     context.canvas.width = width
 
-    const colors = mapping.paletteColorLUT.entries
+    const colors = mapping.style.paletteColorLookupTable.data
     for (let j = 0; j < colors.length; j++) {
       const color = colors[colors.length - j - 1]
       const r = color[0]
@@ -3741,7 +3786,8 @@ class VolumeImageViewer {
 
     return {
       opacity: mapping.style.opacity,
-      limitValues: mapping.style.limitValues
+      limitValues: mapping.style.limitValues,
+      paletteColorLookupTable: mapping.style.paletteColorLookupTable
     }
   }
 

@@ -1,6 +1,6 @@
 import colormap from 'colormap'
 
-import { generateUID } from './utils.js'
+import { generateUID, rescale } from './utils.js'
 
 const _attrs = Symbol('attrs')
 
@@ -54,42 +54,21 @@ function createColorMap ({ name, bins }) {
 }
 
 /**
- * Build a color ramp.
+ * Build a palette color lookup table object from a colormap.
  *
  * @param {object} options
- * @param {number[][]} options.colormap - RGB triplet for each color
- * @param {number} options.min - Mininum value of the input data range
- * @param {number} options.max - Maximum value of the input data range
- *
- * @returns {number[][]} Interleaved values of the input data and RGB color triplets
- */
-function _buildColorRamp ({ colormap, min, max }) {
-  const steps = colormap.length
-  const delta = (max - min) / (steps - 1)
-  const table = new Array(steps * 2)
-  for (let i = 0; i < steps; i++) {
-    table[i * 2] = min + i * delta
-    table[i * 2 + 1] = colormap[i]
-  }
-  return table
-}
-
-/**
- * Build a palette color lookup table.
- *
- * @param {object} options
- * @param {number[][]} options.colormap - RGB triplet for each color
+ * @param {number[][]} options.colormap - Array of RGB triplets for each color
  * @param {number} options.min - Mininum value of the input data range
  * @param {number} options.max - Maximum value of the input data range
  *
  * @returns {PaletteColorLookupTable} Mapping of grayscale pixel values to RGB color triplets
  */
 function _buildPaletteColorLookupTable ({
-  colormap,
+  data,
   firstValueMapped,
   bitsPerEntry
 }) {
-  const numberOfEntries = colormap.length
+  const numberOfEntries = data.length
 
   let Type = Uint16Array
   if (bitsPerEntry === 8) {
@@ -99,9 +78,9 @@ function _buildPaletteColorLookupTable ({
   const greenData = new Type(numberOfEntries)
   const blueData = new Type(numberOfEntries)
   for (let i = 0; i < numberOfEntries; i++) {
-    redData[i] = colormap[i][0]
-    greenData[i] = colormap[i][1]
-    blueData[i] = colormap[i][2]
+    redData[i] = data[i][0]
+    greenData[i] = data[i][1]
+    blueData[i] = data[i][2]
   }
 
   const descriptor = [numberOfEntries, firstValueMapped, bitsPerEntry]
@@ -115,43 +94,6 @@ function _buildPaletteColorLookupTable ({
     greenData,
     blueData
   })
-}
-
-function _expandSegmentedLUTData (segmentedData, numberOfEntries) {
-  const lut = new Uint8Array(numberOfEntries)
-  let offset = 0
-  for (let i = 0; i < segmentedData.length; i++) {
-    const opcode = segmentedData[i++]
-    if (opcode === 0) {
-      // Discrete
-      const length = segmentedData[i++]
-      const value = segmentedData[i]
-      for (let j = offset; j < (offset + length); j++) {
-        lut[j] = value
-      }
-    } else if (opcode === 1) {
-      // Linear (interpolation)
-      const length = segmentedData[i++]
-      const endpoint = segmentedData[i]
-      const startpoint = lut[offset]
-      const step = (endpoint - startpoint) / length
-      for (let j = offset; j < (offset + length); j++) {
-        lut[j] = lut[j - 1] + step
-      }
-      offset += length
-    } else if (opcode === 2) {
-      throw new Error(
-        'Indirect segment type is not yet supported for ' +
-        'Segmented Palette Color Lookup Table.'
-      )
-    } else {
-      throw new Error(
-        'Encountered unexpected segment type is not yet supported for ' +
-        'Segmented Palette Color Lookup Table.'
-      )
-    }
-  }
-  return lut
 }
 
 /**
@@ -183,7 +125,8 @@ class PaletteColorLookupTable {
     ])
     if (firstDescriptorValues.size !== 1) {
       throw new Error(
-        'First value of red, green, and blue LUT descriptors must be the same.'
+        'First value of Red, Green, and Blue Palette Color Lookup Table ' +
+        'Descriptor must be the same.'
       )
     }
     const n = [...firstDescriptorValues][0]
@@ -201,7 +144,8 @@ class PaletteColorLookupTable {
     ])
     if (secondDescriptorValues.size !== 1) {
       throw new Error(
-        'Second value of red, green, and blue LUT descriptors must be the same.'
+        'Second value of Red, Green, and Blue Palette Color Lookup Table ' +
+        'Descriptor must be the same.'
       )
     }
     this[_attrs].firstValueMapped = [...secondDescriptorValues][0]
@@ -214,71 +158,130 @@ class PaletteColorLookupTable {
     ])
     if (thirdDescriptorValues.size !== 1) {
       throw new Error(
-        'Third value of red, green, and blue LUT descriptors must be the same.'
+        'Third value of Red, Green, and Blue Palette Color Lookup Table ' +
+        'Descriptor must be the same.'
       )
     }
     this[_attrs].bitsPerEntry = [...thirdDescriptorValues][0]
-    if (this[_attrs].bitsPerEntry !== 8) {
+    if ([8, 16].indexOf(this[_attrs].bitsPerEntry) < 0) {
       throw new Error(
-        'Third value of red, green, and blue LUT descriptors must be 8. ' +
-        '16-bit color values are not supported.'
+        'Third value of Red, Green, and Blue Palette Color Lookup Table ' +
+        'Descriptor must be either ' + '8 or 16.'
       )
     }
-    const DataType = Uint8Array
 
-    if (redSegmentedData) {
-      this[_attrs].redLUT = _expandSegmentedLUTData(
-        redSegmentedData,
-        this[_attrs].numberOfEntries
+    if (redSegmentedData != null && redData != null) {
+      throw new Error(
+        'Either Segmented Red Palette Color Lookup Data or Red Palette ' +
+        'Color Lookup Data should be provided, but not both.'
       )
-    } else {
+    } else if (redSegmentedData == null && redData == null) {
+      throw new Error(
+        'Either Segmented Red Palette Color Lookup Data or Red Palette ' +
+        'Color Lookup Data must be provided.'
+      )
+    }
+    if (redData) {
       if (redData.length !== this[_attrs].numberOfEntries) {
-        throw new Error('Red LUT data has wrong number of entries.')
+        throw new Error(
+          'Red Palette Color Lookup Table Data has wrong number of entries.'
+        )
       }
-      if (redData == null) {
-        throw new Error('Red LUT data has not been provided.')
-      }
-      this[_attrs].redLUT = new DataType(redData)
     }
+    this[_attrs].redSegmentedData = redSegmentedData
+    this[_attrs].redData = redData
 
-    if (greenSegmentedData) {
-      this[_attrs].greenLUT = _expandSegmentedLUTData(
-        greenSegmentedData,
-        this[_attrs].numberOfEntries
+    if (greenSegmentedData != null && greenData != null) {
+      throw new Error(
+        'Either Segmented Green Palette Color Lookup Data or Green Palette ' +
+        'Color Lookup Data should be provided, but not both.'
       )
-    } else {
+    } else if (greenSegmentedData == null && greenData == null) {
+      throw new Error(
+        'Either Segmented Green Palette Color Lookup Data or Green ' +
+        'Palette Color Lookup Data must be provided.'
+      )
+    }
+    if (greenData) {
       if (greenData.length !== this[_attrs].numberOfEntries) {
-        throw new Error('Green LUT data has wrong number of entries.')
+        throw new Error(
+          'Green Palette Color Lookup Table Data has wrong number of entries.'
+        )
       }
-      if (greenData == null) {
-        throw new Error('Green LUT data has not been provided.')
-      }
-      this[_attrs].greenLUT = new DataType(greenData)
     }
+    this[_attrs].greenSegmentedData = greenSegmentedData
+    this[_attrs].greenData = greenData
 
-    if (blueSegmentedData) {
-      this[_attrs].blueLUT = _expandSegmentedLUTData(
-        blueSegmentedData,
-        this[_attrs].numberOfEntries
+    if (blueSegmentedData != null && blueData != null) {
+      throw new Error(
+        'Either Segmented Blue Palette Color Lookup Data or Blue Palette ' +
+        'Color Lookup Data must be provided, but not both.'
       )
-    } else {
+    } else if (blueSegmentedData != null && blueData != null) {
+      throw new Error(
+        'Either Segmented Blue Palette Color Lookup Data or Blue Palette ' +
+        'Color Lookup Data must be provided.'
+      )
+    }
+    if (blueData) {
       if (blueData.length !== this[_attrs].numberOfEntries) {
-        throw new Error('Green LUT data has wrong number of entries.')
+        throw new Error(
+          'Blue Palette Color Lookup Table Data has wrong number of entries.'
+        )
       }
-      if (blueData == null) {
-        throw new Error('Blue LUT data has not been provided.')
-      }
-      this[_attrs].blueLUT = new DataType(blueData)
+    }
+    this[_attrs].blueSegmentedData = blueSegmentedData
+    this[_attrs].blueData = blueData
+
+    if (this[_attrs].bitsPerEntry === 8) {
+      this[_attrs].DataType = Uint8Array
+    } else {
+      this[_attrs].DataType = Uint16Array
     }
 
-    this[_attrs].entries = new Array(this[_attrs].numberOfEntries)
-    for (let i = 0; i < this[_attrs].numberOfEntries; i++) {
-      this[_attrs].entries[i] = [
-        this[_attrs].redLUT[i],
-        this[_attrs].greenLUT[i],
-        this[_attrs].blueLUT[i]
-      ]
+    // Will be used to cache created colormap for repeated access
+    this[_attrs].data = null
+
+    Object.freeze(this)
+  }
+
+  _expandSegmentedLUTData (segmentedData) {
+    const lut = new this[_attrs].DataType(this[_attrs].numberOfEntries)
+    let offset = 0
+    for (let i = 0; i < segmentedData.length; i++) {
+      const opcode = segmentedData[i++]
+      if (opcode === 0) {
+        // Discrete
+        const length = segmentedData[i++]
+        const value = segmentedData[i]
+        for (let j = offset; j < (offset + length); j++) {
+          lut[j] = value
+        }
+        offset += length
+      } else if (opcode === 1) {
+        // Linear (interpolation)
+        const length = segmentedData[i++]
+        const endpoint = segmentedData[i]
+        const startpoint = lut[offset - 1]
+        const step = (endpoint - startpoint) / length
+        for (let j = offset; j < (offset + length); j++) {
+          lut[j] = Math.round(lut[j - 1] + step)
+        }
+        offset += length
+      } else if (opcode === 2) {
+        // TODO
+        throw new Error(
+          'Indirect segment type is not yet supported for ' +
+          'Segmented Palette Color Lookup Table.'
+        )
+      } else {
+        throw new Error(
+          'Encountered unexpected segment type is not yet supported for ' +
+          'Segmented Palette Color Lookup Table.'
+        )
+      }
     }
+    return lut
   }
 
   /**
@@ -290,18 +293,88 @@ class PaletteColorLookupTable {
     return this[_attrs].uid
   }
 
-  get entries () {
-    return this[_attrs].entries
+  /**
+   * Get Palette Color Lookup Table Data
+   *
+   * @returns {number[][]} Palette Color Lookup Table Data
+   */
+  get data () {
+    if (this[_attrs].data == null) {
+      const redLUT = (
+        this[_attrs].redData
+          ? new this[_attrs].DataType(this[_attrs].redData)
+          : this._expandSegmentedLUTData(
+            this[_attrs].redSegmentedData,
+            this[_attrs].numberOfEntries,
+            this[_attrs].bitsPerEntry
+          )
+      )
+      const greenLUT = (
+        this[_attrs].greenData
+          ? new this[_attrs].DataType(this[_attrs].greenData)
+          : this._expandSegmentedLUTData(
+            this[_attrs].greenSegmentedData,
+            this[_attrs].numberOfEntries,
+            this[_attrs].bitsPerEntry
+          )
+      )
+      const blueLUT = (
+        this[_attrs].blueData
+          ? new this[_attrs].DataType(this[_attrs].blueData)
+          : this._expandSegmentedLUTData(
+            this[_attrs].blueSegmentedData,
+            this[_attrs].numberOfEntries,
+            this[_attrs].bitsPerEntry
+          )
+      )
+      const uniqueNumberOfEntries = new Set([
+        redLUT.length,
+        blueLUT.length,
+        blueLUT.length
+      ])
+      if (uniqueNumberOfEntries.size > 1) {
+        throw new Error(
+          'Red, Green, and Blue Palette Color Lookup Tables ' +
+          'must have the same size.'
+        )
+      }
+
+      if (this[_attrs].bitsPerEntry === 16) {
+        /*
+         * Only palettes with 256 entries and 8 bit per entry are supported for
+         * display.  Therefore, data need to rescaled and resampled.
+         */
+        const maxInput = Math.pow(2, 16) - 1
+        const maxOutput = Math.pow(2, 8) - 1
+        const steps = Math.pow(2, 16) / Math.pow(2, 8)
+        this[_attrs].data = new Array(steps)
+        for (let i = 0; i < steps; i++) {
+          const j = i * steps
+          this[_attrs].data[i] = [
+            Math.round(rescale(redLUT[j], 0, maxInput, 0, maxOutput)),
+            Math.round(rescale(greenLUT[j], 0, maxInput, 0, maxOutput)),
+            Math.round(rescale(blueLUT[j], 0, maxInput, 0, maxOutput))
+          ]
+        }
+      } else {
+        this[_attrs].data = new Array(this[_attrs].numberOfEntries)
+        for (let i = 0; i < this[_attrs].numberOfEntries; i++) {
+          this[_attrs].data[i] = [
+            redLUT[i],
+            greenLUT[i],
+            blueLUT[i]
+          ]
+        }
+      }
+    }
+    return this[_attrs].data
   }
 
-  get bitsPerEntry () {
-    return this[_attrs].bitsPerEntry
-  }
-
-  get numberOfEntries () {
-    return this[_attrs].numberOfEntries
-  }
-
+  /**
+   * Get first value mapped
+   *
+   * @returns {number} first value mapped
+   */
   get firstValueMapped () {
     return this[_attrs].firstValueMapped
   }
@@ -311,6 +384,5 @@ export {
   ColorMaps,
   createColorMap,
   PaletteColorLookupTable,
-  _buildColorRamp,
   _buildPaletteColorLookupTable
 }

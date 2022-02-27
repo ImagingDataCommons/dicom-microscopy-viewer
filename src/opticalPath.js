@@ -37,56 +37,69 @@ class OpticalPath {
    * @param {string} options.identifier - Optical Path Identifier
    * @param {string} options.description - Optical Path Description
    * @param {object} options.illuminationType - Illumination Type Code
-   * @param {object} options.illuminationColor - Illumination Color Code
-   * @param {string} options.illuminationWaveLength - Illumination Wave Length
+   * @param {boolean} options.isMonochromatic - Whether optical path is monochromatic
+   * @param {object|undefined} options.illuminationColor - Illumination Color Code
+   * @param {string|undefined} options.illuminationWaveLength - Illumination Wave Length
    * @param {string} options.studyInstanceUID - Study Instance UID of VL Whole Slide Microscopy Image instances
    * @param {string} options.seriesInstanceUID - Series Instance UID of VL Whole Slide Microscopy Image instances
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of VL Whole Slide Microscopy Image instances
+   * @param {string|undefined} options.paletteColorLookupTableUID - Palette Color Lookup Table UID
    */
   constructor ({
     identifier,
     description,
     illuminationType,
+    isMonochromatic,
     illuminationColor,
     illuminationWaveLength,
     studyInstanceUID,
     seriesInstanceUID,
-    sopInstanceUIDs
+    sopInstanceUIDs,
+    paletteColorLookupTableUID
   }) {
     this[_attrs] = {}
-    if (identifier === undefined) {
-      throw new Error('Optical Path Identifier is required.')
+    if (identifier == null) {
+      throw new Error('Identifier must be provided for optical path.')
     }
     this[_attrs].identifier = identifier
     this[_attrs].description = description
 
-    if (illuminationType === undefined) {
-      throw new Error('Illumination Type is required.')
+    if (illuminationType == null) {
+      throw new Error('Illumination type must be specified for optical path.')
     }
     this[_attrs].illuminationType = illuminationType
 
     this[_attrs].illuminationWaveLength = illuminationWaveLength
 
-    if (studyInstanceUID === undefined) {
-      throw new Error('Study Instance UID is required.')
+    if (studyInstanceUID == null) {
+      throw new Error('Study Instance UID must be provided for optical path.')
     }
     this[_attrs].studyInstanceUID = studyInstanceUID
 
-    if (seriesInstanceUID === undefined) {
-      throw new Error('Series Instance UID is required.')
+    if (seriesInstanceUID == null) {
+      throw new Error('Series Instance UID must be provided for optical path.')
     }
     this[_attrs].seriesInstanceUID = seriesInstanceUID
 
-    if (sopInstanceUIDs === undefined) {
-      throw new Error('SOP Instance UIDs are required.')
+    if (sopInstanceUIDs == null) {
+      throw new Error('SOP Instance UIDs must be provided for optical path.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+
+    if (isMonochromatic == null) {
+      throw new Error(
+        'Whether optical path is monochromatic must be specified.'
+      )
+    }
+    this[_attrs].isMonochromatic = isMonochromatic
+
+    this[_attrs].paletteColorLookupTableUID = paletteColorLookupTableUID
 
     Object.freeze(this)
   }
 
   /**
-   * Get Optical Path Identifier
+   * Optical Path Identifier
    *
    * @returns {string} Optical Path Identifier
    */
@@ -95,7 +108,7 @@ class OpticalPath {
   }
 
   /**
-   * Get Optical Path Description
+   * Optical Path Description
    *
    * @returns {string} Optical Path Description
    */
@@ -104,7 +117,7 @@ class OpticalPath {
   }
 
   /**
-   * Get Illumination Type Code.
+   * Illumination Type Code
    *
    * @returns {object} Illumination Type Code
    */
@@ -113,7 +126,7 @@ class OpticalPath {
   }
 
   /**
-   * Get Illumination Color.
+   * Illumination Color
    *
    * @returns {object} Illumination Color Code
    */
@@ -122,7 +135,7 @@ class OpticalPath {
   }
 
   /**
-   * Get Illumination Wave Length.
+   * Illumination Wave Length
    *
    * @returns {string | undefined} Illumination Wave Length
    */
@@ -131,7 +144,7 @@ class OpticalPath {
   }
 
   /**
-   * Get Study Instance UID of images.
+   * Study Instance UID of images
    *
    * @returns {string} Study Instance UID
    */
@@ -140,7 +153,7 @@ class OpticalPath {
   }
 
   /**
-   * Get Series Instance UID of images.
+   * Series Instance UID of images
    *
    * @returns {string} Series Instance UID
    */
@@ -149,12 +162,39 @@ class OpticalPath {
   }
 
   /**
-   * Get SOP Instance UIDs of images.
+   * SOP Instance UIDs of images
    *
    * @returns {string[]} SOP Instance UIDs
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
+  }
+
+  /**
+   * Palette Color Lookup Table UID
+   *
+   * @returns {string} Palette Color Lookup Table UID
+   */
+  get paletteColorLookupTableUID () {
+    return this[_attrs].paletteColorLookupTableUID
+  }
+
+  /**
+   * Whether optical path is monochromatic
+   *
+   * @returns {boolean} yes/no
+   */
+  get isMonochromatic () {
+    return this[_attrs].isMonochromatic
+  }
+
+  /**
+   * Whether images of optical path are colorable
+   *
+   * @returns {boolean} yes/no
+   */
+  get isColorable () {
+    return this[_attrs].paletteColorLookupTableUID == null
   }
 }
 

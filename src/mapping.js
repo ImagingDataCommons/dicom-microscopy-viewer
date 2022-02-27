@@ -71,6 +71,7 @@ class ParameterMapping {
    * @param {string} options.studyInstanceUID - Study Instance UID of Parametric Map images
    * @param {string} options.seriesInstanceUID - Series Instance UID of Parametric Map images
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Parametric Map images
+   * @param {string|undefined} options.paletteColorLookupTableUID - Palette Color Lookup Table UID
    */
   constructor ({
     uid,
@@ -79,6 +80,7 @@ class ParameterMapping {
     studyInstanceUID,
     seriesInstanceUID,
     sopInstanceUIDs,
+    paletteColorLookupTableUID
   }) {
     this[_attrs] = {}
     if (uid === undefined) {
@@ -111,6 +113,8 @@ class ParameterMapping {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+
+    this[_attrs].paletteColorLookupTableUID = paletteColorLookupTableUID
 
     Object.freeze(this)
   }
@@ -167,6 +171,15 @@ class ParameterMapping {
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
+  }
+
+  /**
+   * Get Palette Color Lookup Table UID.
+   *
+   * @returns {string} Palette Color Lookup Table UID
+   */
+  get paletteColorLookupTableUID () {
+    return this[_attrs].paletteColorLookupTableUID
   }
 }
 

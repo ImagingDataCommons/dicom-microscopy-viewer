@@ -49,15 +49,27 @@ function createRotationMatrix (options) {
 }
 
 /**
- * Rescale intensity to range [0, 1].
+ * Rescale intensity from [minInput, maxInput] to [minOutput, maxOutput].
  *
- * @param {number} value - Value that should be rescaled
- * @param {number} lowerBound - Lower bound of the full value range
- * @param {number} upperBound - Upper bound of the full value range
+ * @param {number} value - Input value that should be rescaled
+ * @param {number} minInput - Lower bound of the full input value range
+ * @param {number} maxInput - Upper bound of the full input value range
+ * @param {number} minOutput - Lower bound of the full output value range
+ * @param {number} maxOutput - Upper bound of the full output value range
  * @returns {number} Rescaled value
  */
-function rescale (value, lowerBound, upperBound) {
-  return (value - lowerBound) / (upperBound - lowerBound)
+function rescale (
+  value,
+  minInput,
+  maxInput,
+  minOutput,
+  maxOutput
+) {
+  return (
+    (value - minInput) * (maxOutput - minOutput) /
+    (maxInput - minInput) +
+    minOutput
+  )
 }
 
 /**
