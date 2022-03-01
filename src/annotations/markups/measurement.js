@@ -66,7 +66,17 @@ const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
         markupManager.create({ feature })
       }
     },
-    onUpdate: (feature) => {},
+    onUpdate: (feature) => {
+      const view = map.getView()
+      const unitSuffix = getUnitSuffix(view)
+      const id = feature.getId()
+      const markup = markupManager.get(id)
+      markupManager.update({
+        feature,
+        value: format(feature, unitSuffix, pyramid),
+        coordinate: markup.overlay.getPosition()
+      })
+    },
     onDrawEnd: ({ feature }) => {},
     onDrawAbort: ({ feature }) => {}
   }

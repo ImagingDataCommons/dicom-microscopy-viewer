@@ -161,8 +161,8 @@ const _checkImageTypeAndDecode = ({
     }
   }
 
-  console.debug(`decode frame with media type "${mediaType}"`)
   if (mediaType === 'application/octet-stream') {
+    console.debug(`decode uncompressed frame with media type "${mediaType}"`)
     return {
       decodedFrame: byteArray,
       metadata: {
@@ -175,6 +175,7 @@ const _checkImageTypeAndDecode = ({
     }
   }
 
+  console.debug(`decode compressed frame with media type "${mediaType}"`)
   const { frameBuffer, frameInfo } = _decode(decoders[mediaType], byteArray)
 
   return {

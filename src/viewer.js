@@ -50,10 +50,10 @@ import {
   _getCoordinateDimensionality
 } from './annotation.js'
 import {
-  ColorMaps,
-  createColorMap,
+  ColormapNames,
+  createColormap,
   PaletteColorLookupTable,
-  _buildPaletteColorLookupTable
+  buildPaletteColorLookupTable
 } from './color.js'
 import {
   groupMonochromeInstances,
@@ -390,16 +390,17 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents (
    * Update feature measurement properties first and then measurements
    */
   _updateFeatureMeasurements(map, feature, pyramid)
-  feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-    _updateFeatureMeasurements(map, feature, pyramid)
+  feature.on(Enums.FeatureEvents.CHANGE, (event) => {
+    console.log('DEBUG: ', event)
+    _updateFeatureMeasurements(map, event.target, pyramid)
   })
 
   /**
    * Update feature evaluations
    */
   _updateFeatureEvaluations(feature)
-  feature.on(Enums.FeatureEvents.PROPERTY_CHANGE, () =>
-    _updateFeatureEvaluations(feature)
+  feature.on(Enums.FeatureEvents.PROPERTY_CHANGE, (event) =>
+    _updateFeatureEvaluations(event.target)
   )
 }
 
@@ -645,8 +646,8 @@ const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
 const _overviewMap = Symbol('overviewMap')
 
-
-/** Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
+/**
+ * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
  * with Image Type VOLUME.
  *
  * @class
@@ -2169,7 +2170,8 @@ class VolumeImageViewer {
     return this[_interactions].select !== undefined
   }
 
-  /** Activate modify interaction.
+  /**
+   * Activate modify interaction.
    *
    * @param {object} options - Modification options.
    */
@@ -2194,6 +2196,18 @@ class VolumeImageViewer {
     }
 
     this[_interactions].modify = new Modify(modifyOptions)
+    const container = this[_map].getTargetElement()
+
+    this[_interactions].modify.on(Enums.InteractionEvents.MODIFY_END, (event) => {
+      const feature = event.features.item(0)
+      _updateFeatureMeasurements(this[_map], feature, this[_pyramid].metadata)
+      this[_annotationManager].onUpdate(feature)
+      publish(
+        container,
+        EVENT.ROI_MODIFIED,
+        this._getROIFromFeature(feature, this[_pyramid].metadata)
+      )
+    })
 
     this[_map].addInteraction(this[_interactions].modify)
   }
@@ -2307,7 +2321,8 @@ class VolumeImageViewer {
     })
   }
 
-  /** Pop the most recently annotated regions of interest.
+  /**
+   * Pop the most recently annotated regions of interest.
    *
    * @returns {ROI} Regions of interest.
    */
@@ -2384,6 +2399,34 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get the style of a region of interest.
+   *
+   * @param {string} uid - Unique identifier of the regions of interest
+   *
+   * @returns {object} - Style settings
+   */
+  getROIStyle (uid) {
+    const feature = this[_features].getArray().find((feature) => {
+      return feature.getId() === uid
+    })
+    if (feature == null) {
+      throw new Error()
+    }
+    const style = feature.getStyle()
+    const stroke = style.getStroke()
+    const fill = style.getFill()
+    return {
+      stroke: {
+        color: stroke.getColor(),
+        width: stroke.getWidth()
+      },
+      fill: {
+        color: fill.getColor()
+      }
+    }
+  }
+
+  /**
    * Set the style of a region of interest.
    *
    * @param {string} uid - Unique identifier of the regions of interest
@@ -2393,7 +2436,6 @@ class VolumeImageViewer {
    * @param {number} styleOptions.stroke.width - Width of the outline
    * @param {object} styleOptions.fill - Style options for body the geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
-   * @param {object} styleOptions.image - Style options for image
    *
    */
   setROIStyle (uid, styleOptions = {}) {
@@ -2894,11 +2936,11 @@ class VolumeImageViewer {
       const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
       const properties = source.getProperties()
       if (properties[key]) {
-        const colormap = createColorMap({
-          name: ColorMaps.VIRIDIS,
-          bins: 50
+        const colormap = createColormap({
+          name: ColormapNames.VIRIDIS,
+          bins: Math.pow(2, 8)
         })
-        const colorLUT = _buildPaletteColorLookupTable({
+        const colorLUT = buildPaletteColorLookupTable({
           data: colormap,
           min: properties[key][0],
           max: properties[key][properties[key].length - 2]
@@ -3096,9 +3138,9 @@ class VolumeImageViewer {
         segmentUID = item.TrackingUID
       }
 
-      const colormap = createColorMap({
-        name: ColorMaps.VIRIDIS,
-        bins: 50
+      const colormap = createColormap({
+        name: ColormapNames.VIRIDIS,
+        bins: Math.pow(2, 8)
       })
 
       const segment = {
@@ -3119,7 +3161,7 @@ class VolumeImageViewer {
         pyramid,
         style: {
           opacity: 0.75,
-          paletteColorLookupTable: _buildPaletteColorLookupTable({
+          paletteColorLookupTable: buildPaletteColorLookupTable({
             data: colormap,
             firstValueMapped: 0,
             bitsPerEntry: 8
@@ -3265,7 +3307,8 @@ class VolumeImageViewer {
     return segment.layer.getVisible()
   }
 
-  /** Set the style of a segment.
+  /**
+   * Set the style of a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
    * @param {object} styleOptions - Style options
@@ -3328,7 +3371,8 @@ class VolumeImageViewer {
     this[_map].addOverlay(segment.overlay)
   }
 
-  /** Get the style of a segment.
+  /**
+   * Get the style of a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
    * @returns {object} Style settings
@@ -3348,7 +3392,8 @@ class VolumeImageViewer {
     }
   }
 
-  /** Get image metadata for a segment.
+  /**
+   * Get image metadata for a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
    * @returns {Segmentation[]} Segmentation image metadata
@@ -3512,19 +3557,19 @@ class VolumeImageViewer {
         maxStoredValue = (Math.pow(2, refInstance.BitsAllocated) - 1) / 2
       }
       if (refInstance.PixelPresentation === 'MONOCHROME') {
-        colormap = createColorMap({
-          name: ColorMaps.GRAY,
+        colormap = createColormap({
+          name: ColormapNames.GRAY,
           bins: Math.pow(2, 8)
         })
       } else {
         if (range[0] < 0 && range[1] > 0) {
-          colormap = createColorMap({
-            name: ColorMaps.BLUE_RED,
+          colormap = createColormap({
+            name: ColormapNames.BLUE_RED,
             bins: Math.pow(2, 8)
           })
         } else {
-          colormap = createColorMap({
-            name: ColorMaps.HOT,
+          colormap = createColormap({
+            name: ColormapNames.HOT,
             bins: Math.pow(2, 8)
           })
         }
@@ -3552,7 +3597,7 @@ class VolumeImageViewer {
             Math.ceil(windowCenter - windowWidth / 2),
             Math.floor(windowCenter + windowWidth / 2)
           ],
-          paletteColorLookupTable: _buildPaletteColorLookupTable({
+          paletteColorLookupTable: buildPaletteColorLookupTable({
             data: colormap,
             firstValueMapped: 0,
             bitsPerEntry: 8
@@ -3691,7 +3736,8 @@ class VolumeImageViewer {
     return mapping.layer.getVisible()
   }
 
-  /** Set the style of a parameter mapping.
+  /**
+   * Set the style of a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @param {object} styleOptions
@@ -3723,8 +3769,8 @@ class VolumeImageViewer {
       )
       styleVariables.windowCenter = windowCenter
       styleVariables.windowWidth = windowWidth
+      mapping.layer.updateStyleVariables(styleVariables)
     }
-    mapping.layer.updateStyleVariables(styleVariables)
 
     let title = mapping.mapping.label
     // FIXME
@@ -3770,7 +3816,8 @@ class VolumeImageViewer {
     this[_map].addOverlay(mapping.overlay)
   }
 
-  /** Get the style of a parameter mapping.
+  /**
+   * Get the style of a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @returns {object} Style Options
@@ -3791,7 +3838,8 @@ class VolumeImageViewer {
     }
   }
 
-  /** Get image metadata for a parameter mapping.
+  /**
+   * Get image metadata for a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @returns {ParametricMap[]} Parametric Map image metadata
@@ -4008,7 +4056,8 @@ class _NonVolumeImageViewer {
  * @memberof viewer
  */
 class OverviewImageViewer extends _NonVolumeImageViewer {
-  /** Creates a viewer instance for displaying OVERVIEW images.
+/**
+   * Creates a viewer instance for displaying OVERVIEW images.
    *
    * @param {object} options
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
@@ -4033,7 +4082,8 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
  * @memberof viewer
  */
 class LabelImageViewer extends _NonVolumeImageViewer {
-  /** Creates a viewer instance for displaying LABEL images.
+/**
+   * Creates a viewer instance for displaying LABEL images.
    *
    * @param {object} options
    * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP

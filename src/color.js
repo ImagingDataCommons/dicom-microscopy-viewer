@@ -263,9 +263,9 @@ class PaletteColorLookupTable {
         const length = segmentedData[i++]
         const endpoint = segmentedData[i]
         const startpoint = lut[offset - 1]
-        const step = (endpoint - startpoint) / length
-        for (let j = offset; j < (offset + length); j++) {
-          lut[j] = Math.round(lut[j - 1] + step)
+        const step = (endpoint - startpoint) / (length - 1)
+        for (let j = 0; j < length; j++) {
+          lut[offset + j] = startpoint + Math.round(j * step)
         }
         offset += length
       } else if (opcode === 2) {
@@ -329,7 +329,7 @@ class PaletteColorLookupTable {
       )
       const uniqueNumberOfEntries = new Set([
         redLUT.length,
-        blueLUT.length,
+        greenLUT.length,
         blueLUT.length
       ])
       if (uniqueNumberOfEntries.size > 1) {

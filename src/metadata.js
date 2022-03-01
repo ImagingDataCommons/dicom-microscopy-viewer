@@ -109,7 +109,6 @@ function getFrameMapping (metadata) {
   const totalPixelMatrixRows = metadata.TotalPixelMatrixRows
   const sopInstanceUID = metadata.SOPInstanceUID
   const numberOfFrames = Number(metadata.NumberOfFrames || 1)
-  const frameOffsetNumber = Number(metadata.ConcatenationFrameOffsetNumber || 0)
 
   /**
    * Handle images that may contain multiple "planes"
@@ -155,8 +154,6 @@ function getFrameMapping (metadata) {
     metadata.DimensionOrganizationType || 'TILED_SPARSE'
   )
   if (dimensionOrganizationType === 'TILED_FULL') {
-    const offset = frameOffsetNumber + 1
-    const limit = frameOffsetNumber + numberOfFrames
     let n = 1
     // Forth, along "channels"
     for (let i = 0; i < numberOfChannels; i++) {

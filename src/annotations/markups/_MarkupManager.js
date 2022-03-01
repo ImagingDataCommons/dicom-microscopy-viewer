@@ -199,19 +199,18 @@ class _MarkupManager {
   _wireInternalEvents (feature) {
     const id = feature.getId()
     const markup = this.get(id)
-    const geometry = feature.getGeometry()
-    const listener = geometry.on(
-      Enums.FeatureGeometryEvents.CHANGE,
-      ({ target: geometry }) => {
+    const listener = feature.on(
+      Enums.FeatureEvents.CHANGE,
+      (event) => {
         if (this.has(id)) {
           const view = this._map.getView()
           const unitSuffix = getUnitSuffix(view)
-          const format = this._getFormatter(feature)
-          const output = format(feature, unitSuffix, this._pyramid)
+          const format = this._getFormatter(event.target)
+          const output = format(event.target, unitSuffix, this._pyramid)
           this.update({
             feature,
             value: output,
-            coordinate: geometry.getLastCoordinate()
+            coordinate: event.target.getGeometry().getLastCoordinate()
           })
           this._drawLink(feature)
         }
@@ -372,7 +371,7 @@ class _MarkupManager {
     }
 
     if (coordinate) {
-      markup.overlay.setPosition(coordinateWithOffset(feature))
+      markup.overlay.setPosition(coordinate)
     }
 
     this._markups.set(id, markup)
@@ -385,6 +384,22 @@ class _MarkupManager {
    */
   onDrawEnd (event) {
     const feature = event.feature
+    if (this._isValidFeature(feature)) {
+      const featureId = feature.getId()
+      const markup = this.get(featureId)
+      if (markup) {
+        markup.element.className = 'ol-tooltip ol-tooltip-static'
+        this._markups.set(featureId, markup)
+      }
+    }
+  }
+
+  /**
+   * This event is responsible assign markup classes on update event
+   *
+   * @param {object} event The event
+   */
+  onUpdate (feature) {
     if (this._isValidFeature(feature)) {
       const featureId = feature.getId()
       const markup = this.get(featureId)

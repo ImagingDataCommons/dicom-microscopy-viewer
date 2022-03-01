@@ -17,6 +17,7 @@ export const Markup = {
 }
 
 export const FeatureEvents = {
+  CHANGE: 'change',
   PROPERTY_CHANGE: 'propertychange'
 }
 
@@ -34,7 +35,9 @@ export const InteractionEvents = {
   DRAW_END: 'drawend',
   DRAW_ABORT: 'drawabort',
   TRANSLATE_START: 'translatestart',
-  MODIFY_START: 'modifystart'
+  TRANSLATE_END: 'translateend',
+  MODIFY_START: 'modifystart',
+  MODIFY_END: 'modifyend'
 }
 
 export const FeatureGeometryEvents = {

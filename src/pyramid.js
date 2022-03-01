@@ -314,8 +314,9 @@ function _createTileLoadFunction ({ decoders, pyramid, client, channel }) {
 
     if (pyramid.metadata[z] === undefined) {
       throw new Error(
-        'Could not load tile ' + index +
-        ' because level ' + z + ' does not exist.'
+        `Could not load tile for channel ${channel} ` +
+        `at position (${x + 1}, ${y + 1}) at zoom level ${z} ` +
+        ` because level ${z} does not exist.`
       )
     }
 
@@ -348,9 +349,16 @@ function _createTileLoadFunction ({ decoders, pyramid, client, channel }) {
       const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
 
       if (samplesPerPixel === 1) {
-        console.info(`retrieve frame ${frameNumbers} of monochrome image`)
+        console.info(
+          `retrieve frame ${frameNumbers} of monochrome image ` +
+          `for channel ${channel} at tile position (${x + 1}, ${y + 1}) ` +
+          `at zoom level ${z}`
+        )
       } else {
-        console.info(`retrieve frame ${frameNumbers} of color image`)
+        console.info(
+          `retrieve frame ${frameNumbers} of color image ` +
+          `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`
+        )
       }
 
       const jpegMediaType = 'image/jpeg'
