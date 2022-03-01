@@ -2,6 +2,12 @@ import EVENTS from './events.js'
 import { AnnotationGroup } from './annotation.js'
 import { ParameterMapping } from './mapping.js'
 import {
+  ColormapNames,
+  createColormap,
+  PaletteColorLookupTable,
+  buildPaletteColorLookupTable
+} from './color.js'
+import {
   Comprehensive3DSR,
   MicroscopyBulkSimpleAnnotations,
   ParametricMap,
@@ -91,6 +97,13 @@ const metadata = {
   Comprehensive3DSR
 }
 
+const color = {
+  ColormapNames,
+  createColormap,
+  PaletteColorLookupTable,
+  buildPaletteColorLookupTable
+}
+
 /** Namespace for optical paths.
  *
  * @namespace opticalPath
@@ -153,6 +166,7 @@ const utils = {
 export {
   annotation,
   api,
+  color,
   events,
   mapping,
   metadata,

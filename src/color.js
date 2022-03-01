@@ -4,7 +4,7 @@ import { generateUID, rescale } from './utils.js'
 
 const _attrs = Symbol('attrs')
 
-const ColorMaps = {
+const ColormapNames = {
   VIRIDIS: 'VIRIDIS',
   INFERNO: 'INFERNO',
   MAGMA: 'MAGMA',
@@ -14,7 +14,7 @@ const ColorMaps = {
   PORTLAND: 'PORTLAND',
   HOT: 'HOT'
 }
-Object.freeze(ColorMaps)
+Object.freeze(ColormapNames)
 
 /** Create a color map.
  *
@@ -24,7 +24,7 @@ Object.freeze(ColorMaps)
  *
  * @returns {number[][]} RGB triplet for each color
  */
-function createColorMap ({ name, bins }) {
+function createColormap ({ name, bins }) {
   const lut = {
     INFERNO: ['inferno', false],
     MAGMA: ['magma', false],
@@ -57,17 +57,38 @@ function createColorMap ({ name, bins }) {
  * Build a palette color lookup table object from a colormap.
  *
  * @param {object} options
- * @param {number[][]} options.colormap - Array of RGB triplets for each color
+ * @param {number[][]} options.data - Array of RGB triplets for each color
  * @param {number} options.min - Mininum value of the input data range
  * @param {number} options.max - Maximum value of the input data range
  *
  * @returns {PaletteColorLookupTable} Mapping of grayscale pixel values to RGB color triplets
  */
-function _buildPaletteColorLookupTable ({
+function buildPaletteColorLookupTable ({
   data,
   firstValueMapped,
   bitsPerEntry
 }) {
+  if (data == null) {
+    throw new Error(
+      'Argument "data" is required for building Palette Color Lookup Table.'
+    )
+  }
+  if (firstValueMapped == null) {
+    throw new Error(
+      'Argument "firstValueMapped" is required for building ' +
+      'Palette Color Lookup Table.'
+    )
+  }
+  if (bitsPerEntry == null) {
+    throw new Error(
+      'Argument "bitsPerEntry" is required for building ' +
+      'Palette Color Lookup Table.'
+    )
+  }
+  if ([8, 16].indexOf(bitsPerEntry) < 0) {
+    throw new Error('Argument "bitsPerEntry" must be either 8 or 16.')
+  }
+
   const numberOfEntries = data.length
 
   let Type = Uint16Array
@@ -381,8 +402,8 @@ class PaletteColorLookupTable {
 }
 
 export {
-  ColorMaps,
-  createColorMap,
+  ColormapNames,
+  createColormap,
   PaletteColorLookupTable,
-  _buildPaletteColorLookupTable
+  buildPaletteColorLookupTable
 }
