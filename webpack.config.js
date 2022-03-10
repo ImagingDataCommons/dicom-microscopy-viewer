@@ -12,7 +12,7 @@ const config = {
     }
   },
   module: {
-    noParse: [/(codec)/],
+    noParse: [/(codec)/, /(dicomicc)/],
     rules: [
       {
         test: /\.css$/,
