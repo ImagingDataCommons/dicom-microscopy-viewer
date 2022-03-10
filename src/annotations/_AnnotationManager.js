@@ -160,7 +160,6 @@ class _AnnotationManager {
     this[Marker.Arrow].onUpdate(feature)
     this[Markup.Measurement].onUpdate(feature)
     this[Markup.TextEvaluation].onUpdate(feature)
-    this.props.markupManager.onUpdate(feature)
   }
 
   onDrawStart (event) {
