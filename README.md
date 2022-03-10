@@ -120,7 +120,7 @@ npm run build
 Test:
 
 ```None
-npm test
+npm run test
 ```
 
 Build the documentation:
