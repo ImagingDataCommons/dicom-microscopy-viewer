@@ -90,11 +90,13 @@ import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 
 import libjpegFactory from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.js'
-import openjpegFactory from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.js'
-import charlsFactory from '@cornerstonejs/codec-charls/dist/charlswasm_decode.js'
 import libjpegWASM from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.wasm'
+import openjpegFactory from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.js'
 import openjpegWASM from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.wasm'
+import charlsFactory from '@cornerstonejs/codec-charls/dist/charlswasm_decode.js'
 import charlsWASM from '@cornerstonejs/codec-charls/dist/charlswasm_decode.wasm'
+import dicomiccFactory from 'dicomicc/dist/dicomiccwasm.js'
+import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm'
 
 const libjpeg = libjpegFactory({
   locateFile: (f) => {
@@ -123,7 +125,12 @@ const charls = charlsFactory({
   }
 })
 
-async function _initializeDecoders () {
+async function _initializeDecodersAndTransformers ({
+  client,
+  opticalPaths
+}) {
+  console.info('initialize decoders')
+
   console.info('initialize JPEG decoder')
   const jpegDecoder = new libjpeg.JPEGDecoder()
 
@@ -133,11 +140,54 @@ async function _initializeDecoders () {
   console.info('initialize JPEG-LS decoder')
   const jpeglsDecoder = new charls.JpegLSDecoder()
 
+  console.info('initialize transformers')
+  const dicomicc = await dicomiccFactory({
+    locateFile: (f) => {
+      if (f.endsWith('.wasm')) {
+        return dicomiccWASM
+      }
+      return f
+    }
+  })
+  const transformers = {}
+  for (const id in opticalPaths) {
+    const metadata = opticalPaths[id].pyramid.metadata
+    for (let i = 0; i < metadata.length; i++) {
+      const image = metadata[i]
+      if (image.SamplesPerPixel === 3) {
+        const iccProfile = await fetchBulkdata({
+          client,
+          reference: (
+            image
+              .bulkdataReferences
+              .OpticalPathSequence[0]
+              .ICCProfile
+          )
+        })
+        if (iccProfile) {
+          transformers[image.SOPInstanceUID] = new dicomicc.ColorManager(
+            {
+              columns: image.Columns,
+              rows: image.Rows,
+              bitsPerSample: image.BitsAllocated,
+              samplesPerPixel: image.SamplesPerPixel,
+              planarConfiguration: image.PlanarConfiguration
+            },
+            iccProfile
+          )
+        }
+      }
+    }
+  }
+
   return {
-    'image/jpeg': jpegDecoder,
-    'image/jp2': jpeg2000Decoder,
-    'image/jpx': jpeg2000Decoder,
-    'image/jls': jpeglsDecoder
+    decoders: {
+      'image/jpeg': jpegDecoder,
+      'image/jp2': jpeg2000Decoder,
+      'image/jpx': jpeg2000Decoder,
+      'image/jls': jpeglsDecoder
+    },
+    transformers
   }
 }
 
@@ -391,7 +441,6 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents (
    */
   _updateFeatureMeasurements(map, feature, pyramid)
   feature.on(Enums.FeatureEvents.CHANGE, (event) => {
-    console.log('DEBUG: ', event)
     _updateFeatureMeasurements(map, event.target, pyramid)
   })
 
@@ -642,6 +691,7 @@ const _opticalPaths = Symbol('opticalPaths')
 const _rotation = Symbol('rotation')
 const _projection = Symbol('projection')
 const _tileGrid = Symbol('tileGrid')
+const _transformers = Symbol('transformers')
 const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
 const _overviewMap = Symbol('overviewMap')
@@ -953,6 +1003,7 @@ class VolumeImageViewer {
         if (this[_decoders] != null) {
           const loader = _createTileLoadFunction({
             decoders: this[_decoders],
+            transformers: this[_transformers][opticalPathIdentifier],
             ...opticalPath.loaderParams
           })
           source.setLoader(loader)
@@ -1104,6 +1155,7 @@ class VolumeImageViewer {
       if (this[_decoders] != null) {
         const loader = _createTileLoadFunction({
           decoders: this[_decoders],
+          transformers: this[_transformers][opticalPathIdentifier],
           ...opticalPath.loaderParams
         })
         source.setLoader(loader)
@@ -1251,6 +1303,9 @@ class VolumeImageViewer {
       pyramid: this[_pyramid].metadata,
       drawingSource: this[_drawingSource]
     })
+
+    this[_decoders] = null
+    this[_transformers] = null
   }
 
   /**
@@ -1596,20 +1651,25 @@ class VolumeImageViewer {
       return
     }
 
-    console.info('initialize decoders')
-    _initializeDecoders().then(decoders => {
+    console.info('initialize decoders and transformers')
+    _initializeDecodersAndTransformers({
+      client: this[_options].client,
+      opticalPaths: this[_opticalPaths]
+    }).then(handlers => {
       console.info('provide decoders to loaders')
-      this[_decoders] = decoders
+      this[_decoders] = handlers.decoders
+      this[_transformers] = handlers.transformers
 
-      const itemsRequiringDecoders = [
+      const itemsRequiringDecodersAndTransformers = [
         ...Object.values(this[_opticalPaths]),
         ...Object.values(this[_segments]),
         ...Object.values(this[_mappings])
       ]
-      itemsRequiringDecoders.forEach(item => {
+      itemsRequiringDecodersAndTransformers.forEach(item => {
         const source = item.layer.getSource()
         const loader = _createTileLoadFunction({
-          decoders,
+          decoders: this[_decoders],
+          transformers: this[_transformers],
           ...item.loaderParams
         })
         source.setLoader(loader)
@@ -3193,6 +3253,7 @@ class VolumeImageViewer {
       if (this[_decoders]) {
         const loader = _createTileLoadFunction({
           decoders: this[_decoders],
+          transformers: this[_transformers],
           ...segment.loaderParams
         })
         source.setLoader(loader)
@@ -3625,6 +3686,7 @@ class VolumeImageViewer {
       if (this[_decoders]) {
         const loader = _createTileLoadFunction({
           decoders: this[_decoders],
+          transformers: this[_transformers],
           ...mapping.loaderParams
         })
         source.setLoader(loader)

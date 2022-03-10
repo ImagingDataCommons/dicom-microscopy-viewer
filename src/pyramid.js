@@ -96,8 +96,10 @@ function _computeImagePyramid ({ metadata }) {
       }
       if (!('SOPInstanceUIDOfConcatenationSource' in metadata[i])) {
         throw new Error(
-          'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
-          'for concatenation parts.'
+          'Multiple image instances for the same channel and ' +
+          'focal plane have identical dimensions, but the instances ' +
+          'are not part of a concatenation either. ' +
+          'The image metadata is probably incorrect.'
         )
       }
       const sopInstanceUID = metadata[i].SOPInstanceUIDOfConcatenationSource
@@ -307,7 +309,13 @@ function _createEmptyTile ({
   return pixelArray
 }
 
-function _createTileLoadFunction ({ decoders, pyramid, client, channel }) {
+function _createTileLoadFunction ({
+  decoders,
+  transformers,
+  pyramid,
+  client,
+  channel
+}) {
   return async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
     index += `-${channel}`
@@ -433,12 +441,14 @@ function _createTileLoadFunction ({ decoders, pyramid, client, channel }) {
           try {
             const { pixelArray } = decodeFrame({
               decoders,
+              transformers,
               frame: rawFrames[0],
               bitsAllocated,
               pixelRepresentation,
               columns,
               rows,
-              samplesPerPixel
+              samplesPerPixel,
+              sopInstanceUID
             })
             if (pixelArray.constructor === Float64Array) {
               // TODO: handle Float64Array using LUT

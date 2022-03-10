@@ -3,14 +3,16 @@ import dcmjs from 'dcmjs'
 
 const decodeFrame = ({
   decoders,
+  transformers,
   frame,
   bitsAllocated,
   pixelRepresentation,
   columns,
   rows,
-  samplesPerPixel
+  samplesPerPixel,
+  sopInstanceUID
 }) => {
-  const { decodedFrame, metadata } = _checkImageTypeAndDecode({
+  const { decodedFrame, frameInfo } = _checkImageTypeAndDecode({
     decoders,
     frame,
     bitsAllocated,
@@ -20,19 +22,19 @@ const decodeFrame = ({
     samplesPerPixel
   })
 
-  if (metadata.bitsAllocated !== bitsAllocated) {
+  if (frameInfo.bitsAllocated !== bitsAllocated) {
     throw new Error('Frame does not have expected Bits Allocated.')
   }
-  if (metadata.rows !== rows) {
+  if (frameInfo.rows !== rows) {
     throw new Error('Frame does not have expected Rows.')
   }
-  if (metadata.columns !== columns) {
+  if (frameInfo.columns !== columns) {
     throw new Error('Frame does not have expected Columns.')
   }
-  if (metadata.samplesPerPixel !== samplesPerPixel) {
+  if (frameInfo.samplesPerPixel !== samplesPerPixel) {
     throw new Error('Frame does not have expected Samples Per Pixel.')
   }
-  if (metadata.pixelRepresentation !== pixelRepresentation) {
+  if (frameInfo.pixelRepresentation !== pixelRepresentation) {
     throw new Error('Frame does not have expected Pixel Representation.')
   }
 
@@ -44,51 +46,58 @@ const decodeFrame = ({
     )
   }
 
+  let transformedFrame
+  if (sopInstanceUID in transformers) {
+    transformedFrame = transformers[sopInstanceUID].transform(decodedFrame)
+  } else {
+    transformedFrame = decodedFrame
+  }
+
   const signed = pixelRepresentation === 1
   let pixelArray
   let bitsPerSample
   switch (bitsAllocated) {
     case 1:
-      pixelArray = dcmjs.data.BitArray.unpack(decodedFrame) // Uint8Array
+      pixelArray = dcmjs.data.BitArray.unpack(transformedFrame) // Uint8Array
       bitsPerSample = 8 // unpacked to 8-bit
       break
     case 8:
       if (signed) {
-        pixelArray = new Int8Array(decodedFrame)
+        pixelArray = new Int8Array(transformedFrame)
       } else {
-        pixelArray = new Uint8Array(decodedFrame)
+        pixelArray = new Uint8Array(transformedFrame)
       }
       bitsPerSample = 8
       break
     case 16:
       if (pixelRepresentation === 1) {
         pixelArray = new Int16Array(
-          decodedFrame.buffer,
-          decodedFrame.byteOffset,
-          decodedFrame.byteLength / 2
+          transformedFrame.buffer,
+          transformedFrame.byteOffset,
+          transformedFrame.byteLength / 2
         )
       } else {
         pixelArray = new Uint16Array(
-          decodedFrame.buffer,
-          decodedFrame.byteOffset,
-          decodedFrame.byteLength / 2
+          transformedFrame.buffer,
+          transformedFrame.byteOffset,
+          transformedFrame.byteLength / 2
         )
       }
       bitsPerSample = 16
       break
     case 32:
       pixelArray = new Float32Array(
-        decodedFrame.buffer,
-        decodedFrame.byteOffset,
-        decodedFrame.byteLength / 4
+        transformedFrame.buffer,
+        transformedFrame.byteOffset,
+        transformedFrame.byteLength / 4
       )
       bitsPerSample = 32
       break
     case 64:
       pixelArray = new Float64Array(
-        decodedFrame.buffer,
-        decodedFrame.byteOffset,
-        decodedFrame.byteLength / 8
+        transformedFrame.buffer,
+        transformedFrame.byteOffset,
+        transformedFrame.byteLength / 8
       )
       bitsPerSample = 64
       break
@@ -165,7 +174,7 @@ const _checkImageTypeAndDecode = ({
     console.debug(`decode uncompressed frame with media type "${mediaType}"`)
     return {
       decodedFrame: byteArray,
-      metadata: {
+      frameInfo: {
         bitsAllocated: bitsAllocated,
         rows: rows,
         columns: columns,
@@ -180,7 +189,7 @@ const _checkImageTypeAndDecode = ({
 
   return {
     decodedFrame: frameBuffer,
-    metadata: {
+    frameInfo: {
       bitsAllocated: frameInfo.bitsPerSample,
       rows: frameInfo.height,
       columns: frameInfo.width,

@@ -29,7 +29,7 @@
             <pre class="prettyprint source linenums"><code>import * as dwc from 'dicomweb-client'
 
 import { decodeFrame } from './decode.js'
-import { getFrameMapping } from './metadata.js'
+import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import { are1DArraysAlmostEqual, are2DArraysAlmostEqual } from './utils.js'
 
@@ -72,25 +72,10 @@ function _computeImagePyramid ({ metadata }) {
         'Images of pyramid must all have the same Container Identifier.'
       )
     }
-    if (
-      metadata[i].TotalPixelMatrixRows === undefined ||
-      metadata[i].TotalPixelMatrixColumns === undefined
-    ) {
-      const numberOfFrames = Number(metadata[i].NumberOfFrames)
-      if (numberOfFrames === 1) {
-        /*
-         * If the image contains only one frame it is not tiled, and therefore
-         * the size of the total pixel matrix equals the size of the frame.
-         */
-        metadata[i].TotalPixelMatrixRows = metadata[i].Rows
-        metadata[i].TotalPixelMatrixColumns = metadata[i].Columns
-      } else {
-        throw new Error(
-          'Images of pyramid must all have attributes ' +
-          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
-        )
-      }
-    }
+
+    const numberOfFrames = Number(metadata[i].NumberOfFrames || 1)
+    const cols = metadata[i].TotalPixelMatrixColumns || metadata[i].Columns
+    const rows = metadata[i].TotalPixelMatrixRows || metadata[i].Rows
 
     const { frameMapping, numberOfChannels } = getFrameMapping(metadata[i])
     if (i > 0) {
@@ -104,13 +89,6 @@ function _computeImagePyramid ({ metadata }) {
       pyramidNumberOfChannels = numberOfChannels
     }
 
-    const cols = metadata[i].TotalPixelMatrixColumns
-    const rows = metadata[i].TotalPixelMatrixRows
-    let numberOfFrames = metadata[i].NumberOfFrames
-    if (numberOfFrames === undefined) {
-      numberOfFrames = 1
-    }
-
     /*
      * Instances may be broken down into multiple concatentation parts.
      * Therefore, we have to re-assemble instance metadata.
@@ -118,35 +96,49 @@ function _computeImagePyramid ({ metadata }) {
     let alreadyExists = false
     let index = null
     for (let j = 0; j &lt; pyramidMetadata.length; j++) {
-      if (
-        (pyramidMetadata[j].TotalPixelMatrixColumns === cols) &amp;&amp;
-        (pyramidMetadata[j].TotalPixelMatrixRows === rows)
-      ) {
+      const c = (
+        pyramidMetadata[j].TotalPixelMatrixColumns ||
+        pyramidMetadata[j].Columns
+      )
+      const r = (
+        pyramidMetadata[j].TotalPixelMatrixRows ||
+        pyramidMetadata[j].Rows
+      )
+      if (r === rows &amp;&amp; c === cols) {
         alreadyExists = true
         index = j
       }
     }
     if (alreadyExists) {
       Object.assign(pyramidFrameMappings[index], frameMapping)
-      // Update with information obtained from current concatentation part.
-      pyramidMetadata[index].NumberOfFrames += numberOfFrames
+      /*
+       * Create a new SOP Instance with metadata updated from current
+       * concatentation part.
+       */
+      const rawMetadata = pyramidMetadata[index].json
+      rawMetadata['00280008'].Value[0] += numberOfFrames
       if ('PerFrameFunctionalGroupsSequence' in metadata[index]) {
-        pyramidMetadata[index].PerFrameFunctionalGroupsSequence.push(
+        rawMetadata['52009230'].Value.push(
           ...metadata[i].PerFrameFunctionalGroupsSequence
         )
       }
       if (!('SOPInstanceUIDOfConcatenationSource' in metadata[i])) {
         throw new Error(
-          'Attribute "SOPInstanceUIDOfConcatenationSource" is required ' +
-          'for concatenation parts.'
+          'Multiple image instances for the same channel and ' +
+          'focal plane have identical dimensions, but the instances ' +
+          'are not part of a concatenation either. ' +
+          'The image metadata is probably incorrect.'
         )
       }
       const sopInstanceUID = metadata[i].SOPInstanceUIDOfConcatenationSource
-      pyramidMetadata[index].SOPInstanceUID = sopInstanceUID
-      delete pyramidMetadata[index].SOPInstanceUIDOfConcatenationSource
-      delete pyramidMetadata[index].ConcatenationUID
-      delete pyramidMetadata[index].InConcatenationNumber
-      delete pyramidMetadata[index].ConcatenationFrameOffsetNumber
+      rawMetadata['00080018'].Value[0] = sopInstanceUID
+      delete rawMetadata['00200242'] // SOPInstanceUIDOfConcatenationSource
+      delete rawMetadata['00209161'] // ConcatentationUID
+      delete rawMetadata['00209162'] // InConcatenationNumber
+      delete rawMetadata['00209228'] // ConcatenationFrameOffsetNumber
+      pyramidMetadata[index] = new VLWholeSlideMicroscopyImage({
+        metadata: rawMetadata
+      })
     } else {
       pyramidMetadata.push(metadata[i])
       pyramidFrameMappings.push(frameMapping)
@@ -203,14 +195,11 @@ function _computeImagePyramid ({ metadata }) {
     * Compute the resolution at each pyramid level, since the zoom
     * factor may not be the same between adjacent pyramid levels.
     */
-    const zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns
+    const zoomFactor = Math.round(
+      baseTotalPixelMatrixColumns / totalPixelMatrixColumns
+    )
     pyramidResolutions.push(zoomFactor)
 
-    /*
-    * TODO: One may has to adjust the offset slightly due to the
-    * difference between extent of the image at a given resolution level
-    * and the actual number of tiles (frames).
-    */
     pyramidOrigins.push(offset)
   }
   pyramidResolutions.reverse()
@@ -268,27 +257,51 @@ function _computeImagePyramid ({ metadata }) {
 function _areImagePyramidsEqual (pyramid, refPyramid) {
   // Check that all the channels have the same pyramid parameters
   if (!are2DArraysAlmostEqual(pyramid.extent, refPyramid.extent)) {
-    console.warn('Pyramid has different extent as reference pyramid.')
+    console.warn(
+      'pyramid has different extent as reference pyramid: ',
+      pyramid.extent,
+      refPyramid.extent
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.origins, refPyramid.origins)) {
-    console.warn('Pyramid has different origins as reference pyramid.')
+    console.warn(
+      'pyramid has different origins as reference pyramid: ',
+      pyramid.origins,
+      refPyramid.origins
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.resolutions, refPyramid.resolutions)) {
-    console.warn('Pyramid has different resolutions as reference pyramid.')
+    console.warn(
+      'pyramid has different resolutions as reference pyramid: ',
+      pyramid.resolutions,
+      refPyramid.resolutions
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.gridSizes, refPyramid.gridSizes)) {
-    console.warn('Pyramid has different grid sizes as reference pyramid.')
+    console.warn(
+      'pyramid has different grid sizes as reference pyramid: ',
+      pyramid.gridSizes,
+      refPyramid.gridSizes
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.tileSizes, refPyramid.tileSizes)) {
-    console.warn('Pyramid has different tile sizes as reference pyramid.')
+    console.warn(
+      'pyramid has different tile sizes as reference pyramid: ',
+      pyramid.tileSizes,
+      refPyramid.tileSizes
+    )
     return false
   }
   if (!are2DArraysAlmostEqual(pyramid.pixelSpacings, refPyramid.pixelSpacings)) {
-    console.warn('Pyramid has different pixel spacings as reference pyramid.')
+    console.warn(
+      'pyramid has different pixel spacings as reference pyramid: ',
+      pyramid.pixelSpacings,
+      refPyramid.pixelSpacings
+    )
     return false
   }
   return true
@@ -307,10 +320,16 @@ function _createEmptyTile ({
   } else {
     pixelArray = new Float32Array(columns * rows * samplesPerPixel)
   }
+
   // Fill white in case of color and black in case of monochrome.
   let fillValue = Math.pow(2, bitsAllocated) - 1
   if (photometricInterpretation === 'MONOCHROME2') {
-    fillValue = 0
+    if (bitsAllocated &lt;= 16) {
+      fillValue = 0
+    } else {
+      // Float pixel data
+      fillValue = -(Math.pow(2, bitsAllocated) - 1) / 2
+    }
   }
   for (let i = 0; i &lt; pixelArray.length; i++) {
     pixelArray[i] = fillValue
@@ -318,24 +337,22 @@ function _createEmptyTile ({
   return pixelArray
 }
 
-/** Create custom tile loader function to retrieve frames via WADO-RS.
- *
- *
- */
 function _createTileLoadFunction ({
+  decoders,
+  transformers,
   pyramid,
   client,
-  includeIccProfile,
   channel
 }) {
-  const tileLoadFunction = async (z, y, x) => {
+  return async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
     index += `-${channel}`
 
     if (pyramid.metadata[z] === undefined) {
       throw new Error(
-        'Could not load tile ' + index +
-        ' because level ' + z + ' does not exist.'
+        `Could not load tile for channel ${channel} ` +
+        `at position (${x + 1}, ${y + 1}) at zoom level ${z} ` +
+        ` because level ${z} does not exist.`
       )
     }
 
@@ -368,9 +385,16 @@ function _createTileLoadFunction ({
       const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
 
       if (samplesPerPixel === 1) {
-        console.info(`retrieve frame ${frameNumbers} of monochrome image`)
+        console.info(
+          `retrieve frame ${frameNumbers} of monochrome image ` +
+          `for channel ${channel} at tile position (${x + 1}, ${y + 1}) ` +
+          `at zoom level ${z}`
+        )
       } else {
-        console.info(`retrieve frame ${frameNumbers} of color image`)
+        console.info(
+          `retrieve frame ${frameNumbers} of color image ` +
+          `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`
+        )
       }
 
       const jpegMediaType = 'image/jpeg'
@@ -396,12 +420,6 @@ function _createTileLoadFunction ({
       const octetStreamTransferSyntaxUID = '*'
 
       const mediaTypes = []
-      if (bitsAllocated &lt;= 8) {
-        mediaTypes.push({
-          mediaType: jpegMediaType,
-          transferSyntaxUID: jpegTransferSyntaxUID
-        })
-      }
       mediaTypes.push(...[
         {
           mediaType: jlsMediaType,
@@ -432,6 +450,12 @@ function _createTileLoadFunction ({
           transferSyntaxUID: octetStreamTransferSyntaxUID
         }
       ])
+      if (bitsAllocated &lt;= 8) {
+        mediaTypes.push({
+          mediaType: jpegMediaType,
+          transferSyntaxUID: jpegTransferSyntaxUID
+        })
+      }
 
       const retrieveOptions = {
         studyInstanceUID,
@@ -444,20 +468,25 @@ function _createTileLoadFunction ({
         (rawFrames) => {
           try {
             const { pixelArray } = decodeFrame({
+              decoders,
+              transformers,
               frame: rawFrames[0],
               bitsAllocated,
               pixelRepresentation,
               columns,
               rows,
-              samplesPerPixel
+              samplesPerPixel,
+              sopInstanceUID
             })
-            if (samplesPerPixel === 3 &amp;&amp; bitsAllocated === 8) {
-              return pixelArray
-            }
             if (pixelArray.constructor === Float64Array) {
               // TODO: handle Float64Array using LUT
               throw new Error('Double Float Pixel Data is not (yet) supported.')
             }
+            if (samplesPerPixel === 3 &amp;&amp; bitsAllocated === 8) {
+              // Rendering of color images requires unsigned 8-bit integers
+              return pixelArray
+            }
+            // Rendering of grayscale images requires floating point values
             return new Float32Array(
               pixelArray,
               pixelArray.byteOffset,
@@ -488,7 +517,6 @@ function _createTileLoadFunction ({
       })
     }
   }
-  return tileLoadFunction
 }
 
 function _fitImagePyramid (pyramid, refPyramid) {
@@ -562,13 +590,13 @@ export {
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.Mapping.html">Mapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_buildColorLookupTable">_buildColorLookupTable</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_createTileLoadFunction">_createTileLoadFunction</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_getWindowSize">_getWindowSize</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_hasMarkup">_hasMarkup</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildPaletteColorLookupTable">buildPaletteColorLookupTable</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColormap">createColormap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed Jan 12 2022 19:14:48 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Mar 10 2022 12:00:32 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

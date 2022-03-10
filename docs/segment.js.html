@@ -28,25 +28,28 @@
         <article>
             <pre class="prettyprint source linenums"><code>const _attrs = Symbol('attrs')
 
-/** A segment.
+/**
+ * A segment.
  *
  * @class
  * @memberof segment
  */
 class Segment {
-  /* Creates a new Segment object.
+  /**
+   * Create a new Segment object.
    *
    * @param {Object} options - Options for construction of Segment
    * @param {string} options.uid - Unique tracking identifier
    * @param {number} options.number - Segment Number (one-based index value)
    * @param {string} options.label - Segment Label
    * @param {string} options.algorithmName - Segment Algorithm Name
-   * @param {string} options.algorithmType - Segment Algorithm Type
-   * @param {object[]} options.propertyCategory - Segmented Property Category
-   * @param {object[]} options.propertyType - Segmented Property Type
+   * @param {object} options.algorithmType - Segment Algorithm Type
+   * @param {object} options.propertyCategory - Segmented Property Category Code
+   * @param {object} options.propertyType - Segmented Property Type Code
    * @param {string} options.studyInstanceUID - Study Instance UID of Segmentation images
    * @param {string} options.seriesInstanceUID - Series Instance UID of Segmentation images
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Segmentation images
+   * @param {string|undefined} options.paletteColorLookupTableUID - Palette Color Lookup Table UID
    */
   constructor ({
     uid,
@@ -58,7 +61,8 @@ class Segment {
     algorithmName,
     studyInstanceUID,
     seriesInstanceUID,
-    sopInstanceUIDs
+    sopInstanceUIDs,
+    paletteColorLookupTableUID
   }) {
     this[_attrs] = {}
     if (uid === undefined) {
@@ -78,12 +82,12 @@ class Segment {
     this[_attrs].label = label
 
     if (propertyCategory === undefined) {
-      throw new Error('Segmented Property Category is required.')
+      throw new Error('Segmented Property Category Code is required.')
     }
     this[_attrs].propertyCategory = propertyCategory
 
     if (propertyType === undefined) {
-      throw new Error('Segmented Property Type is required.')
+      throw new Error('Segmented Property Type Code is required.')
     }
     this[_attrs].propertyType = propertyType
 
@@ -111,9 +115,14 @@ class Segment {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+
+    this[_attrs].paletteColorLookupTableUID = paletteColorLookupTableUID
+
+    Object.freeze(this)
   }
 
-  /** Get Unique Tracking Identifier
+  /**
+   * Get Unique Tracking Identifier
    *
    * @returns {string} Unique Tracking Identifier
    */
@@ -121,7 +130,8 @@ class Segment {
     return this[_attrs].uid
   }
 
-  /** Get Segment Number.
+  /**
+   * Get Segment Number.
    *
    * @returns {number} Segment Number
    */
@@ -129,7 +139,8 @@ class Segment {
     return this[_attrs].number
   }
 
-  /** Get Segment Label
+  /**
+   * Get Segment Label
    *
    * @returns {string} Segment Label
    */
@@ -137,7 +148,8 @@ class Segment {
     return this[_attrs].label
   }
 
-  /** Get Segment Algorithm Name
+  /**
+   * Get Segment Algorithm Name
    *
    * @returns {string} Segment Algorithm Name
    */
@@ -145,31 +157,35 @@ class Segment {
     return this[_attrs].algorithmName
   }
 
-  /** Get Segment Algorithm Type
+  /**
+   * Get Segment Algorithm Type
    *
-   * @returns {string} Segment Algorithm Type
+   * @returns {object} Segment Algorithm Type
    */
   get algorithmType () {
     return this[_attrs].algorithmType
   }
 
-  /** Get Segmented Property Category
+  /**
+   * Get Segmented Property Category Code
    *
-   * @returns {object} Segmented Property Category
+   * @returns {object} Segmented Property Category Code
    */
   get propertyCategory () {
     return this[_attrs].propertyCategory
   }
 
-  /** Get Segmented Property Type
+  /**
+   * Get Segmented Property Type Code
    *
-   * @returns {object} Segmented Property Type
+   * @returns {object} Segmented Property Type Code
    */
   get propertyType () {
     return this[_attrs].propertyType
   }
 
-  /** Get Study Instance UID of Segmentation images.
+  /**
+   * Get Study Instance UID of Segmentation images.
    *
    * @returns {string} Study Instance UID
    */
@@ -177,7 +193,8 @@ class Segment {
     return this[_attrs].studyInstanceUID
   }
 
-  /** Get Series Instance UID of Segmentation images.
+  /**
+   * Get Series Instance UID of Segmentation images.
    *
    * @returns {string} Series Instance UID
    */
@@ -185,12 +202,22 @@ class Segment {
     return this[_attrs].seriesInstanceUID
   }
 
-  /** Get SOP Instance UIDs of Segmentation images.
+  /**
+   * Get SOP Instance UIDs of Segmentation images.
    *
    * @returns {string[]} SOP Instance UIDs
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
+  }
+
+  /**
+   * Get Palette Color Lookup Table UID.
+   *
+   * @returns {string} Palette Color Lookup Table UID
+   */
+  get paletteColorLookupTableUID () {
+    return this[_attrs].paletteColorLookupTableUID
   }
 }
 
@@ -205,13 +232,13 @@ export { Segment }
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.Mapping.html">Mapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_buildColorLookupTable">_buildColorLookupTable</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_createTileLoadFunction">_createTileLoadFunction</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_getWindowSize">_getWindowSize</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_hasMarkup">_hasMarkup</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildPaletteColorLookupTable">buildPaletteColorLookupTable</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColormap">createColormap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed Jan 12 2022 19:14:48 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Mar 10 2022 12:00:32 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

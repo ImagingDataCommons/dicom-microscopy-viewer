@@ -28,7 +28,7 @@
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
     "fmt": "standard 'src/**/.js' --fix",
     "lint": "standard 'src/**/*.js'",
-    "clean": "rm -rf ./build"
+    "clean": "rm -rf ./build ./dist"
   },
   "repository": {
     "type": "git",
@@ -53,6 +53,7 @@
     "css-loader": "^6.6",
     "jest": "^27.5",
     "jest-canvas-mock": "^2.3.1",
+    "jsdoc": "^3.6.10",
     "standard": "^16.0",
     "webpack": "^5.68",
     "webpack-cli": "^4.9"
@@ -63,6 +64,7 @@
     "@cornerstonejs/codec-openjpeg": "^0.1.1",
     "colormap": "^2.3.2",
     "dcmjs": "^0.19",
+    "dicomicc": "^0.1.0-0",
     "dicomweb-client": "^0.8",
     "image-type": "^4.1",
     "mathjs": "^10.1",

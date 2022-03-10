@@ -28,7 +28,11 @@
         <article>
             <pre class="prettyprint source linenums"><code>import colormap from 'colormap'
 
-const ColorMapNames = {
+import { generateUID, rescale } from './utils.js'
+
+const _attrs = Symbol('attrs')
+
+const ColormapNames = {
   VIRIDIS: 'VIRIDIS',
   INFERNO: 'INFERNO',
   MAGMA: 'MAGMA',
@@ -38,6 +42,7 @@ const ColorMapNames = {
   PORTLAND: 'PORTLAND',
   HOT: 'HOT'
 }
+Object.freeze(ColormapNames)
 
 /** Create a color map.
  *
@@ -47,7 +52,7 @@ const ColorMapNames = {
  *
  * @returns {number[][]} RGB triplet for each color
  */
-function createColorMap ({ name, bins }) {
+function createColormap ({ name, bins }) {
   const lut = {
     INFERNO: ['inferno', false],
     MAGMA: ['magma', false],
@@ -76,27 +81,343 @@ function createColorMap ({ name, bins }) {
   return colors
 }
 
-/** Build a color lookup table.
+/**
+ * Build a palette color lookup table object from a colormap.
  *
  * @param {object} options
- * @param {number[][]} options.colormap - RGB triplet for each color
- * @param {number} options.min - Mininum value of the input data range
- * @param {number} options.max - Maximum value of the input data range
+ * @param {number[][]} options.data - Array of RGB triplets for each color
+ * @param {number} options.firstValueMapped - First value that should be mapped
  *
- * @returns {number[][]} Interleaved values of the input data and RGB color triplets
+ * @returns {PaletteColorLookupTable} Mapping of grayscale pixel values to RGB color triplets
  */
-function _buildColorLookupTable ({ colormap, min, max }) {
-  const steps = colormap.length
-  const delta = (max - min) / (steps - 1)
-  const table = new Array(steps * 2)
-  for (let i = 0; i &lt; steps; i++) {
-    table[i * 2] = min + i * delta
-    table[i * 2 + 1] = colormap[i]
+function buildPaletteColorLookupTable ({ data, firstValueMapped }) {
+  if (data == null) {
+    throw new Error(
+      'Argument "data" is required for building Palette Color Lookup Table.'
+    )
   }
-  return table
+  if (firstValueMapped == null) {
+    throw new Error(
+      'Argument "firstValueMapped" is required for building ' +
+      'Palette Color Lookup Table.'
+    )
+  }
+
+  const numberOfEntries = data.length
+
+  const Type = Uint8Array
+  const redData = new Type(numberOfEntries)
+  const greenData = new Type(numberOfEntries)
+  const blueData = new Type(numberOfEntries)
+  for (let i = 0; i &lt; numberOfEntries; i++) {
+    redData[i] = data[i][0]
+    greenData[i] = data[i][1]
+    blueData[i] = data[i][2]
+  }
+
+  const descriptor = [numberOfEntries, firstValueMapped, 8]
+
+  return new PaletteColorLookupTable({
+    uid: generateUID(),
+    redDescriptor: descriptor,
+    greenDescriptor: descriptor,
+    blueDescriptor: descriptor,
+    redData,
+    greenData,
+    blueData
+  })
 }
 
-export { ColorMapNames, createColorMap, _buildColorLookupTable }
+/**
+ * A Palette Color Lookup Table
+ */
+class PaletteColorLookupTable {
+  /**
+   * Create a new PaletteColorLookupTable object.
+   */
+  constructor ({
+    uid,
+    redDescriptor,
+    greenDescriptor,
+    blueDescriptor,
+    redData,
+    greenData,
+    blueData,
+    redSegmentedData,
+    greenSegmentedData,
+    blueSegmentedData
+  }) {
+    this[_attrs] = { uid }
+
+    // Number of entries in the LUT data
+    const firstDescriptorValues = new Set([
+      redDescriptor[0],
+      greenDescriptor[0],
+      blueDescriptor[0]
+    ])
+    if (firstDescriptorValues.size !== 1) {
+      throw new Error(
+        'First value of Red, Green, and Blue Palette Color Lookup Table ' +
+        'Descriptor must be the same.'
+      )
+    }
+    const n = [...firstDescriptorValues][0]
+    if (n === 0) {
+      this[_attrs].numberOfEntries = Math.pow(2, 16)
+    } else {
+      this[_attrs].numberOfEntries = n
+    }
+
+    // Pixel value mapped to the first entry in the LUT data
+    const secondDescriptorValues = new Set([
+      redDescriptor[1],
+      greenDescriptor[1],
+      blueDescriptor[1]
+    ])
+    if (secondDescriptorValues.size !== 1) {
+      throw new Error(
+        'Second value of Red, Green, and Blue Palette Color Lookup Table ' +
+        'Descriptor must be the same.'
+      )
+    }
+    this[_attrs].firstValueMapped = [...secondDescriptorValues][0]
+
+    // Number of bits for each entry in the LUT Data
+    const thirdDescriptorValues = new Set([
+      redDescriptor[2],
+      greenDescriptor[2],
+      blueDescriptor[2]
+    ])
+    if (thirdDescriptorValues.size !== 1) {
+      throw new Error(
+        'Third value of Red, Green, and Blue Palette Color Lookup Table ' +
+        'Descriptor must be the same.'
+      )
+    }
+    this[_attrs].bitsPerEntry = [...thirdDescriptorValues][0]
+    if ([8, 16].indexOf(this[_attrs].bitsPerEntry) &lt; 0) {
+      throw new Error(
+        'Third value of Red, Green, and Blue Palette Color Lookup Table ' +
+        'Descriptor must be either ' + '8 or 16.'
+      )
+    }
+
+    if (redSegmentedData != null &amp;&amp; redData != null) {
+      throw new Error(
+        'Either Segmented Red Palette Color Lookup Data or Red Palette ' +
+        'Color Lookup Data should be provided, but not both.'
+      )
+    } else if (redSegmentedData == null &amp;&amp; redData == null) {
+      throw new Error(
+        'Either Segmented Red Palette Color Lookup Data or Red Palette ' +
+        'Color Lookup Data must be provided.'
+      )
+    }
+    if (redData) {
+      if (redData.length !== this[_attrs].numberOfEntries) {
+        throw new Error(
+          'Red Palette Color Lookup Table Data has wrong number of entries.'
+        )
+      }
+    }
+    this[_attrs].redSegmentedData = redSegmentedData
+    this[_attrs].redData = redData
+
+    if (greenSegmentedData != null &amp;&amp; greenData != null) {
+      throw new Error(
+        'Either Segmented Green Palette Color Lookup Data or Green Palette ' +
+        'Color Lookup Data should be provided, but not both.'
+      )
+    } else if (greenSegmentedData == null &amp;&amp; greenData == null) {
+      throw new Error(
+        'Either Segmented Green Palette Color Lookup Data or Green ' +
+        'Palette Color Lookup Data must be provided.'
+      )
+    }
+    if (greenData) {
+      if (greenData.length !== this[_attrs].numberOfEntries) {
+        throw new Error(
+          'Green Palette Color Lookup Table Data has wrong number of entries.'
+        )
+      }
+    }
+    this[_attrs].greenSegmentedData = greenSegmentedData
+    this[_attrs].greenData = greenData
+
+    if (blueSegmentedData != null &amp;&amp; blueData != null) {
+      throw new Error(
+        'Either Segmented Blue Palette Color Lookup Data or Blue Palette ' +
+        'Color Lookup Data must be provided, but not both.'
+      )
+    } else if (blueSegmentedData != null &amp;&amp; blueData != null) {
+      throw new Error(
+        'Either Segmented Blue Palette Color Lookup Data or Blue Palette ' +
+        'Color Lookup Data must be provided.'
+      )
+    }
+    if (blueData) {
+      if (blueData.length !== this[_attrs].numberOfEntries) {
+        throw new Error(
+          'Blue Palette Color Lookup Table Data has wrong number of entries.'
+        )
+      }
+    }
+    this[_attrs].blueSegmentedData = blueSegmentedData
+    this[_attrs].blueData = blueData
+
+    if (this[_attrs].bitsPerEntry === 8) {
+      this[_attrs].DataType = Uint8Array
+    } else {
+      this[_attrs].DataType = Uint16Array
+    }
+
+    // Will be used to cache created colormap for repeated access
+    this[_attrs].data = null
+
+    Object.freeze(this)
+  }
+
+  _expandSegmentedLUTData (segmentedData) {
+    const lut = new this[_attrs].DataType(this[_attrs].numberOfEntries)
+    let offset = 0
+    for (let i = 0; i &lt; segmentedData.length; i++) {
+      const opcode = segmentedData[i++]
+      if (opcode === 0) {
+        // Discrete
+        const length = segmentedData[i++]
+        const value = segmentedData[i]
+        for (let j = offset; j &lt; (offset + length); j++) {
+          lut[j] = value
+        }
+        offset += length
+      } else if (opcode === 1) {
+        // Linear (interpolation)
+        const length = segmentedData[i++]
+        const endpoint = segmentedData[i]
+        const startpoint = lut[offset - 1]
+        const step = (endpoint - startpoint) / (length - 1)
+        for (let j = 0; j &lt; length; j++) {
+          lut[offset + j] = startpoint + Math.round(j * step)
+        }
+        offset += length
+      } else if (opcode === 2) {
+        // TODO
+        throw new Error(
+          'Indirect segment type is not yet supported for ' +
+          'Segmented Palette Color Lookup Table.'
+        )
+      } else {
+        throw new Error(
+          'Encountered unexpected segment type is not yet supported for ' +
+          'Segmented Palette Color Lookup Table.'
+        )
+      }
+    }
+    return lut
+  }
+
+  /**
+   * Get Palette Color Lookup Table UID
+   *
+   * @returns {string} Palette Color Lookup Table UID
+   */
+  get uid () {
+    return this[_attrs].uid
+  }
+
+  /**
+   * Get Palette Color Lookup Table Data
+   *
+   * @returns {number[][]} Palette Color Lookup Table Data
+   */
+  get data () {
+    if (this[_attrs].data == null) {
+      const redLUT = (
+        this[_attrs].redData
+          ? new this[_attrs].DataType(this[_attrs].redData)
+          : this._expandSegmentedLUTData(
+            this[_attrs].redSegmentedData,
+            this[_attrs].numberOfEntries,
+            this[_attrs].bitsPerEntry
+          )
+      )
+      const greenLUT = (
+        this[_attrs].greenData
+          ? new this[_attrs].DataType(this[_attrs].greenData)
+          : this._expandSegmentedLUTData(
+            this[_attrs].greenSegmentedData,
+            this[_attrs].numberOfEntries,
+            this[_attrs].bitsPerEntry
+          )
+      )
+      const blueLUT = (
+        this[_attrs].blueData
+          ? new this[_attrs].DataType(this[_attrs].blueData)
+          : this._expandSegmentedLUTData(
+            this[_attrs].blueSegmentedData,
+            this[_attrs].numberOfEntries,
+            this[_attrs].bitsPerEntry
+          )
+      )
+      const uniqueNumberOfEntries = new Set([
+        redLUT.length,
+        greenLUT.length,
+        blueLUT.length
+      ])
+      if (uniqueNumberOfEntries.size > 1) {
+        throw new Error(
+          'Red, Green, and Blue Palette Color Lookup Tables ' +
+          'must have the same size.'
+        )
+      }
+
+      if (this[_attrs].bitsPerEntry === 16) {
+        /*
+         * Only palettes with 256 entries and 8 bit per entry are supported for
+         * display.  Therefore, data need to rescaled and resampled.
+         */
+        const maxInput = Math.pow(2, 16) - 1
+        const maxOutput = Math.pow(2, 8) - 1
+        const steps = Math.pow(2, 16) / Math.pow(2, 8)
+        this[_attrs].data = new Array(steps)
+        for (let i = 0; i &lt; steps; i++) {
+          const j = i * steps
+          this[_attrs].data[i] = [
+            Math.round(rescale(redLUT[j], 0, maxInput, 0, maxOutput)),
+            Math.round(rescale(greenLUT[j], 0, maxInput, 0, maxOutput)),
+            Math.round(rescale(blueLUT[j], 0, maxInput, 0, maxOutput))
+          ]
+        }
+      } else {
+        this[_attrs].data = new Array(this[_attrs].numberOfEntries)
+        for (let i = 0; i &lt; this[_attrs].numberOfEntries; i++) {
+          this[_attrs].data[i] = [
+            redLUT[i],
+            greenLUT[i],
+            blueLUT[i]
+          ]
+        }
+      }
+    }
+    return this[_attrs].data
+  }
+
+  /**
+   * Get first value mapped
+   *
+   * @returns {number} first value mapped
+   */
+  get firstValueMapped () {
+    return this[_attrs].firstValueMapped
+  }
+}
+
+export {
+  ColormapNames,
+  createColormap,
+  PaletteColorLookupTable,
+  buildPaletteColorLookupTable
+}
 </code></pre>
         </article>
     </section>
@@ -107,13 +428,13 @@ export { ColorMapNames, createColorMap, _buildColorLookupTable }
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.Mapping.html">Mapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_buildColorLookupTable">_buildColorLookupTable</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_createTileLoadFunction">_createTileLoadFunction</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_getWindowSize">_getWindowSize</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColorMap">createColorMap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_hasMarkup">_hasMarkup</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildPaletteColorLookupTable">buildPaletteColorLookupTable</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColormap">createColormap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Wed Jan 12 2022 19:14:48 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Mar 10 2022 12:00:32 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>
