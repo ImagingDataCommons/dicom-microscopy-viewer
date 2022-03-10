@@ -114,7 +114,7 @@ npm install dicom-microscopy-viewer
 Build code locally:
 
 ```None
-git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
+git clone https://github.com/herrmannlab/dicom-microscopy-viewer ~/dicom-microscopy-viewer
 cd ~/dicom-microscopy-viewer
 npm install
 npm run build
@@ -123,7 +123,7 @@ npm run build
 test code locally:
 
 ```None
-git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
+git clone https://github.com/herrmannlab/dicom-microscopy-viewer ~/dicom-microscopy-viewer
 cd ~/dicom-microscopy-viewer
 npm install
 npm test
