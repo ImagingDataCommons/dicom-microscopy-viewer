@@ -28,7 +28,7 @@ function generateUID () {
 }
 
 /**
- * Creates a rotation matrix.
+ * Create a rotation matrix.
  *
  * @param {Object} options - Options
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
@@ -46,6 +46,43 @@ function createRotationMatrix (options) {
     [rowDirection[1], columnDirection[1]],
     [rowDirection[2], columnDirection[3]]
   ]
+}
+
+/**
+ * Rescale intensity from [minInput, maxInput] to [minOutput, maxOutput].
+ *
+ * @param {number} value - Input value that should be rescaled
+ * @param {number} minInput - Lower bound of the full input value range
+ * @param {number} maxInput - Upper bound of the full input value range
+ * @param {number} minOutput - Lower bound of the full output value range
+ * @param {number} maxOutput - Upper bound of the full output value range
+ * @returns {number} Rescaled value
+ */
+function rescale (
+  value,
+  minInput,
+  maxInput,
+  minOutput,
+  maxOutput
+) {
+  return (
+    (value - minInput) * (maxOutput - minOutput) /
+    (maxInput - minInput) +
+    minOutput
+  )
+}
+
+/**
+ * Create window.
+ *
+ * @param {number} lowerBound - Lower bound of the window
+ * @param {number} upperBound - Upper bound of the window
+ * @returns {number[]} Window center and width
+ */
+function createWindow (lowerBound, upperBound) {
+  const windowCenter = (lowerBound + upperBound) / 2
+  const windowWidth = upperBound - lowerBound
+  return [windowCenter, windowWidth]
 }
 
 /**
@@ -71,7 +108,7 @@ function computeRotation (options) {
 }
 
 /**
- * Builds an affine transformation matrix to map coordinates in the Total
+ * Build an affine transformation matrix to map coordinates in the Total
  * Pixel Matrix into the slide coordinate system.
  *
  * @param {Object} options - Options
@@ -80,88 +117,89 @@ function computeRotation (options) {
  * @param {number[]} options.spacing - Spacing between pixel rows and columns of the Total Pixel Matrix
  * @returns {number[][]} 3x3 affine transformation matrix
  */
-function buildTransform (options) {
+function buildTransform ({ offset, orientation, spacing }) {
   // X and Y Offset in Slide Coordinate System
-  if (!('offset' in options)) {
+  if (offset == null) {
     throw new Error('Option "offset" is required.')
   }
-  if (!Array.isArray(options.offset)) {
+  if (!Array.isArray(offset)) {
     throw new Error('Option "offset" must be an array.')
   }
-  if (options.offset.length !== 2) {
+  if (offset.length !== 2) {
     throw new Error('Option "offset" must be an array with 2 elements.')
   }
 
   // Image Orientation Slide with direction cosines for Row and Column direction
-  if (!('orientation' in options)) {
+  if (orientation == null) {
     throw new Error('Option "orientation" is required.')
   }
-  if (!Array.isArray(options.orientation)) {
+  if (!Array.isArray(orientation)) {
     throw new Error('Option "orientation" must be an array.')
   }
-  if (options.orientation.length !== 6) {
+  if (orientation.length !== 6) {
     throw new Error('Option "orientation" must be an array with 6 elements.')
   }
 
   // Pixel Spacing along the Row and Column direction
-  if (!('spacing' in options)) {
+  if (spacing == null) {
     throw new Error('Option "spacing" is required.')
   }
-  if (!Array.isArray(options.spacing)) {
+  if (!Array.isArray(spacing)) {
     throw new Error('Option "spacing" must be an array.')
   }
-  if (options.spacing.length !== 2) {
+  if (spacing.length !== 2) {
     throw new Error('Option "spacing" must be an array with 2 elements.')
   }
 
-  const orientation = options.orientation
-  const offset = options.offset
-  const spacing = options.spacing
-  return [
+  const affine = [
     [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
     [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
     [0, 0, 1]
   ]
+  const correction = [
+    [1.0, 0.0, -0.5],
+    [0.0, 1.0, -0.5],
+    [0.0, 0.0, 1.0]
+  ]
+  return multiply(affine, correction)
 }
 
 /**
- * Applies an affine transformation to a coordinate in the Total Pixel Matrix
- * to map it into the slide coordinate system.
+ * Apply an affine transformation to an image coordinate in the total pixel
+ * matrix to map it into the slide coordinate system.
  *
  * @param {Object} options - Options
- * @params {number[]} options.coordinate - (Row, Column) position in the Total Pixel Matrix
+ * @params {number[]} options.coordinate - (column, row) image coordinate
  * @params {number[][]} options.affine - 3x3 affine transformation matrix
- * @returns {number[]} (X, Y) position in the slide coordinate system
+ * @returns {number[]} (x, y) reference coordinate
  */
-function applyTransform (options) {
-  if (!('coordinate' in options)) {
+function applyTransform ({ coordinate, affine }) {
+  if (coordinate == null) {
     throw new Error('Option "coordinate" is required.')
   }
-  if (!Array.isArray(options.coordinate)) {
+  if (!Array.isArray(coordinate)) {
     throw new Error('Option "coordinate" must be an array.')
   }
-  if (options.coordinate.length !== 2) {
+  if (coordinate.length !== 2) {
     throw new Error('Option "coordinate" must be an array with 2 elements.')
   }
 
-  if (!('affine' in options)) {
+  if (affine == null) {
     throw new Error('Option "affine" is required.')
   }
-  if (!Array.isArray(options.affine)) {
+  if (!Array.isArray(affine)) {
     throw new Error('Option "affine" must be an array.')
   }
-  if (options.affine.length !== 3) {
+  if (affine.length !== 3) {
     throw new Error('Option "affine" must be a 3x3 array.')
   }
-  if (!Array.isArray(options.affine[0])) {
+  if (!Array.isArray(affine[0])) {
     throw new Error('Option "affine" must be a 3x3 array.')
   }
-  if (options.affine[0].length !== 3 || options.affine[1].length !== 3) {
+  if (affine[0].length !== 3 || affine[1].length !== 3) {
     throw new Error('Option "affine" must be a 3x3 array.')
   }
 
-  const coordinate = options.coordinate
-  const affine = options.affine
   const imageCoordinate = [[coordinate[0]], [coordinate[1]], [1]]
 
   const slideCoordinate = multiply(affine, imageCoordinate)
@@ -172,7 +210,7 @@ function applyTransform (options) {
 }
 
 /**
- * Builds an affine transformation matrix to map coordinates in the slide
+ * Build an affine transformation matrix to map coordinates in the slide
  * coordinate system into the Total Pixel Matrix.
  *
  * @param {number[]} options.offset - X and Y offset of the image in the slide coordinate system
@@ -180,164 +218,163 @@ function applyTransform (options) {
  * @param {number[]} options.spacing - Spacing between pixel rows and columns of the Total Pixel Matrix
  * @returns {number[][]} 3x3 affine transformation matrix
  */
-function buildInverseTransform (options) {
+function buildInverseTransform ({ offset, orientation, spacing }) {
   // X and Y Offset in Slide Coordinate System
-  if (!('offset' in options)) {
+  if (offset == null) {
     throw new Error('Option "offset" is required.')
   }
-  if (!Array.isArray(options.offset)) {
+  if (!Array.isArray(offset)) {
     throw new Error('Option "offset" must be an array.')
   }
-  if (options.offset.length !== 2) {
+  if (offset.length !== 2) {
     throw new Error('Option "offset" must be an array with 2 elements.')
   }
 
   // Image Orientation Slide with direction cosines for Row and Column direction
-  if (!('orientation' in options)) {
+  if (orientation == null) {
     throw new Error('Option "orientation" is required.')
   }
-  if (!Array.isArray(options.orientation)) {
+  if (!Array.isArray(orientation)) {
     throw new Error('Option "orientation" must be an array.')
   }
-  if (options.orientation.length !== 6) {
+  if (orientation.length !== 6) {
     throw new Error('Option "orientation" must be an array with 6 elements.')
   }
 
   // Pixel Spacing along the Row and Column direction
-  if (!('spacing' in options)) {
+  if (spacing == null) {
     throw new Error('Option "spacing" is required.')
   }
-  if (!Array.isArray(options.spacing)) {
+  if (!Array.isArray(spacing)) {
     throw new Error('Option "spacing" must be an array.')
   }
-  if (options.spacing.length !== 2) {
+  if (spacing.length !== 2) {
     throw new Error('Option "spacing" must be an array with 2 elements.')
   }
 
-  const orientation = options.orientation
-  const offset = options.offset
-  const spacing = options.spacing
-  const m = [
+  const affine = inv([
     [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
     [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
     [0, 0, 1]
+  ])
+  const correction = [
+    [1.0, 0.0, 0.5],
+    [0.0, 1.0, 0.5],
+    [0.0, 0.0, 1.0]
   ]
-  return inv(m)
+  return multiply(correction, affine)
 }
 
 /**
- * Applies an affine transformation to a coordinate in the slide coordinate
- * system to map it into the Total Pixel Matrix.
+ * Apply an affine transformation to a reference coordinate in the slide
+ * coordinate system to map it into the total pixel matrix.
  *
  * @param {Object} options - Options
- * @params {number[]} options.coordinate - (X, Y) position in the slide coordinate system
+ * @params {number[]} options.coordinate - (x, y) reference coordinate
  * @params {number[][]} options.affine - 3x3 affine transformation matrix
- * @returns {number[]} (Row, Column) position in the Total Pixel Matrix
+ * @returns {number[]} (column, row) image coordinate
  */
-function applyInverseTransform (options) {
-  if (!('coordinate' in options)) {
+function applyInverseTransform ({ coordinate, affine }) {
+  if (coordinate == null) {
     throw new Error('Option "coordinate" is required.')
   }
-  if (!Array.isArray(options.coordinate)) {
+  if (!Array.isArray(coordinate)) {
     throw new Error('Option "coordinate" must be an array.')
   }
-  if (options.coordinate.length !== 2) {
+  if (coordinate.length !== 2) {
     throw new Error('Option "coordinate" must be an array with 2 elements.')
   }
 
-  if (!('affine' in options)) {
+  if (affine == null) {
     throw new Error('Option "affine" is required.')
   }
-  if (!Array.isArray(options.affine)) {
+  if (!Array.isArray(affine)) {
     throw new Error('Option "affine" must be an array.')
   }
-  if (options.affine.length !== 3) {
+  if (affine.length !== 3) {
     throw new Error('Option "affine" must be a 3x3 array.')
   }
-  if (!Array.isArray(options.affine[0])) {
+  if (!Array.isArray(affine[0])) {
     throw new Error('Option "affine" must be a 3x3 array.')
   }
-  if (options.affine[0].length !== 3 || options.affine[1].length !== 3) {
+  if (affine[0].length !== 3 || affine[1].length !== 3) {
     throw new Error('Option "affine" must be a 3x3 array.')
   }
-
-  const coordinate = options.coordinate
-  const affine = options.affine
 
   const slideCoordinate = [[coordinate[0]], [coordinate[1]], [1]]
 
   const pixelCoordinate = multiply(affine, slideCoordinate)
 
-  const row = Number(pixelCoordinate[1][0].toFixed(4))
   const col = Number(pixelCoordinate[0][0].toFixed(4))
+  const row = Number(pixelCoordinate[1][0].toFixed(4))
   return [col, row]
 }
 
 /**
- * Maps 2D (Column, Row) image coordinate in the Total Pixel Matrix
- * to 3D (X, Y, Z) slide coordinates in the Frame of Reference.
+ * Map 2D (column, row) image coordinates in the Total Pixel Matrix
+ * to 3D (x, y, z) slide coordinates in the Frame of Reference.
  *
  * @param {Object} options - Options
  * @param {number[]} options.offset - X and Y offset in the slide coordinate system
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
- * @param {number[]} options.point - Column and Row position of the point in the Total Pixel Matrix
- * @returns {number[]} X, Y and Z position of the point in the slide coordinate system
+ * @param {number[]} options.point - (colum, row) image coordinates
+ * @returns {number[]} (x, y, z) slide coordinates
  * @memberof utils
  */
-function mapPixelCoordToSlideCoord (options) {
-  if (!('point' in options)) {
+function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing }) {
+  if (point == null) {
     throw new Error('Option "point" is required.')
   }
-  if (!Array.isArray(options.point)) {
+  if (!Array.isArray(point)) {
     throw new Error('Option "point" must be an array.')
   }
-  if (options.point.length !== 2) {
+  if (point.length !== 2) {
     throw new Error('Option "point" must be an array with 2 elements.')
   }
-  const point = options.point
 
   const affine = buildTransform({
-    orientation: options.orientation,
-    offset: options.offset,
-    spacing: options.spacing
+    orientation,
+    offset,
+    spacing
   })
   return applyTransform({ coordinate: point, affine: affine })
 }
 
 /**
- * Maps 3D (X, Y, Z) slide coordinate in to the Frame of Reference to
- * 2D (Column, Row) image coordinate in the Total Pixel Matrix.
+ * Map 3D (x, y, z) slide coordinates in the Frame of Reference to
+ * 2D (column, row) image coordinates in the Total Pixel Matrix.
  *
  * @param {Object} options - Options
  * @param {number[]} options.offset - X and Y offset in the slide coordinate system
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
- * @param {number[]} options.point - X, Y and Z position of the point in the slide coordinate system
- * @returns {number[]} Column and Row position of the point in the Total Pixel Matrix
+ * @param {number[]} options.point - (x, y, z) slide coordinates
+ * @returns {number[]} (row, column) image coordinates
  * @memberof utils
  */
-function mapSlideCoordToPixelCoord (options) {
-  if (!('point' in options)) {
+function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
+  if (point == null) {
     throw new Error('Option "point" is required.')
   }
-  if (!Array.isArray(options.point)) {
+  if (!Array.isArray(point)) {
     throw new Error('Option "point" must be an array.')
   }
-  if (options.point.length !== 2) {
+  if (point.length !== 2) {
     throw new Error('Option "point" must be an array with 2 elements.')
   }
-  const point = options.point
   const affine = buildInverseTransform({
-    orientation: options.orientation,
-    offset: options.offset,
-    spacing: options.spacing
+    orientation,
+    offset,
+    spacing
   })
 
   return applyInverseTransform({ coordinate: point, affine: affine })
 }
 
-/** checks if 2D arrays are equal.
+/**
+ * Check if 2D arrays are equal.
+ *
  * @param {number[]} array a
  * @param {number[]} array b
  * @param {number} eps
@@ -359,7 +396,9 @@ function are2DArraysAlmostEqual (a, b, eps = 1.e-6) {
   return true
 }
 
-/** checks if 1D arrays are equal.
+/**
+ * Check if 1D arrays are equal.
+ *
  * @param {number[]} array a
  * @param {number[]} array b
  * @param {number} eps
@@ -377,7 +416,9 @@ function are1DArraysAlmostEqual (a, b, eps = 1.e-6) {
   return true
 }
 
-/** checks if two numbers are equal.
+/**
+ * Check if two numbers are equal.
+ *
  * @param {number} a
  * @param {number} b
  * @param {number} eps
@@ -488,6 +529,64 @@ const doContentItemsMatch = (contentItem1, contentItem2) => {
     )
 }
 
+async function fetchBulkdata ({ client, reference }) {
+  const fixBulkDataURI = (uri) => {
+    // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
+    // set correctly by the archive:
+    // https://dcm4chee-arc-cs.readthedocs.io/en/latest/networking/config/archiveDevice.html#dcmremapretrieveurl
+    return uri.replace(
+      'arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/',
+      'localhost:8008/dicomweb/'
+    )
+  }
+
+  const retrieveOptions = {
+    BulkDataURI: fixBulkDataURI(reference.BulkDataURI)
+  }
+  return await client.retrieveBulkData(retrieveOptions).then(data => {
+    const byteArray = new Uint8Array(data[0])
+    if (reference.vr === 'OB') {
+      return byteArray
+    } else if (reference.vr === 'OW') {
+      return new Uint16Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 2
+      )
+    } else if (reference.vr === 'OL') {
+      return new Int32Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 4
+      )
+    } else if (reference.vr === 'OV') {
+      // There is no Int64Array, so we represent data as Float64Array instead
+      return new Float64Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 8
+      )
+    } else if (reference.vr === 'OF') {
+      return new Float32Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 4
+      )
+    } else if (reference.vr === 'OD') {
+      return new Float64Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 8
+      )
+    } else {
+      throw new Error(
+        `Unexpected Value Representation "${reference.vr}" for ` +
+        `bulkdata element with URI "${reference.BulkDataURI}".`
+      )
+    }
+  })
+}
+
 export {
   getUnitSuffix,
   applyInverseTransform,
@@ -495,6 +594,7 @@ export {
   buildInverseTransform,
   buildTransform,
   computeRotation,
+  fetchBulkdata,
   generateUID,
   mapPixelCoordToSlideCoord,
   mapSlideCoordToPixelCoord,
@@ -503,5 +603,7 @@ export {
   are2DArraysAlmostEqual,
   doContentItemsMatch,
   areCodedConceptsEqual,
-  getContentItemNameCodedConcept
+  getContentItemNameCodedConcept,
+  rescale,
+  createWindow
 }

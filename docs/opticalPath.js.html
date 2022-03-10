@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: opticalPath.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: opticalPath.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const _attrs = Symbol('_attrs')
+
+/**
+ * An Optical Path.
+ *
+ * An optical path represents a color or a monochromatic image that was acquired
+ * using specific microscopy settings. Usually, an optical path is also
+ * associated with specific specimen preparation steps, in particular one or
+ * more staining steps. For example, in immunofluorescence microscopy imaging,
+ * an optical path is generally associated with a specific fluorescence
+ * illumination wave length or color (e.g., 568nm in the red spectrum of the
+ * visible light) and an antibody or a set of antibodies labeled with a
+ * corresponding fluorophore that can be excited by light at the illumination
+ * wave length and re-emit light (usually at a slightly higher wave length)
+ * upon excitation.
+ *
+ * Note, however, that multiple stains may be applied to the imaging target
+ * (specimen) during specimen preparation, and multiple images may be acquired
+ * using different optical paths - either simultaneously or sequentially.
+ * The content of an image thus depends on the physical properties of the
+ * tissue stains (fluorophores) as well as the characteristics of the optical
+ * path (illumination wave length, light and image path filters, etc.).
+ *
+ * An optical path is identified by an optical path identifier that must be
+ * unique within the scope of an image acquisition (or multiple cycles of image
+ * acquisition in case of iterative immunofluorescence imaging).
+ * The relationship between the optical path and any corresponding staining
+ * specimen preparation steps may not be explicitly specified.
+ *
+ * @class
+ * @memberof opticalPath
+ */
+class OpticalPath {
+  /* Create a new OpticalPath object.
+   *
+   * @param {Object} options - Options
+   * @param {string} options.identifier - Optical Path Identifier
+   * @param {string} options.description - Optical Path Description
+   * @param {object} options.illuminationType - Illumination Type Code
+   * @param {boolean} options.isMonochromatic - Whether optical path is monochromatic
+   * @param {object|undefined} options.illuminationColor - Illumination Color Code
+   * @param {string|undefined} options.illuminationWaveLength - Illumination Wave Length
+   * @param {string} options.studyInstanceUID - Study Instance UID of VL Whole Slide Microscopy Image instances
+   * @param {string} options.seriesInstanceUID - Series Instance UID of VL Whole Slide Microscopy Image instances
+   * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of VL Whole Slide Microscopy Image instances
+   * @param {string|undefined} options.paletteColorLookupTableUID - Palette Color Lookup Table UID
+   */
+  constructor ({
+    identifier,
+    description,
+    illuminationType,
+    isMonochromatic,
+    illuminationColor,
+    illuminationWaveLength,
+    studyInstanceUID,
+    seriesInstanceUID,
+    sopInstanceUIDs,
+    paletteColorLookupTableUID
+  }) {
+    this[_attrs] = {}
+    if (identifier == null) {
+      throw new Error('Identifier must be provided for optical path.')
+    }
+    this[_attrs].identifier = identifier
+    this[_attrs].description = description
+
+    if (illuminationType == null) {
+      throw new Error('Illumination type must be specified for optical path.')
+    }
+    this[_attrs].illuminationType = illuminationType
+
+    this[_attrs].illuminationWaveLength = illuminationWaveLength
+
+    if (studyInstanceUID == null) {
+      throw new Error('Study Instance UID must be provided for optical path.')
+    }
+    this[_attrs].studyInstanceUID = studyInstanceUID
+
+    if (seriesInstanceUID == null) {
+      throw new Error('Series Instance UID must be provided for optical path.')
+    }
+    this[_attrs].seriesInstanceUID = seriesInstanceUID
+
+    if (sopInstanceUIDs == null) {
+      throw new Error('SOP Instance UIDs must be provided for optical path.')
+    }
+    this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+
+    if (isMonochromatic == null) {
+      throw new Error(
+        'Whether optical path is monochromatic must be specified.'
+      )
+    }
+    this[_attrs].isMonochromatic = isMonochromatic
+
+    this[_attrs].paletteColorLookupTableUID = paletteColorLookupTableUID
+
+    Object.freeze(this)
+  }
+
+  /**
+   * Optical Path Identifier
+   *
+   * @returns {string} Optical Path Identifier
+   */
+  get identifier () {
+    return this[_attrs].identifier
+  }
+
+  /**
+   * Optical Path Description
+   *
+   * @returns {string} Optical Path Description
+   */
+  get description () {
+    return this[_attrs].description
+  }
+
+  /**
+   * Illumination Type Code
+   *
+   * @returns {object} Illumination Type Code
+   */
+  get illuminationType () {
+    return this[_attrs].illuminationType
+  }
+
+  /**
+   * Illumination Color
+   *
+   * @returns {object} Illumination Color Code
+   */
+  get illuminationColor () {
+    return this[_attrs].illuminationColor
+  }
+
+  /**
+   * Illumination Wave Length
+   *
+   * @returns {string | undefined} Illumination Wave Length
+   */
+  get illuminationWaveLength () {
+    return this[_attrs].illuminationWaveLength
+  }
+
+  /**
+   * Study Instance UID of images
+   *
+   * @returns {string} Study Instance UID
+   */
+  get studyInstanceUID () {
+    return this[_attrs].studyInstanceUID
+  }
+
+  /**
+   * Series Instance UID of images
+   *
+   * @returns {string} Series Instance UID
+   */
+  get seriesInstanceUID () {
+    return this[_attrs].seriesInstanceUID
+  }
+
+  /**
+   * SOP Instance UIDs of images
+   *
+   * @returns {string[]} SOP Instance UIDs
+   */
+  get sopInstanceUIDs () {
+    return this[_attrs].sopInstanceUIDs
+  }
+
+  /**
+   * Palette Color Lookup Table UID
+   *
+   * @returns {string} Palette Color Lookup Table UID
+   */
+  get paletteColorLookupTableUID () {
+    return this[_attrs].paletteColorLookupTableUID
+  }
+
+  /**
+   * Whether optical path is monochromatic
+   *
+   * @returns {boolean} yes/no
+   */
+  get isMonochromatic () {
+    return this[_attrs].isMonochromatic
+  }
+
+  /**
+   * Whether images of optical path are colorable
+   *
+   * @returns {boolean} yes/no
+   */
+  get isColorable () {
+    return this[_attrs].paletteColorLookupTableUID == null
+  }
+}
+
+export { OpticalPath }
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_hasMarkup">_hasMarkup</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildPaletteColorLookupTable">buildPaletteColorLookupTable</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColormap">createColormap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Mar 10 2022 12:00:32 GMT-0500 (Eastern Standard Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

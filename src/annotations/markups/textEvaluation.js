@@ -47,7 +47,7 @@ const _applyStyle = (feature) => {
  * @param {object} feature
  * @returns {boolean} true if feature has text evaluation properties
  */
-const _isTextEvaluation = (feature) =>
+const _hasMarkup = (feature) =>
   Enums.Markup.TextEvaluation === feature.get(Enums.InternalProperties.Markup)
 
 /**
@@ -86,7 +86,7 @@ const _onInteractionEventHandler = ({ feature, markupManager }) => {
 const TextEvaluationMarkup = ({ markupManager }) => {
   return {
     onAdd: (feature) => {
-      if (_isTextEvaluation(feature)) {
+      if (_hasMarkup(feature)) {
         _onInteractionEventHandler({ feature, markupManager })
 
         /** Keep text style after external style changes */
@@ -106,23 +106,23 @@ const TextEvaluationMarkup = ({ markupManager }) => {
       }
     },
     onRemove: (feature) => {
-      if (_isTextEvaluation(feature)) {
+      if (_hasMarkup(feature)) {
         const featureId = feature.getId()
         markupManager.remove(featureId)
       }
     },
     onUpdate: (feature) => {
-      if (_isTextEvaluation(feature)) {
+      if (_hasMarkup(feature)) {
         markupManager.update({ feature, value: format(feature) })
       }
     },
     onDrawStart: ({ feature }) => {
-      if (_isTextEvaluation(feature)) {
+      if (_hasMarkup(feature)) {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },
     onDrawEnd: ({ feature }) => {
-      if (_isTextEvaluation(feature)) {
+      if (_hasMarkup(feature)) {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },

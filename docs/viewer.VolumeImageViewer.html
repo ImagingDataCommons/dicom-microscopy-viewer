@@ -29,7 +29,7 @@
 <header>
     
         <h2><span class="attribs"><span class="type-signature"></span></span>
-            <span class="ancestors"><a href="viewer.html">viewer</a>~</span>VolumeImageViewer<span class="signature">(options)</span><span class="type-signature"></span></h2>
+            <span class="ancestors"><a href="viewer.html">viewer</a>.</span>VolumeImageViewer<span class="signature">(options)</span><span class="type-signature"></span></h2>
         
             <div class="class-description">Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
 with Image Type VOLUME.</div>
@@ -200,45 +200,8 @@ with Image Type VOLUME.</div>
                 </td>
             
 
-            <td class="description last">An array of DICOM JSON metadata objects or formatted image metadata objects created via "formatMetadata()".
-       The array shall contain the metadata of all image instances that should be displayed.
-       The constructor automatically determines which instances represent monochromatic channels (optical paths).</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>blendingInformation</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Array.&lt;object></span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last">An array containing blending information for the channels with the
-       standard visualization parameters already setup by an external application.</td>
+            <td class="description last">An array of DICOM JSON metadata objects
+       The array shall contain the metadata of all image instances that should be displayed.</td>
         </tr>
 
     
@@ -319,46 +282,7 @@ with Image Type VOLUME.</div>
 
         <tr>
             
-                <td class="name"><code>retrieveRendered</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">boolean</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    true
-                
-                </td>
-            
-
-            <td class="description last">Whether image frames should be retrieved via DICOMweb prerendered by the server.</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>includeIccProfile</code></td>
+                <td class="name"><code>debug</code></td>
             
 
             <td class="type">
@@ -390,46 +314,7 @@ with Image Type VOLUME.</div>
                 </td>
             
 
-            <td class="description last">Whether ICC Profile should be included for correction of image colors</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>useWebGL</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">boolean</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    true
-                
-                </td>
-            
-
-            <td class="description last">Whether WebGL renderer should be used</td>
+            <td class="description last">Whether debug features should be turned on (e.g., display of tile boundaries)</td>
         </tr>
 
     
@@ -463,7 +348,7 @@ with Image Type VOLUME.</div>
             
                 <td class="default">
                 
-                    1000
+                    512
                 
                 </td>
             
@@ -516,7 +401,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line484">line 484</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line758">line 758</a>
     </li></ul></dd>
     
 
@@ -566,6 +451,71 @@ with Image Type VOLUME.</div>
 
         
             
+<h4 class="name" id="%5Bundefined%5D"><span class="type-signature"></span>[undefined]<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    OpenLayer's map has default active interactions.
+We need to reuse them here to avoid duplications.
+Enabling or disabling interactions could cause side effects on
+OverviewMap since it also uses the same interactions in the map
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1318">line 1318</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
 <h4 class="name" id="areROIsVisible"><span class="type-signature"></span>areROIsVisible<span class="type-signature"></span></h4>
 
 
@@ -610,69 +560,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2230">line 2230</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-        
-            
-<h4 class="name" id="imageMetadata"><span class="type-signature"></span>imageMetadata<span class="type-signature"></span></h4>
-
-
-
-
-<div class="description">
-    DICOM metadata for each VL Whole Slide Microscopy Image instance.
-</div>
-
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2239">line 2239</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2634">line 2634</a>
     </li></ul></dd>
     
 
@@ -744,7 +632,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1655">line 1655</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2012">line 2012</a>
     </li></ul></dd>
     
 
@@ -816,7 +704,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1664">line 1664</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2021">line 2021</a>
     </li></ul></dd>
     
 
@@ -878,7 +766,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1646">line 1646</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2003">line 2003</a>
     </li></ul></dd>
     
 
@@ -940,7 +828,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1979">line 1979</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2343">line 2343</a>
     </li></ul></dd>
     
 
@@ -1002,7 +890,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1931">line 1931</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2281">line 2281</a>
     </li></ul></dd>
     
 
@@ -1074,7 +962,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1673">line 1673</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2030">line 2030</a>
     </li></ul></dd>
     
 
@@ -1136,7 +1024,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2010">line 2010</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2374">line 2374</a>
     </li></ul></dd>
     
 
@@ -1160,7 +1048,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Gets the size of the viewport.
+    Get the size of the viewport.
 </div>
 
 
@@ -1198,7 +1086,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1378">line 1378</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1667">line 1667</a>
     </li></ul></dd>
     
 
@@ -1226,429 +1114,6 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="_initColorImage"><span class="type-signature"></span>_initColorImage<span class="signature">()</span><span class="type-signature"></span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    init unique Open Layer objects
-</div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line987">line 987</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="_transformViewCoordinatesInTilesCoordinates"><span class="type-signature"></span>_transformViewCoordinatesInTilesCoordinates<span class="signature">()</span><span class="type-signature"> &rarr; {Array.&lt;number>}</span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    Returns if the channel is being rendered
-</div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1247">line 1247</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<h5>Returns:</h5>
-
-        
-<div class="param-desc">
-    array with tiles X and Y coordinates ranges and zoom level.
-</div>
-
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">Array.&lt;number></span>
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="_updateTilesRenderingAtPanning"><span class="type-signature"></span>_updateTilesRenderingAtPanning<span class="signature">()</span><span class="type-signature"></span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    updates tiles rendering for monochrome channels at panning interactions
-</div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line963">line 963</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-            
-
-    
-
-    
-    <h4 class="name" id="_updateTilesRenderingAtZoom"><span class="type-signature"></span>_updateTilesRenderingAtZoom<span class="signature">(zoom)</span><span class="type-signature"></span></h4>
-    
-
-    
-
-
-
-<div class="description">
-    updates tiles rendering for monochrome channels at zoom interactions
-</div>
-
-
-
-
-
-
-
-
-
-    <h5>Parameters:</h5>
-    
-
-<table class="params">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>zoom</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">number</span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">applied zoom</td>
-        </tr>
-
-    
-    </tbody>
-</table>
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line944">line 944</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        
-            
-
-    
-
-    
     <h4 class="name" id="activateDragPanInteraction"><span class="type-signature"></span>activateDragPanInteraction<span class="signature">(options)</span><span class="type-signature"></span></h4>
     
 
@@ -1657,7 +1122,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Activates dragpan interaction.
+    Activate dragpan interaction.
 </div>
 
 
@@ -1750,7 +1215,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1861">line 1861</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2215">line 2215</a>
     </li></ul></dd>
     
 
@@ -1794,7 +1259,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Activates dragZoom interaction.
+    Activate dragZoom interaction.
 </div>
 
 
@@ -1887,7 +1352,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1772">line 1772</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2129">line 2129</a>
     </li></ul></dd>
     
 
@@ -1931,7 +1396,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Activates the draw interaction for graphic annotation of regions of interest.
+    Activate the draw interaction for graphic annotation of regions of interest.
 </div>
 
 
@@ -2025,7 +1490,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">Name of the geometry type (point, circle, box, polygon, freehandPolygon, line, freehandLine)</td>
+            <td class="description last">Name of the geometry type (point, circle, box, polygon, freehandpolygon, line, freehandline)</td>
         </tr>
 
     
@@ -2118,29 +1583,6 @@ with Image Type VOLUME.</div>
             
 
             <td class="description last">Geometry min points</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>vertexEnabled</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">boolean</span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">Enable vertex</td>
         </tr>
 
     
@@ -2427,7 +1869,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1511">line 1511</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1870">line 1870</a>
     </li></ul></dd>
     
 
@@ -2471,7 +1913,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Activates modify interaction.
+    Activate modify interaction.
 </div>
 
 
@@ -2564,7 +2006,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1939">line 1939</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2290">line 2290</a>
     </li></ul></dd>
     
 
@@ -2608,7 +2050,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Adds the channel to the OpenLayer Map given an id
+    Activate an optical path.
 </div>
 
 
@@ -2660,7 +2102,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">opticalPath of the channel</td>
+            <td class="description last">Optical Path Identifier</td>
         </tr>
 
     
@@ -2701,7 +2143,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1306">line 1306</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1533">line 1533</a>
     </li></ul></dd>
     
 
@@ -2745,7 +2187,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Activates select interaction.
+    Activate select interaction.
 </div>
 
 
@@ -2838,7 +2280,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1811">line 1811</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2167">line 2167</a>
     </li></ul></dd>
     
 
@@ -2882,7 +2324,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Activates snap interaction.
+    Activate snap interaction.
 </div>
 
 
@@ -2975,7 +2417,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1903">line 1903</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2255">line 2255</a>
     </li></ul></dd>
     
 
@@ -3019,7 +2461,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Activates translate interaction.
+    Activate translate interaction.
 </div>
 
 
@@ -3112,7 +2554,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1682">line 1682</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2039">line 2039</a>
     </li></ul></dd>
     
 
@@ -3148,7 +2590,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="addROI"><span class="type-signature"></span>addROI<span class="signature">(item, styleOptions)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="addAnnotationGroups"><span class="type-signature"></span>addAnnotationGroups<span class="signature">(metadata)</span><span class="type-signature"></span></h4>
     
 
     
@@ -3156,7 +2598,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Adds a regions of interest.
+    Add annotation groups.
 </div>
 
 
@@ -3192,7 +2634,281 @@ with Image Type VOLUME.</div>
 
         <tr>
             
-                <td class="name"><code>item</code></td>
+                <td class="name"><code>metadata</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">MicroscopyBulkSimpleAnnotations</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Metadata of a DICOM Microscopy Simple Bulk Annotations instance</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2643">line 2643</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="addParameterMappings"><span class="type-signature"></span>addParameterMappings<span class="signature">(metadata)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Add parameter mappings.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>metadata</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;ParametricMap></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Metadata of one or more DICOM Parametric Map instances</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3540">line 3540</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="addROI"><span class="type-signature"></span>addROI<span class="signature">(roi, styleOptions)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Add a regions of interest.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>roi</code></td>
             
 
             <td class="type">
@@ -3488,7 +3204,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2095">line 2095</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2460">line 2460</a>
     </li></ul></dd>
     
 
@@ -3532,7 +3248,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Adds a qualitative evaluation to a region of interest.
+    Add a qualitative evaluation to a region of interest.
 </div>
 
 
@@ -3648,7 +3364,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2055">line 2055</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2419">line 2419</a>
     </li></ul></dd>
     
 
@@ -3692,7 +3408,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Adds a measurement to a region of interest.
+    Add a measurement to a region of interest.
 </div>
 
 
@@ -3808,7 +3524,144 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2032">line 2032</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2396">line 2396</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="addSegments"><span class="type-signature"></span>addSegments<span class="signature">(metadata)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Add segments.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>metadata</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;Segmentation></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Metadata of one or more DICOM Segmentation instances</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3175">line 3175</a>
     </li></ul></dd>
     
 
@@ -3852,7 +3705,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Adds a new viewport overlay.
+    Add a new viewport overlay.
 </div>
 
 
@@ -3946,7 +3799,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">The custom overlay html element</td>
+            <td class="description last">The custom overlay HTML element</td>
         </tr>
 
     
@@ -3959,7 +3812,7 @@ with Image Type VOLUME.</div>
             <td class="type">
             
                 
-<span class="param-type">object</span>
+<span class="param-type">string</span>
 
 
             
@@ -3969,7 +3822,30 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">Class to style the OpenLayer's overlay container</td>
+            <td class="description last">Class to style the overlay container</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>offset</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;number></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Horizontal and vertical offset of the overlay container in pixels</td>
         </tr>
 
     
@@ -4017,7 +3893,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2170">line 2170</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2572">line 2572</a>
     </li></ul></dd>
     
 
@@ -4053,7 +3929,97 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="deactivateDragPanInteraction"><span class="type-signature"></span>deactivateDragPanInteraction<span class="signature">()</span><span class="type-signature"> &rarr; {void}</span></h4>
+    <h4 class="name" id="cleanup"><span class="type-signature"></span>cleanup<span class="signature">()</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Clean up.
+
+Release allocated memory and clear the viewport.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1676">line 1676</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="deactivateDragPanInteraction"><span class="type-signature"></span>deactivateDragPanInteraction<span class="signature">()</span><span class="type-signature"></span></h4>
     
 
     
@@ -4105,7 +4071,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1890">line 1890</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2242">line 2242</a>
     </li></ul></dd>
     
 
@@ -4130,24 +4096,6 @@ with Image Type VOLUME.</div>
 
 
 
-<h5>Returns:</h5>
-
-        
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">void</span>
-
-
-    </dd>
-</dl>
-
-    
 
 
 
@@ -4159,7 +4107,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="deactivateDragZoomInteraction"><span class="type-signature"></span>deactivateDragZoomInteraction<span class="signature">()</span><span class="type-signature"> &rarr; {void}</span></h4>
+    <h4 class="name" id="deactivateDragZoomInteraction"><span class="type-signature"></span>deactivateDragZoomInteraction<span class="signature">()</span><span class="type-signature"></span></h4>
     
 
     
@@ -4167,7 +4115,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Deactivates dragZoom interaction.
+    Deactivate dragZoom interaction.
 </div>
 
 
@@ -4211,7 +4159,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1798">line 1798</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2154">line 2154</a>
     </li></ul></dd>
     
 
@@ -4236,24 +4184,6 @@ with Image Type VOLUME.</div>
 
 
 
-<h5>Returns:</h5>
-
-        
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">void</span>
-
-
-    </dd>
-</dl>
-
-    
 
 
 
@@ -4265,7 +4195,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="deactivateDrawInteraction"><span class="type-signature"></span>deactivateDrawInteraction<span class="signature">()</span><span class="type-signature"> &rarr; {void}</span></h4>
+    <h4 class="name" id="deactivateDrawInteraction"><span class="type-signature"></span>deactivateDrawInteraction<span class="signature">()</span><span class="type-signature"></span></h4>
     
 
     
@@ -4273,7 +4203,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Deactivates draw interaction.
+    Deactivate draw interaction.
 </div>
 
 
@@ -4317,7 +4247,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1633">line 1633</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1990">line 1990</a>
     </li></ul></dd>
     
 
@@ -4342,24 +4272,6 @@ with Image Type VOLUME.</div>
 
 
 
-<h5>Returns:</h5>
-
-        
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">void</span>
-
-
-    </dd>
-</dl>
-
-    
 
 
 
@@ -4379,7 +4291,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Deactivates modify interaction.
+    Deactivate modify interaction.
 </div>
 
 
@@ -4423,7 +4335,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1966">line 1966</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2330">line 2330</a>
     </li></ul></dd>
     
 
@@ -4467,7 +4379,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Removes the channel to the OpenLayer Map given an id
+    Deactivate an optical path.
 </div>
 
 
@@ -4519,7 +4431,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">opticalPath of the channel</td>
+            <td class="description last">Optical Path Identifier</td>
         </tr>
 
     
@@ -4560,7 +4472,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1318">line 1318</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1559">line 1559</a>
     </li></ul></dd>
     
 
@@ -4596,7 +4508,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="deactivateSelectInteraction"><span class="type-signature"></span>deactivateSelectInteraction<span class="signature">()</span><span class="type-signature"> &rarr; {void}</span></h4>
+    <h4 class="name" id="deactivateSelectInteraction"><span class="type-signature"></span>deactivateSelectInteraction<span class="signature">()</span><span class="type-signature"></span></h4>
     
 
     
@@ -4604,7 +4516,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Deactivates select interaction.
+    Deactivate select interaction.
 </div>
 
 
@@ -4648,7 +4560,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1848">line 1848</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2202">line 2202</a>
     </li></ul></dd>
     
 
@@ -4673,24 +4585,6 @@ with Image Type VOLUME.</div>
 
 
 
-<h5>Returns:</h5>
-
-        
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">void</span>
-
-
-    </dd>
-</dl>
-
-    
 
 
 
@@ -4702,7 +4596,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="deactivateSnapInteraction"><span class="type-signature"></span>deactivateSnapInteraction<span class="signature">()</span><span class="type-signature"> &rarr; {void}</span></h4>
+    <h4 class="name" id="deactivateSnapInteraction"><span class="type-signature"></span>deactivateSnapInteraction<span class="signature">()</span><span class="type-signature"></span></h4>
     
 
     
@@ -4710,7 +4604,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Deactivates snap interaction.
+    Deactivate snap interaction.
 </div>
 
 
@@ -4754,7 +4648,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1918">line 1918</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2268">line 2268</a>
     </li></ul></dd>
     
 
@@ -4779,24 +4673,6 @@ with Image Type VOLUME.</div>
 
 
 
-<h5>Returns:</h5>
-
-        
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">void</span>
-
-
-    </dd>
-</dl>
-
-    
 
 
 
@@ -4816,7 +4692,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Deactivates translate interaction.
+    Deactivate translate interaction.
 </div>
 
 
@@ -4860,7 +4736,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1759">line 1759</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2116">line 2116</a>
     </li></ul></dd>
     
 
@@ -4897,6 +4773,328 @@ with Image Type VOLUME.</div>
     <dd>
         
 <span class="param-type">void</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getAllAnnotationGroups"><span class="type-signature"></span>getAllAnnotationGroups<span class="signature">()</span><span class="type-signature"> &rarr; {Array.&lt;AnnotationGroup>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get all annotation groups.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3144">line 3144</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    - Annotation groups
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;AnnotationGroup></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getAllOpticalPaths"><span class="type-signature"></span>getAllOpticalPaths<span class="signature">()</span><span class="type-signature"> &rarr; {Array.&lt;OpticalPath>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get all optical paths.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1520">line 1520</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;OpticalPath></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getAllParameterMappings"><span class="type-signature"></span>getAllParameterMappings<span class="signature">()</span><span class="type-signature"> &rarr; {Array.&lt;ParameterMapping>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get all parameter mappings.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3973">line 3973</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;ParameterMapping></span>
 
 
     </dd>
@@ -4922,7 +5120,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Gets all annotated regions of interest.
+    Get all annotated regions of interest.
 </div>
 
 
@@ -4966,7 +5164,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1988">line 1988</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2352">line 2352</a>
     </li></ul></dd>
     
 
@@ -5024,7 +5222,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="getBlendingInformation"><span class="type-signature"></span>getBlendingInformation<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"> &rarr; {object}</span></h4>
+    <h4 class="name" id="getAllSegments"><span class="type-signature"></span>getAllSegments<span class="signature">()</span><span class="type-signature"> &rarr; {Array.&lt;Segment>}</span></h4>
     
 
     
@@ -5032,7 +5230,113 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Gets the channel visualization/presentation parameters given an id
+    Get all segments.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3527">line 3527</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;Segment></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getAnnotationGroupMetadata"><span class="type-signature"></span>getAnnotationGroupMetadata<span class="signature">(annotationGroupUID)</span><span class="type-signature"> &rarr; {Array.&lt;MicroscopyBulkSimpleAnnotations>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get annotation group metadata.
 </div>
 
 
@@ -5068,7 +5372,7 @@ with Image Type VOLUME.</div>
 
         <tr>
             
-                <td class="name"><code>opticalPathIdentifier</code></td>
+                <td class="name"><code>annotationGroupUID</code></td>
             
 
             <td class="type">
@@ -5084,7 +5388,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">opticalPath of the channel</td>
+            <td class="description last">Unique identifier of an annotation group</td>
         </tr>
 
     
@@ -5125,7 +5429,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1298">line 1298</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3159">line 3159</a>
     </li></ul></dd>
     
 
@@ -5154,7 +5458,166 @@ with Image Type VOLUME.</div>
 
         
 <div class="param-desc">
-    BlendingInformation
+    - Metadata of DICOM Microscopy Bulk Simple Annotations instances
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;MicroscopyBulkSimpleAnnotations></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getAnnotationGroupStyle"><span class="type-signature"></span>getAnnotationGroupStyle<span class="signature">(annotationGroupUID)</span><span class="type-signature"> &rarr; {object}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get style of an annotation group.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>annotationGroupUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique identifier of an annotation group</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3125">line 3125</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    - Style settings
 </div>
 
 
@@ -5183,7 +5646,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="getOpticalPath"><span class="type-signature"></span>getOpticalPath<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"> &rarr; {Object}</span></h4>
+    <h4 class="name" id="getOpticalPathMetadata"><span class="type-signature"></span>getOpticalPathMetadata<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"> &rarr; {Array.&lt;VLWholeSlideMicroscopyImage>}</span></h4>
     
 
     
@@ -5191,7 +5654,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Gets the channel or color image given an id
+    Get image metadata for an optical path.
 </div>
 
 
@@ -5243,7 +5706,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">opticalPath of the channel</td>
+            <td class="description last">Optical Path Identifier</td>
         </tr>
 
     
@@ -5284,7 +5747,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1186">line 1186</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1504">line 1504</a>
     </li></ul></dd>
     
 
@@ -5313,7 +5776,7 @@ with Image Type VOLUME.</div>
 
         
 <div class="param-desc">
-    _Channel
+    Slide microscopy image metadata
 </div>
 
 
@@ -5324,7 +5787,7 @@ with Image Type VOLUME.</div>
     </dt>
     <dd>
         
-<span class="param-type">Object</span>
+<span class="param-type">Array.&lt;VLWholeSlideMicroscopyImage></span>
 
 
     </dd>
@@ -5342,7 +5805,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="getOpticalPathMetadata"><span class="type-signature"></span>getOpticalPathMetadata<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"> &rarr; {Array.&lt;<a href="metadata.html">metadata</a>>}</span></h4>
+    <h4 class="name" id="getOpticalPathStyle"><span class="type-signature"></span>getOpticalPathStyle<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"> &rarr; {object}</span></h4>
     
 
     
@@ -5350,7 +5813,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Gets the channel or color image metadata given an id
+    Get the style of an optical path.
 </div>
 
 
@@ -5402,7 +5865,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">opticalPath of the channel</td>
+            <td class="description last">Optical Path Identifier</td>
         </tr>
 
     
@@ -5443,7 +5906,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1218">line 1218</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1473">line 1473</a>
     </li></ul></dd>
     
 
@@ -5472,7 +5935,7 @@ with Image Type VOLUME.</div>
 
         
 <div class="param-desc">
-    array with all the instances metadata of the channel
+    Style of optical path
 </div>
 
 
@@ -5483,7 +5946,325 @@ with Image Type VOLUME.</div>
     </dt>
     <dd>
         
-<span class="param-type">Array.&lt;<a href="metadata.html">metadata</a>></span>
+<span class="param-type">object</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getParameterMappingMetadata"><span class="type-signature"></span>getParameterMappingMetadata<span class="signature">(mappingUID)</span><span class="type-signature"> &rarr; {Array.&lt;ParametricMap>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get image metadata for a parameter mapping.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>mappingUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of mapping</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3957">line 3957</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    Parametric Map image metadata
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;ParametricMap></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getParameterMappingStyle"><span class="type-signature"></span>getParameterMappingStyle<span class="signature">(mappingUID)</span><span class="type-signature"> &rarr; {object}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get the style of a parameter mapping.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>mappingUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of mapping</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3935">line 3935</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    Style Options
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">object</span>
 
 
     </dd>
@@ -5509,7 +6290,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Gets an individual annotated regions of interest.
+    Get an individual annotated region of interest.
 </div>
 
 
@@ -5602,7 +6383,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2020">line 2020</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2384">line 2384</a>
     </li></ul></dd>
     
 
@@ -5631,7 +6412,7 @@ with Image Type VOLUME.</div>
 
         
 <div class="param-desc">
-    Regions of interest.
+    Region of interest.
 </div>
 
 
@@ -5660,6 +6441,620 @@ with Image Type VOLUME.</div>
     
 
     
+    <h4 class="name" id="getROIStyle"><span class="type-signature"></span>getROIStyle<span class="signature">(uid)</span><span class="type-signature"> &rarr; {object}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get the style of a region of interest.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>uid</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique identifier of the regions of interest</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2520">line 2520</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    - Style settings
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">object</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getSegmentMetadata"><span class="type-signature"></span>getSegmentMetadata<span class="signature">(segmentUID)</span><span class="type-signature"> &rarr; {Array.&lt;Segmentation>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get image metadata for a segment.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>segmentUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of segment</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3511">line 3511</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    Segmentation image metadata
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Array.&lt;Segmentation></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="getSegmentStyle"><span class="type-signature"></span>getSegmentStyle<span class="signature">(segmentUID)</span><span class="type-signature"> &rarr; {object}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Get the style of a segment.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>segmentUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of segment</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3490">line 3490</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    Style settings
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">object</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="hideAnnotationGroup"><span class="type-signature"></span>hideAnnotationGroup<span class="signature">(annotationGroupUID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Hide an annotation group.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>annotationGroupUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique identifier of an annotation group</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2996">line 2996</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
     <h4 class="name" id="hideOpticalPath"><span class="type-signature"></span>hideOpticalPath<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"></span></h4>
     
 
@@ -5668,7 +7063,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Set the visibility of the channel to false
+    Hide an optical path.
 </div>
 
 
@@ -5720,7 +7115,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">opticalPath of the channel</td>
+            <td class="description last">Optical Path Identifier</td>
         </tr>
 
     
@@ -5761,7 +7156,144 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1356">line 1356</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1623">line 1623</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="hideParameterMapping"><span class="type-signature"></span>hideParameterMapping<span class="signature">(mappingUID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Hide a parameter mapping.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>mappingUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of a mapping</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3820">line 3820</a>
     </li></ul></dd>
     
 
@@ -5805,8 +7337,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Hides annotated regions of interest such that they are no longer
- visible on the viewport.
+    Hide annotated regions of interest.
 </div>
 
 
@@ -5850,7 +7381,281 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2209">line 2209</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2614">line 2614</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="hideSegment"><span class="type-signature"></span>hideSegment<span class="signature">(segmentUID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Hide a segment.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>segmentUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of a segment</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3391">line 3391</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="isAnnotationGroupVisible"><span class="type-signature"></span>isAnnotationGroupVisible<span class="signature">(annotationGroupUID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Is annotation group visible.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>annotationGroupUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique identifier of an annotation group</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3013">line 3013</a>
     </li></ul></dd>
     
 
@@ -5894,7 +7699,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Returns if the channel is being rendered
+    Determine whether an optical path is active.
 </div>
 
 
@@ -5946,7 +7751,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">opticalPath of the channel</td>
+            <td class="description last">Optical Path Identifier</td>
         </tr>
 
     
@@ -5987,7 +7792,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1331">line 1331</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1582">line 1582</a>
     </li></ul></dd>
     
 
@@ -6045,6 +7850,789 @@ with Image Type VOLUME.</div>
     
 
     
+    <h4 class="name" id="isOpticalPathColorable"><span class="type-signature"></span>isOpticalPathColorable<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Determine whether an optical path is colorable.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>opticalPathIdentifier</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Optical Path Identifier</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1445">line 1445</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    yes/no answer
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">boolean</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="isOpticalPathMonochromatic"><span class="type-signature"></span>isOpticalPathMonochromatic<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Determine whether an optical path is monochromatic.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>opticalPathIdentifier</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Optical Path Identifier</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1459">line 1459</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+<div class="param-desc">
+    yes/no answer
+</div>
+
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">boolean</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="isOpticalPathVisible"><span class="type-signature"></span>isOpticalPathVisible<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Determine if an optical path is visible.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>opticalPathIdentifier</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Optical Path Identifier</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1642">line 1642</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">boolean</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="isParameterMappingVisible"><span class="type-signature"></span>isParameterMappingVisible<span class="signature">(mappingUID)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Determine if parameter mapping is visible.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>mappingUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of a mapping</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3838">line 3838</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">boolean</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="isSegmentVisible"><span class="type-signature"></span>isSegmentVisible<span class="signature">(segmentUID)</span><span class="type-signature"> &rarr; {boolean}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Determine if segment is visible.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>segmentUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of a segment</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3409">line 3409</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">boolean</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
     <h4 class="name" id="popROI"><span class="type-signature"></span>popROI<span class="signature">()</span><span class="type-signature"> &rarr; {ROI}</span></h4>
     
 
@@ -6053,7 +8641,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Pops the most recently annotated regions of interest.
+    Pop the most recently annotated regions of interest.
 </div>
 
 
@@ -6097,7 +8685,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2076">line 2076</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2441">line 2441</a>
     </li></ul></dd>
     
 
@@ -6155,7 +8743,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="removeAllROIs"><span class="type-signature"></span>removeAllROIs<span class="signature">()</span><span class="type-signature"> &rarr; {void}</span></h4>
+    <h4 class="name" id="removeAllAnnotationGroups"><span class="type-signature"></span>removeAllAnnotationGroups<span class="signature">()</span><span class="type-signature"></span></h4>
     
 
     
@@ -6163,7 +8751,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Removes all annotated regions of interest.
+    Remove all annotation groups.
 </div>
 
 
@@ -6207,7 +8795,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2200">line 2200</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2859">line 2859</a>
     </li></ul></dd>
     
 
@@ -6232,24 +8820,544 @@ with Image Type VOLUME.</div>
 
 
 
-<h5>Returns:</h5>
+
+
+
+
 
         
-
-
-<dl>
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">void</span>
-
-
-    </dd>
-</dl>
+            
 
     
+
+    
+    <h4 class="name" id="removeAllParameterMappings"><span class="type-signature"></span>removeAllParameterMappings<span class="signature">()</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Remove all parameter mappings.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3789">line 3789</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="removeAllROIs"><span class="type-signature"></span>removeAllROIs<span class="signature">()</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Remove all annotated regions of interest.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2606">line 2606</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="removeAllSegments"><span class="type-signature"></span>removeAllSegments<span class="signature">()</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Remove all segments.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3361">line 3361</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="removeAnnotationGroup"><span class="type-signature"></span>removeAnnotationGroup<span class="signature">(annotationGroupUID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Remove an annotation group.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>annotationGroupUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique identifier of an annotation group</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2842">line 2842</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="removeParameterMapping"><span class="type-signature"></span>removeParameterMapping<span class="signature">(mappingUID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Remove a parameter mapping.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>mappingUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of a mapping</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3773">line 3773</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6269,7 +9377,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Removes an individual regions of interest.
+    Remove an individual regions of interest.
 </div>
 
 
@@ -6362,7 +9470,144 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2179">line 2179</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2587">line 2587</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="removeSegment"><span class="type-signature"></span>removeSegment<span class="signature">(segmentUID)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Remove a segment.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>segmentUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of a segment</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3345">line 3345</a>
     </li></ul></dd>
     
 
@@ -6406,7 +9651,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Renders the images in the specified viewport container.
+    Render the images in the specified viewport container.
 </div>
 
 
@@ -6551,7 +9796,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1388">line 1388</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1700">line 1700</a>
     </li></ul></dd>
     
 
@@ -6595,7 +9840,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Resizes the viewer to fit the viewport.
+    Resize the viewer to fit the viewport.
 </div>
 
 
@@ -6639,7 +9884,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1369">line 1369</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1658">line 1658</a>
     </li></ul></dd>
     
 
@@ -6693,7 +9938,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="setBlendingInformation"><span class="type-signature"></span>setBlendingInformation<span class="signature">(BlendingInformation)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="setAnnotationGroupStyle"><span class="type-signature"></span>setAnnotationGroupStyle<span class="signature">(annotationGroupUID, styleOptions)</span><span class="type-signature"></span></h4>
     
 
     
@@ -6701,7 +9946,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Sets the channel visualization/presentation parameters given an id
+    Set style of an annotation group.
 </div>
 
 
@@ -6737,7 +9982,30 @@ with Image Type VOLUME.</div>
 
         <tr>
             
-                <td class="name"><code>BlendingInformation</code></td>
+                <td class="name"><code>annotationGroupUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique identifier of an annotation group</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>styleOptions</code></td>
             
 
             <td class="type">
@@ -6753,7 +10021,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">
+            <td class="description last">Style options
                 <h6>Properties</h6>
                 
 
@@ -6779,52 +10047,6 @@ with Image Type VOLUME.</div>
 
         <tr>
             
-                <td class="name"><code>opticalPathIdentifier</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">string</span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">channel ID</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>color</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Array.&lt;number></span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">channel rgb color</td>
-        </tr>
-
-    
-
-        <tr>
-            
                 <td class="name"><code>opacity</code></td>
             
 
@@ -6841,20 +10063,20 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">channel opacity</td>
+            <td class="description last">Opacity</td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>thresholdValues</code></td>
+                <td class="name"><code>measurement</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">Array.&lt;number></span>
+<span class="param-type">number</span>
 
 
             
@@ -6864,30 +10086,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">channel clipping values</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>visible</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">boolean</span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">channel visibility</td>
+            <td class="description last">Selected measurement for colorizing annotations</td>
         </tr>
 
     
@@ -6935,7 +10134,485 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1231">line 1231</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3032">line 3032</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="setOpticalPathStyle"><span class="type-signature"></span>setOpticalPathStyle<span class="signature">(opticalPathIdentifier, styleOptions)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Set the style of an optical path.
+
+The style determine how grayscale stored values of a MONOCHROME2 image
+will be transformed into pseudo-color display values.
+Grayscale stored values are first transformed into normalized grayscale
+display values, which are subsequently transformed into pseudo-color
+values in RGB color space.
+
+The input to the first transformation are grayscale stored values in the
+range defined by parameter "limitValues", which specify a window for
+optimizing display value intensity and contrast. The resulting normalized
+grayscale display values are then used as input to the second
+transformation, which maps them to pseudo-color values ranging from black
+color (R=0, G=0, B=0) to the color defined by parameter "color" using
+linear interpolation.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>opticalPathIdentifier</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Optical Path Identifier</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>styleOptions</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>color</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;number></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">RGB color triplet</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>opacity</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Opacity</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>limitValues</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;number></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Upper and lower windowing limits</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1386">line 1386</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="setParameterMappingStyle"><span class="type-signature"></span>setParameterMappingStyle<span class="signature">(mappingUID, styleOptions)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Set the style of a parameter mapping.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>mappingUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of mapping</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>styleOptions</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>opacity</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Opacity</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3856">line 3856</a>
     </li></ul></dd>
     
 
@@ -6979,7 +10656,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Sets the style of a region of interest.
+    Set the style of a region of interest.
 </div>
 
 
@@ -7244,10 +10921,154 @@ with Image Type VOLUME.</div>
         </tr>
 
     
+    </tbody>
+</table>
+
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2553">line 2553</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="setSegmentStyle"><span class="type-signature"></span>setSegmentStyle<span class="signature">(segmentUID, styleOptions)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Set the style of a segment.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
 
         <tr>
             
-                <td class="name"><code>image</code></td>
+                <td class="name"><code>segmentUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of segment</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>styleOptions</code></td>
             
 
             <td class="type">
@@ -7263,7 +11084,49 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">Style options for image</td>
+            <td class="description last">Style options
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>opacity</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Opacity</td>
         </tr>
 
     
@@ -7311,7 +11174,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2152">line 2152</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3427">line 3427</a>
     </li></ul></dd>
     
 
@@ -7347,7 +11210,7 @@ with Image Type VOLUME.</div>
     
 
     
-    <h4 class="name" id="showOpticalPath"><span class="type-signature"></span>showOpticalPath<span class="signature">(opticalPathIdentifier)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="showAnnotationGroup"><span class="type-signature"></span>showAnnotationGroup<span class="signature">(annotationGroupUID, styleOptions)</span><span class="type-signature"></span></h4>
     
 
     
@@ -7355,7 +11218,216 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Set the visibility of the channel to true
+    Show an annotation group.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>annotationGroupUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique identifier of an annotation group</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>styleOptions</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>measurement</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Selected measurement for colorizing annotations</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2872">line 2872</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="showOpticalPath"><span class="type-signature"></span>showOpticalPath<span class="signature">(opticalPathIdentifier, styleOptions)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Show an optical path.
 </div>
 
 
@@ -7407,7 +11479,125 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">opticalPath of the channel</td>
+            <td class="description last">Optical Path Identifier</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>styleOptions</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>color</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;number></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">RGB color triplet</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>opacity</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Opacity</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>limitValues</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;number></span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Upper and lower clipping values</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
         </tr>
 
     
@@ -7448,7 +11638,239 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1345">line 1345</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1601">line 1601</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="showParameterMapping"><span class="type-signature"></span>showParameterMapping<span class="signature">(mappingUID, styleOptions)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Show a parameter mapping.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>mappingUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of a mapping</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>styleOptions</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>opacity</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Opacity</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>limitValues</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Opacity</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3803">line 3803</a>
     </li></ul></dd>
     
 
@@ -7492,8 +11914,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Shows annotated regions of interest such that they become visible
- on the viewport ontop of the images.
+    Show annotated regions of interest.
 </div>
 
 
@@ -7537,7 +11958,216 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2219">line 2219</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2623">line 2623</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="showSegment"><span class="type-signature"></span>showSegment<span class="signature">(segmentUID, styleOptions)</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Show a segment.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>segmentUID</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">string</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Unique tracking identifier of a segment</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>styleOptions</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">
+                <h6>Properties</h6>
+                
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>opacity</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">number</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Opacity</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+            </td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3374">line 3374</a>
     </li></ul></dd>
     
 
@@ -7581,7 +12211,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Toggles overview map.
+    Toggle overview map.
 </div>
 
 
@@ -7625,7 +12255,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1740">line 1740</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2097">line 2097</a>
     </li></ul></dd>
     
 
@@ -7687,7 +12317,7 @@ with Image Type VOLUME.</div>
 
 
 <div class="description">
-    Update properties of regions of interest.
+    Update properties of a region of interest.
 </div>
 
 
@@ -7915,7 +12545,7 @@ with Image Type VOLUME.</div>
 
             
 
-            <td class="description last">ROI marker (this is used while we don't have presentation states)</td>
+            <td class="description last">ROI marker</td>
         </tr>
 
     
@@ -7970,7 +12600,7 @@ with Image Type VOLUME.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2128">line 2128</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2502">line 2502</a>
     </li></ul></dd>
     
 
@@ -8016,13 +12646,13 @@ with Image Type VOLUME.</div>
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="metadata.html">metadata</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="channel._Channel.html">_Channel</a></li><li><a href="channel.BlendingInformation.html">BlendingInformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="renderingEngine.RenderingEngine.html">RenderingEngine</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_addROIPropertiesToFeature">_addROIPropertiesToFeature</a></li><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_getOpenLayersStyle">_getOpenLayersStyle</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_isTextEvaluation">_isTextEvaluation</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#_updateFeatureEvaluations">_updateFeatureEvaluations</a></li><li><a href="global.html#_updateFeatureMeasurements">_updateFeatureMeasurements</a></li><li><a href="global.html#_wireMeasurementsAndQualitativeEvaluationsEvents">_wireMeasurementsAndQualitativeEvaluationsEvents</a></li><li><a href="global.html#anchor">anchor</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_hasMarkup">_hasMarkup</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildPaletteColorLookupTable">buildPaletteColorLookupTable</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColormap">createColormap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.5</a> on Fri Oct 15 2021 08:06:41 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Mar 10 2022 12:00:32 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

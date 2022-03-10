@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.35.2",
+  "version": "0.36.0",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "./src/dicom-microscopy-viewer.js",
   "standard": {
@@ -20,20 +20,19 @@
     ]
   },
   "scripts": {
-    "test": "standard && jest",
-    "start": "rollup -c -w",
-    "build": "rollup -c",
-    "prepublishOnly": "npm run build",
-    "watch": "rollup -c -w",
-    "generateStaticSite": "npm run build && cp -R ./build ./examples",
+    "test": "standard 'src/*.js' && jest --silent",
+    "build": "webpack --mode=development",
+    "build:prod": "webpack --mode=production",
+    "prepublishOnly": "npm run build:prod",
+    "generateStaticSite": "npm run build:prod && cp -R ./build ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
-    "fmt": "standard 'src/*.js' --fix",
-    "lint": "standard 'src/*.js'",
-    "clean": "rm -rf ./build"
+    "fmt": "standard 'src/**/.js' --fix",
+    "lint": "standard 'src/**/*.js'",
+    "clean": "rm -rf ./build ./dist"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mghcomputationalpathology/dicom-microscopy-viewer.git"
+    "url": "git+https://github.com/herrmannlab/dicom-microscopy-viewer.git"
   },
   "keywords": [
     "dicom",
@@ -44,30 +43,31 @@
   "author": "Markus D. Herrmann",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/mghcomputationalpathology/dicom-microscopy-viewer/issues"
+    "url": "https://github.com/herrmannlab/dicom-microscopy-viewer/issues"
   },
-  "homepage": "https://github.com/mghcomputationalpathology/dicom-microscopy-viewer#readme",
+  "homepage": "https://github.com/herrmannlab/dicom-microscopy-viewer#readme",
   "devDependencies": {
-    "@babel/core": "7.13.8",
-    "@babel/preset-env": "7.13.9",
-    "babel-jest": "26.6.3",
-    "jest": "26.6.3",
-    "rollup": "0.63.2",
-    "rollup-plugin-commonjs": "8.3.0",
-    "rollup-plugin-json": "3.1.0",
-    "rollup-plugin-node-builtins": "2.1.2",
-    "rollup-plugin-node-resolve": "3.4.0",
-    "rollup-plugin-postcss": "^1.6.3",
-    "standard": "^16.0.3"
+    "@babel/core": "7.17",
+    "@babel/preset-env": "7.16",
+    "babel-jest": "27.5",
+    "css-loader": "^6.6",
+    "jest": "^27.5",
+    "jest-canvas-mock": "^2.3.1",
+    "jsdoc": "^3.6.10",
+    "standard": "^16.0",
+    "webpack": "^5.68",
+    "webpack-cli": "^4.9"
   },
   "dependencies": {
-    "dcmjs": "^0.18",
+    "@cornerstonejs/codec-charls": "^0.1.1",
+    "@cornerstonejs/codec-libjpeg-turbo-8bit": "^0.0.7",
+    "@cornerstonejs/codec-openjpeg": "^0.1.1",
+    "colormap": "^2.3.2",
+    "dcmjs": "^0.19",
+    "dicomicc": "^0.1.0-1",
     "dicomweb-client": "^0.8",
     "image-type": "^4.1",
-    "mathjs": "^9.4",
-    "ol": "^6.9"
-  },
-  "config": {
-    "puppeteer_skip_chromium_download": false
+    "mathjs": "^10.1",
+    "ol": "^6.13"
   }
 }

@@ -1,6 +1,17 @@
 import EVENTS from './events.js'
+import { AnnotationGroup } from './annotation.js'
+import { ParameterMapping } from './mapping.js'
+import {
+  ColormapNames,
+  createColormap,
+  PaletteColorLookupTable,
+  buildPaletteColorLookupTable
+} from './color.js'
 import {
   Comprehensive3DSR,
+  MicroscopyBulkSimpleAnnotations,
+  ParametricMap,
+  Segmentation,
   VLWholeSlideMicroscopyImage,
   formatMetadata,
   groupMonochromeInstances,
@@ -30,8 +41,19 @@ import {
   VolumeImageViewer
 } from './viewer.js'
 import {
-  BlendingInformation
-} from './channel.js'
+  OpticalPath
+} from './opticalPath.js'
+import {
+  Segment
+} from './segment.js'
+
+/** Namespace for annotations.
+ *
+ * @namespace annotation
+ */
+const annotation = {
+  AnnotationGroup
+}
 
 /** Namespace for the viewer.
  *
@@ -52,6 +74,14 @@ const viewer = {
   VolumeImageViewer
 }
 
+/** Namespace for mapping.
+ *
+ * @namespace mapping
+ */
+const mapping = {
+  ParameterMapping
+}
+
 /** Namespace for working with DICOM Metadata.
  *
  * @namespace metadata
@@ -60,9 +90,26 @@ const metadata = {
   formatMetadata,
   groupMonochromeInstances,
   groupColorInstances,
+  MicroscopyBulkSimpleAnnotations,
+  ParametricMap,
+  Segmentation,
   VLWholeSlideMicroscopyImage,
-  Comprehensive3DSR,
-  BlendingInformation
+  Comprehensive3DSR
+}
+
+const color = {
+  ColormapNames,
+  createColormap,
+  PaletteColorLookupTable,
+  buildPaletteColorLookupTable
+}
+
+/** Namespace for optical paths.
+ *
+ * @namespace opticalPath
+ */
+const opticalPath = {
+  OpticalPath
 }
 
 /** Namespace for 3-dimensional spatial coordinates (SCOORD3D).
@@ -84,6 +131,14 @@ const scoord3d = {
  */
 const roi = {
   ROI
+}
+
+/** Namespace for segments.
+ *
+ * @namespace segment
+ */
+const segment = {
+  Segment
 }
 
 /** Namespace for viewer events.
@@ -108,4 +163,17 @@ const utils = {
   mapPixelCoordToSlideCoord
 }
 
-export { api, events, metadata, roi, scoord3d, utils, viewer }
+export {
+  annotation,
+  api,
+  color,
+  events,
+  mapping,
+  metadata,
+  opticalPath,
+  roi,
+  scoord3d,
+  segment,
+  utils,
+  viewer
+}

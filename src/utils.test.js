@@ -39,16 +39,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [1.0, 1.0]
     },
-    expectedOutput: [0.0, 0.0]
-  },
-  {
-    inputs: {
-      point: [0.0, 0.0],
-      offset: [0.0, 0.0],
-      orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
-      spacing: [1.0, 1.0]
-    },
-    expectedOutput: [0.0, 0.0]
+    expectedOutput: [-0.5, -0.5]
   },
   {
     inputs: {
@@ -57,16 +48,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [1.0, 1.0]
     },
-    expectedOutput: [1.0, 1.0]
-  },
-  {
-    inputs: {
-      point: [0.0, 0.0],
-      offset: [1.0, 1.0],
-      orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
-      spacing: [1.0, 1.0]
-    },
-    expectedOutput: [1.0, 1.0]
+    expectedOutput: [0.5, 0.5]
   },
   {
     inputs: {
@@ -75,7 +57,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [1.0, 1.0]
     },
-    expectedOutput: [2.0, 2.0]
+    expectedOutput: [1.5, 1.5]
   },
   {
     inputs: {
@@ -84,7 +66,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [0.5, 0.5]
     },
-    expectedOutput: [10.5, 60.5]
+    expectedOutput: [10.25, 60.25]
   },
   {
     inputs: {
@@ -93,7 +75,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [14.0, 62.5]
+    expectedOutput: [13.0, 62.25]
   },
   {
     inputs: {
@@ -102,7 +84,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [0.0, -1.0, 0.0, -1.0, 0.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [6.0, 57.5]
+    expectedOutput: [7.0, 57.75]
   },
   {
     inputs: {
@@ -111,7 +93,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [0.0, -1.0, 0.0, -1.0, 0.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [6.0, 59.0]
+    expectedOutput: [7.0, 59.25]
   },
   {
     inputs: {
@@ -120,7 +102,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [0.0, -1.0, 0.0, -1.0, 0.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [2.0, 59.0]
+    expectedOutput: [3.0, 59.25]
   },
   {
     inputs: {
@@ -129,7 +111,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [1.0, 0.0, 0.0, 0.0, -1.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [12.5, 56.0]
+    expectedOutput: [12.25, 57.0]
   },
   {
     inputs: {
@@ -138,16 +120,7 @@ const mapPixelCoordToSlideCoordParams = [
       orientation: [1.0, 0.0, 0.0, 0.0, -1.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [12.5, 52.0]
-  },
-  {
-    inputs: {
-      point: [5.0, 4.0],
-      offset: [10.0, 60.0],
-      orientation: [1.0, 0.0, 0.0, 0.0, -1.0, 0.0],
-      spacing: [2.0, 0.5]
-    },
-    expectedOutput: [12.5, 52.0]
+    expectedOutput: [12.25, 53.0]
   }
 ]
 
@@ -159,7 +132,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [1.0, 1.0]
     },
-    expectedOutput: [0.0, 0.0]
+    expectedOutput: [0.5, 0.5]
   },
   {
     inputs: {
@@ -168,7 +141,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [1.0, 1.0]
     },
-    expectedOutput: [0.0, 0.0]
+    expectedOutput: [0.5, 0.5]
   },
   {
     inputs: {
@@ -177,7 +150,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [1.0, 1.0]
     },
-    expectedOutput: [0.0, 0.0]
+    expectedOutput: [0.5, 0.5]
   },
   {
     inputs: {
@@ -186,7 +159,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [1.0, 1.0]
     },
-    expectedOutput: [0.0, 0.0]
+    expectedOutput: [0.5, 0.5]
   },
   {
     inputs: {
@@ -195,7 +168,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [1.0, 1.0]
     },
-    expectedOutput: [1.0, 1.0]
+    expectedOutput: [1.5, 1.5]
   },
   {
     inputs: {
@@ -204,7 +177,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [0.5, 0.5]
     },
-    expectedOutput: [1.0, 1.0]
+    expectedOutput: [1.5, 1.5]
   },
   {
     inputs: {
@@ -213,7 +186,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [5.0, 2.0]
+    expectedOutput: [5.5, 2.5]
   },
   {
     inputs: {
@@ -222,7 +195,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, -1.0, 0.0, -1.0, 0.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [5.0, 2.0]
+    expectedOutput: [5.5, 2.5]
   },
   {
     inputs: {
@@ -231,7 +204,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, -1.0, 0.0, -1.0, 0.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [2.0, 2.0]
+    expectedOutput: [2.5, 2.5]
   },
   {
     inputs: {
@@ -240,7 +213,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [0.0, -1.0, 0.0, -1.0, 0.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [2.0, 4.0]
+    expectedOutput: [2.5, 4.5]
   },
   {
     inputs: {
@@ -249,7 +222,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [1.0, 0.0, 0.0, 0.0, -1.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [5.0, 2.0]
+    expectedOutput: [5.5, 2.5]
   },
   {
     inputs: {
@@ -258,16 +231,7 @@ const mapSlideCoordToPixelCoordParams = [
       orientation: [1.0, 0.0, 0.0, 0.0, -1.0, 0.0],
       spacing: [2.0, 0.5]
     },
-    expectedOutput: [5.0, 4.0]
-  },
-  {
-    inputs: {
-      point: [12.5, 52.0],
-      offset: [10.0, 60.0],
-      orientation: [1.0, 0.0, 0.0, 0.0, -1.0, 0.0],
-      spacing: [2.0, 0.5]
-    },
-    expectedOutput: [5.0, 4.0]
+    expectedOutput: [5.5, 4.5]
   }
 ]
 

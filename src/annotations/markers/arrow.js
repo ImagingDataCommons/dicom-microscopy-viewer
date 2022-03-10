@@ -17,7 +17,7 @@ export const format = (feature) =>
   feature.get(Enums.InternalProperties.Label) || ''
 
 /**
- * Builds arrow styles.
+ * Build arrow styles.
  *
  * @param {object} feature The feature instance
  * @param {object} map The viewer map instance
@@ -139,7 +139,7 @@ const ArrowMarker = ({ map, markupManager }) => {
         )
 
         /** Update arrow icon position on feature geometry change */
-        feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
+        feature.getGeometry().on(Enums._FeatureGeometryEvents.CHANGE, () => {
           _applyStyles(feature, map)
         })
       }
@@ -160,7 +160,11 @@ const ArrowMarker = ({ map, markupManager }) => {
         markupManager.remove(uid)
       }
     },
-    onUpdate: (feature) => {},
+    onUpdate: (feature) => {
+      if (_isArrow(feature)) {
+        _applyStyles(feature, map)
+      }
+    },
     onDrawEnd: ({ feature }) => {},
     onDrawAbort: ({ feature }) => {}
   }

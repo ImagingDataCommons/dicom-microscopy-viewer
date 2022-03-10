@@ -1,8 +1,8 @@
 import Enums from '../../enums'
 import { getUnitSuffix } from '../../utils'
 import {
-  getFeatureScoord3dArea,
-  getFeatureScoord3dLength
+  _getFeatureArea,
+  _getFeatureLength
 } from '../../scoord3dUtils.js'
 
 /**
@@ -13,8 +13,8 @@ import {
  * @return {string} The formatted measure of this feature
  */
 export const format = (feature, units, pyramid) => {
-  const area = getFeatureScoord3dArea(feature, pyramid)
-  const length = getFeatureScoord3dLength(feature, pyramid)
+  const area = _getFeatureArea(feature, pyramid)
+  const length = _getFeatureLength(feature, pyramid)
   const value = length || area || 0
   return length
     ? `${value.toFixed(2)} ${units}`
@@ -66,7 +66,17 @@ const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
         markupManager.create({ feature })
       }
     },
-    onUpdate: (feature) => {},
+    onUpdate: (feature) => {
+      const view = map.getView()
+      const unitSuffix = getUnitSuffix(view)
+      const id = feature.getId()
+      const markup = markupManager.get(id)
+      markupManager.update({
+        feature,
+        value: format(feature, unitSuffix, pyramid),
+        coordinate: markup.overlay.getPosition()
+      })
+    },
     onDrawEnd: ({ feature }) => {},
     onDrawAbort: ({ feature }) => {}
   }
