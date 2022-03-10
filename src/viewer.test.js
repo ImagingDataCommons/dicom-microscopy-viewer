@@ -46,7 +46,8 @@ const testCases = [
               '1.3.6.1.4.1.5962.99.1.3510881361.982628633.1635598486609.22.0',
               '1.3.6.1.4.1.5962.99.1.3510881361.982628633.1635598486609.8.0',
               '1.3.6.1.4.1.5962.99.1.3510881361.982628633.1635598486609.15.0'
-            ]
+            ],
+            isMonochromatic: false
           }),
           style: {
             opacity: 1
@@ -118,7 +119,8 @@ const testCases = [
               '1.3.6.1.4.1.5962.99.1.2414596.416073461.1623500085252.8.0',
               '1.3.6.1.4.1.5962.99.1.2437079.135899065.1623500107735.2.0',
               '1.3.6.1.4.1.5962.99.1.2437079.135899065.1623500107735.3.0'
-            ]
+            ],
+            isMonochromatic: true
           }),
           style: {
             color: [255, 255, 255],
@@ -140,7 +142,8 @@ const testCases = [
               '1.3.6.1.4.1.5962.99.1.2439424.110472347.1623500110080.3.0',
               '1.3.6.1.4.1.5962.99.1.2414596.416073461.1623500085252.15.0',
               '1.3.6.1.4.1.5962.99.1.2439424.110472347.1623500110080.2.0'
-            ]
+            ],
+            isMonochromatic: true
           }),
           style: {
             color: [255, 255, 255],
@@ -162,7 +165,8 @@ const testCases = [
               '1.3.6.1.4.1.5962.99.1.2414596.416073461.1623500085252.22.0',
               '1.3.6.1.4.1.5962.99.1.2446200.1818727514.1623500116856.2.0',
               '1.3.6.1.4.1.5962.99.1.2446200.1818727514.1623500116856.3.0'
-            ]
+            ],
+            isMonochromatic: true
           }),
           style: {
             color: [255, 255, 255],
@@ -217,7 +221,8 @@ const testCases = [
               '1.3.6.1.4.1.5962.99.1.2447135355.1068687300.1625944806011.21.0',
               '1.3.6.1.4.1.5962.99.1.2447135355.1068687300.1625944806011.7.0',
               '1.3.6.1.4.1.5962.99.1.2447135355.1068687300.1625944806011.14.0'
-            ]
+            ],
+            isMonochromatic: true
           }),
           style: {
             opacity: 1
@@ -254,7 +259,14 @@ const testCases = [
             ]
           }),
           style: {
-            opacity: 0.75
+            opacity: 0.75,
+            paletteColorLookupTable: dmv.color.buildPaletteColorLookupTable({
+              data: dmv.color.createColormap({
+                name: dmv.color.ColormapNames.VIRIDIS,
+                bins: 256
+              }),
+              firstValueMapped: 0
+            })
           }
         }
       },
@@ -271,8 +283,14 @@ const testCases = [
             ]
           }),
           style: {
-            limitValues: [0, 255],
-            opacity: 1
+            opacity: 1,
+            paletteColorLookupTable: dmv.color.buildPaletteColorLookupTable({
+              data: dmv.color.createColormap({
+                name: dmv.color.ColormapNames.BLUE_RED,
+                bins: 256
+              }),
+              firstValueMapped: 0
+            })
           }
         },
         '1.2.826.0.1.3680043.10.511.3.41048468254862710418744291748294259': {
@@ -286,7 +304,16 @@ const testCases = [
               '1.2.826.0.1.3680043.10.511.3.97885701157697100824037867909594934'
             ]
           }),
-          style: {}
+          style: {
+            opacity: 1,
+            paletteColorLookupTable: dmv.color.buildPaletteColorLookupTable({
+              data: dmv.color.createColormap({
+                name: dmv.color.ColormapNames.BLUE_RED,
+                bins: 256
+              }),
+              firstValueMapped: 0
+            })
+          }
         }
       }
     }
@@ -785,7 +812,7 @@ describe.each(testCases)('test viewer API for optical paths of "$name"', ({
     }
     viewer.setOpticalPathStyle(id, styleOptions)
     const style = viewer.getOpticalPathStyle(id)
-    const expectedStyle = JSON.parse(JSON.stringify(style))
+    const expectedStyle = Object.assign({}, style)
     Object.keys(styleOptions).forEach(key => {
       expectedStyle[key] = styleOptions[key]
     })
@@ -896,7 +923,7 @@ describe.each(testCases)('test viewer API for annotation groups of "$name"', ({
       }
       viewer.setAnnotationGroupStyle(uid, styleOptions)
       const style = viewer.getAnnotationGroupStyle(uid)
-      const expectedStyle = JSON.parse(JSON.stringify(style))
+      const expectedStyle = Object.assign({}, style)
       Object.keys(styleOptions).forEach(key => {
         expectedStyle[key] = styleOptions[key]
       })
@@ -957,7 +984,11 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
       viewer.addSegments(metadata)
       const uid = metadata[0].SegmentSequence[0].TrackingUID
       const style = viewer.getSegmentStyle(uid)
-      expect(style).toEqual(expectations.segments[uid].style)
+      const expectedStyle = expectations.segments[uid].style
+      expect(style.opacity).toEqual(expectedStyle.opacity)
+      expect(style.paletteColorLookupTable.data).toEqual(
+        expectedStyle.paletteColorLookupTable.data
+      )
     })
   })
 
@@ -974,7 +1005,7 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
       }
       viewer.setSegmentStyle(uid, styleOptions)
       const style = viewer.getSegmentStyle(uid)
-      const expectedStyle = JSON.parse(JSON.stringify(style))
+      const expectedStyle = Object.assign({}, style)
       Object.keys(styleOptions).forEach(key => {
         expectedStyle[key] = styleOptions[key]
       })
@@ -1040,7 +1071,11 @@ describe.each(testCases)('test viewer API for mappings of "$name"', ({
           .TrackingUID
       )
       const style = viewer.getParameterMappingStyle(uid)
-      expect(style).toEqual(expectations.mappings[uid].style)
+      const expectedStyle = expectations.mappings[uid].style
+      expect(style.opacity).toEqual(expectedStyle.opacity)
+      expect(style.paletteColorLookupTable.data).toEqual(
+        expectedStyle.paletteColorLookupTable.data
+      )
     })
   })
 
@@ -1057,7 +1092,7 @@ describe.each(testCases)('test viewer API for mappings of "$name"', ({
       }
       viewer.setParameterMappingStyle(uid, styleOptions)
       const style = viewer.getParameterMappingStyle(uid)
-      const expectedStyle = JSON.parse(JSON.stringify(style))
+      const expectedStyle = Object.assign({}, style)
       Object.keys(styleOptions).forEach(key => {
         expectedStyle[key] = styleOptions[key]
       })
