@@ -96,8 +96,8 @@ import openjpegFactory from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_dec
 import openjpegWASM from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.wasm'
 import charlsFactory from '@cornerstonejs/codec-charls/dist/charlswasm_decode.js'
 import charlsWASM from '@cornerstonejs/codec-charls/dist/charlswasm_decode.wasm'
-import dicomiccFactory from 'dicomicc/dicomiccwasm.js'
-import dicomiccWASM from 'dicomicc/dicomiccwasm.wasm'
+import dicomiccFactory from 'dicomicc/dist/dicomiccwasm.js'
+import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm'
 
 const libjpeg = libjpegFactory({
   locateFile: (f) => {
