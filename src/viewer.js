@@ -68,7 +68,8 @@ import {
   generateUID,
   getUnitSuffix,
   doContentItemsMatch,
-  createWindow
+  createWindow,
+  fetchBulkdata
 } from './utils.js'
 import {
   _scoord3dCoordinates2geometryCoordinates,

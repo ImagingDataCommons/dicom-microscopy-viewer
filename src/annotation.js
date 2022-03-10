@@ -1,4 +1,7 @@
-import { getContentItemNameCodedConcept } from './utils.js'
+import {
+  fetchBulkdata,
+  getContentItemNameCodedConcept
+} from './utils.js'
 
 const _attrs = Symbol('attrs')
 
@@ -169,16 +172,6 @@ class AnnotationGroup {
   }
 }
 
-const _fixBulkDataURI = (uri) => {
-  // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
-  // set correctly by the archive:
-  // https://dcm4chee-arc-cs.readthedocs.io/en/latest/networking/config/archiveDevice.html#dcmremapretrieveurl
-  return uri.replace(
-    'arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/',
-    'localhost:8008/dicomweb/'
-  )
-}
-
 /**
  * Fetch graphic data (point coordinates) of an annotation group.
  *
@@ -208,32 +201,14 @@ async function _fetchGraphicData ({
       )
     } else {
       if ('PointCoordinatesData' in bulkdataItem) {
-        const retrieveOptions = {
-          BulkDataURI: _fixBulkDataURI(
-            bulkdataItem.PointCoordinatesData.BulkDataURI
-          )
-        }
-        return await client.retrieveBulkData(retrieveOptions).then(data => {
-          const byteArray = new Uint8Array(data[0])
-          return new Float32Array(
-            byteArray.buffer,
-            byteArray.byteOffset,
-            byteArray.byteLength / 4
-          )
+        return await fetchBulkdata({
+          client,
+          reference: bulkdataItem.PointCoordinatesData
         })
       } else if ('DoublePointCoordinatesData' in bulkdataItem) {
-        const retrieveOptions = {
-          BulkDataURI: _fixBulkDataURI(
-            bulkdataItem.DoublePointCoordinatesData.BulkDataURI
-          )
-        }
-        return await client.retrieveBulkData(retrieveOptions).then(data => {
-          const byteArray = new Uint8Array(data[0])
-          return new Float64Array(
-            byteArray.buffer,
-            byteArray.byteOffset,
-            byteArray.byteLength / 8
-          )
+        return await fetchBulkdata({
+          client,
+          reference: bulkdataItem.DoublePointCoordinatesData
         })
       } else {
         throw new Error(
@@ -278,18 +253,9 @@ async function _fetchGraphicIndex ({
       }
     } else {
       if ('LongPrimitivePointIndexList' in bulkdataItem) {
-        const retrieveOptions = {
-          BulkDataURI: _fixBulkDataURI(
-            bulkdataItem.LongPrimitivePointIndexList.BulkDataURI
-          )
-        }
-        return await client.retrieveBulkData(retrieveOptions).then(data => {
-          const byteArray = new Uint8Array(data[0])
-          return new Int32Array(
-            byteArray.buffer,
-            byteArray.byteOffset,
-            byteArray.byteLength / 4
-          )
+        return await fetchBulkdata({
+          client,
+          reference: bulkdataItem.LongPrimitivePointIndexList
         })
       } else {
         if (graphicType === 'POLYGON') {
@@ -345,18 +311,9 @@ async function _fetchMeasurementValues ({
         measurementBulkdataItem.MeasurementValuesSequence[0]
       )
       if ('FloatingPointValues' in valuesBulkdataItem) {
-        const retrieveOptions = {
-          BulkDataURI: _fixBulkDataURI(
-            valuesBulkdataItem.FloatingPointValues.BulkDataURI
-          )
-        }
-        return await client.retrieveBulkData(retrieveOptions).then(data => {
-          const byteArray = new Uint8Array(data[0])
-          return new Float32Array(
-            byteArray.buffer,
-            byteArray.byteOffset,
-            byteArray.byteLength / 4
-          )
+        return await fetchBulkdata({
+          client,
+          reference: valuesBulkdataItem.FloatingPointValues
         })
       } else {
         throw new Error(
@@ -410,18 +367,9 @@ async function _fetchMeasurementIndices ({
           .MeasurementValuesSequence[0]
       )
       if ('AnnotationIndexList' in valuesBulkdataItem) {
-        const retrieveOptions = {
-          BulkDataURI: _fixBulkDataURI(
-            valuesBulkdataItem.AnnotationIndexList.BulkDataURI
-          )
-        }
-        return client.retrieveBulkData(retrieveOptions).then(data => {
-          const byteArray = new Uint8Array(data[0])
-          return new Int32Array(
-            byteArray.buffer,
-            byteArray.byteOffset,
-            byteArray.byteLength / 4
-          )
+        return await fetchBulkdata({
+          client,
+          reference: valuesBulkdataItem.AnnotationIndexList
         })
       } else {
         return null

@@ -529,6 +529,64 @@ const doContentItemsMatch = (contentItem1, contentItem2) => {
     )
 }
 
+async function fetchBulkdata ({ client, reference }) {
+  const fixBulkDataURI = (uri) => {
+    // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
+    // set correctly by the archive:
+    // https://dcm4chee-arc-cs.readthedocs.io/en/latest/networking/config/archiveDevice.html#dcmremapretrieveurl
+    return uri.replace(
+      'arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/',
+      'localhost:8008/dicomweb/'
+    )
+  }
+
+  const retrieveOptions = {
+    BulkDataURI: fixBulkDataURI(reference.BulkDataURI)
+  }
+  return await client.retrieveBulkData(retrieveOptions).then(data => {
+    const byteArray = new Uint8Array(data[0])
+    if (reference.vr === 'OB') {
+      return byteArray
+    } else if (reference.vr === 'OW') {
+      return new Uint16Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 2
+      )
+    } else if (reference.vr === 'OL') {
+      return new Int32Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 4
+      )
+    } else if (reference.vr === 'OV') {
+      // There is no Int64Array, so we represent data as Float64Array instead
+      return new Float64Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 8
+      )
+    } else if (reference.vr === 'OF') {
+      return new Float32Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 4
+      )
+    } else if (reference.vr === 'OD') {
+      return new Float64Array(
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 8
+      )
+    } else {
+      throw new Error(
+        `Unexpected Value Representation "${reference.vr}" for ` +
+        `bulkdata element with URI "${reference.BulkDataURI}".`
+      )
+    }
+  })
+}
+
 export {
   getUnitSuffix,
   applyInverseTransform,
@@ -536,6 +594,7 @@ export {
   buildInverseTransform,
   buildTransform,
   computeRotation,
+  fetchBulkdata,
   generateUID,
   mapPixelCoordToSlideCoord,
   mapSlideCoordToPixelCoord,
