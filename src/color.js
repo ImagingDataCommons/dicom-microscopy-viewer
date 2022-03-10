@@ -58,16 +58,11 @@ function createColormap ({ name, bins }) {
  *
  * @param {object} options
  * @param {number[][]} options.data - Array of RGB triplets for each color
- * @param {number} options.min - Mininum value of the input data range
- * @param {number} options.max - Maximum value of the input data range
+ * @param {number} options.firstValueMapped - First value that should be mapped
  *
  * @returns {PaletteColorLookupTable} Mapping of grayscale pixel values to RGB color triplets
  */
-function buildPaletteColorLookupTable ({
-  data,
-  firstValueMapped,
-  bitsPerEntry
-}) {
+function buildPaletteColorLookupTable ({ data, firstValueMapped }) {
   if (data == null) {
     throw new Error(
       'Argument "data" is required for building Palette Color Lookup Table.'
@@ -79,22 +74,10 @@ function buildPaletteColorLookupTable ({
       'Palette Color Lookup Table.'
     )
   }
-  if (bitsPerEntry == null) {
-    throw new Error(
-      'Argument "bitsPerEntry" is required for building ' +
-      'Palette Color Lookup Table.'
-    )
-  }
-  if ([8, 16].indexOf(bitsPerEntry) < 0) {
-    throw new Error('Argument "bitsPerEntry" must be either 8 or 16.')
-  }
 
   const numberOfEntries = data.length
 
-  let Type = Uint16Array
-  if (bitsPerEntry === 8) {
-    Type = Uint8Array
-  }
+  const Type = Uint8Array
   const redData = new Type(numberOfEntries)
   const greenData = new Type(numberOfEntries)
   const blueData = new Type(numberOfEntries)
@@ -104,7 +87,7 @@ function buildPaletteColorLookupTable ({
     blueData[i] = data[i][2]
   }
 
-  const descriptor = [numberOfEntries, firstValueMapped, bitsPerEntry]
+  const descriptor = [numberOfEntries, firstValueMapped, 8]
 
   return new PaletteColorLookupTable({
     uid: generateUID(),
