@@ -156,6 +156,10 @@ async function _initializeDecodersAndTransformers ({
     for (let i = 0; i < metadata.length; i++) {
       const image = metadata[i]
       if (image.SamplesPerPixel === 3) {
+        if (image.bulkdataReferences.OpticalPathSequence == null) {
+          console.warn('ICC Profile was not found')
+          continue
+        }
         const iccProfile = await fetchBulkdata({
           client,
           reference: (
