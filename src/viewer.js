@@ -610,7 +610,7 @@ function _setFeatureStyle (feature, styleOptions) {
   }
 }
 
-function _getColorPaletteStyle ({
+function _getColorPaletteStyleForTileLayer ({
   windowCenter,
   windowWidth,
   colormap
@@ -620,8 +620,8 @@ function _getColorPaletteStyle ({
    * [0, n] that are obtained by scaling stored pixel values between the lower
    * and upper value of interest (VOI) defined by the window center and width.
    */
-  const minMappedValue = 0
-  const maxMappedValue = colormap.length
+  const minIndexValue = 0
+  const maxIndexValue = colormap.length - 1
   const indexExpression = [
     'clamp',
     [
@@ -651,14 +651,14 @@ function _getColorPaletteStyle ({
         ],
         [
           '-',
-          maxMappedValue,
-          minMappedValue
+          maxIndexValue,
+          minIndexValue
         ]
       ],
-      minMappedValue
+      minIndexValue
     ],
-    minMappedValue,
-    maxMappedValue
+    minIndexValue,
+    maxIndexValue
   ]
 
   const expression = [
@@ -673,6 +673,57 @@ function _getColorPaletteStyle ({
   }
 
   return { color: expression, variables }
+}
+
+function _getColorPaletteStyleForPointLayer ({
+  name,
+  minValue,
+  maxValue,
+  colormap
+}) {
+  const minIndexValue = 0
+  const maxIndexValue = colormap.length - 1
+  const indexExpression = [
+    'clamp',
+    [
+      'round',
+      [
+        '+',
+        [
+          '/',
+          [
+            '*',
+            [
+              '-',
+              ['get', name],
+              minValue
+            ],
+            [
+              '-',
+              maxIndexValue,
+              minIndexValue
+            ]
+          ],
+          [
+            '-',
+            maxValue,
+            minValue
+          ]
+        ],
+        minIndexValue
+      ]
+    ],
+    minIndexValue,
+    maxIndexValue
+  ]
+
+  const expression = [
+    'palette',
+    indexExpression,
+    colormap
+  ]
+
+  return { color: expression }
 }
 
 const _controls = Symbol('controls')
@@ -1017,7 +1068,7 @@ class VolumeImageViewer {
 
         let style
         if (opticalPath.style.paletteColorLookupTable) {
-          style = _getColorPaletteStyle({
+          style = _getColorPaletteStyleForTileLayer({
             windowCenter,
             windowWidth,
             colormap: opticalPath.style.paletteColorLookupTable.data
@@ -1195,7 +1246,7 @@ class VolumeImageViewer {
         extent: this[_pyramid].extent,
         tileGrid: this[_tileGrid],
         wrapX: false,
-        template: '{z}-{x}-{y}'
+        template: ' '
       })
       const tileDebugLayer = new TileLayer({
         source: tileDebugSource,
@@ -2999,12 +3050,7 @@ class VolumeImageViewer {
       if (properties[key]) {
         const colormap = createColormap({
           name: ColormapNames.VIRIDIS,
-          bins: Math.pow(2, 8)
-        })
-        const colorLUT = buildPaletteColorLookupTable({
-          data: colormap,
-          min: properties[key][0],
-          max: properties[key][properties[key].length - 2]
+          bins: 50
         })
         const style = {
           symbol: {
@@ -3018,15 +3064,18 @@ class VolumeImageViewer {
               this[_pyramid].metadata.length,
               15
             ],
-            color: [
-              'interpolate',
-              ['linear'],
-              ['get', key],
-              ...colorLUT
-            ],
             opacity: annotationGroup.style.opacity
           }
         }
+        Object.assign(
+          style,
+          _getColorPaletteStyleForPointLayer({
+            name: key,
+            minValue: properties[key][0],
+            maxValue: properties[key][properties[key].length - 2],
+            colormap
+          })
+        )
         const newLayer = new PointsLayer({
           source,
           style,
@@ -3224,8 +3273,7 @@ class VolumeImageViewer {
           opacity: 0.75,
           paletteColorLookupTable: buildPaletteColorLookupTable({
             data: colormap,
-            firstValueMapped: 0,
-            bitsPerEntry: 8
+            firstValueMapped: 0
           })
         },
         overlay: new Overlay({
@@ -3271,7 +3319,7 @@ class VolumeImageViewer {
         opacity: 0.9,
         preload: 0,
         transition: 0,
-        style: _getColorPaletteStyle({
+        style: _getColorPaletteStyleForTileLayer({
           windowCenter,
           windowWidth,
           colormap: segment.style.paletteColorLookupTable.data
@@ -3661,8 +3709,7 @@ class VolumeImageViewer {
           ],
           paletteColorLookupTable: buildPaletteColorLookupTable({
             data: colormap,
-            firstValueMapped: 0,
-            bitsPerEntry: 8
+            firstValueMapped: 0
           })
         },
         minStoredValue,
@@ -3701,7 +3748,7 @@ class VolumeImageViewer {
         opacity: 1,
         preload: 1,
         transition: 0,
-        style: _getColorPaletteStyle({
+        style: _getColorPaletteStyleForTileLayer({
           windowCenter,
           windowWidth,
           colormap: mapping.style.paletteColorLookupTable.data
@@ -4037,6 +4084,7 @@ class _NonVolumeImageViewer {
       projection: projection,
       extent: extent,
       smoothExtentConstraint: true,
+      smoothResolutionConstraint: true,
       showFullExtent: true
     })
 
