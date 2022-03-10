@@ -1,32 +1,28 @@
-[![Build Status](https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer.svg?branch=master)](https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer)
+[![Build Status](https://github.com/herrmannlab/dicom-microscopy-viewer/actions/workflows/run_unit_tests.yml/badge.svg)](https://github.com/herrmannlab/dicom-microscopy-viewer/actions)
+[![NPM version](https://badge.fury.io/js/dicom-microscopy-viewer.svg)](http://badge.fury.io/js/dicom-microscopy-viewer)
 
 # DICOM Microscopy Viewer
 
-Vanilla JS library for web-based visualization of [DICOM VL Whole Slide Microscopy Image](http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html) datasets.
+Vanilla JS library for web-based visualization of [DICOM VL Whole Slide Microscopy Image](http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html) datasets and derived information.
 
 The viewer allows visualization of slide microscopy images stored in a [DICOMweb](https://www.dicomstandard.org/dicomweb/) compatible archive.
 It leverages the [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client) JavaScript library to retrieve data from the archive.
 
 ## Features
 
-* Display of different image types: `VOLUME`, `OVERVIEW`, `LABEL`
+* Display of different image types: `VOLUME`/`THUMBNAIL`, `OVERVIEW`, `LABEL`
 * Annotation of regions of interest (ROI) as vector graphics based on 3-dimensional spatial coordinates (SCOORD3D): `POINT`, `MULTIPOINT`, `POLYLINE`, `POLYGON`, `ELLIPSE`, `ELLIPSOID`
 * Assembly of concatenations
-* Decoding of compressed pixel data, supporting baseline JPEG, JPEG 2000 and JPEG-LS codecs
+* Decoding of compressed pixel data, supporting baseline JPEG, JPEG 2000, and JPEG-LS codecs
+* Correction of color images using ICC profiles
 * Additive blending and coloring of monochromatic images of multiple optical paths (channels), supporting highly-multiplexed immunofluorescence imaging
-
-## Live demo
-
-Check out the online examples at [microscopy.dcmjs.org](https://microscopy.dcmjs.org/).
+* Overlay of image analysis results in the form of [DICOM Segmentation](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.51.html), [Parametric Map](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.75.html), [Comprehensive 3D SR](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.35.13.html), or [Microscopy Bulk Simple Annotations](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.87.html)
 
 ## Documentation
 
-The online Application Programming Interface (API) documentation is available at [mghcomputationalpathology.github.io/dicom-microscopy-viewer](https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/).
+Documentation of the JavaScript Application Programming Interface (API) is available online at [mghcomputationalpathology.github.io/dicom-microscopy-viewer](https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/).
 
 ## Getting started
-
-Take a look at the examples in the `/examples` directory.
-They are also available online at [microscopy.dcmjs.org](https://microscopy.dcmjs.org/).
 
 ### Basic usage
 
@@ -60,9 +56,11 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
       sopInstanceUID,
     };
     const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-      const imageType = metadata[0]["00080008"]["Value"];
-      if (imageType[2] === "VOLUME") {
-        return(metadata[0]);
+      const image = new DICOMMicroscopyViewer.metadata.VLWholeSlideMicroscopyViewer({
+          metadata
+      })
+      if (image.imageType[2] === "VOLUME") {
+        return(image);
       }
     });
     promises.push(promise);
@@ -98,7 +96,6 @@ Please cite the following article when using the viewer for scientific studies: 
     Volume={9},
     Number={37}
 }
-
 ```
 
 ## Installation
@@ -111,25 +108,20 @@ npm install dicom-microscopy-viewer
 
 ## Building & Testing
 
-Build code locally:
+We use [webpack](https://webpack.js.org/) for bundling and [Jest](https://github.com/facebook/jest) for testing.
+
+Build:
 
 ```None
-git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
-cd ~/dicom-microscopy-viewer
 npm install
 npm run build
 ```
 
-test code locally:
+Test:
 
 ```None
-git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
-cd ~/dicom-microscopy-viewer
-npm install
 npm test
 ```
-
-We use [rollup](https://rollupjs.org/guide/en) for bundling and [Jest](https://github.com/facebook/jest) for testing.
 
 Build the documentation:
 
