@@ -1,4 +1,4 @@
-import { generateUID } from './utils.js'
+import { _generateUID } from './utils.js'
 import Enums from './enums'
 
 const _uid = Symbol('uid')
@@ -26,7 +26,7 @@ class ROI {
       throw new Error('scoord3d of ROI must be a Scoord3D object')
     }
     if (!('uid' in options)) {
-      this[_uid] = generateUID()
+      this[_uid] = _generateUID()
     } else {
       if (!(typeof options.uid === 'string' || options.uid instanceof String)) {
         throw new Error('uid of ROI must be a string')

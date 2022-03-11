@@ -93,11 +93,11 @@ import { ROI } from './roi.js'
 import { Segment } from './segment.js'
 import {
   computeRotation,
-  generateUID,
-  getUnitSuffix,
+  _generateUID,
+  _getUnitSuffix,
   doContentItemsMatch,
   createWindow,
-  fetchBulkdata
+  _fetchBulkdata
 } from './utils.js'
 import {
   _scoord3dCoordinates2geometryCoordinates,
@@ -124,8 +124,8 @@ import openjpegFactory from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_dec
 import openjpegWASM from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.wasm'
 import charlsFactory from '@cornerstonejs/codec-charls/dist/charlswasm_decode.js'
 import charlsWASM from '@cornerstonejs/codec-charls/dist/charlswasm_decode.wasm'
-import dicomiccFactory from 'dicomicc/dicomiccwasm.js'
-import dicomiccWASM from 'dicomicc/dicomiccwasm.wasm'
+import dicomiccFactory from 'dicomicc/dist/dicomiccwasm.js'
+import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm'
 
 const libjpeg = libjpegFactory({
   locateFile: (f) => {
@@ -184,7 +184,11 @@ async function _initializeDecodersAndTransformers ({
     for (let i = 0; i &lt; metadata.length; i++) {
       const image = metadata[i]
       if (image.SamplesPerPixel === 3) {
-        const iccProfile = await fetchBulkdata({
+        if (image.bulkdataReferences.OpticalPathSequence == null) {
+          console.warn('ICC Profile was not found')
+          continue
+        }
+        const iccProfile = await _fetchBulkdata({
           client,
           reference: (
             image
@@ -556,7 +560,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
 
   let measurement
   const view = map.getView()
-  const unitSuffix = getUnitSuffix(view)
+  const unitSuffix = _getUnitSuffix(view)
 
   if (area != null) {
     const unitCodedConceptValue = `${unitSuffix}2`
@@ -623,6 +627,8 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
  * @param {object} styleOptions.fill - Style options for body the geometry
  * @param {number[]} styleOptions.fill.color - RGBA color of the body
  * @param {object} styleOptions.image - Style options for image
+ *
+ * @private
  */
 function _setFeatureStyle (feature, styleOptions) {
   if (styleOptions !== undefined) {
@@ -638,6 +644,18 @@ function _setFeatureStyle (feature, styleOptions) {
   }
 }
 
+/**
+ * Build OpenLayers style expression for coloring a WebGL TileLayer.
+ *
+ * @param {object} styleOptions - Style options
+ * @param {number} styleOptions.windowCenter - Center of the window used for contrast stretching
+ * @param {number} styleOptions.windowWidth - Width of the window used for contrast stretching
+ * @param {number[][]} styleOptions.colormap - RGB color triplets
+ *
+ * @returns {object} color style expression and corresponding variables
+ *
+ * @private
+ */
 function _getColorPaletteStyleForTileLayer ({
   windowCenter,
   windowWidth,
@@ -703,6 +721,19 @@ function _getColorPaletteStyleForTileLayer ({
   return { color: expression, variables }
 }
 
+/**
+ * Build OpenLayers style expression for coloring a WebGL PointLayer.
+ *
+ * @param {object} styleOptions - Style options
+ * @param {string} styleOptions.name - Name of a property for which values should be colorized
+ * @param {number} styleOptions.minValue - Mininum value of the output range
+ * @param {number} styleOptions.maxValue - Maxinum value of the output range
+ * @param {number[][]} styleOptions.colormap - RGB color triplets
+ *
+ * @returns {object} color style expression
+ *
+ * @private
+ */
 function _getColorPaletteStyleForPointLayer ({
   name,
   minValue,
@@ -829,7 +860,7 @@ class VolumeImageViewer {
       // The ID may have already been set when drawn. However, features could
       // have also been added without a draw event.
       if (e.element.getId() === undefined) {
-        e.element.setId(generateUID())
+        e.element.setId(_generateUID())
       }
 
       this[_annotationManager].onAdd(e.element)
@@ -997,7 +1028,7 @@ class VolumeImageViewer {
           paletteColorLookupTableUID = (
             item.PaletteColorLookupTableUID
               ? item.PaletteColorLookupTableUID
-              : generateUID()
+              : _generateUID()
           )
           /*
            * TODO: If the LUT Data are large, the elements may be bulkdata and
@@ -1979,7 +2010,7 @@ class VolumeImageViewer {
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_START, (event) => {
       event.feature.setProperties(builtInDrawOptions, true)
-      event.feature.setId(generateUID())
+      event.feature.setId(_generateUID())
 
       /** Set external styles before calling internal annotation hooks */
       _setFeatureStyle(
@@ -3271,7 +3302,7 @@ class VolumeImageViewer {
     refSegmentation.SegmentSequence.forEach((item, index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment # ${segmentNumber}`)
-      let segmentUID = generateUID()
+      let segmentUID = _generateUID()
       if (item.TrackingUID) {
         segmentUID = item.TrackingUID
       }
@@ -3646,7 +3677,7 @@ class VolumeImageViewer {
       const mappingLabel = `${mappingNumber}`
       const mappingDescriptions = mappingNumberToDescriptions[mappingNumber]
       const refItem = mappingDescriptions[0]
-      let mappingUID = generateUID()
+      let mappingUID = _generateUID()
       if (refItem.TrackingUID != null) {
         mappingUID = refItem.TrackingUID
       }
@@ -4250,13 +4281,13 @@ export { LabelImageViewer, OverviewImageViewer, VolumeImageViewer }
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_hasMarkup">_hasMarkup</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildPaletteColorLookupTable">buildPaletteColorLookupTable</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColormap">createColormap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Mar 10 2022 12:00:32 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Fri Mar 11 2022 09:09:01 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

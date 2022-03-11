@@ -1,4 +1,4 @@
-import { generateUID } from './utils.js'
+import { _generateUID } from './utils.js'
 
 const _coordinates = Symbol('coordinates')
 const _frameOfReferenceUID = Symbol('frameOfReferenceUID')
@@ -11,7 +11,7 @@ class Scoord3D {
       throw new Error('frameOfReferenceUID of Scoord3D must be a string')
     }
     this[_frameOfReferenceUID] = options.frameOfReferenceUID
-    options.fiducialUID = options.fiducialUID || generateUID()
+    options.fiducialUID = options.fiducialUID || _generateUID()
     if (!(typeof options.fiducialUID === 'string' ||
           options.fiducialUID instanceof String)) {
       throw new Error('fiducialUID of Scoord3D must be a string')

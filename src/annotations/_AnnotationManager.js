@@ -6,14 +6,14 @@ import _MarkupManager from './markups/_MarkupManager'
 import Enums from '../enums'
 
 /** Markers */
-import ArrowMarker, { format as arrowFormat } from './markers/arrow'
+import ArrowMarker, { _format as arrowFormat } from './markers/arrow'
 
 /** Markups */
 import MeasurementMarkup, {
-  format as measurementFormat
+  _format as measurementFormat
 } from './markups/measurement'
 import TextEvaluationMarkup, {
-  format as textFormat
+  _format as textFormat
 } from './markups/textEvaluation'
 
 /** Utils */

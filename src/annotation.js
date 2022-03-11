@@ -1,5 +1,5 @@
 import {
-  fetchBulkdata,
+  _fetchBulkdata,
   getContentItemNameCodedConcept
 } from './utils.js'
 
@@ -201,12 +201,12 @@ async function _fetchGraphicData ({
       )
     } else {
       if ('PointCoordinatesData' in bulkdataItem) {
-        return await fetchBulkdata({
+        return await _fetchBulkdata({
           client,
           reference: bulkdataItem.PointCoordinatesData
         })
       } else if ('DoublePointCoordinatesData' in bulkdataItem) {
-        return await fetchBulkdata({
+        return await _fetchBulkdata({
           client,
           reference: bulkdataItem.DoublePointCoordinatesData
         })
@@ -253,7 +253,7 @@ async function _fetchGraphicIndex ({
       }
     } else {
       if ('LongPrimitivePointIndexList' in bulkdataItem) {
-        return await fetchBulkdata({
+        return await _fetchBulkdata({
           client,
           reference: bulkdataItem.LongPrimitivePointIndexList
         })
@@ -311,7 +311,7 @@ async function _fetchMeasurementValues ({
         measurementBulkdataItem.MeasurementValuesSequence[0]
       )
       if ('FloatingPointValues' in valuesBulkdataItem) {
-        return await fetchBulkdata({
+        return await _fetchBulkdata({
           client,
           reference: valuesBulkdataItem.FloatingPointValues
         })
@@ -367,7 +367,7 @@ async function _fetchMeasurementIndices ({
           .MeasurementValuesSequence[0]
       )
       if ('AnnotationIndexList' in valuesBulkdataItem) {
-        return await fetchBulkdata({
+        return await _fetchBulkdata({
           client,
           reference: valuesBulkdataItem.AnnotationIndexList
         })

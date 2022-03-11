@@ -26,7 +26,9 @@
     
     <section>
         <article>
-            <pre class="prettyprint source linenums"><code>import DragPan from 'ol/interaction/DragPan'
+            <pre class="prettyprint source linenums"><code>import Circle from 'ol/geom/Circle'
+import DragPan from 'ol/interaction/DragPan'
+import LineString from 'ol/geom/LineString'
 import Overlay from 'ol/Overlay'
 import VectorLayer from 'ol/layer/Vector'
 import 'ol/ol.css'
@@ -35,12 +37,55 @@ import Style from 'ol/style/Style'
 import Stroke from 'ol/style/Stroke'
 import Collection from 'ol/Collection'
 import Feature from 'ol/Feature'
+import { fromCircle } from 'ol/geom/Polygon'
 
 import Enums from '../../enums'
-import { getShortestLineBetweenOverlayAndFeature } from './utils'
-import { getUnitSuffix } from '../../utils'
+import { _getUnitSuffix } from '../../utils'
 import { coordinateWithOffset } from '../../scoord3dUtils'
 import defaultStyles from '../styles'
+
+/**
+ * Build a new LineString instance with the shortest
+ * distance between a given overlay and a feature.
+ *
+ * @param {object} feature The feature
+ * @param {object} overlay The overlay instance
+ *
+ * @returns {LineString} The smallest line between the overlay and feature
+ *
+ * @private
+ */
+const _getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
+  let result
+  let distanceSq = Infinity
+
+  let featureGeometry = feature.getGeometry()
+
+  if (featureGeometry instanceof Circle) {
+    featureGeometry = fromCircle(featureGeometry).clone()
+  }
+
+  const geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
+
+  (geometry.getCoordinates() || geometry.getExtent()).forEach(coordinates => {
+    const closest = overlay.getPosition()
+    const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
+    if (distanceNew &lt; distanceSq) {
+      distanceSq = distanceNew
+      result = [coordinates, closest]
+    }
+  })
+
+  const coordinates = overlay.getPosition()
+  const closest = geometry.getClosestPoint(coordinates)
+  const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
+  if (distanceNew &lt; distanceSq) {
+    distanceSq = distanceNew
+    result = [closest, coordinates]
+  }
+
+  return new LineString(result)
+}
 
 class _MarkupManager {
   constructor ({ map, pyramid, drawingSource, formatters, onClick, onStyle } = {}) {
@@ -232,7 +277,7 @@ class _MarkupManager {
       (event) => {
         if (this.has(id)) {
           const view = this._map.getView()
-          const unitSuffix = getUnitSuffix(view)
+          const unitSuffix = _getUnitSuffix(view)
           const format = this._getFormatter(event.target)
           const output = format(event.target, unitSuffix, this._pyramid)
           this.update({
@@ -462,7 +507,7 @@ class _MarkupManager {
       return
     }
 
-    const line = getShortestLineBetweenOverlayAndFeature(
+    const line = _getShortestLineBetweenOverlayAndFeature(
       feature,
       markup.overlay
     )
@@ -502,13 +547,13 @@ export default _MarkupManager
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_hasMarkup">_hasMarkup</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildPaletteColorLookupTable">buildPaletteColorLookupTable</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColormap">createColormap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Mar 10 2022 12:00:32 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Fri Mar 11 2022 09:09:01 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

@@ -1,4 +1,6 @@
+import Circle from 'ol/geom/Circle'
 import DragPan from 'ol/interaction/DragPan'
+import LineString from 'ol/geom/LineString'
 import Overlay from 'ol/Overlay'
 import VectorLayer from 'ol/layer/Vector'
 import 'ol/ol.css'
@@ -7,12 +9,55 @@ import Style from 'ol/style/Style'
 import Stroke from 'ol/style/Stroke'
 import Collection from 'ol/Collection'
 import Feature from 'ol/Feature'
+import { fromCircle } from 'ol/geom/Polygon'
 
 import Enums from '../../enums'
-import { getShortestLineBetweenOverlayAndFeature } from './utils'
-import { getUnitSuffix } from '../../utils'
+import { _getUnitSuffix } from '../../utils'
 import { coordinateWithOffset } from '../../scoord3dUtils'
 import defaultStyles from '../styles'
+
+/**
+ * Build a new LineString instance with the shortest
+ * distance between a given overlay and a feature.
+ *
+ * @param {object} feature The feature
+ * @param {object} overlay The overlay instance
+ *
+ * @returns {LineString} The smallest line between the overlay and feature
+ *
+ * @private
+ */
+const _getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
+  let result
+  let distanceSq = Infinity
+
+  let featureGeometry = feature.getGeometry()
+
+  if (featureGeometry instanceof Circle) {
+    featureGeometry = fromCircle(featureGeometry).clone()
+  }
+
+  const geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
+
+  (geometry.getCoordinates() || geometry.getExtent()).forEach(coordinates => {
+    const closest = overlay.getPosition()
+    const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
+    if (distanceNew < distanceSq) {
+      distanceSq = distanceNew
+      result = [coordinates, closest]
+    }
+  })
+
+  const coordinates = overlay.getPosition()
+  const closest = geometry.getClosestPoint(coordinates)
+  const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
+  if (distanceNew < distanceSq) {
+    distanceSq = distanceNew
+    result = [closest, coordinates]
+  }
+
+  return new LineString(result)
+}
 
 class _MarkupManager {
   constructor ({ map, pyramid, drawingSource, formatters, onClick, onStyle } = {}) {
@@ -204,7 +249,7 @@ class _MarkupManager {
       (event) => {
         if (this.has(id)) {
           const view = this._map.getView()
-          const unitSuffix = getUnitSuffix(view)
+          const unitSuffix = _getUnitSuffix(view)
           const format = this._getFormatter(event.target)
           const output = format(event.target, unitSuffix, this._pyramid)
           this.update({
@@ -434,7 +479,7 @@ class _MarkupManager {
       return
     }
 
-    const line = getShortestLineBetweenOverlayAndFeature(
+    const line = _getShortestLineBetweenOverlayAndFeature(
       feature,
       markup.overlay
     )

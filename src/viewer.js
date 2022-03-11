@@ -65,11 +65,11 @@ import { ROI } from './roi.js'
 import { Segment } from './segment.js'
 import {
   computeRotation,
-  generateUID,
-  getUnitSuffix,
+  _generateUID,
+  _getUnitSuffix,
   doContentItemsMatch,
   createWindow,
-  fetchBulkdata
+  _fetchBulkdata
 } from './utils.js'
 import {
   _scoord3dCoordinates2geometryCoordinates,
@@ -160,7 +160,7 @@ async function _initializeDecodersAndTransformers ({
           console.warn('ICC Profile was not found')
           continue
         }
-        const iccProfile = await fetchBulkdata({
+        const iccProfile = await _fetchBulkdata({
           client,
           reference: (
             image
@@ -532,7 +532,7 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
 
   let measurement
   const view = map.getView()
-  const unitSuffix = getUnitSuffix(view)
+  const unitSuffix = _getUnitSuffix(view)
 
   if (area != null) {
     const unitCodedConceptValue = `${unitSuffix}2`
@@ -599,6 +599,8 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
  * @param {object} styleOptions.fill - Style options for body the geometry
  * @param {number[]} styleOptions.fill.color - RGBA color of the body
  * @param {object} styleOptions.image - Style options for image
+ *
+ * @private
  */
 function _setFeatureStyle (feature, styleOptions) {
   if (styleOptions !== undefined) {
@@ -614,6 +616,18 @@ function _setFeatureStyle (feature, styleOptions) {
   }
 }
 
+/**
+ * Build OpenLayers style expression for coloring a WebGL TileLayer.
+ *
+ * @param {object} styleOptions - Style options
+ * @param {number} styleOptions.windowCenter - Center of the window used for contrast stretching
+ * @param {number} styleOptions.windowWidth - Width of the window used for contrast stretching
+ * @param {number[][]} styleOptions.colormap - RGB color triplets
+ *
+ * @returns {object} color style expression and corresponding variables
+ *
+ * @private
+ */
 function _getColorPaletteStyleForTileLayer ({
   windowCenter,
   windowWidth,
@@ -679,6 +693,19 @@ function _getColorPaletteStyleForTileLayer ({
   return { color: expression, variables }
 }
 
+/**
+ * Build OpenLayers style expression for coloring a WebGL PointLayer.
+ *
+ * @param {object} styleOptions - Style options
+ * @param {string} styleOptions.name - Name of a property for which values should be colorized
+ * @param {number} styleOptions.minValue - Mininum value of the output range
+ * @param {number} styleOptions.maxValue - Maxinum value of the output range
+ * @param {number[][]} styleOptions.colormap - RGB color triplets
+ *
+ * @returns {object} color style expression
+ *
+ * @private
+ */
 function _getColorPaletteStyleForPointLayer ({
   name,
   minValue,
@@ -805,7 +832,7 @@ class VolumeImageViewer {
       // The ID may have already been set when drawn. However, features could
       // have also been added without a draw event.
       if (e.element.getId() === undefined) {
-        e.element.setId(generateUID())
+        e.element.setId(_generateUID())
       }
 
       this[_annotationManager].onAdd(e.element)
@@ -973,7 +1000,7 @@ class VolumeImageViewer {
           paletteColorLookupTableUID = (
             item.PaletteColorLookupTableUID
               ? item.PaletteColorLookupTableUID
-              : generateUID()
+              : _generateUID()
           )
           /*
            * TODO: If the LUT Data are large, the elements may be bulkdata and
@@ -1955,7 +1982,7 @@ class VolumeImageViewer {
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_START, (event) => {
       event.feature.setProperties(builtInDrawOptions, true)
-      event.feature.setId(generateUID())
+      event.feature.setId(_generateUID())
 
       /** Set external styles before calling internal annotation hooks */
       _setFeatureStyle(
@@ -3247,7 +3274,7 @@ class VolumeImageViewer {
     refSegmentation.SegmentSequence.forEach((item, index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment # ${segmentNumber}`)
-      let segmentUID = generateUID()
+      let segmentUID = _generateUID()
       if (item.TrackingUID) {
         segmentUID = item.TrackingUID
       }
@@ -3622,7 +3649,7 @@ class VolumeImageViewer {
       const mappingLabel = `${mappingNumber}`
       const mappingDescriptions = mappingNumberToDescriptions[mappingNumber]
       const refItem = mappingDescriptions[0]
-      let mappingUID = generateUID()
+      let mappingUID = _generateUID()
       if (refItem.TrackingUID != null) {
         mappingUID = refItem.TrackingUID
       }

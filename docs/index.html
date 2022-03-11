@@ -43,26 +43,25 @@
 
 
     <section>
-        <article><p><a href="https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer"><img src="https://travis-ci.com/mghcomputationalpathology/dicom-microscopy-viewer.svg?branch=master" alt="Build Status"></a></p>
+        <article><p><a href="https://github.com/herrmannlab/dicom-microscopy-viewer/actions"><img src="https://github.com/herrmannlab/dicom-microscopy-viewer/actions/workflows/run_unit_tests.yml/badge.svg" alt="Build Status"></a>
+<a href="http://badge.fury.io/js/dicom-microscopy-viewer"><img src="https://badge.fury.io/js/dicom-microscopy-viewer.svg" alt="NPM version"></a></p>
 <h1>DICOM Microscopy Viewer</h1>
-<p>Vanilla JS library for web-based visualization of <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html">DICOM VL Whole Slide Microscopy Image</a> datasets.</p>
+<p>Vanilla JS library for web-based visualization of <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html">DICOM VL Whole Slide Microscopy Image</a> datasets and derived information.</p>
 <p>The viewer allows visualization of slide microscopy images stored in a <a href="https://www.dicomstandard.org/dicomweb/">DICOMweb</a> compatible archive.
 It leverages the <a href="https://github.com/dcmjs-org/dicomweb-client">dicomweb-client</a> JavaScript library to retrieve data from the archive.</p>
 <h2>Features</h2>
 <ul>
-<li>Display of different image types: <code>VOLUME</code>, <code>OVERVIEW</code>, <code>LABEL</code></li>
+<li>Display of different image types: <code>VOLUME</code>/<code>THUMBNAIL</code>, <code>OVERVIEW</code>, <code>LABEL</code></li>
 <li>Annotation of regions of interest (ROI) as vector graphics based on 3-dimensional spatial coordinates (SCOORD3D): <code>POINT</code>, <code>MULTIPOINT</code>, <code>POLYLINE</code>, <code>POLYGON</code>, <code>ELLIPSE</code>, <code>ELLIPSOID</code></li>
 <li>Assembly of concatenations</li>
-<li>Decoding of compressed pixel data, supporting baseline JPEG, JPEG 2000 and JPEG-LS codecs</li>
+<li>Decoding of compressed pixel data, supporting baseline JPEG, JPEG 2000, and JPEG-LS codecs</li>
+<li>Correction of color images using ICC profiles</li>
 <li>Additive blending and coloring of monochromatic images of multiple optical paths (channels), supporting highly-multiplexed immunofluorescence imaging</li>
+<li>Overlay of image analysis results in the form of <a href="https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.51.html">DICOM Segmentation</a>, <a href="https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.75.html">Parametric Map</a>, <a href="https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.35.13.html">Comprehensive 3D SR</a>, or <a href="https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.87.html">Microscopy Bulk Simple Annotations</a></li>
 </ul>
-<h2>Live demo</h2>
-<p>Check out the online examples at <a href="https://microscopy.dcmjs.org/">microscopy.dcmjs.org</a>.</p>
 <h2>Documentation</h2>
-<p>The online Application Programming Interface (API) documentation is available at <a href="https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/">mghcomputationalpathology.github.io/dicom-microscopy-viewer</a>.</p>
+<p>Documentation of the JavaScript Application Programming Interface (API) is available online at <a href="https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/">mghcomputationalpathology.github.io/dicom-microscopy-viewer</a>.</p>
 <h2>Getting started</h2>
-<p>Take a look at the examples in the <code>/examples</code> directory.
-They are also available online at <a href="https://microscopy.dcmjs.org/">microscopy.dcmjs.org</a>.</p>
 <h3>Basic usage</h3>
 <pre class="prettyprint source lang-html"><code>&lt;script type=&quot;text/javascript&quot; src=&quot;https://unpkg.com/dicom-microscopy-viewer&quot;>&lt;/script>
 </code></pre>
@@ -94,9 +93,11 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
       sopInstanceUID,
     };
     const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-      const imageType = metadata[0][&quot;00080008&quot;][&quot;Value&quot;];
-      if (imageType[2] === &quot;VOLUME&quot;) {
-        return(metadata[0]);
+      const image = new DICOMMicroscopyViewer.metadata.VLWholeSlideMicroscopyViewer({
+          metadata
+      })
+      if (image.imageType[2] === &quot;VOLUME&quot;) {
+        return(image);
       }
     });
     promises.push(promise);
@@ -134,19 +135,14 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
 <pre class="prettyprint source lang-None"><code>npm install dicom-microscopy-viewer
 </code></pre>
 <h2>Building &amp; Testing</h2>
-<p>Build code locally:</p>
-<pre class="prettyprint source lang-None"><code>git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
-cd ~/dicom-microscopy-viewer
-npm install
+<p>We use <a href="https://webpack.js.org/">webpack</a> for bundling and <a href="https://github.com/facebook/jest">Jest</a> for testing.</p>
+<p>Build:</p>
+<pre class="prettyprint source lang-None"><code>npm install
 npm run build
 </code></pre>
-<p>test code locally:</p>
-<pre class="prettyprint source lang-None"><code>git clone https://github.com/mghcomputationalpathology/dicom-microscopy-viewer ~/dicom-microscopy-viewer
-cd ~/dicom-microscopy-viewer
-npm install
-npm test
+<p>Test:</p>
+<pre class="prettyprint source lang-None"><code>npm run test
 </code></pre>
-<p>We use <a href="https://rollupjs.org/guide/en">rollup</a> for bundling and <a href="https://github.com/facebook/jest">Jest</a> for testing.</p>
 <p>Build the documentation:</p>
 <pre class="prettyprint source lang-None"><code>npm run generateDocs
 </code></pre>
@@ -171,13 +167,13 @@ npm test
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_hasMarkup">_hasMarkup</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildPaletteColorLookupTable">buildPaletteColorLookupTable</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColormap">createColormap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Mar 10 2022 12:00:32 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Fri Mar 11 2022 09:09:01 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

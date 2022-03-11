@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Class: Polygon</title>
+    <title>JSDoc: Class: PaletteColorLookupTable</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Class: Polygon</h1>
+    <h1 class="page-title">Class: PaletteColorLookupTable</h1>
 
     
 
@@ -29,11 +29,9 @@
 <header>
     
         <h2><span class="attribs"><span class="type-signature"></span></span>
-            <span class="ancestors"><a href="scoord3d.html">scoord3d</a>.</span>Polygon<span class="signature">(options)</span><span class="type-signature"></span></h2>
+            <span class="ancestors"><a href="color.html">color</a>.</span>PaletteColorLookupTable<span class="signature">(options)</span><span class="type-signature"></span></h2>
         
-            <div class="class-description">POLYGON graphic denoted by multiple, ordered, coplaner (X,Y,Z) coordinates
-that represent vertices of connected line segments.
-The first and last coordinate should be identical.</div>
+            <div class="class-description">A Palette Color Lookup Table</div>
         
     
 </header>
@@ -48,7 +46,7 @@ The first and last coordinate should be identical.</div>
     
 
     
-    <h4 class="name" id="Polygon"><span class="type-signature"></span>new Polygon<span class="signature">(options)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="PaletteColorLookupTable"><span class="type-signature"></span>new PaletteColorLookupTable<span class="signature">(options)</span><span class="type-signature"></span></h4>
     
 
     
@@ -56,7 +54,7 @@ The first and last coordinate should be identical.</div>
 
 
 <div class="description">
-    Creates a new Polygon object.
+    Create a new PaletteColorLookupTable object.
 </div>
 
 
@@ -98,7 +96,7 @@ The first and last coordinate should be identical.</div>
             <td class="type">
             
                 
-<span class="param-type">Object</span>
+<span class="param-type">object</span>
 
 
             
@@ -122,8 +120,6 @@ The first and last coordinate should be identical.</div>
         <th>Type</th>
 
         
-        <th>Attributes</th>
-        
 
         
 
@@ -136,7 +132,7 @@ The first and last coordinate should be identical.</div>
 
         <tr>
             
-                <td class="name"><code>frameOfReferenceUID</code></td>
+                <td class="name"><code>uid</code></td>
             
 
             <td class="type">
@@ -149,82 +145,235 @@ The first and last coordinate should be identical.</div>
             </td>
 
             
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
 
             
 
-            <td class="description last">Unique identifier of the Frame of Reference</td>
+            <td class="description last">UID</td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>coordinates</code></td>
+                <td class="name"><code>redDescriptor</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">Array.&lt;Array.&lt;number>></span>
+<span class="param-type">Array.&lt;number></span>
 
 
             
             </td>
 
             
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
 
             
 
-            <td class="description last">(X,Y,Z) coordinates of points on the perimeter of the polygon (first and last coordinate must be the same).</td>
+            <td class="description last">Red LUT descriptor</td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>fiducialUID</code></td>
+                <td class="name"><code>greenDescriptor</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type">Array.&lt;number></span>
 
 
             
             </td>
 
             
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
 
-                
+            
 
+            <td class="description last">Green LUT descriptor</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>blueDescriptor</code></td>
+            
+
+            <td class="type">
+            
                 
-                </td>
+<span class="param-type">Array.&lt;number></span>
+
+
+            
+            </td>
+
             
 
             
 
-            <td class="description last">Unique identifier of an imaging fiducial</td>
+            <td class="description last">Blue LUT descriptor</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>redData</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Uint8Array</span>
+|
+
+<span class="param-type">Uint16Array</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Red LUT data</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>greenData</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Uint8Array</span>
+|
+
+<span class="param-type">Uint16Array</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Green LUT data</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>blueData</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Uint8Array</span>
+|
+
+<span class="param-type">Uint16Array</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Blue LUT data</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>redSegmentedData</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Uint8Array</span>
+|
+
+<span class="param-type">Uint16Array</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Red segmented LUT data</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>greenSegmentedData</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Uint8Array</span>
+|
+
+<span class="param-type">Uint16Array</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Green segmented LUT data</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>blueSegmentedData</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Uint8Array</span>
+|
+
+<span class="param-type">Uint16Array</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Blue segmented LUT data</td>
         </tr>
 
     
@@ -272,7 +421,7 @@ The first and last coordinate should be identical.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line185">line 185</a>
+        <a href="color.js.html">color.js</a>, <a href="color.js.html#line119">line 119</a>
     </li></ul></dd>
     
 
@@ -306,17 +455,6 @@ The first and last coordinate should be identical.</div>
     </div>
 
     
-        <h3 class="subsection-title">Extends</h3>
-
-        
-
-
-    <ul>
-        <li><a href="Scoord3D_.html">Scoord3D</a></li>
-    </ul>
-
-
-    
 
     
 
@@ -333,26 +471,16 @@ The first and last coordinate should be identical.</div>
 
         
             
-<h4 class="name" id="fiducialUID"><span class="type-signature"></span>fiducialUID<span class="type-signature"> :string</span></h4>
+<h4 class="name" id="data"><span class="type-signature"></span>data<span class="type-signature"></span></h4>
 
 
 
 
 <div class="description">
-    Fiducial UID
+    Get Palette Color Lookup Table Data
 </div>
 
 
-
-    <h5>Type:</h5>
-    <ul>
-        <li>
-            
-<span class="param-type">string</span>
-
-
-        </li>
-    </ul>
 
 
 
@@ -366,11 +494,6 @@ The first and last coordinate should be identical.</div>
 
     
 
-    
-    <dt class="tag-overrides">Overrides:</dt>
-    <dd class="tag-overrides"><ul class="dummy"><li>
-        <a href="Scoord3D_.html#fiducialUID">Scoord3D#fiducialUID</a>
-    </li></ul></dd>
     
 
     
@@ -392,7 +515,7 @@ The first and last coordinate should be identical.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line54">line 54</a>
+        <a href="color.js.html">color.js</a>, <a href="color.js.html#line330">line 330</a>
     </li></ul></dd>
     
 
@@ -410,26 +533,16 @@ The first and last coordinate should be identical.</div>
 
         
             
-<h4 class="name" id="frameOfReferenceUID"><span class="type-signature"></span>frameOfReferenceUID<span class="type-signature"> :string</span></h4>
+<h4 class="name" id="firstValueMapped"><span class="type-signature"></span>firstValueMapped<span class="type-signature"></span></h4>
 
 
 
 
 <div class="description">
-    Frame of Reference UID
+    Get first value mapped
 </div>
 
 
-
-    <h5>Type:</h5>
-    <ul>
-        <li>
-            
-<span class="param-type">string</span>
-
-
-        </li>
-    </ul>
 
 
 
@@ -443,11 +556,6 @@ The first and last coordinate should be identical.</div>
 
     
 
-    
-    <dt class="tag-overrides">Overrides:</dt>
-    <dd class="tag-overrides"><ul class="dummy"><li>
-        <a href="Scoord3D_.html#frameOfReferenceUID">Scoord3D#frameOfReferenceUID</a>
-    </li></ul></dd>
     
 
     
@@ -469,7 +577,7 @@ The first and last coordinate should be identical.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line46">line 46</a>
+        <a href="color.js.html">color.js</a>, <a href="color.js.html#line407">line 407</a>
     </li></ul></dd>
     
 
@@ -487,26 +595,16 @@ The first and last coordinate should be identical.</div>
 
         
             
-<h4 class="name" id="graphicData"><span class="type-signature"></span>graphicData<span class="type-signature"> :Array.&lt;Array.&lt;number>></span></h4>
+<h4 class="name" id="uid"><span class="type-signature"></span>uid<span class="type-signature"></span></h4>
 
 
 
 
 <div class="description">
-    Graphic Data
+    Get Palette Color Lookup Table UID
 </div>
 
 
-
-    <h5>Type:</h5>
-    <ul>
-        <li>
-            
-<span class="param-type">Array.&lt;Array.&lt;number>></span>
-
-
-        </li>
-    </ul>
 
 
 
@@ -520,11 +618,6 @@ The first and last coordinate should be identical.</div>
 
     
 
-    
-    <dt class="tag-overrides">Overrides:</dt>
-    <dd class="tag-overrides"><ul class="dummy"><li>
-        <a href="Scoord3D_.html#graphicData">Scoord3D#graphicData</a>
-    </li></ul></dd>
     
 
     
@@ -546,84 +639,7 @@ The first and last coordinate should be identical.</div>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line30">line 30</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-        
-            
-<h4 class="name" id="graphicType"><span class="type-signature"></span>graphicType<span class="type-signature"> :string</span></h4>
-
-
-
-
-<div class="description">
-    Graphic Type
-</div>
-
-
-
-    <h5>Type:</h5>
-    <ul>
-        <li>
-            
-<span class="param-type">string</span>
-
-
-        </li>
-    </ul>
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-overrides">Overrides:</dt>
-    <dd class="tag-overrides"><ul class="dummy"><li>
-        <a href="Scoord3D_.html#graphicType">Scoord3D#graphicType</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line38">line 38</a>
+        <a href="color.js.html">color.js</a>, <a href="color.js.html#line321">line 321</a>
     </li></ul></dd>
     
 

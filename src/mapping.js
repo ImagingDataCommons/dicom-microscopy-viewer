@@ -7,6 +7,9 @@ const _attrs = Symbol('attrs')
  * values in a defined unit. The transformation may either be described by a
  * lookup table (LUT) or alternatively by the slope and intercept parameters if
  * the transformation can be described by a linear function.
+ *
+ * @class
+ * @memberof mapping
  */
 class Transformation {
   /**
@@ -56,7 +59,8 @@ class Transformation {
   }
 }
 
-/** A parameter mapping.
+/**
+ * A parameter mapping.
  *
  * @class
  * @memberof mapping

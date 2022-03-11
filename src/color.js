@@ -1,9 +1,14 @@
 import colormap from 'colormap'
 
-import { generateUID, rescale } from './utils.js'
+import { _generateUID, rescale } from './utils.js'
 
 const _attrs = Symbol('attrs')
 
+/**
+ * Enumerated values for color map names.
+ *
+ * @memberof color
+ */
 const ColormapNames = {
   VIRIDIS: 'VIRIDIS',
   INFERNO: 'INFERNO',
@@ -16,13 +21,16 @@ const ColormapNames = {
 }
 Object.freeze(ColormapNames)
 
-/** Create a color map.
+/**
+ * Create a color map.
  *
  * @param {object} options
  * @param {string} options.name - Name of the color map
  * @param {string} options.bins - Number of color bins
  *
  * @returns {number[][]} RGB triplet for each color
+ *
+ * @memberof color
  */
 function createColormap ({ name, bins }) {
   const lut = {
@@ -61,6 +69,8 @@ function createColormap ({ name, bins }) {
  * @param {number} options.firstValueMapped - First value that should be mapped
  *
  * @returns {PaletteColorLookupTable} Mapping of grayscale pixel values to RGB color triplets
+ *
+ * @memberof color
  */
 function buildPaletteColorLookupTable ({ data, firstValueMapped }) {
   if (data == null) {
@@ -90,7 +100,7 @@ function buildPaletteColorLookupTable ({ data, firstValueMapped }) {
   const descriptor = [numberOfEntries, firstValueMapped, 8]
 
   return new PaletteColorLookupTable({
-    uid: generateUID(),
+    uid: _generateUID(),
     redDescriptor: descriptor,
     greenDescriptor: descriptor,
     blueDescriptor: descriptor,
@@ -102,10 +112,25 @@ function buildPaletteColorLookupTable ({ data, firstValueMapped }) {
 
 /**
  * A Palette Color Lookup Table
+ *
+ * @class
+ * @memberof color
  */
 class PaletteColorLookupTable {
   /**
    * Create a new PaletteColorLookupTable object.
+   *
+   * @param {object} options
+   * @param {string} options.uid - UID
+   * @param {number[]} options.redDescriptor - Red LUT descriptor
+   * @param {number[]} options.greenDescriptor - Green LUT descriptor
+   * @param {number[]} options.blueDescriptor - Blue LUT descriptor
+   * @param {Uint8Array|Uint16Array} options.redData - Red LUT data
+   * @param {Uint8Array|Uint16Array} options.greenData - Green LUT data
+   * @param {Uint8Array|Uint16Array} options.blueData - Blue LUT data
+   * @param {Uint8Array|Uint16Array} options.redSegmentedData - Red segmented LUT data
+   * @param {Uint8Array|Uint16Array} options.greenSegmentedData - Green segmented LUT data
+   * @param {Uint8Array|Uint16Array} options.blueSegmentedData - Blue segmented LUT data
    */
   constructor ({
     uid,

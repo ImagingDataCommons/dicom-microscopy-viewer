@@ -11,9 +11,12 @@ import defaultStyles from '../styles'
  * Format arrow output.
  *
  * @param {LineString} arrow geometry
+ *
  * @return {string} The formatted output
+ *
+ * @private
  */
-export const format = (feature) =>
+export const _format = (feature) =>
   feature.get(Enums.InternalProperties.Label) || ''
 
 /**
@@ -21,7 +24,10 @@ export const format = (feature) =>
  *
  * @param {object} feature The feature instance
  * @param {object} map The viewer map instance
+ *
  * @returns {object} Style instance
+ *
+ * @private
  */
 const _applyStyles = (feature, map) => {
   const geometry = feature.getGeometry()
@@ -116,11 +122,14 @@ const _isArrow = (feature) =>
   Enums.Marker.Arrow === feature.get(Enums.InternalProperties.Marker)
 
 /**
- * Arrow marker definition.
+ * Arrow marker.
  *
  * @param {object} dependencies Shared dependencies
  * @param {object} dependencies.map Map shared instance
  * @param {object} dependencies.markupManager Markup manager shared instance
+ *
+ * @class
+ * @private
  */
 const ArrowMarker = ({ map, markupManager }) => {
   return {

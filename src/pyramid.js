@@ -5,11 +5,13 @@ import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import { are1DArraysAlmostEqual, are2DArraysAlmostEqual } from './utils.js'
 
-/** Compute image pyramid.
+/**
+ * Compute image pyramid.
  *
  * @param {object[]} metadata - Metadata of VL Whole Slide Microscopy Image instances
  * @returns {object} Information about the image pyramid
- * @static
+ *
+ * @private
  */
 function _computeImagePyramid ({ metadata }) {
   if (metadata.length === 0) {

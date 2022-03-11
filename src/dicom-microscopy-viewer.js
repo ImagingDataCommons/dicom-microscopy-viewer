@@ -47,7 +47,9 @@ import {
   Segment
 } from './segment.js'
 
-/** Namespace for annotations.
+/**
+ * Namespace for annotations of DICOM Micrsocopy Bulk Simple Annotations
+ * instances.
  *
  * @namespace annotation
  */
@@ -55,7 +57,8 @@ const annotation = {
   AnnotationGroup
 }
 
-/** Namespace for the viewer.
+/**
+ * Namespace for the viewer.
  *
  * @namespace api
  * @deprecated use the viewer namespace instead
@@ -64,7 +67,8 @@ const api = {
   VLWholeSlideMicroscopyImageViewer: VolumeImageViewer
 }
 
-/** Namespace for the viewer.
+/**
+ * Namespace for the viewer.
  *
  * @namespace viewer
  */
@@ -74,7 +78,8 @@ const viewer = {
   VolumeImageViewer
 }
 
-/** Namespace for mapping.
+/**
+ * Namespace for parameter mappings of DICOM Parametric Map instances.
  *
  * @namespace mapping
  */
@@ -82,7 +87,8 @@ const mapping = {
   ParameterMapping
 }
 
-/** Namespace for working with DICOM Metadata.
+/**
+ * Namespace for working with DICOM Metadata.
  *
  * @namespace metadata
  */
@@ -97,6 +103,11 @@ const metadata = {
   Comprehensive3DSR
 }
 
+/**
+ * Namespace for color.
+ *
+ * @namespace color
+ */
 const color = {
   ColormapNames,
   createColormap,
@@ -104,7 +115,8 @@ const color = {
   buildPaletteColorLookupTable
 }
 
-/** Namespace for optical paths.
+/**
+ * Namespace for optical paths.
  *
  * @namespace opticalPath
  */
@@ -112,7 +124,8 @@ const opticalPath = {
   OpticalPath
 }
 
-/** Namespace for 3-dimensional spatial coordinates (SCOORD3D).
+/**
+ * Namespace for 3-dimensional spatial coordinates (SCOORD3D).
  *
  * @namespace scoord3d
  */
@@ -125,7 +138,8 @@ const scoord3d = {
   Ellipse
 }
 
-/** Namespace for regions of interest (ROI).
+/**
+ * Namespace for regions of interest (ROIs).
  *
  * @namespace roi
  */
@@ -133,7 +147,8 @@ const roi = {
   ROI
 }
 
-/** Namespace for segments.
+/**
+ * Namespace for segments of DICOM Segmentation instances.
  *
  * @namespace segment
  */
@@ -141,7 +156,8 @@ const segment = {
   Segment
 }
 
-/** Namespace for viewer events.
+/**
+ * Namespace for viewer events.
  *
  * @namespace events
  */
@@ -149,7 +165,8 @@ const events = {
   EVENTS
 }
 
-/** Namespace for various utilities.
+/**
+ * Namespace for various utilities.
  *
  * @namespace utils
  */

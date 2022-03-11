@@ -5,9 +5,10 @@ import { getPointResolution } from 'ol/proj'
  * Generates a UUID-derived DICOM UID with root `2.25`.
  *
  * @returns {string} Unique identifier
+ *
  * @private
  */
-function generateUID () {
+function _generateUID () {
   /**
    * A UUID can be represented as a single integer value.
    * http://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_B.2.html
@@ -19,8 +20,8 @@ function generateUID () {
    * the least significant bit as the least significant bit (bit 0) of the last
    * of the sixteen octets (octet 0).
    */
-  // FIXME: This is not a valid UUID!
   let uid = '2.25.' + Math.floor(1 + Math.random() * 9)
+  // FIXME: This is not a valid UUID!
   while (uid.length < 44) {
     uid += Math.floor(1 + Math.random() * 10)
   }
@@ -32,7 +33,10 @@ function generateUID () {
  *
  * @param {Object} options - Options
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
+ *
  * @returns {number[][]} 2x2 rotation matrix
+ *
+ * @memberof utils
  */
 function createRotationMatrix (options) {
   if (!('orientation' in options)) {
@@ -56,7 +60,10 @@ function createRotationMatrix (options) {
  * @param {number} maxInput - Upper bound of the full input value range
  * @param {number} minOutput - Lower bound of the full output value range
  * @param {number} maxOutput - Upper bound of the full output value range
+ *
  * @returns {number} Rescaled value
+ *
+ * @memberof utils
  */
 function rescale (
   value,
@@ -77,7 +84,10 @@ function rescale (
  *
  * @param {number} lowerBound - Lower bound of the window
  * @param {number} upperBound - Upper bound of the window
+ *
  * @returns {number[]} Window center and width
+ *
+ * @memberof utils
  */
 function createWindow (lowerBound, upperBound) {
   const windowCenter = (lowerBound + upperBound) / 2
@@ -91,7 +101,10 @@ function createWindow (lowerBound, upperBound) {
  * @param {Object} options - Options
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {boolean} options.inDegrees - Whether angle should be returned in degrees instead of radians
+ *
  * @returns {number} Angle
+ *
+ * @memberof utils
  */
 function computeRotation (options) {
   const rot = createRotationMatrix({ orientation: options.orientation })
@@ -115,7 +128,10 @@ function computeRotation (options) {
  * @param {number[]} options.offset - X and Y offset of the image in the slide coordinate system
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixel rows and columns of the Total Pixel Matrix
+ *
  * @returns {number[][]} 3x3 affine transformation matrix
+ *
+ * @memberof utils
  */
 function buildTransform ({ offset, orientation, spacing }) {
   // X and Y Offset in Slide Coordinate System
@@ -171,7 +187,10 @@ function buildTransform ({ offset, orientation, spacing }) {
  * @param {Object} options - Options
  * @params {number[]} options.coordinate - (column, row) image coordinate
  * @params {number[][]} options.affine - 3x3 affine transformation matrix
+ *
  * @returns {number[]} (x, y) reference coordinate
+ *
+ * @memberof utils
  */
 function applyTransform ({ coordinate, affine }) {
   if (coordinate == null) {
@@ -216,7 +235,10 @@ function applyTransform ({ coordinate, affine }) {
  * @param {number[]} options.offset - X and Y offset of the image in the slide coordinate system
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixel rows and columns of the Total Pixel Matrix
+ *
  * @returns {number[][]} 3x3 affine transformation matrix
+ *
+ * @memberof utils
  */
 function buildInverseTransform ({ offset, orientation, spacing }) {
   // X and Y Offset in Slide Coordinate System
@@ -272,7 +294,10 @@ function buildInverseTransform ({ offset, orientation, spacing }) {
  * @param {Object} options - Options
  * @params {number[]} options.coordinate - (x, y) reference coordinate
  * @params {number[][]} options.affine - 3x3 affine transformation matrix
+ *
  * @returns {number[]} (column, row) image coordinate
+ *
+ * @memberof utils
  */
 function applyInverseTransform ({ coordinate, affine }) {
   if (coordinate == null) {
@@ -319,7 +344,9 @@ function applyInverseTransform ({ coordinate, affine }) {
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
  * @param {number[]} options.point - (colum, row) image coordinates
+ *
  * @returns {number[]} (x, y, z) slide coordinates
+ *
  * @memberof utils
  */
 function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing }) {
@@ -350,7 +377,9 @@ function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing }) {
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
  * @param {number[]} options.point - (x, y, z) slide coordinates
+ *
  * @returns {number[]} (row, column) image coordinates
+ *
  * @memberof utils
  */
 function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
@@ -378,7 +407,10 @@ function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
  * @param {number[]} array a
  * @param {number[]} array b
  * @param {number} eps
- * @returns {boolean} check
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 function are2DArraysAlmostEqual (a, b, eps = 1.e-6) {
   if (a === b) return true
@@ -402,7 +434,10 @@ function are2DArraysAlmostEqual (a, b, eps = 1.e-6) {
  * @param {number[]} array a
  * @param {number[]} array b
  * @param {number} eps
- * @returns {boolean} check
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 function are1DArraysAlmostEqual (a, b, eps = 1.e-6) {
   if (a == null || b == null) return false
@@ -422,7 +457,10 @@ function are1DArraysAlmostEqual (a, b, eps = 1.e-6) {
  * @param {number} a
  * @param {number} b
  * @param {number} eps
- * @returns {boolean} check
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 function areNumbersAlmostEqual (a, b, eps = 1.e-6) {
   return Math.abs(a - b) < eps
@@ -432,9 +470,12 @@ function areNumbersAlmostEqual (a, b, eps = 1.e-6) {
  * Get view unit suffix.
  *
  * @param {object} view Map view
+ *
  * @returns {string} unit suffix
+ *
+ * @private
  */
-function getUnitSuffix (view) {
+function _getUnitSuffix (view) {
   const UnitsEnum = { METERS: 'm' }
   const DEFAULT_DPI = 25.4 / 0.28
 
@@ -477,16 +518,23 @@ function getUnitSuffix (view) {
  * Get name coded concept from content item.
  *
  * @param {object} contentItem
+ *
  * @returns {object} The concept name coded concept
+ *
+ * @memberof utils
  */
 const getContentItemNameCodedConcept = (contentItem) =>
   contentItem.ConceptNameCodeSequence[0]
 
 /**
+ * Check whether coded concepts are equal.
  *
  * @param {object} codedConcept1
  * @param {object} codedConcept2
- * @returns {boolean} true if content items equal and false otherwise
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 const areCodedConceptsEqual = (codedConcept1, codedConcept2) => {
   if (
@@ -512,7 +560,10 @@ const areCodedConceptsEqual = (codedConcept1, codedConcept2) => {
  *
  * @param {object} contentItem1
  * @param {object} contentItem2
- * @returns {boolean} true if content items match and false otherwise
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 const doContentItemsMatch = (contentItem1, contentItem2) => {
   const contentItem1NameCodedConcept = getContentItemNameCodedConcept(
@@ -529,7 +580,19 @@ const doContentItemsMatch = (contentItem1, contentItem2) => {
     )
 }
 
-async function fetchBulkdata ({ client, reference }) {
+/**
+ * Fetch bulkdata.
+ *
+ * @param {object} options
+ * @param {object} options.client - DICOMweb client @param {object}
+ * options.reference - Data Element in DICOM JSON format containing "vr" and
+ * "BulkDataURI" fields
+ *
+ * @returns {Promise<TypedArray>} bulkdata
+ *
+ * @private
+ */
+async function _fetchBulkdata ({ client, reference }) {
   const fixBulkDataURI = (uri) => {
     // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
     // set correctly by the archive:
@@ -588,14 +651,14 @@ async function fetchBulkdata ({ client, reference }) {
 }
 
 export {
-  getUnitSuffix,
+  _getUnitSuffix,
   applyInverseTransform,
   applyTransform,
   buildInverseTransform,
   buildTransform,
   computeRotation,
-  fetchBulkdata,
-  generateUID,
+  _fetchBulkdata,
+  _generateUID,
   mapPixelCoordToSlideCoord,
   mapSlideCoordToPixelCoord,
   areNumbersAlmostEqual,

@@ -33,9 +33,10 @@ import { getPointResolution } from 'ol/proj'
  * Generates a UUID-derived DICOM UID with root `2.25`.
  *
  * @returns {string} Unique identifier
+ *
  * @private
  */
-function generateUID () {
+function _generateUID () {
   /**
    * A UUID can be represented as a single integer value.
    * http://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_B.2.html
@@ -47,8 +48,8 @@ function generateUID () {
    * the least significant bit as the least significant bit (bit 0) of the last
    * of the sixteen octets (octet 0).
    */
-  // FIXME: This is not a valid UUID!
   let uid = '2.25.' + Math.floor(1 + Math.random() * 9)
+  // FIXME: This is not a valid UUID!
   while (uid.length &lt; 44) {
     uid += Math.floor(1 + Math.random() * 10)
   }
@@ -60,7 +61,10 @@ function generateUID () {
  *
  * @param {Object} options - Options
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
+ *
  * @returns {number[][]} 2x2 rotation matrix
+ *
+ * @memberof utils
  */
 function createRotationMatrix (options) {
   if (!('orientation' in options)) {
@@ -84,7 +88,10 @@ function createRotationMatrix (options) {
  * @param {number} maxInput - Upper bound of the full input value range
  * @param {number} minOutput - Lower bound of the full output value range
  * @param {number} maxOutput - Upper bound of the full output value range
+ *
  * @returns {number} Rescaled value
+ *
+ * @memberof utils
  */
 function rescale (
   value,
@@ -105,7 +112,10 @@ function rescale (
  *
  * @param {number} lowerBound - Lower bound of the window
  * @param {number} upperBound - Upper bound of the window
+ *
  * @returns {number[]} Window center and width
+ *
+ * @memberof utils
  */
 function createWindow (lowerBound, upperBound) {
   const windowCenter = (lowerBound + upperBound) / 2
@@ -119,7 +129,10 @@ function createWindow (lowerBound, upperBound) {
  * @param {Object} options - Options
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {boolean} options.inDegrees - Whether angle should be returned in degrees instead of radians
+ *
  * @returns {number} Angle
+ *
+ * @memberof utils
  */
 function computeRotation (options) {
   const rot = createRotationMatrix({ orientation: options.orientation })
@@ -143,7 +156,10 @@ function computeRotation (options) {
  * @param {number[]} options.offset - X and Y offset of the image in the slide coordinate system
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixel rows and columns of the Total Pixel Matrix
+ *
  * @returns {number[][]} 3x3 affine transformation matrix
+ *
+ * @memberof utils
  */
 function buildTransform ({ offset, orientation, spacing }) {
   // X and Y Offset in Slide Coordinate System
@@ -199,7 +215,10 @@ function buildTransform ({ offset, orientation, spacing }) {
  * @param {Object} options - Options
  * @params {number[]} options.coordinate - (column, row) image coordinate
  * @params {number[][]} options.affine - 3x3 affine transformation matrix
+ *
  * @returns {number[]} (x, y) reference coordinate
+ *
+ * @memberof utils
  */
 function applyTransform ({ coordinate, affine }) {
   if (coordinate == null) {
@@ -244,7 +263,10 @@ function applyTransform ({ coordinate, affine }) {
  * @param {number[]} options.offset - X and Y offset of the image in the slide coordinate system
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixel rows and columns of the Total Pixel Matrix
+ *
  * @returns {number[][]} 3x3 affine transformation matrix
+ *
+ * @memberof utils
  */
 function buildInverseTransform ({ offset, orientation, spacing }) {
   // X and Y Offset in Slide Coordinate System
@@ -300,7 +322,10 @@ function buildInverseTransform ({ offset, orientation, spacing }) {
  * @param {Object} options - Options
  * @params {number[]} options.coordinate - (x, y) reference coordinate
  * @params {number[][]} options.affine - 3x3 affine transformation matrix
+ *
  * @returns {number[]} (column, row) image coordinate
+ *
+ * @memberof utils
  */
 function applyInverseTransform ({ coordinate, affine }) {
   if (coordinate == null) {
@@ -347,7 +372,9 @@ function applyInverseTransform ({ coordinate, affine }) {
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
  * @param {number[]} options.point - (colum, row) image coordinates
+ *
  * @returns {number[]} (x, y, z) slide coordinates
+ *
  * @memberof utils
  */
 function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing }) {
@@ -378,7 +405,9 @@ function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing }) {
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
  * @param {number[]} options.point - (x, y, z) slide coordinates
+ *
  * @returns {number[]} (row, column) image coordinates
+ *
  * @memberof utils
  */
 function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
@@ -406,7 +435,10 @@ function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
  * @param {number[]} array a
  * @param {number[]} array b
  * @param {number} eps
- * @returns {boolean} check
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 function are2DArraysAlmostEqual (a, b, eps = 1.e-6) {
   if (a === b) return true
@@ -430,7 +462,10 @@ function are2DArraysAlmostEqual (a, b, eps = 1.e-6) {
  * @param {number[]} array a
  * @param {number[]} array b
  * @param {number} eps
- * @returns {boolean} check
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 function are1DArraysAlmostEqual (a, b, eps = 1.e-6) {
   if (a == null || b == null) return false
@@ -450,7 +485,10 @@ function are1DArraysAlmostEqual (a, b, eps = 1.e-6) {
  * @param {number} a
  * @param {number} b
  * @param {number} eps
- * @returns {boolean} check
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 function areNumbersAlmostEqual (a, b, eps = 1.e-6) {
   return Math.abs(a - b) &lt; eps
@@ -460,9 +498,12 @@ function areNumbersAlmostEqual (a, b, eps = 1.e-6) {
  * Get view unit suffix.
  *
  * @param {object} view Map view
+ *
  * @returns {string} unit suffix
+ *
+ * @private
  */
-function getUnitSuffix (view) {
+function _getUnitSuffix (view) {
   const UnitsEnum = { METERS: 'm' }
   const DEFAULT_DPI = 25.4 / 0.28
 
@@ -505,16 +546,23 @@ function getUnitSuffix (view) {
  * Get name coded concept from content item.
  *
  * @param {object} contentItem
+ *
  * @returns {object} The concept name coded concept
+ *
+ * @memberof utils
  */
 const getContentItemNameCodedConcept = (contentItem) =>
   contentItem.ConceptNameCodeSequence[0]
 
 /**
+ * Check whether coded concepts are equal.
  *
  * @param {object} codedConcept1
  * @param {object} codedConcept2
- * @returns {boolean} true if content items equal and false otherwise
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 const areCodedConceptsEqual = (codedConcept1, codedConcept2) => {
   if (
@@ -540,7 +588,10 @@ const areCodedConceptsEqual = (codedConcept1, codedConcept2) => {
  *
  * @param {object} contentItem1
  * @param {object} contentItem2
- * @returns {boolean} true if content items match and false otherwise
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @memberof utils
  */
 const doContentItemsMatch = (contentItem1, contentItem2) => {
   const contentItem1NameCodedConcept = getContentItemNameCodedConcept(
@@ -557,7 +608,19 @@ const doContentItemsMatch = (contentItem1, contentItem2) => {
     )
 }
 
-async function fetchBulkdata ({ client, reference }) {
+/**
+ * Fetch bulkdata.
+ *
+ * @param {object} options
+ * @param {object} options.client - DICOMweb client @param {object}
+ * options.reference - Data Element in DICOM JSON format containing "vr" and
+ * "BulkDataURI" fields
+ *
+ * @returns {Promise&lt;TypedArray>} bulkdata
+ *
+ * @private
+ */
+async function _fetchBulkdata ({ client, reference }) {
   const fixBulkDataURI = (uri) => {
     // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
     // set correctly by the archive:
@@ -616,14 +679,14 @@ async function fetchBulkdata ({ client, reference }) {
 }
 
 export {
-  getUnitSuffix,
+  _getUnitSuffix,
   applyInverseTransform,
   applyTransform,
   buildInverseTransform,
   buildTransform,
   computeRotation,
-  fetchBulkdata,
-  generateUID,
+  _fetchBulkdata,
+  _generateUID,
   mapPixelCoordToSlideCoord,
   mapSlideCoordToPixelCoord,
   areNumbersAlmostEqual,
@@ -645,13 +708,13 @@ export {
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="Transformation.html">Transformation</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul><h3>Global</h3><ul><li><a href="global.html#_applyStyle">_applyStyle</a></li><li><a href="global.html#_applyStyles">_applyStyles</a></li><li><a href="global.html#_computeImagePyramid">_computeImagePyramid</a></li><li><a href="global.html#_hasMarker">_hasMarker</a></li><li><a href="global.html#_hasMarkup">_hasMarkup</a></li><li><a href="global.html#_isMeasurement">_isMeasurement</a></li><li><a href="global.html#_onInteractionEventHandler">_onInteractionEventHandler</a></li><li><a href="global.html#_setFeatureStyle">_setFeatureStyle</a></li><li><a href="global.html#applyInverseTransform">applyInverseTransform</a></li><li><a href="global.html#applyTransform">applyTransform</a></li><li><a href="global.html#are1DArraysAlmostEqual">are1DArraysAlmostEqual</a></li><li><a href="global.html#are2DArraysAlmostEqual">are2DArraysAlmostEqual</a></li><li><a href="global.html#areCodedConceptsEqual">areCodedConceptsEqual</a></li><li><a href="global.html#areNumbersAlmostEqual">areNumbersAlmostEqual</a></li><li><a href="global.html#ArrowMarker">ArrowMarker</a></li><li><a href="global.html#buildInverseTransform">buildInverseTransform</a></li><li><a href="global.html#buildPaletteColorLookupTable">buildPaletteColorLookupTable</a></li><li><a href="global.html#buildTransform">buildTransform</a></li><li><a href="global.html#computeRotation">computeRotation</a></li><li><a href="global.html#createColormap">createColormap</a></li><li><a href="global.html#createRotationMatrix">createRotationMatrix</a></li><li><a href="global.html#createWindow">createWindow</a></li><li><a href="global.html#doContentItemsMatch">doContentItemsMatch</a></li><li><a href="global.html#format">format</a></li><li><a href="global.html#getContentItemNameCodedConcept">getContentItemNameCodedConcept</a></li><li><a href="global.html#getShortestLineBetweenOverlayAndFeature">getShortestLineBetweenOverlayAndFeature</a></li><li><a href="global.html#getUnitSuffix">getUnitSuffix</a></li><li><a href="global.html#MeasurementMarkup">MeasurementMarkup</a></li><li><a href="global.html#rescale">rescale</a></li><li><a href="global.html#TextEvaluationMarkup">TextEvaluationMarkup</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Mar 10 2022 12:00:32 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Fri Mar 11 2022 09:09:01 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>
