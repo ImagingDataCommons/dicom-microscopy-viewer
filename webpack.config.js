@@ -3,7 +3,7 @@ const path = require('path')
 const config = {
   entry: path.resolve(__dirname, 'src/dicom-microscopy-viewer.js'),
   output: {
-    path: path.resolve(__dirname, 'build'),
+    path: path.resolve(__dirname, 'dist'),
     filename: 'dicom-microscopy-viewer.js',
     library: {
       name: 'DICOMMicroscopyViewer',
@@ -17,6 +17,16 @@ const config = {
       {
         test: /\.css$/,
         use: 'css-loader'
+      },
+      {
+        test: /\.m?js$/,
+        exclude: /(node_modules)/,
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: ['@babel/preset-env']
+          }
+        }
       }
     ]
   },
