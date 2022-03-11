@@ -20,7 +20,7 @@ It leverages the [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)
 
 ## Documentation
 
-Documentation of the JavaScript Application Programming Interface (API) is available online at [mghcomputationalpathology.github.io/dicom-microscopy-viewer](https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/).
+Documentation of the JavaScript Application Programming Interface (API) is available online at [herrmannlab.github.io/dicom-microscopy-viewer](https://mghcomputationalpathology.github.io/dicom-microscopy-viewer/).
 
 ## Getting started
 
