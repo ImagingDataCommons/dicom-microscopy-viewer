@@ -24,6 +24,10 @@ Documentation of the JavaScript Application Programming Interface (API) is avail
 
 ## Getting started
 
+Note that the *dicom-microscopy-viewer* package is **not** a viewer application, it is a library to build viewer applications.
+Below is an example for the most basic usage: a web page that displays a collection of DICOM VL Whole Slide Microscopy Image instances of a digital slide.
+For more advanced usage, take a look at the [Slim](https://github.com/herrmannlab/slim) viewer.
+
 ### Basic usage
 
 ```html
@@ -75,6 +79,7 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
   viewer.render({container: 'viewport'});
 });
 ```
+
 
 ## Citation
 
