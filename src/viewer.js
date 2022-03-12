@@ -2830,7 +2830,7 @@ class VolumeImageViewer {
         const container = this[_map].getTargetElement()
         publish(container, EVENT.LOADING_ENDED)
       })
-      source.on('featureserror', (event) => {
+      source.on('featuresloaderror', (event) => {
         const container = this[_map].getTargetElement()
         publish(container, EVENT.LOADING_ENDED)
       })
