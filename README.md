@@ -25,57 +25,52 @@ Documentation of the JavaScript Application Programming Interface (API) is avail
 ## Getting started
 
 Note that the *dicom-microscopy-viewer* package is **not** a viewer application, it is a library to build viewer applications.
+
 Below is an example for the most basic usage: a web page that displays a collection of DICOM VL Whole Slide Microscopy Image instances of a digital slide.
 For more advanced usage, take a look at the [Slim](https://github.com/herrmannlab/slim) viewer.
 
 ### Basic usage
 
-```html
-<script type="text/javascript" src="https://unpkg.com/dicom-microscopy-viewer"></script>
-```
-
 The viewer can be embedded in any website, one only needs to
 
-* Create an instance of the `viewer.VolumeViewer`. The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image instance formatted according to the [
-DICOM JSON Model](http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_F.2.html).
+* Create an instance of `viewer.VolumeViewer`. The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image instance.
 
 * Call the `render()` method, passing it the HTML element (or the name of the element), which shall contain the viewport.
 
 ```js
-const url = 'http://localhost:8080/dicomweb';
-const client = new DICOMwebClient.api.DICOMwebClient({url});
-const studyInstanceUID = '1.2.3.4';
-const seriesInstanceUID = '1.2.3.5';
-const searchInstanceOptions = {
-  studyInstanceUID,
-  seriesInstanceUID
+import * as DICOMMicroscopyViewer from 'dicom-microscopy-viewer';
+import * as DICOMwebClient from 'dicomweb-client';
+
+// Construct client instance
+const client = new DICOMwebClient.api.DICOMwebClient({
+  url: 'http://localhost:8080/dicomweb'
+});
+
+// Retrieve metadata of a series of DICOM VL Whole Slide Microscopy Image instances
+const retrieveOptions = {
+  studyInstanceUID: '1.2.3.4',
+  seriesInstanceUID: '1.2.3.5'
 };
-client.searchForInstances(searchInstanceOptions).then((instances) => {
-  const promises = []
-  for (let i = 0; i < instances.length; i++) {
-    const sopInstanceUID = instances[i]["00080018"]["Value"][0];
-    const retrieveInstanceOptions = {
-      studyInstanceUID,
-      seriesInstanceUID,
-      sopInstanceUID,
-    };
-    const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-      const image = new DICOMMicroscopyViewer.metadata.VLWholeSlideMicroscopyViewer({
-          metadata
-      })
-      if (image.imageType[2] === "VOLUME") {
-        return(image);
-      }
-    });
-    promises.push(promise);
-  }
-  return(Promise.all(promises));
-}).then(metadata => {
-  metadata = metadata.filter(m => m);
+client.retrieveSeriesMetadata(retrieveOptions).then((metadata) => {
+  // Parse, format, and filter metadata
+  const volumeImages = []
+  metadata.forEach(m => {
+    const image = new DICOMMicroscopyViewer.metadata.VLWholeSlideMicroscopyImage({
+      metadata: m
+    })
+    const imageFlavor = image.ImageType[2]
+    if (imageFlavor === 'VOLUME' || imageFlavor === 'THUMBNAIL') {
+      volumeImages.push(image)
+    }
+  })
+
+  // Construct viewer instance
   const viewer = new DICOMMicroscopyViewer.viewer.VolumeViewer({
     client,
-    metadata
+    metadata: volumeImages
   });
+
+  // Render viewer instance in the "viewport" HTML element
   viewer.render({container: 'viewport'});
 });
 ```
