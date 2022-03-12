@@ -435,8 +435,8 @@ class SOPClass {
  */
 class VLWholeSlideMicroscopyImage extends SOPClass {
   /**
-   * @params {Object} options
-   * @params {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
+   * @param {Object} options
+   * @param {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
    */
   constructor ({ metadata }) {
     super({ metadata })
@@ -456,8 +456,8 @@ class VLWholeSlideMicroscopyImage extends SOPClass {
  */
 class Comprehensive3DSR extends SOPClass {
   /**
-   * @params {Object} options
-   * @params {Object} options.metadata - Metadata of DICOM Structured Report instance in DICOM JSON format
+   * @param {Object} options
+   * @param {Object} options.metadata - Metadata of DICOM Structured Report instance in DICOM JSON format
    */
   constructor ({ metadata }) {
     super({ metadata })
@@ -477,8 +477,8 @@ class Comprehensive3DSR extends SOPClass {
  */
 class MicroscopyBulkSimpleAnnotations extends SOPClass {
   /**
-   * @params {Object} options
-   * @params {Object} options.metadata - Metadata of a DICOM Microscopy Bulk Simple Annotations instance in DICOM JSON format
+   * @param {Object} options
+   * @param {Object} options.metadata - Metadata of a DICOM Microscopy Bulk Simple Annotations instance in DICOM JSON format
    */
   constructor ({ metadata }) {
     super({ metadata })
@@ -498,8 +498,8 @@ class MicroscopyBulkSimpleAnnotations extends SOPClass {
  */
 class ParametricMap extends SOPClass {
   /**
-   * @params {Object} options
-   * @params {Object} options.metadata - Metadata of a DICOM Parametric Map instance in DICOM JSON format
+   * @param {Object} options
+   * @param {Object} options.metadata - Metadata of a DICOM Parametric Map instance in DICOM JSON format
    */
   constructor ({ metadata }) {
     super({ metadata })
@@ -519,8 +519,8 @@ class ParametricMap extends SOPClass {
  */
 class Segmentation extends SOPClass {
   /**
-   * @params {Object} options
-   * @params {Object} options.metadata - Metadata of a DICOM Segmentation instance in DICOM JSON format
+   * @param {Object} options
+   * @param {Object} options.metadata - Metadata of a DICOM Segmentation instance in DICOM JSON format
    */
   constructor ({ metadata }) {
     super({ metadata })

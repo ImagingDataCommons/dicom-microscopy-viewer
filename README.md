@@ -33,7 +33,7 @@ For more advanced usage, take a look at the [Slim](https://github.com/herrmannla
 
 The viewer can be embedded in any website, one only needs to
 
-* Create an instance of `viewer.VolumeViewer`. The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image instance.
+* Create an instance of [VolumeImageViewer](https://herrmannlab.github.io/dicom-microscopy-viewer/viewer.VolumeImageViewer.html). The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image as an instance of [VLWholeSlideMicroscopyImage](https://herrmannlab.github.io/dicom-microscopy-viewer/metadata.VLWholeSlideMicroscopyImage.html).
 
 * Call the `render()` method, passing it the HTML element (or the name of the element), which shall contain the viewport.
 
@@ -71,7 +71,7 @@ client.retrieveSeriesMetadata(retrieveOptions).then((metadata) => {
   });
 
   // Render viewer instance in the "viewport" HTML element
-  viewer.render({container: 'viewport'});
+  viewer.render({ container: 'viewport' });
 });
 ```
 
@@ -106,24 +106,31 @@ Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-micros
 npm install dicom-microscopy-viewer
 ```
 
-## Building & Testing
+## Development & Testing
 
-We use [webpack](https://webpack.js.org/) for bundling and [Jest](https://github.com/facebook/jest) for testing.
+We use [Babel](https://babeljs.io/) to compile (transpile), [webpack](https://webpack.js.org/) to bundle, and [Jest](https://github.com/facebook/jest) to test JavaScript code.
 
-Build:
+Get the source code by cloning the git repository:
+
+```None
+git clone https://github.com/herrmannlab/dicom-microscopy-viewer
+cd dicom-microscopy-viewer
+```
+
+Install dependencies and build the package:
 
 ```None
 npm install
 npm run build
 ```
 
-Test:
+Run tests:
 
 ```None
 npm run test
 ```
 
-Build the documentation:
+Build the API documentation:
 
 ```None
 npm run generateDocs

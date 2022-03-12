@@ -94,7 +94,7 @@ class ROI {
 
   /** Adds a measurement.
    *
-   * @params {Object} item - NUM content item representing a measurement
+   * @param {Object} item - NUM content item representing a measurement
    */
   addMeasurement (item) {
     this[_properties][Enums.InternalProperties.Measurements].push(item)
@@ -102,7 +102,7 @@ class ROI {
 
   /** Adds a qualitative evaluation.
    *
-   * @params {Object} item - CODE content item representing a qualitative evaluation
+   * @param {Object} item - CODE content item representing a qualitative evaluation
    */
   addEvaluation (item) {
     this[_properties][Enums.InternalProperties.Evaluations].push(item)

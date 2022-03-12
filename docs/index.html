@@ -62,57 +62,53 @@ It leverages the <a href="https://github.com/dcmjs-org/dicomweb-client">dicomweb
 <h2>Documentation</h2>
 <p>Documentation of the JavaScript Application Programming Interface (API) is available online at <a href="https://herrmannlab.github.io/dicom-microscopy-viewer/">herrmannlab.github.io/dicom-microscopy-viewer</a>.</p>
 <h2>Getting started</h2>
-<p>Note that the <em>dicom-microscopy-viewer</em> package is <strong>not</strong> a viewer application, it is a library to build viewer applications.
-Below is an example for the most basic usage: a web page that displays a collection of DICOM VL Whole Slide Microscopy Image instances of a digital slide.
+<p>Note that the <em>dicom-microscopy-viewer</em> package is <strong>not</strong> a viewer application, it is a library to build viewer applications.</p>
+<p>Below is an example for the most basic usage: a web page that displays a collection of DICOM VL Whole Slide Microscopy Image instances of a digital slide.
 For more advanced usage, take a look at the <a href="https://github.com/herrmannlab/slim">Slim</a> viewer.</p>
 <h3>Basic usage</h3>
-<pre class="prettyprint source lang-html"><code>&lt;script type=&quot;text/javascript&quot; src=&quot;https://unpkg.com/dicom-microscopy-viewer&quot;>&lt;/script>
-</code></pre>
 <p>The viewer can be embedded in any website, one only needs to</p>
 <ul>
 <li>
-<p>Create an instance of the <code>viewer.VolumeViewer</code>. The constructor requires an instance of <code>DICOMwebClient</code> for retrieving frames from the archive as well as the metadata for each DICOM image instance formatted according to the <a href="http://dicom.nema.org/medical/dicom/current/output/chtml/part18/sect_F.2.html">
-DICOM JSON Model</a>.</p>
+<p>Create an instance of <a href="https://herrmannlab.github.io/dicom-microscopy-viewer/viewer.VolumeImageViewer.html">VolumeImageViewer</a>. The constructor requires an instance of <code>DICOMwebClient</code> for retrieving frames from the archive as well as the metadata for each DICOM image as an instance of <a href="https://herrmannlab.github.io/dicom-microscopy-viewer/metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a>.</p>
 </li>
 <li>
 <p>Call the <code>render()</code> method, passing it the HTML element (or the name of the element), which shall contain the viewport.</p>
 </li>
 </ul>
-<pre class="prettyprint source lang-js"><code>const url = 'http://localhost:8080/dicomweb';
-const client = new DICOMwebClient.api.DICOMwebClient({url});
-const studyInstanceUID = '1.2.3.4';
-const seriesInstanceUID = '1.2.3.5';
-const searchInstanceOptions = {
-  studyInstanceUID,
-  seriesInstanceUID
+<pre class="prettyprint source lang-js"><code>import * as DICOMMicroscopyViewer from 'dicom-microscopy-viewer';
+import * as DICOMwebClient from 'dicomweb-client';
+
+// Construct client instance
+const client = new DICOMwebClient.api.DICOMwebClient({
+  url: 'http://localhost:8080/dicomweb'
+});
+
+// Retrieve metadata of a series of DICOM VL Whole Slide Microscopy Image instances
+const retrieveOptions = {
+  studyInstanceUID: '1.2.3.4',
+  seriesInstanceUID: '1.2.3.5'
 };
-client.searchForInstances(searchInstanceOptions).then((instances) => {
-  const promises = []
-  for (let i = 0; i &lt; instances.length; i++) {
-    const sopInstanceUID = instances[i][&quot;00080018&quot;][&quot;Value&quot;][0];
-    const retrieveInstanceOptions = {
-      studyInstanceUID,
-      seriesInstanceUID,
-      sopInstanceUID,
-    };
-    const promise = client.retrieveInstanceMetadata(retrieveInstanceOptions).then(metadata => {
-      const image = new DICOMMicroscopyViewer.metadata.VLWholeSlideMicroscopyViewer({
-          metadata
-      })
-      if (image.imageType[2] === &quot;VOLUME&quot;) {
-        return(image);
-      }
-    });
-    promises.push(promise);
-  }
-  return(Promise.all(promises));
-}).then(metadata => {
-  metadata = metadata.filter(m => m);
+client.retrieveSeriesMetadata(retrieveOptions).then((metadata) => {
+  // Parse, format, and filter metadata
+  const volumeImages = []
+  metadata.forEach(m => {
+    const image = new DICOMMicroscopyViewer.metadata.VLWholeSlideMicroscopyImage({
+      metadata: m
+    })
+    const imageFlavor = image.ImageType[2]
+    if (imageFlavor === 'VOLUME' || imageFlavor === 'THUMBNAIL') {
+      volumeImages.push(image)
+    }
+  })
+
+  // Construct viewer instance
   const viewer = new DICOMMicroscopyViewer.viewer.VolumeViewer({
     client,
-    metadata
+    metadata: volumeImages
   });
-  viewer.render({container: 'viewport'});
+
+  // Render viewer instance in the &quot;viewport&quot; HTML element
+  viewer.render({ container: 'viewport' });
 });
 </code></pre>
 <h2>Citation</h2>
@@ -137,16 +133,20 @@ client.searchForInstances(searchInstanceOptions).then((instances) => {
 <p>Install the <a href="https://www.npmjs.com/package/dicom-microscopy-viewer">dicom-microscopy-viewer</a> package using the <code>npm</code> package manager:</p>
 <pre class="prettyprint source lang-None"><code>npm install dicom-microscopy-viewer
 </code></pre>
-<h2>Building &amp; Testing</h2>
-<p>We use <a href="https://webpack.js.org/">webpack</a> for bundling and <a href="https://github.com/facebook/jest">Jest</a> for testing.</p>
-<p>Build:</p>
+<h2>Development &amp; Testing</h2>
+<p>We use <a href="https://babeljs.io/">Babel</a> to compile (transpile), <a href="https://webpack.js.org/">webpack</a> to bundle, and <a href="https://github.com/facebook/jest">Jest</a> to test JavaScript code.</p>
+<p>Get the source code by cloning the git repository:</p>
+<pre class="prettyprint source lang-None"><code>git clone https://github.com/herrmannlab/dicom-microscopy-viewer
+cd dicom-microscopy-viewer
+</code></pre>
+<p>Install dependencies and build the package:</p>
 <pre class="prettyprint source lang-None"><code>npm install
 npm run build
 </code></pre>
-<p>Test:</p>
+<p>Run tests:</p>
 <pre class="prettyprint source lang-None"><code>npm run test
 </code></pre>
-<p>Build the documentation:</p>
+<p>Build the API documentation:</p>
 <pre class="prettyprint source lang-None"><code>npm run generateDocs
 </code></pre>
 <h2>Support</h2>
@@ -176,7 +176,7 @@ npm run build
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Fri Mar 11 2022 16:15:51 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sat Mar 12 2022 11:29:56 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

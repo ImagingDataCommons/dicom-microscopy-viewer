@@ -185,8 +185,8 @@ function buildTransform ({ offset, orientation, spacing }) {
  * matrix to map it into the slide coordinate system.
  *
  * @param {Object} options - Options
- * @params {number[]} options.coordinate - (column, row) image coordinate
- * @params {number[][]} options.affine - 3x3 affine transformation matrix
+ * @param {number[]} options.coordinate - (column, row) image coordinate
+ * @param {number[][]} options.affine - 3x3 affine transformation matrix
  *
  * @returns {number[]} (x, y) reference coordinate
  *
@@ -292,8 +292,8 @@ function buildInverseTransform ({ offset, orientation, spacing }) {
  * coordinate system to map it into the total pixel matrix.
  *
  * @param {Object} options - Options
- * @params {number[]} options.coordinate - (x, y) reference coordinate
- * @params {number[][]} options.affine - 3x3 affine transformation matrix
+ * @param {number[]} options.coordinate - (x, y) reference coordinate
+ * @param {number[][]} options.affine - 3x3 affine transformation matrix
  *
  * @returns {number[]} (column, row) image coordinate
  *
