@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Class: OverviewImageViewer</title>
+    <title>JSDoc: Class: Scoord3D</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Class: OverviewImageViewer</h1>
+    <h1 class="page-title">Class: Scoord3D</h1>
 
     
 
@@ -28,11 +28,10 @@
 
 <header>
     
-        <h2><span class="attribs"><span class="type-signature"></span></span>
-            <span class="ancestors"><a href="viewer.html">viewer</a>.</span>OverviewImageViewer<span class="signature">(options)</span><span class="type-signature"></span></h2>
+        <h2><span class="attribs"><span class="type-signature">(abstract) </span></span>
+            <span class="ancestors"><a href="scoord3d.html">scoord3d</a>.</span>Scoord3D<span class="signature">(options)</span><span class="type-signature"></span></h2>
         
-            <div class="class-description">Static viewer for DICOM VL Whole Slide Microscopy Image instances
-with Image Type OVERVIEW.</div>
+            <div class="class-description">3D spatial coordinates.</div>
         
     
 </header>
@@ -47,7 +46,7 @@ with Image Type OVERVIEW.</div>
     
 
     
-    <h4 class="name" id="OverviewImageViewer"><span class="type-signature"></span>new OverviewImageViewer<span class="signature">(options)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="Scoord3D"><span class="type-signature">(abstract) </span>new Scoord3D<span class="signature">(options)</span><span class="type-signature"></span></h4>
     
 
     
@@ -103,7 +102,7 @@ with Image Type OVERVIEW.</div>
 
             
 
-            <td class="description last">
+            <td class="description last">Options
                 <h6>Properties</h6>
                 
 
@@ -117,11 +116,7 @@ with Image Type OVERVIEW.</div>
         <th>Type</th>
 
         
-        <th>Attributes</th>
-        
 
-        
-        <th>Default</th>
         
 
         <th class="last">Description</th>
@@ -133,78 +128,7 @@ with Image Type OVERVIEW.</div>
 
         <tr>
             
-                <td class="name"><code>client</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Object</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last">A DICOMwebClient instance for interacting
-with an origin server over HTTP.</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>metadata</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Array.&lt;<a href="metadata.VLWholeSlideMicroscopyImage.html">metadata.VLWholeSlideMicroscopyImage</a>></span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last">Metadata of DICOM VL Whole Slide Microscopy Image instances</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>orientation</code></td>
+                <td class="name"><code>frameOfReferenceUID</code></td>
             
 
             <td class="type">
@@ -217,107 +141,57 @@ with an origin server over HTTP.</td>
             </td>
 
             
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
 
             
-                <td class="default">
-                
-                    'horizontal'
-                
-                </td>
-            
 
-            <td class="description last">Orientation of the
-slide (vertical: label on top, or horizontal: label on right side).</td>
+            <td class="description last">Frame of Reference UID</td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>resizeFactor</code></td>
+                <td class="name"><code>coordinates</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">number</span>
+<span class="param-type">Array.&lt;Array.&lt;number>></span>
 
 
             
             </td>
 
             
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
 
             
-                <td class="default">
-                
-                    1
-                
-                </td>
-            
 
-            <td class="description last">To which extent image should be
-reduced in size (fraction).</td>
+            <td class="description last">(x, y, z) coordinates for
+each point</td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>includeIccProfile</code></td>
+                <td class="name"><code>fiducialUID</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">boolean</span>
+<span class="param-type">string</span>
 
 
             
             </td>
 
             
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
 
             
-                <td class="default">
-                
-                    false
-                
-                </td>
-            
 
-            <td class="description last">Whether ICC Profile
-should be included for correction of image colors.</td>
+            <td class="description last">Fiducial UID</td>
         </tr>
 
     
@@ -365,7 +239,7 @@ should be included for correction of image colors.</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4212">line 4212</a>
+        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line14">line 14</a>
     </li></ul></dd>
     
 
@@ -410,6 +284,298 @@ should be included for correction of image colors.</td>
 
     
 
+    
+        <h3 class="subsection-title">Members</h3>
+
+        
+            
+<h4 class="name" id="fiducialUID"><span class="type-signature"></span>fiducialUID<span class="type-signature"> :string</span></h4>
+
+
+
+
+<div class="description">
+    Fiducial UID
+</div>
+
+
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">string</span>
+
+
+        </li>
+    </ul>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line74">line 74</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="frameOfReferenceUID"><span class="type-signature"></span>frameOfReferenceUID<span class="type-signature"> :string</span></h4>
+
+
+
+
+<div class="description">
+    Frame of Reference UID
+</div>
+
+
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">string</span>
+
+
+        </li>
+    </ul>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line65">line 65</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="graphicData"><span class="type-signature"></span>graphicData<span class="type-signature"> :Array.&lt;Array.&lt;number>></span></h4>
+
+
+
+
+<div class="description">
+    Graphic Data
+</div>
+
+
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">Array.&lt;Array.&lt;number>></span>
+
+
+        </li>
+    </ul>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line47">line 47</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="graphicType"><span class="type-signature"></span>graphicType<span class="type-signature"> :string</span></h4>
+
+
+
+
+<div class="description">
+    Graphic Type
+</div>
+
+
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">string</span>
+
+
+        </li>
+    </ul>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="scoord3d.js.html">scoord3d.js</a>, <a href="scoord3d.js.html#line56">line 56</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
     
 
     

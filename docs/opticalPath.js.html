@@ -59,14 +59,13 @@
  * @memberof opticalPath
  */
 class OpticalPath {
-  /* Create a new OpticalPath object.
-   *
+  /**
    * @param {Object} options - Options
    * @param {string} options.identifier - Optical Path Identifier
    * @param {string} options.description - Optical Path Description
-   * @param {object} options.illuminationType - Illumination Type Code
+   * @param {Object} options.illuminationType - Illumination Type Code
    * @param {boolean} options.isMonochromatic - Whether optical path is monochromatic
-   * @param {object|undefined} options.illuminationColor - Illumination Color Code
+   * @param {Object|undefined} options.illuminationColor - Illumination Color Code
    * @param {string|undefined} options.illuminationWaveLength - Illumination Wave Length
    * @param {string} options.studyInstanceUID - Study Instance UID of VL Whole Slide Microscopy Image instances
    * @param {string} options.seriesInstanceUID - Series Instance UID of VL Whole Slide Microscopy Image instances
@@ -129,7 +128,7 @@ class OpticalPath {
   /**
    * Optical Path Identifier
    *
-   * @returns {string} Optical Path Identifier
+   * @type string
    */
   get identifier () {
     return this[_attrs].identifier
@@ -138,7 +137,7 @@ class OpticalPath {
   /**
    * Optical Path Description
    *
-   * @returns {string} Optical Path Description
+   * @type string
    */
   get description () {
     return this[_attrs].description
@@ -147,7 +146,7 @@ class OpticalPath {
   /**
    * Illumination Type Code
    *
-   * @returns {object} Illumination Type Code
+   * @type object
    */
   get illuminationType () {
     return this[_attrs].illuminationType
@@ -156,7 +155,7 @@ class OpticalPath {
   /**
    * Illumination Color
    *
-   * @returns {object} Illumination Color Code
+   * @type object
    */
   get illuminationColor () {
     return this[_attrs].illuminationColor
@@ -165,7 +164,7 @@ class OpticalPath {
   /**
    * Illumination Wave Length
    *
-   * @returns {string | undefined} Illumination Wave Length
+   * @type string | undefined
    */
   get illuminationWaveLength () {
     return this[_attrs].illuminationWaveLength
@@ -174,7 +173,7 @@ class OpticalPath {
   /**
    * Study Instance UID of images
    *
-   * @returns {string} Study Instance UID
+   * @type string
    */
   get studyInstanceUID () {
     return this[_attrs].studyInstanceUID
@@ -183,7 +182,7 @@ class OpticalPath {
   /**
    * Series Instance UID of images
    *
-   * @returns {string} Series Instance UID
+   * @type string
    */
   get seriesInstanceUID () {
     return this[_attrs].seriesInstanceUID
@@ -192,7 +191,7 @@ class OpticalPath {
   /**
    * SOP Instance UIDs of images
    *
-   * @returns {string[]} SOP Instance UIDs
+   * @type string[]
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
@@ -201,7 +200,7 @@ class OpticalPath {
   /**
    * Palette Color Lookup Table UID
    *
-   * @returns {string} Palette Color Lookup Table UID
+   * @type string
    */
   get paletteColorLookupTableUID () {
     return this[_attrs].paletteColorLookupTableUID
@@ -210,7 +209,7 @@ class OpticalPath {
   /**
    * Whether optical path is monochromatic
    *
-   * @returns {boolean} yes/no
+   * @type boolean
    */
   get isMonochromatic () {
     return this[_attrs].isMonochromatic
@@ -219,7 +218,7 @@ class OpticalPath {
   /**
    * Whether images of optical path are colorable
    *
-   * @returns {boolean} yes/no
+   * @type boolean
    */
   get isColorable () {
     return this[_attrs].paletteColorLookupTableUID == null
@@ -237,13 +236,13 @@ export { OpticalPath }
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.SOPClass.html">SOPClass</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="scoord3d.Scoord3D.html">Scoord3D</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sat Mar 12 2022 11:29:56 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sat Mar 12 2022 12:50:08 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

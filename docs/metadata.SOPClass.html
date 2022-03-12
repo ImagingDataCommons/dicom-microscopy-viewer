@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Class: OverviewImageViewer</title>
+    <title>JSDoc: Class: SOPClass</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Class: OverviewImageViewer</h1>
+    <h1 class="page-title">Class: SOPClass</h1>
 
     
 
@@ -28,11 +28,10 @@
 
 <header>
     
-        <h2><span class="attribs"><span class="type-signature"></span></span>
-            <span class="ancestors"><a href="viewer.html">viewer</a>.</span>OverviewImageViewer<span class="signature">(options)</span><span class="type-signature"></span></h2>
+        <h2><span class="attribs"><span class="type-signature">(abstract) </span></span>
+            <span class="ancestors"><a href="metadata.html">metadata</a>.</span>SOPClass<span class="signature">(options)</span><span class="type-signature"></span></h2>
         
-            <div class="class-description">Static viewer for DICOM VL Whole Slide Microscopy Image instances
-with Image Type OVERVIEW.</div>
+            <div class="class-description">DICOM Service Object Pair (SOP) Class.</div>
         
     
 </header>
@@ -47,7 +46,7 @@ with Image Type OVERVIEW.</div>
     
 
     
-    <h4 class="name" id="OverviewImageViewer"><span class="type-signature"></span>new OverviewImageViewer<span class="signature">(options)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="SOPClass"><span class="type-signature">(abstract) </span>new SOPClass<span class="signature">(options)</span><span class="type-signature"></span></h4>
     
 
     
@@ -117,11 +116,7 @@ with Image Type OVERVIEW.</div>
         <th>Type</th>
 
         
-        <th>Attributes</th>
-        
 
-        
-        <th>Default</th>
         
 
         <th class="last">Description</th>
@@ -133,7 +128,7 @@ with Image Type OVERVIEW.</div>
 
         <tr>
             
-                <td class="name"><code>client</code></td>
+                <td class="name"><code>metadata</code></td>
             
 
             <td class="type">
@@ -146,178 +141,10 @@ with Image Type OVERVIEW.</div>
             </td>
 
             
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
 
             
-                <td class="default">
-                
-                </td>
-            
 
-            <td class="description last">A DICOMwebClient instance for interacting
-with an origin server over HTTP.</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>metadata</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Array.&lt;<a href="metadata.VLWholeSlideMicroscopyImage.html">metadata.VLWholeSlideMicroscopyImage</a>></span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last">Metadata of DICOM VL Whole Slide Microscopy Image instances</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>orientation</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">string</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    'horizontal'
-                
-                </td>
-            
-
-            <td class="description last">Orientation of the
-slide (vertical: label on top, or horizontal: label on right side).</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>resizeFactor</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">number</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    1
-                
-                </td>
-            
-
-            <td class="description last">To which extent image should be
-reduced in size (fraction).</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>includeIccProfile</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">boolean</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    false
-                
-                </td>
-            
-
-            <td class="description last">Whether ICC Profile
-should be included for correction of image colors.</td>
+            <td class="description last">Metadata of a DICOM SOP instance in DICOM JSON format</td>
         </tr>
 
     
@@ -365,7 +192,7 @@ should be included for correction of image colors.</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4212">line 4212</a>
+        <a href="metadata.js.html">metadata.js</a>, <a href="metadata.js.html#line416">line 416</a>
     </li></ul></dd>
     
 
@@ -410,6 +237,136 @@ should be included for correction of image colors.</td>
 
     
 
+    
+        <h3 class="subsection-title">Members</h3>
+
+        
+            
+<h4 class="name" id="bulkdataReferences"><span class="type-signature"></span>bulkdataReferences<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    Get references to bulkdata of instance in DICOM JSON format.
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="metadata.js.html">metadata.js</a>, <a href="metadata.js.html#line450">line 450</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="json"><span class="type-signature"></span>json<span class="type-signature"></span></h4>
+
+
+
+
+<div class="description">
+    Get metadata of instance in DICOM JSON format.
+
+The metadata may include bulkdata references via "BulkDataURI".
+</div>
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="metadata.js.html">metadata.js</a>, <a href="metadata.js.html#line441">line 441</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
     
 
     

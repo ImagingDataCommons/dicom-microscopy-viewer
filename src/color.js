@@ -24,7 +24,7 @@ Object.freeze(ColormapNames)
 /**
  * Create a color map.
  *
- * @param {object} options
+ * @param {Object} options
  * @param {string} options.name - Name of the color map
  * @param {string} options.bins - Number of color bins
  *
@@ -64,11 +64,11 @@ function createColormap ({ name, bins }) {
 /**
  * Build a palette color lookup table object from a colormap.
  *
- * @param {object} options
+ * @param {Object} options
  * @param {number[][]} options.data - Array of RGB triplets for each color
  * @param {number} options.firstValueMapped - First value that should be mapped
  *
- * @returns {PaletteColorLookupTable} Mapping of grayscale pixel values to RGB color triplets
+ * @returns {color.PaletteColorLookupTable} Mapping of grayscale pixel values to RGB color triplets
  *
  * @memberof color
  */
@@ -118,9 +118,7 @@ function buildPaletteColorLookupTable ({ data, firstValueMapped }) {
  */
 class PaletteColorLookupTable {
   /**
-   * Create a new PaletteColorLookupTable object.
-   *
-   * @param {object} options
+   * @param {Object} options
    * @param {string} options.uid - UID
    * @param {number[]} options.redDescriptor - Red LUT descriptor
    * @param {number[]} options.greenDescriptor - Green LUT descriptor
@@ -314,18 +312,20 @@ class PaletteColorLookupTable {
   }
 
   /**
-   * Get Palette Color Lookup Table UID
+   * Palette Color Lookup Table UID
    *
-   * @returns {string} Palette Color Lookup Table UID
+   * @type string
    */
   get uid () {
     return this[_attrs].uid
   }
 
   /**
-   * Get Palette Color Lookup Table Data
+   * Palette Color Lookup Table Data.
    *
-   * @returns {number[][]} Palette Color Lookup Table Data
+   * RGB color triplet for each value mapped.
+   *
+   * @type number[][]
    */
   get data () {
     if (this[_attrs].data == null) {
@@ -400,9 +400,9 @@ class PaletteColorLookupTable {
   }
 
   /**
-   * Get first value mapped
+   * First value mapped
    *
-   * @returns {number} first value mapped
+   * @type number
    */
   get firstValueMapped () {
     return this[_attrs].firstValueMapped

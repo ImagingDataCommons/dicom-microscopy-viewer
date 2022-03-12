@@ -5,23 +5,25 @@ import {
 
 const _attrs = Symbol('attrs')
 
-/** An annotation group.
+/**
+ * Annotation Group.
+ *
+ * Describes an item of the Annotation Group Sequence of a DICOM Microscopy Bulk
+ * Simple Annotations instance.
  *
  * @class
  * @memberof annotation
  */
 class AnnotationGroup {
   /**
-   * Create a new Annotation Group object.
-   *
-   * @param {Object} options - Options for construction of Annotation Group
-   * @param {string} options.uid - Unique tracking identifier
+   * @param {Object} options - Options
+   * @param {string} options.uid - Annotation Group UID
    * @param {number} options.number - Annotation Group Number (one-based index value)
    * @param {string} options.label - Annotation Group Label
    * @param {string} options.algorithmName - Annotation Group Algorithm Name
-   * @param {object} options.algorithmType - Annotation Group Algorithm Type
-   * @param {object} options.propertyCategory - Annotation Property Category Code
-   * @param {object} options.propertyType - Annotation Property Type Code
+   * @param {Object} options.algorithmType - Annotation Group Algorithm Type
+   * @param {Object} options.propertyCategory - Annotation Property Category Code
+   * @param {Object} options.propertyType - Annotation Property Type Code
    * @param {string} options.studyInstanceUID - Study Instance UID of Annotation instances
    * @param {string} options.seriesInstanceUID - Series Instance UID of Annotation instances
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Annotation instances
@@ -89,83 +91,94 @@ class AnnotationGroup {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+    Object.freeze(this)
   }
 
-  /** Get Annotation Group UID
+  /**
+   * Annotation Group UID
    *
-   * @returns {string} Annotation Group UID
+   * @type string
    */
   get uid () {
     return this[_attrs].uid
   }
 
-  /** Get Annotation Group Number.
+  /**
+   * Annotation Group Number.
    *
-   * @returns {number} Annotation Group Number
+   * @type number
    */
   get number () {
     return this[_attrs].number
   }
 
-  /** Get Annotation Group Label
+  /**
+   * Annotation Group Label
    *
-   * @returns {string} Annotation Group Label
+   * @type string
    */
   get label () {
     return this[_attrs].label
   }
 
-  /** Get Segment Algorithm Name
+  /**
+   * Annotation Group Algorithm Identification
    *
-   * @returns {string} Segment Algorithm Name
+   * @type string
    */
   get algorithmName () {
     return this[_attrs].algorithmName
   }
 
-  /** Get Annotation Group Generation Type
+  /**
+   * Annotation Group Generation Type
    *
-   * @returns {object} Annotation Group Generation Type
+   * @type Object
    */
   get algorithmType () {
     return this[_attrs].algorithmType
   }
 
-  /** Get Annotation Property Category
+  /**
+   * Annotation Property Category
    *
-   * @returns {object} Annotation Property Category
+   * @type Object
    */
   get propertyCategory () {
     return this[_attrs].propertyCategory
   }
 
-  /** Get Annotation Property Type
+  /**
+   * Annotation Property Type
    *
-   * @returns {object} Annotation Property Type
+   * @type Object
    */
   get propertyType () {
     return this[_attrs].propertyType
   }
 
-  /** Get Study Instance UID of Microscopy Bulk Simple Annotations objects.
+  /**
+   * Study Instance UID of DICOM Microscopy Bulk Simple Annotations objects.
    *
-   * @returns {string} Study Instance UID
+   * @type string
    */
   get studyInstanceUID () {
     return this[_attrs].studyInstanceUID
   }
 
-  /** Get Series Instance UID of Microscopy Bulk Simple Annotations objects.
+  /**
+   * Series Instance UID of DICOM Microscopy Bulk Simple Annotations objects.
    *
-   * @returns {string} Series Instance UID
+   * @type string
    */
   get seriesInstanceUID () {
     return this[_attrs].seriesInstanceUID
   }
 
-  /** Get SOP Instance UIDs of Microscopy Bulk Simple Annotations objects.
+  /**
+   * SOP Instance UIDs of DICOM Microscopy Bulk Simple Annotations objects.
    *
-   * @returns {string[]} SOP Instance UIDs
+   * @type string[]
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
@@ -175,10 +188,10 @@ class AnnotationGroup {
 /**
  * Fetch graphic data (point coordinates) of an annotation group.
  *
- * @param {object} options
- * @param {object} options.metadataItem - Metadata of Annotation Group Sequence item
- * @param {object} options.bulkdataItem - Bulkdata of Annotation Group Sequence item
- * @param {object} options.client - DICOMweb client
+ * @param {Object} options
+ * @param {Object} options.metadataItem - Metadata of Annotation Group Sequence item
+ * @param {Object} options.bulkdataItem - Bulkdata of Annotation Group Sequence item
+ * @param {Object} options.client - DICOMweb client
  *
  * @returns {Promise<TypedArray>} Graphic data
  *

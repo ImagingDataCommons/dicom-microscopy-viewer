@@ -3,25 +3,29 @@ const _attrs = Symbol('attrs')
 /**
  * A segment.
  *
+ * Describes an item of the Segment Sequence of a DICOM Segmentation instance.
+ *
  * @class
  * @memberof segment
  */
 class Segment {
   /**
-   * Create a new Segment object.
-   *
    * @param {Object} options - Options for construction of Segment
    * @param {string} options.uid - Unique tracking identifier
    * @param {number} options.number - Segment Number (one-based index value)
    * @param {string} options.label - Segment Label
    * @param {string} options.algorithmName - Segment Algorithm Name
-   * @param {object} options.algorithmType - Segment Algorithm Type
-   * @param {object} options.propertyCategory - Segmented Property Category Code
-   * @param {object} options.propertyType - Segmented Property Type Code
-   * @param {string} options.studyInstanceUID - Study Instance UID of Segmentation images
-   * @param {string} options.seriesInstanceUID - Series Instance UID of Segmentation images
-   * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Segmentation images
-   * @param {string|undefined} options.paletteColorLookupTableUID - Palette Color Lookup Table UID
+   * @param {Object} options.algorithmType - Segment Algorithm Type
+   * @param {Object} options.propertyCategory - Segmented Property Category Code
+   * @param {Object} options.propertyType - Segmented Property Type Code
+   * @param {string} options.studyInstanceUID - Study Instance UID of DICOM
+   * Segmentation instances
+   * @param {string} options.seriesInstanceUID - Series Instance UID of DICOM
+   * Segmentation instances
+   * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of DICOM
+   * Segmentation instances
+   * @param {string|undefined} options.paletteColorLookupTableUID - Palette
+   * Color Lookup Table UID
    */
   constructor ({
     uid,
@@ -94,99 +98,99 @@ class Segment {
   }
 
   /**
-   * Get Unique Tracking Identifier
+   * Unique Tracking Identifier
    *
-   * @returns {string} Unique Tracking Identifier
+   * @type string
    */
   get uid () {
     return this[_attrs].uid
   }
 
   /**
-   * Get Segment Number.
+   * Segment Number.
    *
-   * @returns {number} Segment Number
+   * @type number
    */
   get number () {
     return this[_attrs].number
   }
 
   /**
-   * Get Segment Label
+   * Segment Label
    *
-   * @returns {string} Segment Label
+   * @type string
    */
   get label () {
     return this[_attrs].label
   }
 
   /**
-   * Get Segment Algorithm Name
+   * Segment Algorithm Name
    *
-   * @returns {string} Segment Algorithm Name
+   * @type string
    */
   get algorithmName () {
     return this[_attrs].algorithmName
   }
 
   /**
-   * Get Segment Algorithm Type
+   * Segment Algorithm Type
    *
-   * @returns {object} Segment Algorithm Type
+   * @type object
    */
   get algorithmType () {
     return this[_attrs].algorithmType
   }
 
   /**
-   * Get Segmented Property Category Code
+   * Segmented Property Category Code
    *
-   * @returns {object} Segmented Property Category Code
+   * @type object
    */
   get propertyCategory () {
     return this[_attrs].propertyCategory
   }
 
   /**
-   * Get Segmented Property Type Code
+   * Segmented Property Type Code
    *
-   * @returns {object} Segmented Property Type Code
+   * @type object
    */
   get propertyType () {
     return this[_attrs].propertyType
   }
 
   /**
-   * Get Study Instance UID of Segmentation images.
+   * Study Instance UID of DICOM Segmentation instances.
    *
-   * @returns {string} Study Instance UID
+   * @type string
    */
   get studyInstanceUID () {
     return this[_attrs].studyInstanceUID
   }
 
   /**
-   * Get Series Instance UID of Segmentation images.
+   * Series Instance UID of DICOM Segmentation instances.
    *
-   * @returns {string} Series Instance UID
+   * @type string
    */
   get seriesInstanceUID () {
     return this[_attrs].seriesInstanceUID
   }
 
   /**
-   * Get SOP Instance UIDs of Segmentation images.
+   * SOP Instance UIDs of DICOM Segmentation instances.
    *
-   * @returns {string[]} SOP Instance UIDs
+   * @type string[]
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
   }
 
   /**
-   * Get Palette Color Lookup Table UID.
+   * Palette Color Lookup Table UID.
    *
-   * @returns {string} Palette Color Lookup Table UID
+   * @type string
    */
   get paletteColorLookupTableUID () {
     return this[_attrs].paletteColorLookupTableUID

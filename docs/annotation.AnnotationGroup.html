@@ -31,7 +31,10 @@
         <h2><span class="attribs"><span class="type-signature"></span></span>
             <span class="ancestors"><a href="annotation.html">annotation</a>.</span>AnnotationGroup<span class="signature">(options)</span><span class="type-signature"></span></h2>
         
-            <div class="class-description">An annotation group.</div>
+            <div class="class-description">Annotation Group.
+
+Describes an item of the Annotation Group Sequence of a DICOM Microscopy Bulk
+Simple Annotations instance.</div>
         
     
 </header>
@@ -52,10 +55,6 @@
     
 
 
-
-<div class="description">
-    Create a new Annotation Group object.
-</div>
 
 
 
@@ -106,7 +105,7 @@
 
             
 
-            <td class="description last">Options for construction of Annotation Group
+            <td class="description last">Options
                 <h6>Properties</h6>
                 
 
@@ -148,7 +147,7 @@
 
             
 
-            <td class="description last">Unique tracking identifier</td>
+            <td class="description last">Annotation Group UID</td>
         </tr>
 
     
@@ -230,7 +229,7 @@
             <td class="type">
             
                 
-<span class="param-type">object</span>
+<span class="param-type">Object</span>
 
 
             
@@ -253,7 +252,7 @@
             <td class="type">
             
                 
-<span class="param-type">object</span>
+<span class="param-type">Object</span>
 
 
             
@@ -276,7 +275,7 @@
             <td class="type">
             
                 
-<span class="param-type">object</span>
+<span class="param-type">Object</span>
 
 
             
@@ -403,7 +402,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line13">line 13</a>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line17">line 17</a>
     </li></ul></dd>
     
 
@@ -453,16 +452,26 @@
 
         
             
-<h4 class="name" id="algorithmName"><span class="type-signature"></span>algorithmName<span class="type-signature"></span></h4>
+<h4 class="name" id="algorithmName"><span class="type-signature"></span>algorithmName<span class="type-signature"> :string</span></h4>
 
 
 
 
 <div class="description">
-    Get Segment Algorithm Name
+    Annotation Group Algorithm Identification
 </div>
 
 
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">string</span>
+
+
+        </li>
+    </ul>
 
 
 
@@ -497,7 +506,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line122">line 122</a>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line129">line 129</a>
     </li></ul></dd>
     
 
@@ -515,202 +524,26 @@
 
         
             
-<h4 class="name" id="algorithmType"><span class="type-signature"></span>algorithmType<span class="type-signature"></span></h4>
+<h4 class="name" id="algorithmType"><span class="type-signature"></span>algorithmType<span class="type-signature"> :Object</span></h4>
 
 
 
 
 <div class="description">
-    Get Annotation Group Generation Type
+    Annotation Group Generation Type
 </div>
 
 
 
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line130">line 130</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-        
+    <h5>Type:</h5>
+    <ul>
+        <li>
             
-<h4 class="name" id="label"><span class="type-signature"></span>label<span class="type-signature"></span></h4>
+<span class="param-type">Object</span>
 
 
-
-
-<div class="description">
-    Get Annotation Group Label
-</div>
-
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line114">line 114</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-        
-            
-<h4 class="name" id="number"><span class="type-signature"></span>number<span class="type-signature"></span></h4>
-
-
-
-
-<div class="description">
-    Get Annotation Group Number.
-</div>
-
-
-
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line106">line 106</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-        
-            
-<h4 class="name" id="propertyCategory"><span class="type-signature"></span>propertyCategory<span class="type-signature"></span></h4>
-
-
-
-
-<div class="description">
-    Get Annotation Property Category
-</div>
-
-
+        </li>
+    </ul>
 
 
 
@@ -763,16 +596,26 @@
 
         
             
-<h4 class="name" id="propertyType"><span class="type-signature"></span>propertyType<span class="type-signature"></span></h4>
+<h4 class="name" id="label"><span class="type-signature"></span>label<span class="type-signature"> :string</span></h4>
 
 
 
 
 <div class="description">
-    Get Annotation Property Type
+    Annotation Group Label
 </div>
 
 
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">string</span>
+
+
+        </li>
+    </ul>
 
 
 
@@ -807,7 +650,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line146">line 146</a>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line120">line 120</a>
     </li></ul></dd>
     
 
@@ -825,16 +668,26 @@
 
         
             
-<h4 class="name" id="seriesInstanceUID"><span class="type-signature"></span>seriesInstanceUID<span class="type-signature"></span></h4>
+<h4 class="name" id="number"><span class="type-signature"></span>number<span class="type-signature"> :number</span></h4>
 
 
 
 
 <div class="description">
-    Get Series Instance UID of Microscopy Bulk Simple Annotations objects.
+    Annotation Group Number.
 </div>
 
 
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">number</span>
+
+
+        </li>
+    </ul>
 
 
 
@@ -869,7 +722,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line162">line 162</a>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line111">line 111</a>
     </li></ul></dd>
     
 
@@ -887,16 +740,26 @@
 
         
             
-<h4 class="name" id="sopInstanceUIDs"><span class="type-signature"></span>sopInstanceUIDs<span class="type-signature"></span></h4>
+<h4 class="name" id="propertyCategory"><span class="type-signature"></span>propertyCategory<span class="type-signature"> :Object</span></h4>
 
 
 
 
 <div class="description">
-    Get SOP Instance UIDs of Microscopy Bulk Simple Annotations objects.
+    Annotation Property Category
 </div>
 
 
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">Object</span>
+
+
+        </li>
+    </ul>
 
 
 
@@ -931,7 +794,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line170">line 170</a>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line147">line 147</a>
     </li></ul></dd>
     
 
@@ -949,16 +812,26 @@
 
         
             
-<h4 class="name" id="studyInstanceUID"><span class="type-signature"></span>studyInstanceUID<span class="type-signature"></span></h4>
+<h4 class="name" id="propertyType"><span class="type-signature"></span>propertyType<span class="type-signature"> :Object</span></h4>
 
 
 
 
 <div class="description">
-    Get Study Instance UID of Microscopy Bulk Simple Annotations objects.
+    Annotation Property Type
 </div>
 
 
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">Object</span>
+
+
+        </li>
+    </ul>
 
 
 
@@ -993,7 +866,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line154">line 154</a>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line156">line 156</a>
     </li></ul></dd>
     
 
@@ -1011,16 +884,26 @@
 
         
             
-<h4 class="name" id="uid"><span class="type-signature"></span>uid<span class="type-signature"></span></h4>
+<h4 class="name" id="seriesInstanceUID"><span class="type-signature"></span>seriesInstanceUID<span class="type-signature"> :string</span></h4>
 
 
 
 
 <div class="description">
-    Get Annotation Group UID
+    Series Instance UID of DICOM Microscopy Bulk Simple Annotations objects.
 </div>
 
 
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">string</span>
+
+
+        </li>
+    </ul>
 
 
 
@@ -1055,7 +938,223 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line98">line 98</a>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line174">line 174</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="sopInstanceUIDs"><span class="type-signature"></span>sopInstanceUIDs<span class="type-signature"> :Array.&lt;string></span></h4>
+
+
+
+
+<div class="description">
+    SOP Instance UIDs of DICOM Microscopy Bulk Simple Annotations objects.
+</div>
+
+
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">Array.&lt;string></span>
+
+
+        </li>
+    </ul>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line183">line 183</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="studyInstanceUID"><span class="type-signature"></span>studyInstanceUID<span class="type-signature"> :string</span></h4>
+
+
+
+
+<div class="description">
+    Study Instance UID of DICOM Microscopy Bulk Simple Annotations objects.
+</div>
+
+
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">string</span>
+
+
+        </li>
+    </ul>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line165">line 165</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+        
+            
+<h4 class="name" id="uid"><span class="type-signature"></span>uid<span class="type-signature"> :string</span></h4>
+
+
+
+
+<div class="description">
+    Annotation Group UID
+</div>
+
+
+
+    <h5>Type:</h5>
+    <ul>
+        <li>
+            
+<span class="param-type">string</span>
+
+
+        </li>
+    </ul>
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="annotation.js.html">annotation.js</a>, <a href="annotation.js.html#line102">line 102</a>
     </li></ul></dd>
     
 
@@ -1089,13 +1188,13 @@
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.SOPClass.html">SOPClass</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="scoord3d.Scoord3D.html">Scoord3D</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sat Mar 12 2022 11:29:56 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sat Mar 12 2022 12:50:08 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

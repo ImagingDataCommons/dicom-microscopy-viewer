@@ -11,10 +11,9 @@ const _properties = Symbol('properties')
  * @memberof roi
  */
 class ROI {
-  /* Creates a new ROI object.
-   *
+  /**
    * @param {Object} options - Options for construction of ROI
-   * @param {Scoord3D} options.scoord3d - Spatial 3D coordinates
+   * @param {scoord3d.Scoord3D} options.scoord3d - Spatial 3D coordinates
    * @param {string} options.uid - Unique idenfifier
    * @param {Object} options.properties - Properties (name-value pairs)
    */
@@ -50,49 +49,56 @@ class ROI {
       this[_properties][Enums.InternalProperties.Evaluations] = []
       this[_properties][Enums.InternalProperties.Measurements] = []
     }
+    Object.freeze(this)
   }
 
-  /** Gets unique identifier of region of interest.
+  /**
+   * Unique identifier of region of interest.
    *
-   * @returns {string} Unique identifier
+   * @type string
    */
   get uid () {
     return this[_uid]
   }
 
-  /** Gets spatial coordinates of region of interest.
+  /**
+   * Spatial coordinates of region of interest.
    *
-   * @returns {Scoord3D} Spatial coordinates
+   * @type scoord3d.Scoord3D
    */
   get scoord3d () {
     return this[_scoord3d]
   }
 
-  /** Gets properties of region of interest.
+  /**
+   * Properties of region of interest.
    *
-   * @returns {Object} Properties
+   * @type Object
    */
   get properties () {
     return this[_properties]
   }
 
-  /** Gets measurements of region of interest.
+  /**
+   * Measurements of region of interest.
    *
-   * @returns {Object[]} Measurements
+   * @type Object[]
    */
   get measurements () {
     return this[_properties].measurements
   }
 
-  /** Gets qualitative evaluations of region of interest.
+  /**
+   * Qualitative evaluations of region of interest.
    *
-   * @returns {Object[]} QualitativeEvaluations
+   * @type Object[]
    */
   get evaluations () {
     return this[_properties].evaluations
   }
 
-  /** Adds a measurement.
+  /**
+   * Add a measurement.
    *
    * @param {Object} item - NUM content item representing a measurement
    */
@@ -100,7 +106,8 @@ class ROI {
     this[_properties][Enums.InternalProperties.Measurements].push(item)
   }
 
-  /** Adds a qualitative evaluation.
+  /**
+   * Add a qualitative evaluation.
    *
    * @param {Object} item - CODE content item representing a qualitative evaluation
    */

@@ -286,7 +286,8 @@ function _getInteractionBindingCondition (bindings) {
  * slide coordinate system (X, Y, Z), i.e. it express in which direction one
  * is moving in the slide coordinate system when the ROW index changes.
  *
- * @param {object} metadata - Metadata of a DICOM VL Whole Slide Microscopy Image instance
+ * @param {metadata.VLWholeSlideMicroscopyImage} metadata - Metadata of a DICOM
+ * VL Whole Slide Microscopy Image instance
  *
  * @returns {number} Rotation in radians
  *
@@ -339,13 +340,13 @@ function _getWindowSize () {
 /**
  * Map style options to OpenLayers style.
  *
- * @param {object} styleOptions - Style options
- * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+ * @param {Object} styleOptions - Style options
+ * @param {Object} styleOptions.stroke - Style options for the outline of the geometry
  * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
  * @param {number} styleOptions.stroke.width - Width of the outline
- * @param {object} styleOptions.fill - Style options for body the geometry
+ * @param {Object} styleOptions.fill - Style options for body the geometry
  * @param {number[]} styleOptions.fill.color - RGBA color of the body
- * @param {object} styleOptions.image - Style options for image
+ * @param {Object} styleOptions.image - Style options for image
  * @return {Style} OpenLayers style
  *
  * @private
@@ -395,12 +396,12 @@ function _getOpenLayersStyle (styleOptions) {
 /**
  * Add ROI properties to feature in a safe way
  *
- * @param {object} feature - The feature instance that represents the ROI
- * @param {object} properties -Valid ROI properties
- * @param {object} properties.measurements - ROI measurements
- * @param {object} properties.evaluations - ROI evaluations
- * @param {object} properties.label - ROI label
- * @param {object} properties.marker - ROI marker (this is used while we don't have presentation states)
+ * @param {Object} feature - The feature instance that represents the ROI
+ * @param {Object} properties -Valid ROI properties
+ * @param {Object} properties.measurements - ROI measurements
+ * @param {Object} properties.evaluations - ROI evaluations
+ * @param {Object} properties.label - ROI label
+ * @param {Object} properties.marker - ROI marker (this is used while we don't have presentation states)
  * @param {boolean} optSilent - Opt silent update
  *
  * @private
@@ -429,9 +430,9 @@ function _addROIPropertiesToFeature (feature, properties, optSilent) {
  * Wire measurements and qualitative evaluations to generate content items
  * based on OpenLayers feature properties and geometry.
  *
- * @param {object} map - The map instance
- * @param {object} feature - The feature instance
- * @param {object} pyramid - The pyramid metadata
+ * @param {Object} map - The map instance
+ * @param {Object} feature - The feature instance
+ * @param {Object} pyramid - The pyramid metadata
  * @returns {void}
  *
  * @private
@@ -498,9 +499,9 @@ function _updateFeatureEvaluations (feature) {
 /**
  * Generate feature measurements from its measurement properties
  *
- * @param {object} map - The map instance
- * @param {object} feature - The feature instance
- * @param {object} pyramid - The pyramid metadata
+ * @param {Object} map - The map instance
+ * @param {Object} feature - The feature instance
+ * @param {Object} pyramid - The pyramid metadata
  * @returns {void}
  *
  * @private
@@ -592,13 +593,13 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
 /**
  * Updates the style of a feature.
  *
- * @param {object} styleOptions - Style options
- * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+ * @param {Object} styleOptions - Style options
+ * @param {Object} styleOptions.stroke - Style options for the outline of the geometry
  * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
  * @param {number} styleOptions.stroke.width - Width of the outline
- * @param {object} styleOptions.fill - Style options for body the geometry
+ * @param {Object} styleOptions.fill - Style options for body the geometry
  * @param {number[]} styleOptions.fill.color - RGBA color of the body
- * @param {object} styleOptions.image - Style options for image
+ * @param {Object} styleOptions.image - Style options for image
  *
  * @private
  */
@@ -619,12 +620,12 @@ function _setFeatureStyle (feature, styleOptions) {
 /**
  * Build OpenLayers style expression for coloring a WebGL TileLayer.
  *
- * @param {object} styleOptions - Style options
+ * @param {Object} styleOptions - Style options
  * @param {number} styleOptions.windowCenter - Center of the window used for contrast stretching
  * @param {number} styleOptions.windowWidth - Width of the window used for contrast stretching
  * @param {number[][]} styleOptions.colormap - RGB color triplets
  *
- * @returns {object} color style expression and corresponding variables
+ * @returns {Object} color style expression and corresponding variables
  *
  * @private
  */
@@ -696,13 +697,13 @@ function _getColorPaletteStyleForTileLayer ({
 /**
  * Build OpenLayers style expression for coloring a WebGL PointLayer.
  *
- * @param {object} styleOptions - Style options
+ * @param {Object} styleOptions - Style options
  * @param {string} styleOptions.name - Name of a property for which values should be colorized
  * @param {number} styleOptions.minValue - Mininum value of the output range
  * @param {number} styleOptions.maxValue - Maxinum value of the output range
  * @param {number[][]} styleOptions.colormap - RGB color triplets
  *
- * @returns {object} color style expression
+ * @returns {Object} color style expression
  *
  * @private
  */
@@ -790,14 +791,18 @@ class VolumeImageViewer {
   /**
    * Create a viewer instance for displaying VOLUME images.
    *
-   * @param {object} options
-   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
-   * @param {object[]} options.metadata - An array of DICOM JSON metadata objects
-   *        The array shall contain the metadata of all image instances that should be displayed.
-   * @param {object} options.styleOptions - Default style options for annotations.
-   * @param {string[]} [options.controls=[]] - Names of viewer control elements that should be included in the viewport
-   * @param {boolean} [options.debug=false] - Whether debug features should be turned on (e.g., display of tile boundaries)
-   * @param {number} [options.tilesCacheSize=512] - initial cache size for a TileImage
+   * @param {Object} options
+   * @param {Object} options.client - A DICOMwebClient instance for interacting
+   * with an origin server over HTTP
+   * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata -
+   * Metadata of DICOM VL Whole Slide Microscopy Image instances that should be
+   * diplayed.
+   * @param {string[]} [options.controls=[]] - Names of viewer control elements
+   * that should be included in the viewport
+   * @param {boolean} [options.debug=false] - Whether debug features should be
+   * turned on (e.g., display of tile boundaries)
+   * @param {number} [options.tilesCacheSize=1000] - Number of tiles that should
+   * be cached to avoid repeated retrieval for the DICOMweb server
    */
   constructor (options) {
     this[_options] = options
@@ -808,10 +813,6 @@ class VolumeImageViewer {
 
     if (this[_options].tilesCacheSize == null) {
       this[_options].tilesCacheSize = 1000
-    }
-
-    if (this[_options].overview == null) {
-      this[_options].overview = {}
     }
 
     if (this[_options].controls == null) {
@@ -1345,6 +1346,7 @@ class VolumeImageViewer {
      * We need to reuse them here to avoid duplications.
      * Enabling or disabling interactions could cause side effects on
      * OverviewMap since it also uses the same interactions in the map
+     * @private
      */
     this[_interactions] = {
       draw: undefined,
@@ -1409,7 +1411,7 @@ class VolumeImageViewer {
    * linear interpolation.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
-   * @param {object} styleOptions
+   * @param {Object} styleOptions
    * @param {number[]} styleOptions.color - RGB color triplet
    * @param {number} styleOptions.opacity - Opacity
    * @param {number[]} styleOptions.limitValues - Upper and lower windowing limits
@@ -1499,7 +1501,7 @@ class VolumeImageViewer {
    * Get the style of an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
-   * @return {object} Style of optical path
+   * @return {Object} Style of optical path
    */
   getOpticalPathStyle (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
@@ -1546,7 +1548,7 @@ class VolumeImageViewer {
   /**
    * Get all optical paths.
    *
-   * @return {OpticalPath[]}
+   * @return {opticalPath.OpticalPath[]}
    */
   getAllOpticalPaths () {
     const opticalPaths = []
@@ -1624,7 +1626,7 @@ class VolumeImageViewer {
    * Show an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
-   * @param {object} styleOptions
+   * @param {Object} styleOptions
    * @param {number[]} styleOptions.color - RGB color triplet
    * @param {number} styleOptions.opacity - Opacity
    * @param {number[]} styleOptions.limitValues - Upper and lower clipping values
@@ -1725,7 +1727,7 @@ class VolumeImageViewer {
   /**
    * Render the images in the specified viewport container.
    *
-   * @param {object} options - Rendering options.
+   * @param {Object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render (options) {
@@ -1884,19 +1886,19 @@ class VolumeImageViewer {
   /**
    * Activate the draw interaction for graphic annotation of regions of interest.
    *
-   * @param {object} options - Drawing options
+   * @param {Object} options - Drawing options
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandpolygon, line, freehandline)
    * @param {string} options.marker - Marker
    * @param {string} options.markup - Markup
    * @param {number} options.maxPoints - Geometry max points
    * @param {number} options.minPoints - Geometry min points
-   * @param {object} options.styleOptions - Style options
-   * @param {object} options.styleOptions.stroke - Style options for the outline of the geometry
+   * @param {Object} options.styleOptions - Style options
+   * @param {Object} options.styleOptions.stroke - Style options for the outline of the geometry
    * @param {number[]} options.styleOptions.stroke.color - RGBA color of the outline
    * @param {number} options.styleOptions.stroke.width - Width of the outline
-   * @param {object} options.styleOptions.fill - Style options for body the geometry
+   * @param {Object} options.styleOptions.fill - Style options for body the geometry
    * @param {number[]} options.styleOptions.fill.color - RGBA color of the body
-   * @param {object} options.styleOptions.image - Style options for image
+   * @param {Object} options.styleOptions.image - Style options for image
    */
   activateDrawInteraction (options = {}) {
     this.deactivateDrawInteraction()
@@ -2029,25 +2031,25 @@ class VolumeImageViewer {
   /**
    * Whether draw interaction is active
    *
-   * @return {boolean}
+   * @type boolean
    */
   get isDrawInteractionActive () {
     return this[_interactions].draw !== undefined
   }
 
   /**
-   * Whether dragPan interaction is active.
+   * Whether drag pan interaction is active.
    *
-   * @type {boolean}
+   * @type boolean
    */
   get isDragPanInteractionActive () {
     return this[_interactions].dragPan !== undefined
   }
 
   /**
-   * Whether dragZoom interaction is active.
+   * Whether drag zoom interaction is active.
    *
-   * @type {boolean}
+   * @type boolean
    */
   get isDragZoomInteractionActive () {
     return this[_interactions].dragZoom !== undefined
@@ -2056,7 +2058,7 @@ class VolumeImageViewer {
   /**
    * Whether translate interaction is active.
    *
-   * @type {boolean}
+   * @type boolean
    */
   get isTranslateInteractionActive () {
     return this[_interactions].translate !== undefined
@@ -2092,10 +2094,10 @@ class VolumeImageViewer {
   /**
    * Extract and transform the region of interest (ROI).
    *
-   * @param {object} feature - Openlayers Feature
+   * @param {Object} feature - Openlayers Feature
    * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
    * @param {Object} context - Context
-   * @returns {ROI} Region of interest
+   * @returns {roi.ROI} Region of interest
    * @private
    */
   _getROIFromFeature (feature, pyramid) {
@@ -2153,9 +2155,9 @@ class VolumeImageViewer {
   }
 
   /**
-   * Activate dragZoom interaction.
+   * Activate drag zoom interaction.
    *
-   * @param {object} options - DragZoom options.
+   * @param {Object} options - Options.
    */
   activateDragZoomInteraction (options = {}) {
     this.deactivateDragZoomInteraction()
@@ -2180,7 +2182,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Deactivate dragZoom interaction.
+   * Deactivate drag zoom interaction.
    */
   deactivateDragZoomInteraction () {
     console.info('deactivate "dragZoom" interaction')
@@ -2193,7 +2195,7 @@ class VolumeImageViewer {
   /**
    * Activate select interaction.
    *
-   * @param {object} options selection options.
+   * @param {Object} options selection options.
    */
   activateSelectInteraction (options = {}) {
     this.deactivateSelectInteraction()
@@ -2239,9 +2241,9 @@ class VolumeImageViewer {
   }
 
   /**
-   * Activate dragpan interaction.
+   * Activate drag pan interaction.
    *
-   * @param {Object} options - DragPan options.
+   * @param {Object} options - Options.
    */
   activateDragPanInteraction (options = {}) {
     this.deactivateDragPanInteraction()
@@ -2268,7 +2270,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Deactivate dragpan interaction.
+   * Deactivate drag pan interaction.
    */
   deactivateDragPanInteraction () {
     console.info('deactivate "drag pan" interaction')
@@ -2307,7 +2309,7 @@ class VolumeImageViewer {
   /**
    * Whether select interaction is active.
    *
-   * @return {boolean}
+   * @type boolean
    */
   get isSelectInteractionActive () {
     return this[_interactions].select !== undefined
@@ -2316,7 +2318,7 @@ class VolumeImageViewer {
   /**
    * Activate modify interaction.
    *
-   * @param {object} options - Modification options.
+   * @param {Object} options - Modification options.
    */
   activateModifyInteraction (options = {}) {
     this.deactivateModifyInteraction()
@@ -2369,7 +2371,7 @@ class VolumeImageViewer {
   /**
    * Whether modify interaction is active.
    *
-   * @return {boolean}
+   * @type boolean
    */
   get isModifyInteractionActive () {
     return this[_interactions].modify !== undefined
@@ -2378,7 +2380,7 @@ class VolumeImageViewer {
   /**
    * Get all annotated regions of interest.
    *
-   * @returns {ROI[]} Array of regions of interest.
+   * @returns {roi.ROI[]} Array of regions of interest.
    */
   getAllROIs () {
     console.info('get all ROIs')
@@ -2410,7 +2412,7 @@ class VolumeImageViewer {
    * Get an individual annotated region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
-   * @returns {ROI} Region of interest.
+   * @returns {roi.ROI} Region of interest.
    */
   getROI (uid) {
     console.info(`get ROI ${uid}`)
@@ -2422,7 +2424,7 @@ class VolumeImageViewer {
    * Add a measurement to a region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
-   * @param {object} item - NUM content item representing a measurement
+   * @param {Object} item - NUM content item representing a measurement
    */
   addROIMeasurement (uid, item) {
     const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
@@ -2445,7 +2447,7 @@ class VolumeImageViewer {
    * Add a qualitative evaluation to a region of interest.
    *
    * @param {string} uid - Unique identifier of the region of interest
-   * @param {object} item - CODE content item representing a qualitative evaluation
+   * @param {Object} item - CODE content item representing a qualitative evaluation
    */
   addROIEvaluation (uid, item) {
     const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
@@ -2467,7 +2469,7 @@ class VolumeImageViewer {
   /**
    * Pop the most recently annotated regions of interest.
    *
-   * @returns {ROI} Regions of interest.
+   * @returns {roi.ROI} Regions of interest.
    */
   popROI () {
     console.info('pop ROI')
@@ -2478,14 +2480,14 @@ class VolumeImageViewer {
   /**
    * Add a regions of interest.
    *
-   * @param {ROI} roi - Regions of interest
-   * @param {object} styleOptions - Style options
-   * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+   * @param {roi.ROI} roi - Regions of interest
+   * @param {Object} styleOptions - Style options
+   * @param {Object} styleOptions.stroke - Style options for the outline of the geometry
    * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
    * @param {number} styleOptions.stroke.width - Width of the outline
-   * @param {object} styleOptions.fill - Style options for body the geometry
+   * @param {Object} styleOptions.fill - Style options for body the geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
-   * @param {object} styleOptions.image - Style options for image
+   * @param {Object} styleOptions.image - Style options for image
    *
    */
   addROI (roi, styleOptions = {}) {
@@ -2522,13 +2524,13 @@ class VolumeImageViewer {
   /**
    * Update properties of a region of interest.
    *
-   * @param {object} roi - ROI to be updated
+   * @param {Object} roi - ROI to be updated
    * @param {string} roi.uid - Unique identifier of the region of interest
-   * @param {object} roi.properties - ROI properties
-   * @param {object} roi.properties.measurements - ROI measurements
-   * @param {object} roi.properties.evaluations - ROI evaluations
-   * @param {object} roi.properties.label - ROI label
-   * @param {object} roi.properties.marker - ROI marker
+   * @param {Object} roi.properties - ROI properties
+   * @param {Object} roi.properties.measurements - ROI measurements
+   * @param {Object} roi.properties.evaluations - ROI evaluations
+   * @param {Object} roi.properties.label - ROI label
+   * @param {Object} roi.properties.marker - ROI marker
    */
   updateROI ({ uid, properties = {} }) {
     if (!uid) return
@@ -2546,7 +2548,7 @@ class VolumeImageViewer {
    *
    * @param {string} uid - Unique identifier of the regions of interest
    *
-   * @returns {object} - Style settings
+   * @returns {Object} - Style settings
    */
   getROIStyle (uid) {
     const feature = this[_features].getArray().find((feature) => {
@@ -2573,11 +2575,11 @@ class VolumeImageViewer {
    * Set the style of a region of interest.
    *
    * @param {string} uid - Unique identifier of the regions of interest
-   * @param {object} styleOptions - Style options
-   * @param {object} styleOptions.stroke - Style options for the outline of the geometry
+   * @param {Object} styleOptions - Style options
+   * @param {Object} styleOptions.stroke - Style options for the outline of the geometry
    * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
    * @param {number} styleOptions.stroke.width - Width of the outline
-   * @param {object} styleOptions.fill - Style options for body the geometry
+   * @param {Object} styleOptions.fill - Style options for body the geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
    *
    */
@@ -2595,8 +2597,8 @@ class VolumeImageViewer {
   /**
    * Add a new viewport overlay.
    *
-   * @param {object} options Overlay options
-   * @param {object} options.element The custom overlay HTML element
+   * @param {Object} options Overlay options
+   * @param {Object} options.element The custom overlay HTML element
    * @param {string} options.className Class to style the overlay container
    * @param {number[]} options.offset Horizontal and vertical offset of the overlay container in pixels
    */
@@ -2669,7 +2671,8 @@ class VolumeImageViewer {
   /**
    * Add annotation groups.
    *
-   * @param {MicroscopyBulkSimpleAnnotations} metadata - Metadata of a DICOM Microscopy Simple Bulk Annotations instance
+   * @param {metadata.MicroscopyBulkSimpleAnnotations} metadata - Metadata of a
+   * DICOM Microscopy Simple Bulk Annotations instance
    */
   addAnnotationGroups (metadata) {
     const refImage = this[_pyramid].metadata[0]
@@ -2897,7 +2900,7 @@ class VolumeImageViewer {
    * Show an annotation group.
    *
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
-   * @param {object} styleOptions
+   * @param {Object} styleOptions
    * @param {number} styleOptions.measurement - Selected measurement for colorizing annotations
    */
   showAnnotationGroup (annotationGroupUID, styleOptions = {}) {
@@ -3056,7 +3059,7 @@ class VolumeImageViewer {
    * Set style of an annotation group.
    *
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
-   * @param {object} styleOptions - Style options
+   * @param {Object} styleOptions - Style options
    * @param {number} styleOptions.opacity - Opacity
    * @param {number} styleOptions.measurement - Selected measurement for colorizing annotations
    */
@@ -3151,7 +3154,7 @@ class VolumeImageViewer {
    *
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
    *
-   * @returns {object} - Style settings
+   * @returns {Object} - Style settings
    */
   getAnnotationGroupStyle (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -3170,7 +3173,7 @@ class VolumeImageViewer {
   /**
    * Get all annotation groups.
    *
-   * @returns {AnnotationGroup[]} - Annotation groups
+   * @returns {annotation.AnnotationGroup[]}
    */
   getAllAnnotationGroups () {
     const groups = []
@@ -3185,7 +3188,8 @@ class VolumeImageViewer {
    *
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
    *
-   * @returns {MicroscopyBulkSimpleAnnotations[]} - Metadata of DICOM Microscopy Bulk Simple Annotations instances
+   * @returns {metadata.MicroscopyBulkSimpleAnnotations} - Metadata of DICOM
+   * Microscopy Bulk Simple Annotations instance
    */
   getAnnotationGroupMetadata (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -3201,7 +3205,7 @@ class VolumeImageViewer {
   /**
    * Add segments.
    *
-   * @param {Segmentation[]} metadata - Metadata of one or more DICOM Segmentation instances
+   * @param {metadata.Segmentation[]} metadata - Metadata of one or more DICOM Segmentation instances
    */
   addSegments (metadata) {
     if (metadata.length === 0) {
@@ -3399,7 +3403,7 @@ class VolumeImageViewer {
    * Show a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of a segment
-   * @param {object} styleOptions
+   * @param {Object} styleOptions
    * @param {number} styleOptions.opacity - Opacity
    */
   showSegment (segmentUID, styleOptions = {}) {
@@ -3452,7 +3456,7 @@ class VolumeImageViewer {
    * Set the style of a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
-   * @param {object} styleOptions - Style options
+   * @param {Object} styleOptions - Style options
    * @param {number} styleOptions.opacity - Opacity
    */
   setSegmentStyle (segmentUID, styleOptions = {}) {
@@ -3516,7 +3520,8 @@ class VolumeImageViewer {
    * Get the style of a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
-   * @returns {object} Style settings
+   *
+   * @returns {Object} Style settings
    */
   getSegmentStyle (segmentUID) {
     if (!(segmentUID in this[_segments])) {
@@ -3537,7 +3542,8 @@ class VolumeImageViewer {
    * Get image metadata for a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
-   * @returns {Segmentation[]} Segmentation image metadata
+   *
+   * @returns {metadata.Segmentation[]} Metadata of DICOM Segmentation instances
    */
   getSegmentMetadata (segmentUID) {
     if (!(segmentUID in this[_segments])) {
@@ -3553,7 +3559,7 @@ class VolumeImageViewer {
   /**
    * Get all segments.
    *
-   * @return {Segment[]}
+   * @return {segment.Segment[]}
    */
   getAllSegments () {
     const segments = []
@@ -3827,7 +3833,7 @@ class VolumeImageViewer {
    * Show a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of a mapping
-   * @param {object} styleOptions
+   * @param {Object} styleOptions
    * @param {number} styleOptions.opacity - Opacity
    * @param {number} styleOptions.limitValues - Opacity
    */
@@ -3881,7 +3887,7 @@ class VolumeImageViewer {
    * Set the style of a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
-   * @param {object} styleOptions
+   * @param {Object} styleOptions
    * @param {number} styleOptions.opacity - Opacity
    */
   setParameterMappingStyle (mappingUID, styleOptions = {}) {
@@ -3961,7 +3967,7 @@ class VolumeImageViewer {
    * Get the style of a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
-   * @returns {object} Style Options
+   * @returns {Object} Style Options
    */
   getParameterMappingStyle (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
@@ -3983,7 +3989,9 @@ class VolumeImageViewer {
    * Get image metadata for a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
-   * @returns {ParametricMap[]} Parametric Map image metadata
+   *
+   * @returns {metadata.ParametricMap[]} Metadata of DICOM Parametric Map
+   * instances
    */
   getParameterMappingMetadata (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
@@ -3999,7 +4007,7 @@ class VolumeImageViewer {
   /**
    * Get all parameter mappings.
    *
-   * @return {ParameterMapping[]}
+   * @return {mapping.ParameterMapping[]}
    */
   getAllParameterMappings () {
     const mappings = []
@@ -4015,18 +4023,22 @@ class VolumeImageViewer {
  * with Image Type other than VOLUME.
  *
  * @class
+ * @abstract
  * @private
  */
 class _NonVolumeImageViewer {
   /**
-   * Creates a viewer instance for displaying non-VOLUME images.
-   *
-   * @param {object} options
-   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
-   * @param {object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance.
-   * @param {string} options.orientation - Orientation of the slide (vertical: label on top, or horizontal: label on right side).
-   * @param {number} [options.resizeFactor=1] - To which extent image should be reduced in size (fraction).
-   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
+   * @param {Object} options
+   * @param {Object} options.client - A DICOMwebClient instance for interacting
+   * with an origin server over HTTP.
+   * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata -
+   * Metadata of DICOM VL Whole Slide Microscopy Image instances
+   * @param {string} options.orientation - Orientation of the slide (vertical:
+   * label on top, or horizontal: label on right side).
+   * @param {number} [options.resizeFactor=1] - To which extent image should be
+   * reduced in size (fraction).
+   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile
+   * should be included for correction of image colors.
    */
   constructor (options) {
     // We also accept metadata in raw JSON format for backwards compatibility
@@ -4140,7 +4152,7 @@ class _NonVolumeImageViewer {
   /**
    * Render the image in the specified viewport container.
    *
-   * @param {object} options - Rendering options.
+   * @param {Object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render (options) {
@@ -4198,15 +4210,18 @@ class _NonVolumeImageViewer {
  * @memberof viewer
  */
 class OverviewImageViewer extends _NonVolumeImageViewer {
-/**
-   * Creates a viewer instance for displaying OVERVIEW images.
-   *
-   * @param {object} options
-   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP.
-   * @param {object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance.
-   * @param {string} [options.orientation='horizontal'] - Orientation of the slide (vertical: label on top, or horizontal: label on right side).
-   * @param {number} [options.resizeFactor=1] - To which extent image should be reduced in size (fraction).
-   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors.
+  /**
+   * @param {Object} options
+   * @param {Object} options.client - A DICOMwebClient instance for interacting
+   * with an origin server over HTTP.
+   * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata -
+   * Metadata of DICOM VL Whole Slide Microscopy Image instances
+   * @param {string} [options.orientation='horizontal'] - Orientation of the
+   * slide (vertical: label on top, or horizontal: label on right side).
+   * @param {number} [options.resizeFactor=1] - To which extent image should be
+   * reduced in size (fraction).
+   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile
+   * should be included for correction of image colors.
    */
   constructor (options) {
     if (options.orientation === undefined) {
@@ -4224,15 +4239,17 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
  * @memberof viewer
  */
 class LabelImageViewer extends _NonVolumeImageViewer {
-/**
-   * Creates a viewer instance for displaying LABEL images.
-   *
-   * @param {object} options
-   * @param {object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
-   * @param {object} options.metadata - DICOM JSON metadata object for a VL Whole Slide Microscopy Image instance
-   * @param {string} [options.orientation='vertical'] - Orientation of the slide (vertical: label on top, or horizontal: label on right side)
-   * @param {number} [options.resizeFactor=1] - To which extent image should be reduced in size (fraction)
-   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile should be included for correction of image colors
+  /**
+   * @param {Object} options - Options
+   * @param {Object} options.client - A DICOMwebClient instance for interacting with an origin server over HTTP
+   * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata -
+   * Metadata of DICOM VL Whole Slide Microscopy Image instances
+   * @param {string} [options.orientation='vertical'] - Orientation of the
+   * slide (vertical: label on top, or horizontal: label on right side)
+   * @param {number} [options.resizeFactor=1] - To which extent image should be
+   * reduced in size (fraction)
+   * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile
+   * should be included for correction of image colors
    */
   constructor (options) {
     if (options.orientation === undefined) {

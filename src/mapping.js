@@ -1,27 +1,31 @@
 const _attrs = Symbol('attrs')
 
 /**
- * A transformation.
- *
- * Describes the transformation of a range of stored values into real world
- * values in a defined unit. The transformation may either be described by a
- * lookup table (LUT) or alternatively by the slope and intercept parameters if
- * the transformation can be described by a linear function.
+ * Transformation of a range of stored values into real world values in a
+ * defined unit. The transformation may either be described by a lookup table
+ * (LUT) or alternatively by the slope and intercept parameters if the
+ * transformation can be described by a linear function.
  *
  * @class
  * @memberof mapping
  */
 class Transformation {
   /**
-   * Create a new Transformation object.
+   * @param {Object} options - Options
+   * @param {string} options.label - LUT Label
+   * @param {number} options.firstValueMapped - First value mapped by LUT
+   * @param {number} options.lastValueMapped - Last value mapped by LUT
+   * @param {lut} options.lut - LUT data
+   * @param {number} options.intercept - Intercept of linear function
+   * @param {number} options.slope - Slope of linear function
    */
   constructor ({
     label,
     firstValueMapped,
     lastValueMapped,
+    lut,
     intercept,
-    slope,
-    lut
+    slope
   }) {
     if (label === undefined) {
       throw new Error('LUT Label is required.')
@@ -60,22 +64,27 @@ class Transformation {
 }
 
 /**
- * A parameter mapping.
+ * Parameter Mapping.
+ *
+ * Describes an individual parameter encoded in a DICOM Parametric Map instance.
  *
  * @class
  * @memberof mapping
  */
 class ParameterMapping {
-  /* Creates a new ParameterMapping object.
-   *
+  /**
    * @param {Object} options
    * @param {string} options.uid - Unique tracking identifier
    * @param {number} options.number - Mapping Number (one-based index value)
    * @param {string} options.label - Mapping Label
-   * @param {string} options.studyInstanceUID - Study Instance UID of Parametric Map images
-   * @param {string} options.seriesInstanceUID - Series Instance UID of Parametric Map images
-   * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Parametric Map images
-   * @param {string|undefined} options.paletteColorLookupTableUID - Palette Color Lookup Table UID
+   * @param {string} options.studyInstanceUID - Study Instance UID of DICOM
+   * Parametric Map instances
+   * @param {string} options.seriesInstanceUID - Series Instance UID of DICOM
+   * Parametric Map instances
+   * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of DICOM
+   * Parametric Map instances
+   * @param {string|undefined} options.paletteColorLookupTableUID - Palette
+   * Color Lookup Table UID
    */
   constructor ({
     uid,
@@ -124,63 +133,63 @@ class ParameterMapping {
   }
 
   /**
-   * Get Unique Tracking Identifier
+   * Unique Tracking Identifier
    *
-   * @returns {string} Unique Tracking Identifier
+   * @type string
    */
   get uid () {
     return this[_attrs].uid
   }
 
   /**
-   * Get Mapping Number.
+   * Mapping Number.
    *
-   * @returns {number} Segment Number
+   * @type number
    */
   get number () {
     return this[_attrs].number
   }
 
   /**
-   * Get Mapping Label
+   * Mapping Label
    *
-   * @returns {string} Segment Label
+   * @type string
    */
   get label () {
     return this[_attrs].label
   }
 
   /**
-   * Get Study Instance UID of Parametric Map images.
+   * Study Instance UID of DICOM Parametric Map instances.
    *
-   * @returns {string} Study Instance UID
+   * @type string
    */
   get studyInstanceUID () {
     return this[_attrs].studyInstanceUID
   }
 
   /**
-   * Get Series Instance UID of Parametric Map images.
+   * Series Instance UID of DICOM Parametric Map instances.
    *
-   * @returns {string} Series Instance UID
+   * @type string
    */
   get seriesInstanceUID () {
     return this[_attrs].seriesInstanceUID
   }
 
   /**
-   * Get SOP Instance UIDs of Parametric Map images.
+   * SOP Instance UIDs of DICOM Parametric Map instances.
    *
-   * @returns {string[]} SOP Instance UIDs
+   * @type string[]
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
   }
 
   /**
-   * Get Palette Color Lookup Table UID.
+   * Palette Color Lookup Table UID.
    *
-   * @returns {string} Palette Color Lookup Table UID
+   * @type string
    */
   get paletteColorLookupTableUID () {
     return this[_attrs].paletteColorLookupTableUID

@@ -39,10 +39,9 @@ const _properties = Symbol('properties')
  * @memberof roi
  */
 class ROI {
-  /* Creates a new ROI object.
-   *
+  /**
    * @param {Object} options - Options for construction of ROI
-   * @param {Scoord3D} options.scoord3d - Spatial 3D coordinates
+   * @param {scoord3d.Scoord3D} options.scoord3d - Spatial 3D coordinates
    * @param {string} options.uid - Unique idenfifier
    * @param {Object} options.properties - Properties (name-value pairs)
    */
@@ -78,49 +77,56 @@ class ROI {
       this[_properties][Enums.InternalProperties.Evaluations] = []
       this[_properties][Enums.InternalProperties.Measurements] = []
     }
+    Object.freeze(this)
   }
 
-  /** Gets unique identifier of region of interest.
+  /**
+   * Unique identifier of region of interest.
    *
-   * @returns {string} Unique identifier
+   * @type string
    */
   get uid () {
     return this[_uid]
   }
 
-  /** Gets spatial coordinates of region of interest.
+  /**
+   * Spatial coordinates of region of interest.
    *
-   * @returns {Scoord3D} Spatial coordinates
+   * @type scoord3d.Scoord3D
    */
   get scoord3d () {
     return this[_scoord3d]
   }
 
-  /** Gets properties of region of interest.
+  /**
+   * Properties of region of interest.
    *
-   * @returns {Object} Properties
+   * @type Object
    */
   get properties () {
     return this[_properties]
   }
 
-  /** Gets measurements of region of interest.
+  /**
+   * Measurements of region of interest.
    *
-   * @returns {Object[]} Measurements
+   * @type Object[]
    */
   get measurements () {
     return this[_properties].measurements
   }
 
-  /** Gets qualitative evaluations of region of interest.
+  /**
+   * Qualitative evaluations of region of interest.
    *
-   * @returns {Object[]} QualitativeEvaluations
+   * @type Object[]
    */
   get evaluations () {
     return this[_properties].evaluations
   }
 
-  /** Adds a measurement.
+  /**
+   * Add a measurement.
    *
    * @param {Object} item - NUM content item representing a measurement
    */
@@ -128,7 +134,8 @@ class ROI {
     this[_properties][Enums.InternalProperties.Measurements].push(item)
   }
 
-  /** Adds a qualitative evaluation.
+  /**
+   * Add a qualitative evaluation.
    *
    * @param {Object} item - CODE content item representing a qualitative evaluation
    */
@@ -148,13 +155,13 @@ export { ROI }
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.SOPClass.html">SOPClass</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="scoord3d.Scoord3D.html">Scoord3D</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sat Mar 12 2022 11:29:56 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sat Mar 12 2022 12:50:08 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>

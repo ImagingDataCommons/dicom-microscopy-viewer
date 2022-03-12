@@ -263,7 +263,7 @@ function getFrameMapping (metadata) {
  * Bulkdata elements will be extracted and returned as a separate mapping.
  *
  * @param {Object} metadata - Metadata structured according to the DICOM JSON model
- * @param {Object} Metadata structured according to the DICOM JSON model
+ *
  * @returns {Object} Formatted dataset and remaining bulkdata
  *
  * @memberof metadata
@@ -348,7 +348,8 @@ function formatMetadata (metadata) {
 /**
  * Group DICOM metadata of monochrome slides by Optical Path Identifier.
  *
- * @param {Object[]} images - DICOM VL Whole Slide Microscopy Image instances.
+ * @param {metadata.VLWholeSlideMicroscopyImage[]} images - DICOM VL Whole
+ * Slide Microscopy Image instances.
  *
  * @returns {Object} Groups of DICOM VL Whole Slide Microscopy Image instances
  * @memberof metadata
@@ -377,7 +378,8 @@ function groupMonochromeInstances (images) {
 /**
  * Group DICOM metadata of color images slides by Optical Path Identifier.
  *
- * @param {Object[]} images - DICOM VL Whole Slide Microscopy Image instances.
+ * @param {metadata.VLWholeSlideMicroscopyImage[]} images - DICOM VL Whole
+ * Slide Microscopy Image instances.
  *
  * @returns {Object} Groups of DICOM VL Whole Slide Microscopy Image instances
  * @memberof metadata
@@ -404,7 +406,18 @@ function groupColorInstances (images) {
   return channels
 }
 
+/**
+ * DICOM Service Object Pair (SOP) Class.
+ *
+ * @class
+ * @abstract
+ * @memberof metadata
+ */
 class SOPClass {
+  /**
+   * @param {Object} options
+   * @param {Object} options.metadata - Metadata of a DICOM SOP instance in DICOM JSON format
+   */
   constructor ({ metadata }) {
     if (metadata == null) {
       throw new Error(
@@ -418,19 +431,32 @@ class SOPClass {
     Object.freeze(this)
   }
 
+  /**
+   * Get metadata of instance in DICOM JSON format.
+   *
+   * The metadata may include bulkdata references via "BulkDataURI".
+   *
+   * @returns {Object} metadata in DICOM JSON format
+   */
   get json () {
     return this[_metadata]
   }
 
+  /**
+   * Get references to bulkdata of instance in DICOM JSON format.
+   *
+   * @returns {Object} bulkdata references in DICOM JSON format
+   */
   get bulkdataReferences () {
     return this[_bulkdataReferences]
   }
 }
 
-/** DICOM VL Whole Slide Microscopy Image instance
- * (without Pixel Data or any other bulk data).
+/**
+ * DICOM VL Whole Slide Microscopy Image instance.
  *
  * @class
+ * @extends metadata.SOPClass
  * @memberof metadata
  */
 class VLWholeSlideMicroscopyImage extends SOPClass {
@@ -449,9 +475,11 @@ class VLWholeSlideMicroscopyImage extends SOPClass {
   }
 }
 
-/** DICOM Comprehensive 3D SR instance.
+/**
+ * DICOM Comprehensive 3D SR instance.
  *
  * @class
+ * @extends metadata.SOPClass
  * @memberof metadata
  */
 class Comprehensive3DSR extends SOPClass {
@@ -470,9 +498,11 @@ class Comprehensive3DSR extends SOPClass {
   }
 }
 
-/** DICOM Microscopy Bulk Simple Annotations instance.
+/**
+ * DICOM Microscopy Bulk Simple Annotations instance.
  *
  * @class
+ * @extends metadata.SOPClass
  * @memberof metadata
  */
 class MicroscopyBulkSimpleAnnotations extends SOPClass {
@@ -491,9 +521,11 @@ class MicroscopyBulkSimpleAnnotations extends SOPClass {
   }
 }
 
-/** DICOM Parametric Map instance.
+/**
+ * DICOM Parametric Map instance.
  *
  * @class
+ * @extends metadata.SOPClass
  * @memberof metadata
  */
 class ParametricMap extends SOPClass {
@@ -512,9 +544,11 @@ class ParametricMap extends SOPClass {
   }
 }
 
-/** DICOM Segmentation instance.
+/**
+ * DICOM Segmentation instance.
  *
  * @class
+ * @extends metadata.SOPClass
  * @memberof metadata
  */
 class Segmentation extends SOPClass {

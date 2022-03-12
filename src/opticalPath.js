@@ -31,14 +31,13 @@ const _attrs = Symbol('_attrs')
  * @memberof opticalPath
  */
 class OpticalPath {
-  /* Create a new OpticalPath object.
-   *
+  /**
    * @param {Object} options - Options
    * @param {string} options.identifier - Optical Path Identifier
    * @param {string} options.description - Optical Path Description
-   * @param {object} options.illuminationType - Illumination Type Code
+   * @param {Object} options.illuminationType - Illumination Type Code
    * @param {boolean} options.isMonochromatic - Whether optical path is monochromatic
-   * @param {object|undefined} options.illuminationColor - Illumination Color Code
+   * @param {Object|undefined} options.illuminationColor - Illumination Color Code
    * @param {string|undefined} options.illuminationWaveLength - Illumination Wave Length
    * @param {string} options.studyInstanceUID - Study Instance UID of VL Whole Slide Microscopy Image instances
    * @param {string} options.seriesInstanceUID - Series Instance UID of VL Whole Slide Microscopy Image instances
@@ -101,7 +100,7 @@ class OpticalPath {
   /**
    * Optical Path Identifier
    *
-   * @returns {string} Optical Path Identifier
+   * @type string
    */
   get identifier () {
     return this[_attrs].identifier
@@ -110,7 +109,7 @@ class OpticalPath {
   /**
    * Optical Path Description
    *
-   * @returns {string} Optical Path Description
+   * @type string
    */
   get description () {
     return this[_attrs].description
@@ -119,7 +118,7 @@ class OpticalPath {
   /**
    * Illumination Type Code
    *
-   * @returns {object} Illumination Type Code
+   * @type object
    */
   get illuminationType () {
     return this[_attrs].illuminationType
@@ -128,7 +127,7 @@ class OpticalPath {
   /**
    * Illumination Color
    *
-   * @returns {object} Illumination Color Code
+   * @type object
    */
   get illuminationColor () {
     return this[_attrs].illuminationColor
@@ -137,7 +136,7 @@ class OpticalPath {
   /**
    * Illumination Wave Length
    *
-   * @returns {string | undefined} Illumination Wave Length
+   * @type string | undefined
    */
   get illuminationWaveLength () {
     return this[_attrs].illuminationWaveLength
@@ -146,7 +145,7 @@ class OpticalPath {
   /**
    * Study Instance UID of images
    *
-   * @returns {string} Study Instance UID
+   * @type string
    */
   get studyInstanceUID () {
     return this[_attrs].studyInstanceUID
@@ -155,7 +154,7 @@ class OpticalPath {
   /**
    * Series Instance UID of images
    *
-   * @returns {string} Series Instance UID
+   * @type string
    */
   get seriesInstanceUID () {
     return this[_attrs].seriesInstanceUID
@@ -164,7 +163,7 @@ class OpticalPath {
   /**
    * SOP Instance UIDs of images
    *
-   * @returns {string[]} SOP Instance UIDs
+   * @type string[]
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
@@ -173,7 +172,7 @@ class OpticalPath {
   /**
    * Palette Color Lookup Table UID
    *
-   * @returns {string} Palette Color Lookup Table UID
+   * @type string
    */
   get paletteColorLookupTableUID () {
     return this[_attrs].paletteColorLookupTableUID
@@ -182,7 +181,7 @@ class OpticalPath {
   /**
    * Whether optical path is monochromatic
    *
-   * @returns {boolean} yes/no
+   * @type boolean
    */
   get isMonochromatic () {
     return this[_attrs].isMonochromatic
@@ -191,7 +190,7 @@ class OpticalPath {
   /**
    * Whether images of optical path are colorable
    *
-   * @returns {boolean} yes/no
+   * @type boolean
    */
   get isColorable () {
     return this[_attrs].paletteColorLookupTableUID == null

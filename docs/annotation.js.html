@@ -33,23 +33,25 @@
 
 const _attrs = Symbol('attrs')
 
-/** An annotation group.
+/**
+ * Annotation Group.
+ *
+ * Describes an item of the Annotation Group Sequence of a DICOM Microscopy Bulk
+ * Simple Annotations instance.
  *
  * @class
  * @memberof annotation
  */
 class AnnotationGroup {
   /**
-   * Create a new Annotation Group object.
-   *
-   * @param {Object} options - Options for construction of Annotation Group
-   * @param {string} options.uid - Unique tracking identifier
+   * @param {Object} options - Options
+   * @param {string} options.uid - Annotation Group UID
    * @param {number} options.number - Annotation Group Number (one-based index value)
    * @param {string} options.label - Annotation Group Label
    * @param {string} options.algorithmName - Annotation Group Algorithm Name
-   * @param {object} options.algorithmType - Annotation Group Algorithm Type
-   * @param {object} options.propertyCategory - Annotation Property Category Code
-   * @param {object} options.propertyType - Annotation Property Type Code
+   * @param {Object} options.algorithmType - Annotation Group Algorithm Type
+   * @param {Object} options.propertyCategory - Annotation Property Category Code
+   * @param {Object} options.propertyType - Annotation Property Type Code
    * @param {string} options.studyInstanceUID - Study Instance UID of Annotation instances
    * @param {string} options.seriesInstanceUID - Series Instance UID of Annotation instances
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Annotation instances
@@ -117,83 +119,94 @@ class AnnotationGroup {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+    Object.freeze(this)
   }
 
-  /** Get Annotation Group UID
+  /**
+   * Annotation Group UID
    *
-   * @returns {string} Annotation Group UID
+   * @type string
    */
   get uid () {
     return this[_attrs].uid
   }
 
-  /** Get Annotation Group Number.
+  /**
+   * Annotation Group Number.
    *
-   * @returns {number} Annotation Group Number
+   * @type number
    */
   get number () {
     return this[_attrs].number
   }
 
-  /** Get Annotation Group Label
+  /**
+   * Annotation Group Label
    *
-   * @returns {string} Annotation Group Label
+   * @type string
    */
   get label () {
     return this[_attrs].label
   }
 
-  /** Get Segment Algorithm Name
+  /**
+   * Annotation Group Algorithm Identification
    *
-   * @returns {string} Segment Algorithm Name
+   * @type string
    */
   get algorithmName () {
     return this[_attrs].algorithmName
   }
 
-  /** Get Annotation Group Generation Type
+  /**
+   * Annotation Group Generation Type
    *
-   * @returns {object} Annotation Group Generation Type
+   * @type Object
    */
   get algorithmType () {
     return this[_attrs].algorithmType
   }
 
-  /** Get Annotation Property Category
+  /**
+   * Annotation Property Category
    *
-   * @returns {object} Annotation Property Category
+   * @type Object
    */
   get propertyCategory () {
     return this[_attrs].propertyCategory
   }
 
-  /** Get Annotation Property Type
+  /**
+   * Annotation Property Type
    *
-   * @returns {object} Annotation Property Type
+   * @type Object
    */
   get propertyType () {
     return this[_attrs].propertyType
   }
 
-  /** Get Study Instance UID of Microscopy Bulk Simple Annotations objects.
+  /**
+   * Study Instance UID of DICOM Microscopy Bulk Simple Annotations objects.
    *
-   * @returns {string} Study Instance UID
+   * @type string
    */
   get studyInstanceUID () {
     return this[_attrs].studyInstanceUID
   }
 
-  /** Get Series Instance UID of Microscopy Bulk Simple Annotations objects.
+  /**
+   * Series Instance UID of DICOM Microscopy Bulk Simple Annotations objects.
    *
-   * @returns {string} Series Instance UID
+   * @type string
    */
   get seriesInstanceUID () {
     return this[_attrs].seriesInstanceUID
   }
 
-  /** Get SOP Instance UIDs of Microscopy Bulk Simple Annotations objects.
+  /**
+   * SOP Instance UIDs of DICOM Microscopy Bulk Simple Annotations objects.
    *
-   * @returns {string[]} SOP Instance UIDs
+   * @type string[]
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
@@ -203,10 +216,10 @@ class AnnotationGroup {
 /**
  * Fetch graphic data (point coordinates) of an annotation group.
  *
- * @param {object} options
- * @param {object} options.metadataItem - Metadata of Annotation Group Sequence item
- * @param {object} options.bulkdataItem - Bulkdata of Annotation Group Sequence item
- * @param {object} options.client - DICOMweb client
+ * @param {Object} options
+ * @param {Object} options.metadataItem - Metadata of Annotation Group Sequence item
+ * @param {Object} options.bulkdataItem - Bulkdata of Annotation Group Sequence item
+ * @param {Object} options.client - DICOMweb client
  *
  * @returns {Promise&lt;TypedArray>} Graphic data
  *
@@ -753,13 +766,13 @@ export {
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="annotation.html">annotation</a></li><li><a href="api.html">api</a></li><li><a href="color.html">color</a></li><li><a href="events.html">events</a></li><li><a href="mapping.html">mapping</a></li><li><a href="metadata.html">metadata</a></li><li><a href="opticalPath.html">opticalPath</a></li><li><a href="roi.html">roi</a></li><li><a href="scoord3d.html">scoord3d</a></li><li><a href="segment.html">segment</a></li><li><a href="utils.html">utils</a></li><li><a href="viewer.html">viewer</a></li></ul><h3>Classes</h3><ul><li><a href="annotation.AnnotationGroup.html">AnnotationGroup</a></li><li><a href="color.PaletteColorLookupTable.html">PaletteColorLookupTable</a></li><li><a href="mapping.ParameterMapping.html">ParameterMapping</a></li><li><a href="mapping.Transformation.html">Transformation</a></li><li><a href="metadata.Comprehensive3DSR.html">Comprehensive3DSR</a></li><li><a href="metadata.MicroscopyBulkSimpleAnnotations.html">MicroscopyBulkSimpleAnnotations</a></li><li><a href="metadata.ParametricMap.html">ParametricMap</a></li><li><a href="metadata.Segmentation.html">Segmentation</a></li><li><a href="metadata.SOPClass.html">SOPClass</a></li><li><a href="metadata.VLWholeSlideMicroscopyImage.html">VLWholeSlideMicroscopyImage</a></li><li><a href="opticalPath.OpticalPath.html">OpticalPath</a></li><li><a href="roi.ROI.html">ROI</a></li><li><a href="scoord3d.Ellipse.html">Ellipse</a></li><li><a href="scoord3d.Ellipsoid.html">Ellipsoid</a></li><li><a href="scoord3d.Multipoint.html">Multipoint</a></li><li><a href="scoord3d.Point.html">Point</a></li><li><a href="scoord3d.Polygon.html">Polygon</a></li><li><a href="scoord3d.Polyline.html">Polyline</a></li><li><a href="scoord3d.Scoord3D.html">Scoord3D</a></li><li><a href="segment.Segment.html">Segment</a></li><li><a href="viewer.LabelImageViewer.html">LabelImageViewer</a></li><li><a href="viewer.OverviewImageViewer.html">OverviewImageViewer</a></li><li><a href="viewer.VolumeImageViewer.html">VolumeImageViewer</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sat Mar 12 2022 11:29:56 GMT-0500 (Eastern Standard Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Sat Mar 12 2022 12:50:08 GMT-0500 (Eastern Standard Time)
 </footer>
 
 <script> prettyPrint(); </script>
