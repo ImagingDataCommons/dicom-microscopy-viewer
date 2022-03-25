@@ -1312,7 +1312,7 @@ class VolumeImageViewer {
         view: overviewView,
         layers: overviewLayers,
         collapsed: false,
-        collapsible: false,
+        collapsible: true,
         rotateWithView: true
       })
     } else {
@@ -1866,7 +1866,15 @@ class VolumeImageViewer {
         const overviewmapElement = Object.values(overviewElement.children).find(
           c => c.className === 'ol-overviewmap-map'
         )
+        const buttonElement = Object.values(overviewElement.children).find(
+          c => c.type === 'button'
+        )
+        if (buttonElement) {
+          buttonElement.style.border = '0.25px solid black'
+          buttonElement.style.backgroundColor = 'white'
+        }
         overviewmapElement.style.border = '1px solid black'
+        overviewmapElement.style.color = 'black'
         // Try to fit the overview map into the target control overlay container
         const height = Math.abs(this[_pyramid].extent[1])
         const width = Math.abs(this[_pyramid].extent[2])
