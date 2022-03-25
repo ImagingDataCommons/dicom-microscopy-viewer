@@ -797,6 +797,7 @@ class VolumeImageViewer {
    * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata -
    * Metadata of DICOM VL Whole Slide Microscopy Image instances that should be
    * diplayed.
+   * @param {Object} options.preload - Whether data should be preloaded
    * @param {string[]} [options.controls=[]] - Names of viewer control elements
    * that should be included in the viewport
    * @param {boolean} [options.debug=false] - Whether debug features should be
@@ -809,6 +810,14 @@ class VolumeImageViewer {
 
     if (this[_options].debug == null) {
       this[_options].debug = false
+    } else {
+      this[_options].debug = true
+    }
+
+    if (this[_options].preload == null) {
+      this[_options].preload = false
+    } else {
+      this[_options].preload = true
     }
 
     if (this[_options].tilesCacheSize == null) {
@@ -1145,7 +1154,7 @@ class VolumeImageViewer {
         opticalPath.layer = new TileLayer({
           source,
           extent: pyramid.extent,
-          preload: 1,
+          preload: this[_options].preload ? 1 : 0,
           style: style,
           visible: false,
           useInterimTilesOnError: false,
@@ -1227,7 +1236,6 @@ class VolumeImageViewer {
         projection: this[_projection],
         wrapX: false,
         transition: 0,
-        preload: 1,
         bandCount: 3
       })
       source.on('tileloaderror', (event) => {
@@ -1248,7 +1256,7 @@ class VolumeImageViewer {
       opticalPath.layer = new TileLayer({
         source,
         extent: this[_tileGrid].extent,
-        preload: 1,
+        preload: this[_options].preload ? 1 : 0,
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize
       })
@@ -3352,7 +3360,7 @@ class VolumeImageViewer {
         extent: this[_pyramid].extent,
         visible: false,
         opacity: 0.9,
-        preload: 0,
+        preload: this[_options].preload ? 1 : 0,
         transition: 0,
         style: _getColorPaletteStyleForTileLayer({
           windowCenter,
@@ -3783,7 +3791,7 @@ class VolumeImageViewer {
         projection: this[_projection],
         visible: false,
         opacity: 1,
-        preload: 1,
+        preload: this[_options].preload ? 1 : 0,
         transition: 0,
         style: _getColorPaletteStyleForTileLayer({
           windowCenter,
