@@ -1296,24 +1296,28 @@ class VolumeImageViewer {
       layers.push(tileDebugLayer)
     }
 
-    const overviewView = new View({
-      projection: this[_projection],
-      rotation: this[_rotation],
-      constrainOnlyCenter: false,
-      smoothExtentConstraint: true,
-      smoothResolutionConstraint: true,
-      minZoom: 0,
-      maxZoom: 0,
-      extent: this[_pyramid].extent
-    })
+    if (Math.max(...this[_pyramid].gridSizes[0]) <= 10) {
+      const overviewView = new View({
+        projection: this[_projection],
+        rotation: this[_rotation],
+        constrainOnlyCenter: false,
+        smoothExtentConstraint: true,
+        smoothResolutionConstraint: true,
+        minZoom: 0,
+        maxZoom: 0,
+        extent: this[_pyramid].extent
+      })
 
-    this[_overviewMap] = new OverviewMap({
-      view: overviewView,
-      layers: overviewLayers,
-      collapsed: false,
-      collapsible: false,
-      rotateWithView: true
-    })
+      this[_overviewMap] = new OverviewMap({
+        view: overviewView,
+        layers: overviewLayers,
+        collapsed: false,
+        collapsible: false,
+        rotateWithView: true
+      })
+    } else {
+      this[_overviewMap] = null
+    }
 
     this[_drawingSource] = new VectorSource({
       tileGrid: this[_tileGrid],
@@ -1384,7 +1388,9 @@ class VolumeImageViewer {
     }
 
     if (this[_options].controls.has('overview')) {
-      this[_controls].overview = this[_overviewMap]
+      if (this[_overviewMap]) {
+        this[_controls].overview = this[_overviewMap]
+      }
     }
 
     for (const control in this[_controls]) {
@@ -1586,10 +1592,12 @@ class VolumeImageViewer {
       0,
       opticalPath.layer
     )
-    this[_overviewMap].getOverviewMap().getLayers().insertAt(
-      0,
-      opticalPath.overviewTileLayer
-    )
+    if (this[_overviewMap]) {
+      this[_overviewMap].getOverviewMap().getLayers().insertAt(
+        0,
+        opticalPath.overviewTileLayer
+      )
+    }
   }
 
   /**
@@ -1609,9 +1617,11 @@ class VolumeImageViewer {
       return
     }
     this[_map].removeLayer(opticalPath.layer)
-    this[_overviewMap].getOverviewMap().removeLayer(
-      opticalPath.overviewTileLayer
-    )
+    if (this[_overviewMap]) {
+      this[_overviewMap].getOverviewMap().removeLayer(
+        opticalPath.overviewTileLayer
+      )
+    }
   }
 
   /**
@@ -1851,43 +1861,45 @@ class VolumeImageViewer {
       scaleInnerElement.style.margin = '1px'
       scaleInnerElement.style.willChange = 'contents,width'
 
-      const overviewElement = this[_overviewMap].element
-      const overviewmapElement = Object.values(overviewElement.children).find(
-        c => c.className === 'ol-overviewmap-map'
-      )
-      overviewmapElement.style.border = '1px solid black'
-      // Try to fit the overview map into the target control overlay container
-      const height = Math.abs(this[_pyramid].extent[1])
-      const width = Math.abs(this[_pyramid].extent[2])
-      const rotation = this[_rotation] / Math.PI * 180
-      const windowSize = _getWindowSize()
-      let targetHeight
-      let resizeFactor
-      let targetWidth
-      if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
-        if (windowSize[1] > windowSize[0]) {
-          targetHeight = Math.ceil(windowSize[1] * 0.2)
-          resizeFactor = targetHeight / height
-          targetWidth = width * resizeFactor
+      if (this[_overviewMap]) {
+        const overviewElement = this[_overviewMap].element
+        const overviewmapElement = Object.values(overviewElement.children).find(
+          c => c.className === 'ol-overviewmap-map'
+        )
+        overviewmapElement.style.border = '1px solid black'
+        // Try to fit the overview map into the target control overlay container
+        const height = Math.abs(this[_pyramid].extent[1])
+        const width = Math.abs(this[_pyramid].extent[2])
+        const rotation = this[_rotation] / Math.PI * 180
+        const windowSize = _getWindowSize()
+        let targetHeight
+        let resizeFactor
+        let targetWidth
+        if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
+          if (windowSize[1] > windowSize[0]) {
+            targetHeight = Math.ceil(windowSize[1] * 0.2)
+            resizeFactor = targetHeight / height
+            targetWidth = width * resizeFactor
+          } else {
+            targetWidth = Math.ceil(windowSize[0] * 0.15)
+            resizeFactor = targetWidth / width
+            targetHeight = height * resizeFactor
+          }
         } else {
-          targetWidth = Math.ceil(windowSize[0] * 0.15)
-          resizeFactor = targetWidth / width
-          targetHeight = height * resizeFactor
+          if (windowSize[1] > windowSize[0]) {
+            targetHeight = Math.ceil(windowSize[1] * 0.2)
+            resizeFactor = targetHeight / width
+            targetWidth = height * resizeFactor
+          } else {
+            targetWidth = Math.ceil(windowSize[0] * 0.15)
+            resizeFactor = targetWidth / height
+            targetHeight = width * resizeFactor
+          }
         }
-      } else {
-        if (windowSize[1] > windowSize[0]) {
-          targetHeight = Math.ceil(windowSize[1] * 0.2)
-          resizeFactor = targetHeight / width
-          targetWidth = height * resizeFactor
-        } else {
-          targetWidth = Math.ceil(windowSize[0] * 0.15)
-          resizeFactor = targetWidth / height
-          targetHeight = width * resizeFactor
-        }
+        overviewmapElement.style.width = `${targetWidth}px`
+        overviewmapElement.style.height = `${targetHeight}px`
+        this[_overviewMap].getOverviewMap().updateSize()
       }
-      overviewmapElement.style.width = `${targetWidth}px`
-      overviewmapElement.style.height = `${targetHeight}px`
-      this[_overviewMap].getOverviewMap().updateSize()
     })
   }
 
@@ -2136,17 +2148,19 @@ class VolumeImageViewer {
    * @returns {void}
    */
   toggleOverviewMap () {
-    const controls = this[_map].getControls()
-    const overview = controls.getArray().find((c) => c === this[_overviewMap])
-    if (overview) {
-      this[_map].removeControl(this[_overviewMap])
-      return
+    if (this[_overviewMap]) {
+      const controls = this[_map].getControls()
+      const overview = controls.getArray().find((c) => c === this[_overviewMap])
+      if (overview) {
+        this[_map].removeControl(this[_overviewMap])
+        return
+      }
+      this[_map].addControl(this[_overviewMap])
+      const map = this[_overviewMap].getOverviewMap()
+      const view = map.getView()
+      const projection = view.getProjection()
+      view.fit(projection.getExtent(), { size: map.getSize() })
     }
-    this[_map].addControl(this[_overviewMap])
-    const map = this[_overviewMap].getOverviewMap()
-    const view = map.getView()
-    const projection = view.getProjection()
-    view.fit(projection.getExtent(), { size: map.getSize() })
   }
 
   /**
@@ -2400,11 +2414,15 @@ class VolumeImageViewer {
   }
 
   collapseOverviewMap () {
-    this[_overviewMap].setCollapsed(true)
+    if (this[_overviewMap]) {
+      this[_overviewMap].setCollapsed(true)
+    }
   }
 
   expandOverviewMap () {
-    this[_overviewMap].setCollapsed(true)
+    if (this[_overviewMap]) {
+      this[_overviewMap].setCollapsed(true)
+    }
   }
 
   /**
