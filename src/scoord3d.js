@@ -1,29 +1,46 @@
-import { generateUID } from './utils.js'
+import { _generateUID } from './utils.js'
 
 const _coordinates = Symbol('coordinates')
 const _frameOfReferenceUID = Symbol('frameOfReferenceUID')
 const _fiducialUID = Symbol('fiducialUID')
 
+/**
+ * 3D spatial coordinates.
+ *
+ * @class
+ * @abstract
+ * @memberof scoord3d
+ */
 class Scoord3D {
+  /**
+   * @param {Object} options - Options
+   * @param {string} options.frameOfReferenceUID - Frame of Reference UID
+   * @param {number[][]} options.coordinates - (x, y, z) coordinates for
+   * each point
+   * @param {string} options.fiducialUID - Fiducial UID
+   */
   constructor (options) {
     if (!(typeof options.frameOfReferenceUID === 'string' ||
           options.frameOfReferenceUID instanceof String)) {
-      throw new Error('frameOfReferenceUID of Scoord3D must be a string')
+      throw new Error(
+        'Argument "frameOfReferenceUID" of Scoord3D must be a string.'
+      )
     }
     this[_frameOfReferenceUID] = options.frameOfReferenceUID
-    options.fiducialUID = options.fiducialUID || generateUID()
+    options.fiducialUID = options.fiducialUID || _generateUID()
     if (!(typeof options.fiducialUID === 'string' ||
           options.fiducialUID instanceof String)) {
-      throw new Error('fiducialUID of Scoord3D must be a string')
+      throw new Error('Argument "fiducialUID" of Scoord3D must be a string.')
     }
     this[_fiducialUID] = options.fiducialUID
     if (!Array.isArray(options.coordinates)) {
-      throw new Error('coordinates of Scoord3D must be an array')
+      throw new Error('Argument "coordinates" of Scoord3D must be an array.')
     }
     this[_coordinates] = options.coordinates
   }
 
-  /** Graphic Data
+  /**
+   * Graphic Data
    *
    * @type {number[][]}
    */
@@ -31,7 +48,8 @@ class Scoord3D {
     return this[_coordinates]
   }
 
-  /** Graphic Type
+  /**
+   * Graphic Type
    *
    * @type {string}
    */
@@ -39,7 +57,8 @@ class Scoord3D {
     throw new Error('Prototype property "graphicType" must be implemented')
   }
 
-  /** Frame of Reference UID
+  /**
+   * Frame of Reference UID
    *
    * @type {string}
    */
@@ -47,7 +66,8 @@ class Scoord3D {
     return this[_frameOfReferenceUID]
   }
 
-  /** Fiducial UID
+  /**
+   * Fiducial UID
    *
    * @type {string}
    */
@@ -56,15 +76,15 @@ class Scoord3D {
   }
 }
 
-/** POINT graphic denoted by a single (X,Y,Z) triplet.
+/**
+ * POINT graphic denoted by a single (x, y, z) triplet.
  *
  * @class
- * @extends Scoord3D
+ * @extends scoord3d.Scoord3D
  * @memberof scoord3d
  */
 class Point extends Scoord3D {
-  /** Creates a new Point object.
-   *
+  /**
    * @param {Object} options
    * @param {string} options.frameOfReferenceUID - Unique identifier of the Frame of Reference
    * @param {number[]} options.coordinates - X, Y and Z coordinate.
@@ -72,10 +92,12 @@ class Point extends Scoord3D {
    */
   constructor (options) {
     if (!Array.isArray(options.coordinates)) {
-      throw new Error('coordinates of Point must be an array')
+      throw new Error('Argument "coordinates" of Point must be an array.')
     }
     if (options.coordinates.length !== 3) {
-      throw new Error('coordinates of Point must be an array of length 3')
+      throw new Error(
+        'Argument "coordinates" of Point must be an array of length 3.'
+      )
     }
     if (options.coordinates.some(c => c < 0)) {
       console.warn('coordinates of Point are negative numbers')
@@ -85,6 +107,7 @@ class Point extends Scoord3D {
       frameOfReferenceUID: options.frameOfReferenceUID,
       fiducialUID: options.fiducialUID
     })
+    Object.freeze(this)
   }
 
   /** Graphic Data
@@ -100,36 +123,40 @@ class Point extends Scoord3D {
   }
 }
 
-/** MULTIPOINT graphic denoted by multiple, coplanar (X,Y,Z) coordinates that
+/**
+ * MULTIPOINT graphic denoted by multiple, coplanar (x, y, z) coordinates that
  * represent individual points.
  *
  * @class
- * @extends Scoord3D
+ * @extends scoord3d.Scoord3D
  * @memberof scoord3d
  */
 class Multipoint extends Scoord3D {
-  /** Creates a new Multipoint object.
-   *
+  /**
    * @param {Object} options
    * @param {string} options.frameOfReferenceUID - Unique identifier of the Frame of Reference
-   * @param {number[][]} options.coordinates - X, Y and Z coordinate of each point.
+   * @param {number[][]} options.coordinates - (x, y, z) coordinates of each point.
    * @param {string} [options.fiducialUID] - Unique identifier of an imaging fiducial
    */
   constructor (options) {
     if (!Array.isArray(options.coordinates)) {
-      throw new Error('coordinates of Multipoint must be an array')
+      throw new Error('Argument "coordinates" of Multipoint must be an array.')
     }
     if (options.coordinates.find(c => c.length !== 3) !== undefined) {
-      throw new Error('coordinates of Multipoint must be an array of (X,Y,Z) triplets')
+      throw new Error(
+        'Argument "coordinates" of Multipoint must be an array of ' +
+        '(x, y, z) triplets.'
+      )
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
-      console.warn('coordinates of Multipoint contain positive numbers')
+      console.warn('coordinates of Multipoint contain negative numbers')
     }
     super({
       coordinates: options.coordinates,
       frameOfReferenceUID: options.frameOfReferenceUID,
       fiducialUID: options.fiducialUID
     })
+    Object.freeze(this)
   }
 
   get graphicType () {
@@ -137,27 +164,30 @@ class Multipoint extends Scoord3D {
   }
 }
 
-/** POLYLINE graphic denoted by multiple, ordered (X,Y,Z) coordinates that
+/**
+ * POLYLINE graphic denoted by multiple, ordered (x, y, z) coordinates that
  * represent vertices of connected line segments.
  *
  * @class
- * @extends Scoord3D
+ * @extends scoord3d.Scoord3D
  * @memberof scoord3d
  */
 class Polyline extends Scoord3D {
-  /** Creates a new Polyline object.
-   *
+  /**
    * @param {Object} options
    * @param {string} options.frameOfReferenceUID - Unique identifier of the Frame of Reference
-   * @param {number[][]} options.coordinates - (X,Y,Z) coordinates of point on the line
+   * @param {number[][]} options.coordinates - (x, y, z) coordinates of point on the line
    * @param {string} [options.fiducialUID] - Unique identifier of an imaging fiducial
    */
   constructor (options) {
     if (!Array.isArray(options.coordinates)) {
-      throw new Error('coordinates of Polyline must be an array')
+      throw new Error('Argument "coordinates" of Polyline must be an array.')
     }
     if (options.coordinates.find(c => c.length !== 3) !== undefined) {
-      throw new Error('coordinates of Polyline must be an array of (X,Y,Z) triplets')
+      throw new Error(
+        'Argument "coordinates" of Polyline must be an array of ' +
+        '(x, y, z) triplets.'
+      )
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
       console.warn('coordinates of Polyline contain negative numbers')
@@ -167,6 +197,7 @@ class Polyline extends Scoord3D {
       frameOfReferenceUID: options.frameOfReferenceUID,
       fiducialUID: options.fiducialUID
     })
+    Object.freeze(this)
   }
 
   get graphicType () {
@@ -174,28 +205,31 @@ class Polyline extends Scoord3D {
   }
 }
 
-/** POLYGON graphic denoted by multiple, ordered, coplaner (X,Y,Z) coordinates
+/**
+ * POLYGON graphic denoted by multiple, ordered, coplaner (x, y, z) coordinates
  * that represent vertices of connected line segments.
  * The first and last coordinate should be identical.
  *
  * @class
- * @extends Scoord3D
+ * @extends scoord3d.Scoord3D
  * @memberof scoord3d
  */
 class Polygon extends Scoord3D {
-  /** Creates a new Polygon object.
-   *
+  /**
    * @param {Object} options
    * @param {string} options.frameOfReferenceUID - Unique identifier of the Frame of Reference
-   * @param {number[][]} options.coordinates - (X,Y,Z) coordinates of points on the perimeter of the polygon (first and last coordinate must be the same).
+   * @param {number[][]} options.coordinates - (x, y, z) coordinates of points on the perimeter of the polygon (first and last coordinate must be the same).
    * @param {string} [options.fiducialUID] - Unique identifier of an imaging fiducial
    */
   constructor (options) {
     if (!Array.isArray(options.coordinates)) {
-      throw new Error('coordinates of Polygon must be an array')
+      throw new Error('Argument "coordinates" of Polygon must be an array.')
     }
     if (options.coordinates.find(c => c.length !== 3) !== undefined) {
-      throw new Error('coordinates of Polygon must be an array of (X,Y,Z) triplets')
+      throw new Error(
+        'Argument "coordinates" of Polygon must be an array of ' +
+        '(x, y, z) triplets.'
+      )
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
       console.warn('coordinates of Polygon contain negative numbers')
@@ -204,13 +238,14 @@ class Polygon extends Scoord3D {
     if ((options.coordinates[0][0] !== options.coordinates[n - 1][0]) ||
        (options.coordinates[0][1] !== options.coordinates[n - 1][1]) ||
        (options.coordinates[0][2] !== options.coordinates[n - 1][2])) {
-      throw new Error('first and last coordinate of Polygon must be the same')
+      throw new Error('First and last coordinate of Polygon must be the same.')
     }
     super({
       coordinates: options.coordinates,
       frameOfReferenceUID: options.frameOfReferenceUID,
       fiducialUID: options.fiducialUID
     })
+    Object.freeze(this)
   }
 
   get graphicType () {
@@ -218,33 +253,38 @@ class Polygon extends Scoord3D {
   }
 }
 
-/** ELLIPSOID graphic denoted by six (X,Y,Z) coordinates that represent
+/**
+ * ELLIPSOID graphic denoted by six (x, y, z) coordinates that represent
  * endpoints of the three orthogonal geometric axes, where the first and second
  * coordinates represent the endpoints of the first axis, the third and forth
  * coordinates represent the endpoints of the second axis and the fifth and
  * sixth coordinates represent the endpoints of the third axis.
  *
  * @class
- * @extends Scoord3D
+ * @extends scoord3d.Scoord3D
  * @memberof scoord3d
  */
 class Ellipsoid extends Scoord3D {
-  /** Creates a new Ellipsoid object.
-   *
+  /**
    * @param {Object} options
    * @param {string} options.frameOfReferenceUID - Unique identifier of the Frame of Reference
-   * @param {number[][]} options.coordinates - (X,Y,Z) coordinates of the three axes endpoints
+   * @param {number[][]} options.coordinates - (x, y, z) coordinates of the three axes endpoints
    * @param {string} [options.fiducialUID] - Unique identifier of an imaging fiducial
    */
   constructor (options) {
     if (!Array.isArray(options.coordinates)) {
-      throw new Error('coordinates of Ellipsoid must be an array')
+      throw new Error('Argument "coordinates" of Ellipsoid must be an array.')
     }
     if (options.coordinates.length !== 6) {
-      throw new Error('coordinates of Ellipsoid must be an array of length 6')
+      throw new Error(
+        'Argument "coordinates" of Ellipsoid must be an array of length 6.'
+      )
     }
     if (options.coordinates.find(c => c.length !== 3) !== undefined) {
-      throw new Error('coordinates of Ellipsoid must be an array of (X,Y,Z) triplets')
+      throw new Error(
+        'Argument "coordinates" of Ellipsoid must be an array of ' +
+        '(x, y, z) triplets.'
+      )
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
       console.warn('coordinates of Ellipsoid contain negative numbers')
@@ -254,6 +294,7 @@ class Ellipsoid extends Scoord3D {
       frameOfReferenceUID: options.frameOfReferenceUID,
       fiducialUID: options.fiducialUID
     })
+    Object.freeze(this)
   }
 
   get graphicType () {
@@ -261,32 +302,37 @@ class Ellipsoid extends Scoord3D {
   }
 }
 
-/** ELLIPSE graphic denoted by four, coplaner (X,Y,Z) coordinates that represent
+/**
+ * ELLIPSE graphic denoted by four, coplaner (x, y, z) coordinates that represent
  * the endpoints of the major and minor axes, where the first and second
  * coordinates represent the endpoints of the major axis and the third and
  * forth coordinates represent the endpoints of the minor axis.
  *
  * @class
- * @extends Scoord3D
+ * @extends scoord3d.Scoord3D
  * @memberof scoord3d
  */
 class Ellipse extends Scoord3D {
-  /** Creates a new Ellipse object.
-   *
+  /**
    * @param {Object} options
    * @param {string} options.frameOfReferenceUID - Unique identifier of the Frame of Reference
-   * @param {number[][]} options.coordinates - (X,Y,Z) coordinates of the major and minor axes endpoints
+   * @param {number[][]} options.coordinates - (x, y, z) coordinates of the major and minor axes endpoints
    * @param {string} [options.fiducialUID] - Unique identifier of an imaging fiducial
    */
   constructor (options) {
     if (!Array.isArray(options.coordinates)) {
-      throw new Error('coordinates of Ellipse must be an array')
+      throw new Error('Argument "coordinates" of Ellipse must be an array.')
     }
     if (options.coordinates.length !== 4) {
-      throw new Error('coordinates of Ellipse must be an array of length 4')
+      throw new Error(
+        'Argument "coordinates" of Ellipse must be an array of length 4.'
+      )
     }
     if (options.coordinates.find(c => c.length !== 3) !== undefined) {
-      throw new Error('coordinates of Ellipse must be an array of (X,Y,Z) triplets')
+      throw new Error(
+        'Argument "coordinates" of Ellipse must be an array of ' +
+        '(x, y, z) triplets.'
+      )
     }
     if (options.coordinates.find(c => c.some(item => item < 0))) {
       console.warn('coordinates of Ellipse contain negative numbers')
@@ -325,6 +371,7 @@ class Ellipse extends Scoord3D {
       frameOfReferenceUID: options.frameOfReferenceUID,
       fiducialUID: options.fiducialUID
     })
+    Object.freeze(this)
   }
 
   get graphicType () {

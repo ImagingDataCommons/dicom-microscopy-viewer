@@ -78,7 +78,7 @@ describe('_MarkupManager', () => {
       Enums.FeatureGeometryEvents.CHANGE
     )
     expect(feature.on.mock.calls[0][0]).toBe(
-      Enums.FeatureEvents.PROPERTY_CHANGE
+      Enums.FeatureGeometryEvents.CHANGE
     )
     expect(markup.element.addEventListener.mock.calls[0][0]).toBe(
       Enums.HTMLElementEvents.MOUSE_DOWN

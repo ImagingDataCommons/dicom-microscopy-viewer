@@ -9,16 +9,22 @@ import Enums from '../../enums'
  * Format free text output.
  *
  * @param {Feature} feature feature
+ *
  * @return {string} The formatted output
+ *
+ * @private
  */
-export const format = (feature) =>
+export const _format = (feature) =>
   feature.get(Enums.InternalProperties.Label) || ''
 
 /**
  * Builds the text evaluation style.
  *
  * @param {object} feature
+ *
  * @returns {object} Style instance
+ *
+ * @private
  */
 const _applyStyle = (feature) => {
   if (_hasMarker(feature)) {
@@ -42,19 +48,25 @@ const _applyStyle = (feature) => {
 }
 
 /**
- * Checks if feature has text evaluation properties.
+ * Check if feature has text evaluation properties.
  *
  * @param {object} feature
- * @returns {boolean} true if feature has text evaluation properties
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @private
  */
-const _isTextEvaluation = (feature) =>
+const _hasMarkup = (feature) =>
   Enums.Markup.TextEvaluation === feature.get(Enums.InternalProperties.Markup)
 
 /**
- * Checks if feature has marker properties.
+ * Check if feature has marker properties.
  *
  * @param {object} feature
- * @returns {boolean} true if feature has marker properties
+ *
+ * @returns {boolean} yes/no answer
+ *
+ * @private
  */
 const _hasMarker = (feature) => !!feature.get(Enums.InternalProperties.Marker)
 
@@ -64,13 +76,14 @@ const _hasMarker = (feature) => !!feature.get(Enums.InternalProperties.Marker)
  *
  * @param {object} feature
  * @param {object} markupManager MarkupManager instance
- * @returns {void}
+ *
+ * @private
  */
 const _onInteractionEventHandler = ({ feature, markupManager }) => {
   const featureHasMarker = _hasMarker(feature)
   markupManager.create({
     feature,
-    value: format(feature),
+    value: _format(feature),
     isLinkable: featureHasMarker,
     isDraggable: featureHasMarker
   })
@@ -82,11 +95,13 @@ const _onInteractionEventHandler = ({ feature, markupManager }) => {
  *
  * @param {object} dependencies Shared dependencies
  * @param {object} dependencies.markupManager MarkupManager shared instance
+ *
+ * @private
  */
 const TextEvaluationMarkup = ({ markupManager }) => {
   return {
     onAdd: (feature) => {
-      if (_isTextEvaluation(feature)) {
+      if (_hasMarkup(feature)) {
         _onInteractionEventHandler({ feature, markupManager })
 
         /** Keep text style after external style changes */
@@ -106,23 +121,23 @@ const TextEvaluationMarkup = ({ markupManager }) => {
       }
     },
     onRemove: (feature) => {
-      if (_isTextEvaluation(feature)) {
+      if (_hasMarkup(feature)) {
         const featureId = feature.getId()
         markupManager.remove(featureId)
       }
     },
     onUpdate: (feature) => {
-      if (_isTextEvaluation(feature)) {
-        markupManager.update({ feature, value: format(feature) })
+      if (_hasMarkup(feature)) {
+        markupManager.update({ feature, value: _format(feature) })
       }
     },
     onDrawStart: ({ feature }) => {
-      if (_isTextEvaluation(feature)) {
+      if (_hasMarkup(feature)) {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },
     onDrawEnd: ({ feature }) => {
-      if (_isTextEvaluation(feature)) {
+      if (_hasMarkup(feature)) {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },

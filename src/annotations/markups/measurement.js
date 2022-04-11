@@ -1,8 +1,8 @@
 import Enums from '../../enums'
-import { getUnitSuffix } from '../../utils'
+import { _getUnitSuffix } from '../../utils'
 import {
-  getFeatureScoord3dArea,
-  getFeatureScoord3dLength
+  _getFeatureArea,
+  _getFeatureLength
 } from '../../scoord3dUtils.js'
 
 /**
@@ -10,11 +10,14 @@ import {
  *
  * @param {Feature} feature feature
  * @param {string} units units
+ *
  * @return {string} The formatted measure of this feature
+ *
+ * @private
  */
-export const format = (feature, units, pyramid) => {
-  const area = getFeatureScoord3dArea(feature, pyramid)
-  const length = getFeatureScoord3dLength(feature, pyramid)
+export const _format = (feature, units, pyramid) => {
+  const area = _getFeatureArea(feature, pyramid)
+  const length = _getFeatureLength(feature, pyramid)
   const value = length || area || 0
   return length
     ? `${value.toFixed(2)} ${units}`
@@ -25,7 +28,10 @@ export const format = (feature, units, pyramid) => {
  * Checks if feature has measurement markup properties.
  *
  * @param {object} feature
+ *
  * @returns {boolean} true if feature has measurement markup properties
+ *
+ * @private
  */
 const _isMeasurement = (feature) =>
   Enums.Markup.Measurement === feature.get(Enums.InternalProperties.Markup)
@@ -37,16 +43,18 @@ const _isMeasurement = (feature) =>
  * @param {object} dependencies.map Viewer's map instance
  * @param {object} dependencies.pyramid Pyramid metadata
  * @param {object} dependencies.markupManager MarkupManager shared instance
+ *
+ * @private
  */
 const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
   return {
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
         const view = map.getView()
-        const unitSuffix = getUnitSuffix(view)
+        const unitSuffix = _getUnitSuffix(view)
         markupManager.create({
           feature,
-          value: format(feature, unitSuffix, pyramid)
+          value: _format(feature, unitSuffix, pyramid)
         })
       }
     },
@@ -66,7 +74,17 @@ const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
         markupManager.create({ feature })
       }
     },
-    onUpdate: (feature) => {},
+    onUpdate: (feature) => {
+      const view = map.getView()
+      const unitSuffix = _getUnitSuffix(view)
+      const id = feature.getId()
+      const markup = markupManager.get(id)
+      markupManager.update({
+        feature,
+        value: _format(feature, unitSuffix, pyramid),
+        coordinate: markup.overlay.getPosition()
+      })
+    },
     onDrawEnd: ({ feature }) => {},
     onDrawAbort: ({ feature }) => {}
   }

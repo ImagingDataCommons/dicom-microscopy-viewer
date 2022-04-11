@@ -1,4 +1,6 @@
+import Circle from 'ol/geom/Circle'
 import DragPan from 'ol/interaction/DragPan'
+import LineString from 'ol/geom/LineString'
 import Overlay from 'ol/Overlay'
 import VectorLayer from 'ol/layer/Vector'
 import 'ol/ol.css'
@@ -7,19 +9,62 @@ import Style from 'ol/style/Style'
 import Stroke from 'ol/style/Stroke'
 import Collection from 'ol/Collection'
 import Feature from 'ol/Feature'
+import { fromCircle } from 'ol/geom/Polygon'
 
 import Enums from '../../enums'
-import { getShortestLineBetweenOverlayAndFeature } from './utils'
-import { getUnitSuffix } from '../../utils'
+import { _getUnitSuffix } from '../../utils'
 import { coordinateWithOffset } from '../../scoord3dUtils'
 import defaultStyles from '../styles'
+
+/**
+ * Build a new LineString instance with the shortest
+ * distance between a given overlay and a feature.
+ *
+ * @param {object} feature The feature
+ * @param {object} overlay The overlay instance
+ *
+ * @returns {LineString} The smallest line between the overlay and feature
+ *
+ * @private
+ */
+const _getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
+  let result
+  let distanceSq = Infinity
+
+  let featureGeometry = feature.getGeometry()
+
+  if (featureGeometry instanceof Circle) {
+    featureGeometry = fromCircle(featureGeometry).clone()
+  }
+
+  const geometry = featureGeometry.getLinearRing ? featureGeometry.getLinearRing(0) : featureGeometry;
+
+  (geometry.getCoordinates() || geometry.getExtent()).forEach(coordinates => {
+    const closest = overlay.getPosition()
+    const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
+    if (distanceNew < distanceSq) {
+      distanceSq = distanceNew
+      result = [coordinates, closest]
+    }
+  })
+
+  const coordinates = overlay.getPosition()
+  const closest = geometry.getClosestPoint(coordinates)
+  const distanceNew = Math.pow(closest[0] - coordinates[0], 2) + Math.pow(closest[1] - coordinates[1], 2)
+  if (distanceNew < distanceSq) {
+    distanceSq = distanceNew
+    result = [closest, coordinates]
+  }
+
+  return new LineString(result)
+}
 
 class _MarkupManager {
   constructor ({ map, pyramid, drawingSource, formatters, onClick, onStyle } = {}) {
     this._map = map
     this._pyramid = pyramid
     this._formatters = formatters
-    this._drawingSource = drawingSource;
+    this._drawingSource = drawingSource
 
     this.onClick = onClick
     this.onStyle = onStyle
@@ -120,13 +165,13 @@ class _MarkupManager {
   setVisibility (id, isVisible) {
     const markup = this.get(id)
     if (!markup) {
-      return;
+      return
     }
 
     const links = this._links.getArray()
     const link = links.find((feature) => feature.getId() === id)
 
-    const feature = this._drawingSource.getFeatureById(id);
+    const feature = this._drawingSource.getFeatureById(id)
 
     if (!isVisible) {
       this._map.removeOverlay(markup.overlay)
@@ -199,19 +244,18 @@ class _MarkupManager {
   _wireInternalEvents (feature) {
     const id = feature.getId()
     const markup = this.get(id)
-    const geometry = feature.getGeometry()
-    const listener = geometry.on(
-      Enums.FeatureGeometryEvents.CHANGE,
-      ({ target: geometry }) => {
+    const listener = feature.on(
+      Enums.FeatureEvents.CHANGE,
+      (event) => {
         if (this.has(id)) {
           const view = this._map.getView()
-          const unitSuffix = getUnitSuffix(view)
-          const format = this._getFormatter(feature)
-          const output = format(feature, unitSuffix, this._pyramid)
+          const unitSuffix = _getUnitSuffix(view)
+          const format = this._getFormatter(event.target)
+          const output = format(event.target, unitSuffix, this._pyramid)
           this.update({
             feature,
             value: output,
-            coordinate: geometry.getLastCoordinate()
+            coordinate: event.target.getGeometry().getLastCoordinate()
           })
           this._drawLink(feature)
         }
@@ -372,7 +416,7 @@ class _MarkupManager {
     }
 
     if (coordinate) {
-      markup.overlay.setPosition(coordinateWithOffset(feature))
+      markup.overlay.setPosition(coordinate)
     }
 
     this._markups.set(id, markup)
@@ -385,6 +429,22 @@ class _MarkupManager {
    */
   onDrawEnd (event) {
     const feature = event.feature
+    if (this._isValidFeature(feature)) {
+      const featureId = feature.getId()
+      const markup = this.get(featureId)
+      if (markup) {
+        markup.element.className = 'ol-tooltip ol-tooltip-static'
+        this._markups.set(featureId, markup)
+      }
+    }
+  }
+
+  /**
+   * This event is responsible assign markup classes on update event
+   *
+   * @param {object} event The event
+   */
+  onUpdate (feature) {
     if (this._isValidFeature(feature)) {
       const featureId = feature.getId()
       const markup = this.get(featureId)
@@ -419,7 +479,7 @@ class _MarkupManager {
       return
     }
 
-    const line = getShortestLineBetweenOverlayAndFeature(
+    const line = _getShortestLineBetweenOverlayAndFeature(
       feature,
       markup.overlay
     )
