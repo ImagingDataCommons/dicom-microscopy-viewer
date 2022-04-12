@@ -1,9 +1,48 @@
 import * as dwc from 'dicomweb-client'
 
-import { decodeFrame } from './decode.js'
+import { decodeAndTransformFrame } from './decode.js'
 import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
-import { are1DArraysAlmostEqual, are2DArraysAlmostEqual } from './utils.js'
+import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from './utils.js'
+
+/**
+ * Get Image ICC profiles.
+ *
+ * @param {object} pyramid - Metadata of VL Whole Slide Microscopy Image instances
+ * @param {object} client - dicom web client
+ * @returns {array} image array with icc profiles
+ *
+ * @private
+ */
+function _getICCProfiles(pyramid, client) {
+  const metadata = pyramid.metadata
+  const ICCProfiles = []
+  for (let i = 0; i < metadata.length; i++) {
+    const image = metadata[i]
+    if (image.SamplesPerPixel === 3) {
+      if (image.bulkdataReferences.OpticalPathSequence == null) {
+        console.warn('ICC Profile was not found')
+        continue
+      }
+      _fetchBulkdata({
+        client,
+        reference: (
+          image
+            .bulkdataReferences
+            .OpticalPathSequence[0]
+            .ICCProfile
+        )
+      }).then((iccProfile) => {
+        if (iccProfile) {
+          image.iccProfile = iccProfile
+          ICCProfiles.push(image)
+        }
+      })
+    }
+  }
+
+  return ICCProfiles
+}
 
 /**
  * Compute image pyramid.
@@ -312,11 +351,10 @@ function _createEmptyTile ({
 }
 
 function _createTileLoadFunction ({
-  decoders,
-  transformers,
   pyramid,
   client,
-  channel
+  channel,
+  ICCProfiles
 }) {
   return async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
@@ -438,34 +476,35 @@ function _createTileLoadFunction ({
         frameNumbers,
         mediaTypes
       }
+      
       return client.retrieveInstanceFrames(retrieveOptions).then(
         (rawFrames) => {
-          try {
-            const { pixelArray } = decodeFrame({
-              decoders,
-              transformers,
+          try { 
+          return decodeAndTransformFrame({
               frame: rawFrames[0],
               bitsAllocated,
               pixelRepresentation,
               columns,
               rows,
               samplesPerPixel,
-              sopInstanceUID
-            })
-            if (pixelArray.constructor === Float64Array) {
-              // TODO: handle Float64Array using LUT
-              throw new Error('Double Float Pixel Data is not (yet) supported.')
-            }
-            if (samplesPerPixel === 3 && bitsAllocated === 8) {
-              // Rendering of color images requires unsigned 8-bit integers
-              return pixelArray
-            }
-            // Rendering of grayscale images requires floating point values
-            return new Float32Array(
-              pixelArray,
-              pixelArray.byteOffset,
-              pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT
-            )
+              sopInstanceUID,
+              ICCProfiles
+            }).then(pixelArray => {
+              if (pixelArray.constructor === Float64Array) {
+                // TODO: handle Float64Array using LUT
+                throw new Error('Double Float Pixel Data is not (yet) supported.')
+              }
+              if (samplesPerPixel === 3 && bitsAllocated === 8) {
+                // Rendering of color images requires unsigned 8-bit integers
+                return pixelArray
+              }
+              // Rendering of grayscale images requires floating point values
+              return new Float32Array(
+                pixelArray,
+                pixelArray.byteOffset,
+                pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT
+              )
+            });
           } catch (error) {
             console.error('failed to decode frame: ', error)
           }
@@ -552,5 +591,6 @@ export {
   _areImagePyramidsEqual,
   _computeImagePyramid,
   _createTileLoadFunction,
-  _fitImagePyramid
+  _fitImagePyramid,
+  _getICCProfiles
 }
