@@ -1,5 +1,5 @@
 // eslint-disable-next-line
-import dicomMicroscopyImageLoaderWebWorker from './index.worker.js'
+import DataLoader from './index.worker.js'
 
 // the taskId to assign to the next task added via addTask()
 let nextTaskId = 0
@@ -113,7 +113,7 @@ function spawnWebWorker() {
     return
   }
 
-  const worker = new dicomMicroscopyImageLoaderWebWorker();
+  const worker = new DataLoader();
   // spawn the webworker
   webWorkers.push({
     worker,

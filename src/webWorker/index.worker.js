@@ -4,10 +4,10 @@ import decodeAndTrasformTask from './decodeAndTrasformTask.js'
 // register our task
 registerTaskHandler(decodeAndTrasformTask)
 
-const dicomMicroscopyImageLoaderWebWorker = {
+const DataLoader = {
   registerTaskHandler
 };
 
 export { registerTaskHandler }
 
-export default dicomMicroscopyImageLoaderWebWorker
+export default DataLoader
