@@ -52,10 +52,10 @@ function handler(data, doneCallback) {
 
     // Apply ICC color transform
     transformICCAsync(data.ICCProfiles, data.sopInstanceUID, decodedFrame).then((transformedFrame) => {
-      // invoke the callback with our result and pass the pixelData in the transferList to move it to
+      // invoke the callback with our result and pass the frameData in the transferList to move it to
       // UI thread without making a copy
       doneCallback({
-        pixelData: transformedFrame.buffer
+        frameData: transformedFrame.buffer
       }, [transformedFrame.buffer])
     }).catch(
       (error) => {
