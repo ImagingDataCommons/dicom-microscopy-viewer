@@ -4,19 +4,19 @@ import JPEGDecoder from './decoders/decoderJPEGBaseline8Bit.js'
 import ColorTransformer from './transformers/transformerICC.js'
 import imageType from 'image-type'
 
-const decoderJPEG2000 = new JPEG2000Decoder();
-const decoderJPEGLS = new JPEGLSDecoder();
-const decoderJPEG = new JPEGDecoder();
-const transformerColor = new ColorTransformer();
+const decoderJPEG2000 = new JPEG2000Decoder()
+const decoderJPEGLS = new JPEGLSDecoder()
+const decoderJPEG = new JPEGDecoder()
+const transformerColor = new ColorTransformer()
 
 /**
  * Task handler function
- * 
+ *
  * @param {object} - handler data
  * @param {function} - handler done call back
  *
  */
-function handler(data, doneCallback) {
+function handler (data, doneCallback) {
   const {
     bitsAllocated,
     columns,
@@ -127,7 +127,7 @@ async function _checkImageTypeAndDecode ({
 
   console.debug(`decode compressed frame with media type "${mediaType}"`)
 
-  const {frameBuffer, frameInfo} = await _decode(mediaType, byteArray)
+  const { frameBuffer, frameInfo } = await _decode(mediaType, byteArray)
   if (frameInfo.bitsPerSample !== bitsAllocated) {
     throw new Error('_checkImageTypeAndDecode: frame does not have expected Bits Allocated.')
   }
@@ -181,4 +181,4 @@ async function _decode (mediaType, byteArray) {
 export default {
   taskType: 'decodeAndTrasformTask',
   handler
-};
+}

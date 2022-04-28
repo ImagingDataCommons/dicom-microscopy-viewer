@@ -46,7 +46,6 @@ import {
 import {
   Segment
 } from './segment.js'
-import { default as webWorkerManager } from './webWorker/webWorkerManager.js';
 
 /**
  * Namespace for annotations of DICOM Micrsocopy Bulk Simple Annotations
@@ -193,6 +192,5 @@ export {
   scoord3d,
   segment,
   utils,
-  viewer,
-  webWorkerManager
+  viewer
 }

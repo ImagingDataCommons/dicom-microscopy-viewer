@@ -1,3 +1,4 @@
+/*eslint-disable*/
 // an object of task handlers
 const taskHandlers = {}
 
@@ -11,7 +12,7 @@ let config
  * Initialization function that loads additional web workers and initializes them
  * @param data
  */
-function initialize(data) {
+function initialize (data) {
   // prevent initialization from happening more than once
   if (initialized) {
     return
@@ -22,7 +23,7 @@ function initialize(data) {
 
   // Additional web worker tasks can self-register by calling self.registerTaskHandler
   self.registerTaskHandler = registerTaskHandler
-
+  
   // load any additional web worker tasks
   if (data.config.webWorkerTaskPaths) {
     for (let i = 0; i < data.config.webWorkerTaskPaths.length; i++) {
@@ -35,8 +36,8 @@ function initialize(data) {
     taskType: 'initialize',
     status: 'success',
     result: {},
-    workerIndex: data.workerIndex,
-  });
+    workerIndex: data.workerIndex
+  })
 
   initialized = true
 }
@@ -45,13 +46,13 @@ function initialize(data) {
  * Function exposed to web worker tasks to register themselves
  * @param taskHandler
  */
-export function registerTaskHandler(taskHandler) {
+export function registerTaskHandler (taskHandler) {
   if (taskHandlers[taskHandler.taskType]) {
     console.log(
       'attempt to register duplicate task handler "',
       taskHandler.taskType,
       '"'
-    );
+    )
 
     return false
   }
@@ -65,7 +66,7 @@ export function registerTaskHandler(taskHandler) {
  * Function to load a new web worker task with updated configuration
  * @param data
  */
-function loadWebWorkerTask(data) {
+function loadWebWorkerTask (data) {
   config = data.config
   self.importScripts(data.sourcePath)
 }
@@ -78,24 +79,24 @@ self.onmessage = function (msg) {
   if (!msg.data.taskType) {
     console.log(msg.data)
 
-    return;
+    return
   }
 
-  console.log('Web Worker onmessage. Task : ', msg.data.taskType, 
-              ' . WorkerIndex :  ', msg.data.workerIndex);
+  console.log('Web Worker onmessage. Task : ', msg.data.taskType,
+    ' . WorkerIndex :  ', msg.data.workerIndex)
 
   // handle initialize message
   if (msg.data.taskType === 'initialize') {
     initialize(msg.data)
 
-    return;
+    return
   }
 
   // handle loadWebWorkerTask message
   if (msg.data.taskType === 'loadWebWorkerTask') {
     loadWebWorkerTask(msg.data)
 
-    return;
+    return
   }
 
   // dispatch the message if there is a handler registered for it
@@ -109,20 +110,20 @@ self.onmessage = function (msg) {
               taskType: msg.data.taskType,
               status: 'success',
               result,
-              workerIndex: msg.data.workerIndex,
+              workerIndex: msg.data.workerIndex
             },
             transferList
-          );
+          )
         }
-      );
+      )
     } catch (error) {
-      console.log(`task ${msg.data.taskType} failed - ${error.message}`);
+      console.log(`task ${msg.data.taskType} failed - ${error.message}`)
       self.postMessage({
         taskType: msg.data.taskType,
         status: 'failed',
         result: error.message,
-        workerIndex: msg.data.workerIndex,
-      });
+        workerIndex: msg.data.workerIndex
+      })
     }
 
     return
@@ -135,6 +136,7 @@ self.onmessage = function (msg) {
   self.postMessage({
     taskType: msg.data.taskType,
     status: 'failed - no task handler registered',
-    workerIndex: msg.data.workerIndex,
-  });
-};
+    workerIndex: msg.data.workerIndex
+  })
+}
+/* eslint-enable */

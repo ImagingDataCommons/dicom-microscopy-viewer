@@ -6,7 +6,7 @@ registerTaskHandler(decodeAndTrasformTask)
 
 const DataLoader = {
   registerTaskHandler
-};
+}
 
 export { registerTaskHandler }
 

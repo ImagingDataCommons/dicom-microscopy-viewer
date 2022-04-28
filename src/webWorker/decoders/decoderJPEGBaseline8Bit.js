@@ -3,29 +3,27 @@ import libjpegTurboWasm from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjp
 import Decoder from './decoderAbstract.js'
 
 export default class JPEGDecoder extends Decoder {
-  _initialize() {
+  _initialize () {
     if (this.codec) {
       return Promise.resolve()
     }
-  
+
     const libjpegTurboModule = libjpegTurboFactory({
       locateFile: (f) => {
         if (f.endsWith('.wasm')) {
-          return libjpegTurboWasm;
+          return libjpegTurboWasm
         }
-  
+
         return f
-      },
-    });
-  
+      }
+    })
+
     return new Promise((resolve, reject) => {
       libjpegTurboModule.then((instance) => {
         this.codec = instance
         this.decoder = new instance.JPEGDecoder()
         resolve()
       }, reject)
-    });
-  }  
+    })
+  }
 }
-
-

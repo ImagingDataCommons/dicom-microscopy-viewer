@@ -14,7 +14,7 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
  *
  * @private
  */
-function _getIccProfiles(pyramid, client) {
+function _getIccProfiles (pyramid, client) {
   const metadata = pyramid.metadata
   const iccProfiles = []
   for (let i = 0; i < metadata.length; i++) {
@@ -476,11 +476,11 @@ function _createTileLoadFunction ({
         frameNumbers,
         mediaTypes
       }
-      
+
       return client.retrieveInstanceFrames(retrieveOptions).then(
         (rawFrames) => {
-          try { 
-          return decodeAndTransformFrame({
+          try {
+            return decodeAndTransformFrame({
               frame: rawFrames[0],
               bitsAllocated,
               pixelRepresentation,
@@ -504,7 +504,7 @@ function _createTileLoadFunction ({
                 pixelArray.byteOffset,
                 pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT
               )
-            });
+            })
           } catch (error) {
             console.error('failed to decode frame: ', error)
           }

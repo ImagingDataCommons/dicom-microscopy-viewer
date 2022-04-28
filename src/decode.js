@@ -1,6 +1,7 @@
 import webWorkerManager from './webWorker/webWorkerManager.js'
+import dcmjs from 'dcmjs'
 
-function processDecodeAndTrasformTask(
+function processDecodeAndTrasformTask (
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -10,8 +11,8 @@ function processDecodeAndTrasformTask(
   sopInstanceUID,
   iccProfiles
 ) {
-  const priority = undefined;
-  const transferList = undefined;
+  const priority = undefined
+  const transferList = undefined
 
   return webWorkerManager.addTask(
     'decodeAndTrasformTask',
@@ -26,11 +27,11 @@ function processDecodeAndTrasformTask(
       iccProfiles
     },
     priority,
-    transferList,
-  ).promise;
+    transferList
+  ).promise
 }
 
-async function decodeAndTransformFrame({
+async function decodeAndTransformFrame ({
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -48,8 +49,8 @@ async function decodeAndTransformFrame({
     rows,
     samplesPerPixel,
     sopInstanceUID,
-    iccProfiles);
-    
+    iccProfiles)
+
   const signed = pixelRepresentation === 1
   let pixelArray
   switch (bitsAllocated) {
@@ -96,9 +97,9 @@ async function decodeAndTransformFrame({
       throw new Error(
         'The pixel bit depth ' + bitsAllocated +
         ' is not supported by the rendering.'
-      );
-    }
-  return pixelArray; 
+      )
+  }
+  return pixelArray
 }
 
 export {
