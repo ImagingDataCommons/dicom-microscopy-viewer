@@ -4,7 +4,7 @@ export default class Decoder {
     this.decoder = undefined
   }
   
-  _initialize () {
+  _initialize() {
     return Promise.resolve()
   }
   
@@ -13,7 +13,6 @@ export default class Decoder {
    * @param {Uint8Array} byteArray - Image array
    *
    * @returns {object} decoded array and frameInfo
-   * @private
    */
   async decodeAsync(byteArray) {
     if (!this.codec){

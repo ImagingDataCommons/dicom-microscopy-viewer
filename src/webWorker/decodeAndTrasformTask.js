@@ -1,12 +1,13 @@
 import JPEG2000Decoder from './decoders/decoderJPEG2000.js'
 import JPEGLSDecoder from './decoders/decoderJPEGLS.js'
 import JPEGDecoder from './decoders/decoderJPEGBaseline8Bit.js'
-import { transformAsync as transformICCAsync } from './transformers/transformICC.js'
+import ColorTransformer from './transformers/transformerICC.js'
 import imageType from 'image-type'
 
 const decoderJPEG2000 = new JPEG2000Decoder();
 const decoderJPEGLS = new JPEGLSDecoder();
 const decoderJPEG = new JPEGDecoder();
+const transformerColor = new ColorTransformer();
 
 /**
  * Task handler function
@@ -38,7 +39,7 @@ function handler(data, doneCallback) {
     }
   ).then((decodedFrame) => {
     // Apply ICC color transform
-    transformICCAsync(iccProfiles, sopInstanceUID, decodedFrame).then((transformedFrame) => {
+    transformerColor.transformAsync(iccProfiles, sopInstanceUID, decodedFrame).then((transformedFrame) => {
       // invoke the callback with our result and pass the frameData in the transferList to move it to
       // UI thread without making a copy
       doneCallback({
