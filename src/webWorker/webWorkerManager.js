@@ -148,7 +148,7 @@ function initialize(configObject) {
 /**
  * Terminate all running web workers.
  */
-function terminate() {
+function terminateAllWebWorkers() {
   for (let i = 0; i < webWorkers.length; i++) {
     webWorkers[i].worker.terminate()
   }
@@ -315,5 +315,5 @@ export default {
   setTaskPriority,
   cancelTask,
   webWorkers,
-  terminate,
+  terminateAllWebWorkers,
 };

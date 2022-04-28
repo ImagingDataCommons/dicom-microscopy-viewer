@@ -89,6 +89,7 @@ import {
 
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
+import { terminateAllWebWorkers } from './webWorker/webWorkerManager.js'
 
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
@@ -1627,6 +1628,8 @@ class VolumeImageViewer {
       }
       this[_features].clear()
     })
+
+    terminateAllWebWorkers()
   }
 
   /**
