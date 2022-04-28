@@ -117,7 +117,7 @@ async function _checkImageTypeAndDecode ({
 
   if (mediaType === 'application/octet-stream') {
     console.debug(`decode uncompressed frame with media type "${mediaType}"`)
-    return frameBuffer
+    return byteArray
   }
 
   console.debug(`decode compressed frame with media type "${mediaType}"`)
