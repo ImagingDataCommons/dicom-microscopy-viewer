@@ -44,7 +44,8 @@ function initialize(iccProfiles) {
   });
 }
 
-/** Transform image.
+/** Transform image. The transform is applied only is iccProfiles are available. 
+ * Otherwise the function return the original decoded frame.
  * 
  * @param {array} - images metadata with ICC profiles
  * @param {string} - sopInstanceUID
