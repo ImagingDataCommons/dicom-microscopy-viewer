@@ -6,7 +6,7 @@ const local = {
   transformers: [],
 };
 
-function initialize(ICCProfiles) {
+function initialize(iccProfiles) {
   if (local.codec) {
     return Promise.resolve()
   }
@@ -24,8 +24,8 @@ function initialize(ICCProfiles) {
     dicomiccFactory.then((instance) => {
       local.codec = instance
 
-      for (let iccProfileIndex = 0; iccProfileIndex < ICCProfiles.length; iccProfileIndex++) {
-        const image = ICCProfiles[iccProfileIndex];
+      for (let iccProfileIndex = 0; iccProfileIndex < iccProfiles.length; iccProfileIndex++) {
+        const image = iccProfiles[iccProfileIndex];
 
         local.transformers[image.SOPInstanceUID] = new dicomicc.ColorManager(
           {
@@ -53,13 +53,13 @@ function initialize(ICCProfiles) {
  * @returns {Buffer} transformed buffer
  * @private
  */
- async function transformAsync(ICCProfiles, sopInstanceUID, decodedFrame) {
-  if (!ICCProfiles || ICCProfiles.length === 0) {
+ async function transformAsync(iccProfiles, sopInstanceUID, decodedFrame) {
+  if (!iccProfiles || iccProfiles.length === 0) {
     return decodedFrame
   }
 
   if (!local.codec) {
-    await initialize(ICCProfiles)
+    await initialize(iccProfiles)
   }
 
   let transformedFrame

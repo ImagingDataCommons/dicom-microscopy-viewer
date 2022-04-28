@@ -10,13 +10,13 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
  *
  * @param {object} pyramid - Metadata of VL Whole Slide Microscopy Image instances
  * @param {object} client - dicom web client
- * @returns {array} image array with icc profiles
+ * @returns {array} image array with ICC profiles
  *
  * @private
  */
-function _getICCProfiles(pyramid, client) {
+function _getIccProfiles(pyramid, client) {
   const metadata = pyramid.metadata
-  const ICCProfiles = []
+  const iccProfiles = []
   for (let i = 0; i < metadata.length; i++) {
     const image = metadata[i]
     if (image.SamplesPerPixel === 3) {
@@ -35,13 +35,13 @@ function _getICCProfiles(pyramid, client) {
       }).then((iccProfile) => {
         if (iccProfile) {
           image.iccProfile = iccProfile
-          ICCProfiles.push(image)
+          iccProfiles.push(image)
         }
       })
     }
   }
 
-  return ICCProfiles
+  return iccProfiles
 }
 
 /**
@@ -354,7 +354,7 @@ function _createTileLoadFunction ({
   pyramid,
   client,
   channel,
-  ICCProfiles
+  iccProfiles
 }) {
   return async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
@@ -488,7 +488,7 @@ function _createTileLoadFunction ({
               rows,
               samplesPerPixel,
               sopInstanceUID,
-              ICCProfiles
+              iccProfiles
             }).then(pixelArray => {
               if (pixelArray.constructor === Float64Array) {
                 // TODO: handle Float64Array using LUT
@@ -592,5 +592,5 @@ export {
   _computeImagePyramid,
   _createTileLoadFunction,
   _fitImagePyramid,
-  _getICCProfiles
+  _getIccProfiles
 }

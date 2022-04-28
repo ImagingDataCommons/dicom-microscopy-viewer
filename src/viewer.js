@@ -84,7 +84,7 @@ import {
   _computeImagePyramid,
   _createTileLoadFunction,
   _fitImagePyramid,
-  _getICCProfiles
+  _getIccProfiles
 } from './pyramid.js'
 
 import Enums from './enums'
@@ -959,7 +959,7 @@ class VolumeImageViewer {
             pyramid: pyramid,
             client: this[_options].client,
             channel: opticalPathIdentifier,
-            ICCProfiles: _getICCProfiles(pyramid, this[_options].client)
+            iccProfiles: _getIccProfiles(pyramid, this[_options].client)
           }
         }
 
@@ -1120,7 +1120,7 @@ class VolumeImageViewer {
           pyramid: pyramid,
           client: this[_options].client,
           channel: opticalPathIdentifier,
-          ICCProfiles: _getICCProfiles(pyramid, this[_options].client)
+          iccProfiles: _getIccProfiles(pyramid, this[_options].client)
         }
       }
 
