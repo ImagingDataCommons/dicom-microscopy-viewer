@@ -1,8 +1,12 @@
-import { decodeAsync as decodeAsyncJPEG2000 } from './decoders/decodeJPEG2000.js'
-import { decodeAsync as decodeAsyncJPEGLS } from './decoders/decodeJPEGLS.js'
-import { decodeAsync as decodeAsyncJPEGBaseline8Bit } from './decoders/decodeJPEGBaseline8Bit.js'
+import JPEG2000Decoder from './decoders/decoderJPEG2000.js'
+import JPEGLSDecoder from './decoders/decoderJPEGLS.js'
+import JPEGDecoder from './decoders/decoderJPEGBaseline8Bit.js'
 import { transformAsync as transformICCAsync } from './transformers/transformICC.js'
 import imageType from 'image-type'
+
+const decoderJPEG2000 = new JPEG2000Decoder();
+const decoderJPEGLS = new JPEGLSDecoder();
+const decoderJPEG = new JPEGDecoder();
 
 /**
  * Task handler function
@@ -165,11 +169,11 @@ async function _checkImageTypeAndDecode ({
  */
 async function _decode (mediaType, byteArray) {
   if (mediaType === 'image/jpeg') {
-    return await decodeAsyncJPEGBaseline8Bit(byteArray)
+    return await decoderJPEG.decodeAsync(byteArray)
   } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
-    return await decodeAsyncJPEG2000(byteArray)
+    return await decoderJPEG2000.decodeAsync(byteArray)
   } else if (mediaType === 'image/jls') {
-    return await decodeAsyncJPEGLS(byteArray)
+    return await decoderJPEGLS.decodeAsync(byteArray)
   }
 }
 
