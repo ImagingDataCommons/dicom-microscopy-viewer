@@ -64,7 +64,7 @@ async function decodeAndTransformFrame({
       }
       break
     case 16:
-      if (pixelRepresentation === 1) {
+      if (signed) {
         pixelArray = new Int16Array(
           result.frameData.buffer,
           result.frameData.byteOffset,

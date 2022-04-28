@@ -6,52 +6,35 @@ import imageType from 'image-type'
 
 /**
  * Task handler function
+ * 
+ * @param {object} - handler data
+ * @param {function} - handler done call back
+ *
  */
 function handler(data, doneCallback) {
-  _checkImageTypeAndDecode(
-    data
-  ).then(({data, decodedFrame, frameInfo}) => {
-    if (frameInfo.bitsAllocated && 
-      data.bitsAllocated &&
-      frameInfo.bitsAllocated !== data.bitsAllocated
-    ) {
-      throw new Error('decodeAndTrasformTask: frame does not have expected Bits Allocated.')
-    }
-    if (frameInfo.rows && 
-      data.rows &&
-      frameInfo.rows !==  data.rows
-    ) {
-      throw new Error('decodeAndTrasformTask: frame does not have expected Rows.')
-    }
-    if (frameInfo.columns && 
-      data.columns &&
-      frameInfo.columns !==  data.columns
-    ) {
-      throw new Error('decodeAndTrasformTask: frame does not have expected Columns.')
-    }
-    if (frameInfo.samplesPerPixel && 
-      data.samplesPerPixel &&
-      frameInfo.samplesPerPixel !==  data.samplesPerPixel
-    ) {
-      throw new Error('decodeAndTrasformTask: frame does not have expected Samples Per Pixel.')
-    }
-    if (frameInfo.pixelRepresentation && 
-      data.pixelRepresentation &&
-      frameInfo.pixelRepresentation !==  data.pixelRepresentation
-    ) {
-      throw new Error('decodeAndTrasformTask: frame does not have expected Pixel Representation.')
-    }
-  
-    const length =  data.rows *  data.columns *  data.samplesPerPixel * (data.bitsAllocated / 8)
-    if (length !== decodedFrame.length) {
-      throw new Error(
-        'decodeAndTrasformTask: frame value does not have expected length: ' +
-        decodedFrame.length + ' instead of ' + length + '.'
-      )
-    }
+  const {
+    bitsAllocated,
+    columns,
+    rows,
+    samplesPerPixel,
+    pixelRepresentation,
+    frame,
+    iccProfiles,
+    sopInstanceUID
+  } = data.data
 
+  _checkImageTypeAndDecode(
+    {
+      bitsAllocated,
+      columns,
+      rows,
+      samplesPerPixel,
+      pixelRepresentation,
+      frame
+    }
+  ).then((decodedFrame) => {
     // Apply ICC color transform
-    transformICCAsync(data.iccProfiles, data.sopInstanceUID, decodedFrame).then((transformedFrame) => {
+    transformICCAsync(iccProfiles, sopInstanceUID, decodedFrame).then((transformedFrame) => {
       // invoke the callback with our result and pass the frameData in the transferList to move it to
       // UI thread without making a copy
       doneCallback({
@@ -70,12 +53,25 @@ function handler(data, doneCallback) {
 }
 
 /** Check image type of a compressed array and returns a decoded image.
+ * @param {number} - bits per sample
+ * @param {number} - columns
+ * @param {number} - rows
+ * @param {number} - samples per pixel
+ * @param {number} - pixel representation
+ * @param {Uint8Array} byteArray - Image array
+ *
+ * @returns {Uint8Array} decoded array
  * @private
  */
 async function _checkImageTypeAndDecode ({
-  data
+  bitsAllocated,
+  columns,
+  rows,
+  samplesPerPixel,
+  pixelRepresentation,
+  frame
 }) {
-  let byteArray = new Uint8Array(data.frame)
+  let byteArray = new Uint8Array(frame)
   const imageTypeObject = imageType(byteArray)
 
   const toHex = function (value) {
@@ -121,37 +117,42 @@ async function _checkImageTypeAndDecode ({
 
   if (mediaType === 'application/octet-stream') {
     console.debug(`decode uncompressed frame with media type "${mediaType}"`)
-    return(
-      {
-        data: data,
-        decodedFrame: byteArray,
-        frameInfo: {
-          bitsAllocated: data.bitsPerSample,
-          rows: data.height,
-          columns: data.width,
-          samplesPerPixel: data.componentCount,
-          pixelRepresentation: data.pixelRepresentation
-        }
-      }
-    )
+    return frameBuffer
   }
 
   console.debug(`decode compressed frame with media type "${mediaType}"`)
 
   const {frameBuffer, frameInfo} = await _decode(mediaType, byteArray)
-  return (
-    {
-      data: data,
-      decodedFrame: frameBuffer,
-      frameInfo: {
-        bitsAllocated: frameInfo.bitsPerSample,
-        rows: frameInfo.height,
-        columns: frameInfo.width,
-        samplesPerPixel: frameInfo.componentCount,
-        pixelRepresentation: frameInfo.isSigned ? 1 : 0
-      }
-    }
-  )
+  if (frameInfo.bitsPerSample !== bitsAllocated) {
+    throw new Error('_checkImageTypeAndDecode: frame does not have expected Bits Allocated.')
+  }
+
+  if (frameInfo.height !== rows) {
+    throw new Error('_checkImageTypeAndDecode: frame does not have expected Rows.')
+  }
+
+  if (frameInfo.width !== columns) {
+    throw new Error('_checkImageTypeAndDecode: frame does not have expected Columns.')
+  }
+
+  if (frameInfo.componentCount !== samplesPerPixel) {
+    throw new Error('_checkImageTypeAndDecode: frame does not have expected Samples Per Pixel.')
+  }
+
+  const signed = pixelRepresentation === 1
+  if (frameInfo.isSigned !== signed) {
+    throw new Error('_checkImageTypeAndDecode: frame does not have expected Pixel Representation.')
+  }
+
+  const length = columns * rows * samplesPerPixel * (bitsAllocated / 8)
+  if (length !== frameBuffer.length) {
+    throw new Error(
+      '_checkImageTypeAndDecode: frame value does not have expected length: ' +
+      frameBuffer.length + ' instead of ' + length + '.'
+    )
+  }
+
+  return frameBuffer
 }
 
 /** Decode image.
