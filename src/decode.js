@@ -8,7 +8,7 @@ function processDecodeAndTrasformTask(
   rows,
   samplesPerPixel,
   sopInstanceUID,
-  ICCProfiles
+  iccProfiles
 ) {
   const priority = undefined;
   const transferList = undefined;
@@ -23,7 +23,7 @@ function processDecodeAndTrasformTask(
       rows,
       samplesPerPixel,
       sopInstanceUID,
-      ICCProfiles
+      iccProfiles
     },
     priority,
     transferList,
@@ -38,7 +38,7 @@ async function decodeAndTransformFrame({
   rows,
   samplesPerPixel,
   sopInstanceUID,
-  ICCProfiles
+  iccProfiles
 }) {
   const result = await processDecodeAndTrasformTask(
     frame,
@@ -48,7 +48,7 @@ async function decodeAndTransformFrame({
     rows,
     samplesPerPixel,
     sopInstanceUID,
-    ICCProfiles);
+    iccProfiles);
     
   const signed = pixelRepresentation === 1
   let pixelArray
