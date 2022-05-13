@@ -23,7 +23,7 @@ function initialize (data) {
 
   // Additional web worker tasks can self-register by calling self.registerTaskHandler
   self.registerTaskHandler = registerTaskHandler
-  
+
   // load any additional web worker tasks
   if (data.config.webWorkerTaskPaths) {
     for (let i = 0; i < data.config.webWorkerTaskPaths.length; i++) {

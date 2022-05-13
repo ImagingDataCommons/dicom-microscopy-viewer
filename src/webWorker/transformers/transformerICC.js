@@ -47,7 +47,7 @@ export default class ColorTransformer extends Transformer {
    * @param {array} - images metadata with ICC profiles
    * @param {string} - sopInstanceUID
    * @param {Buffer} - decoded Frame
-   * 
+   *
    * @returns {Promise<Buffer>} transformed buffer
    */
   async transform (iccProfiles, sopInstanceUID, decodedFrame) {
