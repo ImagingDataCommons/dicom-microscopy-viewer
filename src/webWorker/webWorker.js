@@ -10,7 +10,14 @@ let config
 
 /**
  * Initialization function that loads additional web workers and initializes them
- * @param data
+ * @param {Object} data -
+ * @param {Object} data.config - configuration
+ * @param {number} data.config.maxWebWorkers - maximum number of web workers
+ * @param {Array}  data.config.webWorkerTaskPaths - additional task file paths
+ * @param {string} data.taskType - type of the task
+ * @param {number} data.workerIndex - index of the worker
+ *
+ * @private
  */
 function initialize (data) {
   // prevent initialization from happening more than once
@@ -45,6 +52,8 @@ function initialize (data) {
 /**
  * Function exposed to web worker tasks to register themselves
  * @param taskHandler
+ * 
+ * @private
  */
 export function registerTaskHandler (taskHandler) {
   if (taskHandlers[taskHandler.taskType]) {
@@ -65,6 +74,8 @@ export function registerTaskHandler (taskHandler) {
 /**
  * Function to load a new web worker task with updated configuration
  * @param data
+ * 
+ * @private
  */
 function loadWebWorkerTask (data) {
   config = data.config
@@ -74,6 +85,8 @@ function loadWebWorkerTask (data) {
 /**
  * Web worker message handler - dispatches messages to the registered task handlers
  * @param msg
+ * 
+ * @private
  */
 self.onmessage = function (msg) {
   if (!msg.data.taskType) {
