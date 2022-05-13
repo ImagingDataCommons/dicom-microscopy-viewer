@@ -1,6 +1,6 @@
 import * as dwc from 'dicomweb-client'
 
-import { decodeAndTransformFrame } from './decode.js'
+import { _decodeAndTransformFrame } from './decode.js'
 import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from './utils.js'
@@ -480,7 +480,7 @@ function _createTileLoadFunction ({
       return client.retrieveInstanceFrames(retrieveOptions).then(
         (rawFrames) => {
           try {
-            return decodeAndTransformFrame({
+            return _decodeAndTransformFrame({
               frame: rawFrames[0],
               bitsAllocated,
               pixelRepresentation,

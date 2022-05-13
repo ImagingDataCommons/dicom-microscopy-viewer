@@ -31,7 +31,7 @@ function _processDecodeAndTrasformTask (
   ).promise
 }
 
-async function decodeAndTransformFrame ({
+async function _decodeAndTransformFrame ({
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -103,5 +103,5 @@ async function decodeAndTransformFrame ({
 }
 
 export {
-  decodeAndTransformFrame
+  _decodeAndTransformFrame
 }

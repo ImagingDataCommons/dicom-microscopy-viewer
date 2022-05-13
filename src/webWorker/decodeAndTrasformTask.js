@@ -15,8 +15,9 @@ const transformerColor = new ColorTransformer()
  * @param {object} - handler data
  * @param {function} - handler done call back
  *
+ * @private
  */
-function handler (data, doneCallback) {
+function _handler (data, doneCallback) {
   const {
     bitsAllocated,
     columns,
@@ -180,5 +181,5 @@ async function _decode (mediaType, byteArray) {
 
 export default {
   taskType: 'decodeAndTrasformTask',
-  handler
+  _handler
 }

@@ -102,7 +102,7 @@ self.onmessage = function (msg) {
   // dispatch the message if there is a handler registered for it
   if (taskHandlers[msg.data.taskType]) {
     try {
-      taskHandlers[msg.data.taskType].handler(
+      taskHandlers[msg.data.taskType]._handler(
         msg.data,
         function (result, transferList) {
           self.postMessage(
