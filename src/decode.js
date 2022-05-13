@@ -96,7 +96,7 @@ async function decodeAndTransformFrame ({
     default:
       throw new Error(
         'The pixel bit depth ' + bitsAllocated +
-        ' is not supported by the rendering.'
+        ' is not supported by the decoder.'
       )
   }
   return pixelArray
