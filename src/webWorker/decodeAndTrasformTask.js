@@ -40,7 +40,7 @@ function _handler (data, doneCallback) {
     }
   ).then((decodedFrame) => {
     // Apply ICC color transform
-    transformerColor.transformAsync(iccProfiles, sopInstanceUID, decodedFrame).then((transformedFrame) => {
+    transformerColor.transform(iccProfiles, sopInstanceUID, decodedFrame).then((transformedFrame) => {
       // invoke the callback with our result and pass the frameData in the transferList to move it to
       // UI thread without making a copy
       doneCallback({
@@ -171,11 +171,11 @@ async function _checkImageTypeAndDecode ({
  */
 async function _decode (mediaType, byteArray) {
   if (mediaType === 'image/jpeg') {
-    return await decoderJPEG.decodeAsync(byteArray)
+    return await decoderJPEG.decode(byteArray)
   } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
-    return await decoderJPEG2000.decodeAsync(byteArray)
+    return await decoderJPEG2000.decode(byteArray)
   } else if (mediaType === 'image/jls') {
-    return await decoderJPEGLS.decodeAsync(byteArray)
+    return await decoderJPEGLS.decode(byteArray)
   }
 }
 
