@@ -3,7 +3,7 @@
 const taskHandlers = {}
 
 // Flag to ensure web worker is only initialized once
-let initialized = false
+let isInitialized = false
 
 // the configuration object passed in when the web worker manager is initialized
 let config
@@ -14,7 +14,7 @@ let config
  */
 function initialize (data) {
   // prevent initialization from happening more than once
-  if (initialized) {
+  if (isInitialized) {
     return
   }
 
@@ -39,7 +39,7 @@ function initialize (data) {
     workerIndex: data.workerIndex
   })
 
-  initialized = true
+  isInitialized = true
 }
 
 /**
@@ -57,7 +57,7 @@ export function registerTaskHandler (taskHandler) {
     return false
   }
   taskHandlers[taskHandler.taskType] = taskHandler
-  if (initialized) {
+  if (isInitialized) {
     taskHandler.initialize(config.taskConfiguration)
   }
 }
