@@ -12,9 +12,9 @@ export default class Decoder {
    *
    * @param {Uint8Array} byteArray - Image array
    *
-   * @returns {object} decoded array and frameInfo
+   * @returns {Promise<object>} decoded array and frame information
    */
-  async decodeAsync (byteArray) {
+  async decode (byteArray) {
     if (!this.codec) {
       await this._initialize()
     }

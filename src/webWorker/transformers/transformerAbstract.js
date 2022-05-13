@@ -7,10 +7,4 @@ export default class Transformer {
   _initialize () {
     return Promise.resolve()
   }
-
-  async transformAsync () {
-    if (!this.codec) {
-      await this._initialize()
-    }
-  }
 }
