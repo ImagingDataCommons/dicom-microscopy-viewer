@@ -1,7 +1,7 @@
 import webWorkerManager from './webWorker/webWorkerManager.js'
 import dcmjs from 'dcmjs'
 
-function processDecodeAndTrasformTask (
+function _processDecodeAndTrasformTask (
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -41,7 +41,7 @@ async function decodeAndTransformFrame ({
   sopInstanceUID,
   iccProfiles
 }) {
-  const result = await processDecodeAndTrasformTask(
+  const result = await _processDecodeAndTrasformTask(
     frame,
     bitsAllocated,
     pixelRepresentation,
