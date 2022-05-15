@@ -1446,15 +1446,16 @@ class VolumeImageViewer {
    * grayscale display values are then used as input to the second
    * transformation, which maps them to pseudo-color values ranging from black
    * color (R=0, G=0, B=0) to the color defined by parameter "color" using
-   * linear interpolation.
+   * linear interpolation. Alternatively, a palette color lookup table can be
+   * provided to perform more sophisticated pseudo-coloring.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @param {Object} styleOptions
-   * @param {number[]} styleOptions.color - RGB color triplet
-   * @param {number[]} styleOptions.paletteColorLookupTable - palette color
+   * @param {number[]} [styleOptions.color] - RGB color triplet
+   * @param {number[]} [styleOptions.paletteColorLookupTable] - palette color
    * lookup table
-   * @param {number} styleOptions.opacity - Opacity
-   * @param {number[]} styleOptions.limitValues - Upper and lower windowing
+   * @param {number} [styleOptions.opacity] - Opacity
+   * @param {number[]} [styleOptions.limitValues] - Upper and lower windowing
    * limits
    */
   setOpticalPathStyle (opticalPathIdentifier, styleOptions = {}) {
@@ -1695,10 +1696,13 @@ class VolumeImageViewer {
    * Show an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
-   * @param {Object} styleOptions
-   * @param {number[]} styleOptions.color - RGB color triplet
-   * @param {number} styleOptions.opacity - Opacity
-   * @param {number[]} styleOptions.limitValues - Upper and lower clipping values
+   * @param {Object} [styleOptions]
+   * @param {number[]} [styleOptions.color] - RGB color triplet
+   * @param {number[]} [styleOptions.paletteColorLookupTable] - palette color
+   * lookup table
+   * @param {number} [styleOptions.opacity] - Opacity
+   * @param {number[]} [styleOptions.limitValues] - Upper and lower windowing
+   * limits
    */
   showOpticalPath (opticalPathIdentifier, styleOptions = {}) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
@@ -2661,10 +2665,10 @@ class VolumeImageViewer {
    *
    * @param {string} uid - Unique identifier of the regions of interest
    * @param {Object} styleOptions - Style options
-   * @param {Object} styleOptions.stroke - Style options for the outline of the geometry
+   * @param {Object} [styleOptions.stroke] - Style options for the outline of the geometry
    * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
    * @param {number} styleOptions.stroke.width - Width of the outline
-   * @param {Object} styleOptions.fill - Style options for body the geometry
+   * @param {Object} [styleOptions.fill] - Style options for body the geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
    *
    */
@@ -3386,8 +3390,8 @@ class VolumeImageViewer {
    * Show a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of a segment
-   * @param {Object} styleOptions
-   * @param {number} styleOptions.opacity - Opacity
+   * @param {Object} [styleOptions]
+   * @param {number} [styleOptions.opacity] - Opacity
    */
   showSegment (segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
@@ -3440,7 +3444,7 @@ class VolumeImageViewer {
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
    * @param {Object} styleOptions - Style options
-   * @param {number} styleOptions.opacity - Opacity
+   * @param {number} [styleOptions.opacity] - Opacity
    */
   setSegmentStyle (segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
@@ -3816,9 +3820,9 @@ class VolumeImageViewer {
    * Show a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of a mapping
-   * @param {Object} styleOptions
-   * @param {number} styleOptions.opacity - Opacity
-   * @param {number} styleOptions.limitValues - Opacity
+   * @param {Object} [styleOptions]
+   * @param {number} [styleOptions.opacity] - Opacity
+   * @param {number[]} [styleOptions.limitValues] - Upper and lower windowing
    */
   showParameterMapping (mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
@@ -3871,7 +3875,8 @@ class VolumeImageViewer {
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @param {Object} styleOptions
-   * @param {number} styleOptions.opacity - Opacity
+   * @param {number} [styleOptions.opacity] - Opacity
+   * @param {number[]} [styleOptions.limitValues] - Upper and lower windowing
    */
   setParameterMappingStyle (mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
