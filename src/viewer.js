@@ -695,6 +695,60 @@ function _getColorPaletteStyleForTileLayer ({
 }
 
 /**
+ * Build OpenLayers style expression for coloring a WebGL TileLayer.
+ *
+ * @param {Object} styleOptions - Style options
+ * @param {number} styleOptions.windowCenter - Center of the window used for contrast stretching
+ * @param {number} styleOptions.windowWidth - Width of the window used for contrast stretching
+ * @param {number[]} styleOptions.color - RGB color triplet
+ *
+ * @returns {Object} color style expression and corresponding variables
+ *
+ * @private
+ */
+function _getColorInterpolationStyleForTileLayer ({
+  windowCenter,
+  windowWidth,
+  color
+}) {
+  /*
+   * If no Palette Color Lookup Table is available, don't create one
+   * but let WebGL interpolate colors for improved performance.
+   */
+  const expression = [
+    'interpolate',
+    ['linear'],
+    [
+      '+',
+      [
+        '/',
+        [
+          '-',
+          ['band', 1],
+          ['var', 'windowCenter']
+        ],
+        ['var', 'windowWidth']
+      ],
+      0.5
+    ],
+    0,
+    [0, 0, 0, 1],
+    1,
+    ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1]
+  ]
+
+  const variables = {
+    red: color[0],
+    green: color[1],
+    blue: color[2],
+    windowCenter,
+    windowWidth
+  }
+
+  return { color: expression, variables }
+}
+
+/**
  * Build OpenLayers style expression for coloring a WebGL PointLayer.
  *
  * @param {Object} styleOptions - Style options
@@ -1059,7 +1113,6 @@ class VolumeImageViewer {
             paletteColorLookupTable: paletteColorLookupTable
           },
           bitsAllocated: bitsAllocated,
-          isColorable: paletteColorLookupTableUID == null,
           minStoredValue,
           maxStoredValue,
           loaderParams: {
@@ -1115,40 +1168,11 @@ class VolumeImageViewer {
             colormap: opticalPath.style.paletteColorLookupTable.data
           })
         } else {
-          /*
-           * If no Palette Color Lookup Table is available, don't create one
-           * but let WebGL interpolate colors for improved performance.
-           */
-          style = {
-            color: [
-              'interpolate',
-              ['linear'],
-              [
-                '+',
-                [
-                  '/',
-                  [
-                    '-',
-                    ['band', 1],
-                    ['var', 'windowCenter']
-                  ],
-                  ['var', 'windowWidth']
-                ],
-                0.5
-              ],
-              0,
-              [0, 0, 0, 1],
-              1,
-              ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1]
-            ],
-            variables: {
-              red: opticalPath.style.color[0],
-              green: opticalPath.style.color[1],
-              blue: opticalPath.style.color[2],
-              windowCenter,
-              windowWidth
-            }
-          }
+          style = _getColorInterpolationStyleForTileLayer({
+            windowCenter,
+            windowWidth,
+            color: opticalPath.style.color
+          })
         }
 
         opticalPath.layer = new TileLayer({
@@ -1427,8 +1451,11 @@ class VolumeImageViewer {
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @param {Object} styleOptions
    * @param {number[]} styleOptions.color - RGB color triplet
+   * @param {number[]} styleOptions.paletteColorLookupTable - palette color
+   * lookup table
    * @param {number} styleOptions.opacity - Opacity
-   * @param {number[]} styleOptions.limitValues - Upper and lower windowing limits
+   * @param {number[]} styleOptions.limitValues - Upper and lower windowing
+   * limits
    */
   setOpticalPathStyle (opticalPathIdentifier, styleOptions = {}) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
@@ -1450,36 +1477,60 @@ class VolumeImageViewer {
     if (styleOptions.opacity != null) {
       opticalPath.style.opacity = styleOptions.opacity
       opticalPath.layer.setOpacity(styleOptions.opacity)
+      opticalPath.overviewTileLayer.setOpacity(styleOptions.opacity)
     }
 
-    const styleVariables = {}
     if (opticalPath.opticalPath.isMonochromatic) {
-      if (styleOptions.color != null) {
-        if (opticalPath.opticalPath.isColorable) {
-          opticalPath.style.color = styleOptions.color
-          styleVariables.red = opticalPath.style.color[0]
-          styleVariables.green = opticalPath.style.color[1]
-          styleVariables.blue = opticalPath.style.color[2]
-        } else {
-          console.warn(
-            `optical path "${opticalPathIdentifier}" is not colorable`
-          )
-        }
-      }
       if (styleOptions.limitValues != null) {
         opticalPath.style.limitValues = [
           Math.max(styleOptions.limitValues[0], opticalPath.minStoredValue),
           Math.min(styleOptions.limitValues[1], opticalPath.maxStoredValue)
         ]
-        const [windowCenter, windowWidth] = createWindow(
-          styleOptions.limitValues[0],
-          styleOptions.limitValues[1]
-        )
-        styleVariables.windowCenter = windowCenter
-        styleVariables.windowWidth = windowWidth
       }
-      opticalPath.layer.updateStyleVariables(styleVariables)
-      opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
+      const [windowCenter, windowWidth] = createWindow(
+        opticalPath.style.limitValues[0],
+        opticalPath.style.limitValues[1]
+      )
+
+      if (styleOptions.paletteColorLookupTable != null) {
+        const style = _getColorPaletteStyleForTileLayer({
+          windowCenter,
+          windowWidth,
+          colormap: styleOptions.paletteColorLookupTable.data
+        })
+        opticalPath.style.paletteColorLookupTable = styleOptions.paletteColorLookupTable
+        opticalPath.layer.setStyle(style)
+        opticalPath.overviewTileLayer.setStyle(style)
+      } else if (styleOptions.color != null) {
+        opticalPath.style.color = styleOptions.color
+        if (opticalPath.style.paletteColorLookupTable) {
+          const style = _getColorInterpolationStyleForTileLayer({
+            windowCenter,
+            windowWidth,
+            color: opticalPath.style.color
+          })
+          opticalPath.style.paletteColorLookupTable = undefined
+          opticalPath.layer.setStyle(style)
+          opticalPath.overviewTileLayer.setStyle(style)
+        } else {
+          const styleVariables = {
+            windowCenter: windowCenter,
+            windowWidth: windowWidth,
+            red: opticalPath.style.color[0],
+            green: opticalPath.style.color[1],
+            blue: opticalPath.style.color[2]
+          }
+          opticalPath.layer.updateStyleVariables(styleVariables)
+          opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
+        }
+      } else {
+        const styleVariables = {
+          windowCenter: windowCenter,
+          windowWidth: windowWidth
+        }
+        opticalPath.layer.updateStyleVariables(styleVariables)
+        opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
+      }
     }
   }
 
@@ -1526,15 +1577,15 @@ class VolumeImageViewer {
       )
     }
     if (opticalPath.opticalPath.isMonochromatic) {
-      if (opticalPath.opticalPath.isColorable) {
+      if (opticalPath.style.paletteColorLookupTable) {
         return {
-          color: opticalPath.style.color,
+          paletteColorLookupTable: opticalPath.style.paletteColorLookupTable,
           opacity: opticalPath.style.opacity,
           limitValues: opticalPath.style.limitValues
         }
       }
       return {
-        paletteColorLookupTable: opticalPath.style.paletteColorLookupTable,
+        color: opticalPath.style.color,
         opacity: opticalPath.style.opacity,
         limitValues: opticalPath.style.limitValues
       }
@@ -1569,7 +1620,7 @@ class VolumeImageViewer {
     for (const opticalPathIdentifier in this[_opticalPaths]) {
       opticalPaths.push(this[_opticalPaths][opticalPathIdentifier].opticalPath)
     }
-    return opticalPaths
+    return opticalPaths.sort(item => (item.OpticalPathIdentifier))
   }
 
   /**
@@ -2781,7 +2832,9 @@ class VolumeImageViewer {
 
         const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
         const graphicType = metadataItem.GraphicType
-        const coordinateDimensionality = _getCoordinateDimensionality(metadataItem)
+        const coordinateDimensionality = _getCoordinateDimensionality(
+          metadataItem
+        )
         const commonZCoordinate = _getCommonZCoordinate(metadataItem)
 
         const features = this.getFeatures()
@@ -2810,10 +2863,12 @@ class VolumeImageViewer {
               i,
               numberOfAnnotations
             )
+            const coordinates = _scoord3dCoordinates2geometryCoordinates(
+              point,
+              pyramid
+            )
             const feature = new Feature({
-              geometry: new PointGeometry(
-                _scoord3dCoordinates2geometryCoordinates(point, pyramid)
-              )
+              geometry: new PointGeometry(coordinates)
             })
             const properties = {}
             measurements.forEach(item => {
@@ -2948,112 +3003,6 @@ class VolumeImageViewer {
     console.info(`show annotation group ${annotationGroupUID}`)
     this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
     annotationGroup.layer.setVisible(true)
-  }
-
-  _retrieveAnnotationGroupBulkdata (annotationGroupUID) {
-    if (!(annotationGroupUID in this[_annotationGroups])) {
-      throw new Error(
-        'Cannot retrieve bulkdata of annotation group. ' +
-        `Could not find annotation group "${annotationGroupUID}".`
-      )
-    }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.log(
-      `retrieve bulkdata for annotation group "${annotationGroupUID}"`
-    )
-    const container = this[_map].getTargetElement()
-    if (container == null) {
-      throw new Error(
-        'Cannot retrieve bulkdata of annotation group. ' +
-        'Viewport has not been rendered. Call render() first.'
-      )
-    }
-    publish(container, EVENT.LOADING_STARTED)
-
-    const index = annotationGroup.annotationGroup.number - 1
-    const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[index]
-    /**
-     * Bulkdata may not be available, since it's possible that all information
-     * has been included into the metadata by value as InlineBinary. It must
-     * only be provided if information has been included by reference as
-     * BulkDataURI.
-     */
-    const bulkdataReferences = annotationGroup.metadata.bulkdataReferences
-    let bulkdataItem
-    if (bulkdataReferences.AnnotationGroupSequence != null) {
-      bulkdataItem = bulkdataReferences.AnnotationGroupSequence[index]
-    }
-
-    const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-    const graphicType = metadataItem.GraphicType
-    const coordinateDimensionality = _getCoordinateDimensionality(metadataItem)
-    const commonZCoordinate = _getCommonZCoordinate(metadataItem)
-
-    const source = annotationGroup.layer.getSource()
-    const features = source.getFeatures()
-
-    const client = this[_options].client
-    const promises = [
-      _fetchGraphicData({ metadataItem, bulkdataItem, client }),
-      _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
-      _fetchMeasurements({ metadataItem, bulkdataItem, client })
-    ]
-    Promise.all(promises).then(retrievedBulkdata => {
-      const graphicData = retrievedBulkdata[0]
-      const graphicIndex = retrievedBulkdata[1]
-      const measurements = retrievedBulkdata[2]
-
-      for (let i = 0; i < numberOfAnnotations; i++) {
-        const point = _getCentroid(
-          graphicType,
-          graphicData,
-          graphicIndex,
-          coordinateDimensionality,
-          commonZCoordinate,
-          i,
-          numberOfAnnotations
-        )
-        const feature = new Feature({
-          geometry: new PointGeometry(
-            _scoord3dCoordinates2geometryCoordinates(
-              point,
-              this[_pyramid].metadata
-            )
-          )
-        })
-        const properties = {}
-        measurements.forEach(item => {
-          const name = item.name
-          const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
-          const value = item.values[i]
-          properties[key] = value
-        })
-        feature.setProperties(properties)
-        feature.setId(i + 1)
-        features.push(feature)
-      }
-
-      console.log(
-        `add n=${features.length} annotations ` +
-        `for annotation group "${annotationGroupUID}"`
-      )
-      source.addFeatures(features)
-      const properties = {}
-      measurements.forEach(item => {
-        const name = item.name
-        const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
-        const value = quantileSeq(
-          [...item.values],
-          [0, 0.015, 0.25, 0.5, 0.75, 0.95, 1]
-        )
-        properties[key] = value
-      })
-      source.setProperties(properties)
-      publish(container, EVENT.LOADING_ENDED)
-    }).catch(error => {
-      console.error(error)
-      publish(container, EVENT.LOADING_ENDED)
-    })
   }
 
   /**
