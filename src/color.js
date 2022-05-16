@@ -292,7 +292,8 @@ class PaletteColorLookupTable {
         const startpoint = lut[offset - 1]
         const step = (endpoint - startpoint) / (length - 1)
         for (let j = 0; j < length; j++) {
-          lut[offset + j] = startpoint + Math.round(j * step)
+          const value = startpoint + Math.round(j * step)
+          lut[offset + j] = value
         }
         offset += length
       } else if (opcode === 2) {
@@ -368,17 +369,23 @@ class PaletteColorLookupTable {
         )
       }
 
-      if (this[_attrs].bitsPerEntry === 16) {
+      const maxValues = [
+        Math.max(...redLUT),
+        Math.max(...greenLUT),
+        Math.max(...blueLUT)
+      ]
+      const maxInput = Math.max(...maxValues)
+      const maxOutput = 255
+      if (this[_attrs].bitsPerEntry === 16 && maxInput > 255) {
         /*
          * Only palettes with 256 entries and 8 bit per entry are supported for
          * display.  Therefore, data need to rescaled and resampled.
          */
-        const maxInput = Math.pow(2, 16) - 1
-        const maxOutput = Math.pow(2, 8) - 1
-        const steps = Math.pow(2, 16) / Math.pow(2, 8)
-        this[_attrs].data = new Array(steps)
-        for (let i = 0; i < steps; i++) {
-          const j = i * steps
+        const n = 256
+        const step = this[_attrs].numberOfEntries / n
+        this[_attrs].data = new Array(n)
+        for (let i = 0; i < n; i++) {
+          const j = i * step
           this[_attrs].data[i] = [
             Math.round(rescale(redLUT[j], 0, maxInput, 0, maxOutput)),
             Math.round(rescale(greenLUT[j], 0, maxInput, 0, maxOutput)),
@@ -388,11 +395,7 @@ class PaletteColorLookupTable {
       } else {
         this[_attrs].data = new Array(this[_attrs].numberOfEntries)
         for (let i = 0; i < this[_attrs].numberOfEntries; i++) {
-          this[_attrs].data[i] = [
-            redLUT[i],
-            greenLUT[i],
-            blueLUT[i]
-          ]
+          this[_attrs].data[i] = [redLUT[i], greenLUT[i], blueLUT[i]]
         }
       }
     }
