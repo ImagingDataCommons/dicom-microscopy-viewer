@@ -193,7 +193,7 @@ class OpticalPath {
    * @type boolean
    */
   get isColorable () {
-    return this[_attrs].paletteColorLookupTableUID == null
+    return this[_attrs].isMonochromatic
   }
 }
 
