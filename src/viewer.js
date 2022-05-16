@@ -851,7 +851,8 @@ class VolumeImageViewer {
    * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata -
    * Metadata of DICOM VL Whole Slide Microscopy Image instances that should be
    * diplayed.
-   * @param {Object} options.preload - Whether data should be preloaded
+   * @param {number} [options.preload=0] - Number of resolution levels that should
+   * be preloaded
    * @param {string[]} [options.controls=[]] - Names of viewer control elements
    * that should be included in the viewport
    * @param {boolean} [options.debug=false] - Whether debug features should be
@@ -1598,7 +1599,8 @@ class VolumeImageViewer {
    * Get image metadata for an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
-   * @returns {VLWholeSlideMicroscopyImage[]} Slide microscopy image metadata
+   * @returns {metadata.VLWholeSlideMicroscopyImage[]} Slide microscopy image
+   * metadata
    */
   getOpticalPathMetadata (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
@@ -1971,19 +1973,20 @@ class VolumeImageViewer {
    *
    * @param {Object} options - Drawing options
    * @param {string} options.geometryType - Name of the geometry type (point, circle, box, polygon, freehandpolygon, line, freehandline)
-   * @param {string} options.marker - Marker
-   * @param {string} options.markup - Markup
-   * @param {number} options.maxPoints - Geometry max points
-   * @param {number} options.minPoints - Geometry min points
-   * @param {Object} options.styleOptions - Style options
-   * @param {Object} options.styleOptions.stroke - Style options for the outline of the geometry
-   * @param {number[]} options.styleOptions.stroke.color - RGBA color of the outline
-   * @param {number} options.styleOptions.stroke.width - Width of the outline
-   * @param {Object} options.styleOptions.fill - Style options for body the geometry
-   * @param {number[]} options.styleOptions.fill.color - RGBA color of the body
-   * @param {Object} options.styleOptions.image - Style options for image
+   * @param {number} [options.maxPoints] - Maximum number of points for "line"
+   * geometry
+   * @param {number} [options.minPoints] - Mininum number of points for "line"
+   * geometry
+   * @param {Object} [options.styleOptions] - Style options
+   * @param {Object} [styleOptions.stroke] - Style options for the contour of
+   * the geometry
+   * @param {number[]} styleOptions.stroke.color - RGBA color of the contour
+   * @param {number} styleOptions.stroke.width - Width of the contour
+   * @param {Object} [styleOptions.fill] - Style options for the body of the
+   * geometry
+   * @param {number[]} styleOptions.fill.color - RGBA color of the body
    */
-  activateDrawInteraction (options = {}) {
+  activateDrawInteraction (options) {
     this.deactivateDrawInteraction()
     console.info('activate "draw" interaction')
 
@@ -2570,14 +2573,14 @@ class VolumeImageViewer {
    * Add a regions of interest.
    *
    * @param {roi.ROI} roi - Regions of interest
-   * @param {Object} styleOptions - Style options
-   * @param {Object} styleOptions.stroke - Style options for the outline of the geometry
-   * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
-   * @param {number} styleOptions.stroke.width - Width of the outline
-   * @param {Object} styleOptions.fill - Style options for body the geometry
+   * @param {Object} [styleOptions] - Style options
+   * @param {Object} [styleOptions.stroke] - Style options for the contour of
+   * the geometry
+   * @param {number[]} styleOptions.stroke.color - RGBA color of the contour
+   * @param {number} styleOptions.stroke.width - Width of the contour
+   * @param {Object} [styleOptions.fill] - Style options for the body of the
+   * geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
-   * @param {Object} styleOptions.image - Style options for image
-   *
    */
   addROI (roi, styleOptions = {}) {
     console.info(`add ROI ${roi.uid}`)
@@ -2616,10 +2619,10 @@ class VolumeImageViewer {
    * @param {Object} roi - ROI to be updated
    * @param {string} roi.uid - Unique identifier of the region of interest
    * @param {Object} roi.properties - ROI properties
-   * @param {Object} roi.properties.measurements - ROI measurements
-   * @param {Object} roi.properties.evaluations - ROI evaluations
-   * @param {Object} roi.properties.label - ROI label
-   * @param {Object} roi.properties.marker - ROI marker
+   * @param {Object} [roi.properties.measurements] - ROI measurements
+   * @param {Object} [roi.properties.evaluations] - ROI evaluations
+   * @param {Object} [roi.properties.label] - ROI label
+   * @param {Object} [roi.properties.marker] - ROI marker
    */
   updateROI ({ uid, properties = {} }) {
     if (!uid) return
@@ -2665,12 +2668,13 @@ class VolumeImageViewer {
    *
    * @param {string} uid - Unique identifier of the regions of interest
    * @param {Object} styleOptions - Style options
-   * @param {Object} [styleOptions.stroke] - Style options for the outline of the geometry
-   * @param {number[]} styleOptions.stroke.color - RGBA color of the outline
-   * @param {number} styleOptions.stroke.width - Width of the outline
-   * @param {Object} [styleOptions.fill] - Style options for body the geometry
+   * @param {Object} [styleOptions.stroke] - Style options for the contour of
+   * the geometry
+   * @param {number[]} styleOptions.stroke.color - RGBA color of the contour
+   * @param {number} styleOptions.stroke.width - Width of the contour
+   * @param {Object} [styleOptions.fill] - Style options for the body of the
+   * geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
-   *
    */
   setROIStyle (uid, styleOptions = {}) {
     this[_features].forEach((feature) => {
@@ -3559,7 +3563,7 @@ class VolumeImageViewer {
   /**
    * Add parameter mappings.
    *
-   * @param {ParametricMap[]} metadata - Metadata of one or more DICOM Parametric Map instances
+   * @param {metadata.ParametricMap[]} metadata - Metadata of one or more DICOM Parametric Map instances
    */
   addParameterMappings (metadata) {
     if (metadata.length === 0) {
