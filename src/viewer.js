@@ -662,6 +662,8 @@ const _interactions = Symbol('interactions')
 const _map = Symbol('map')
 const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
+const _iccProfiles = Symbol('iccProfiles')
+const _areIccProfilesFetched = Symbol('areIccProfilesFetched')
 const _options = Symbol('options')
 const _pyramid = Symbol('pyramid')
 const _segments = Symbol('segments')
@@ -726,6 +728,8 @@ class VolumeImageViewer {
     this[_segments] = {}
     this[_mappings] = {}
     this[_annotationGroups] = {}
+    this[_iccProfiles] = []
+    this[_areIccProfilesFetched] = false
 
     // Collection of Openlayers "Feature" instances
     this[_features] = new Collection([], { unique: true })
@@ -960,7 +964,6 @@ class VolumeImageViewer {
             pyramid: pyramid,
             client: this[_options].client,
             channel: opticalPathIdentifier,
-            iccProfiles: _getIccProfiles(pyramid, this[_options].client)
           }
         }
 
@@ -1121,7 +1124,6 @@ class VolumeImageViewer {
           pyramid: pyramid,
           client: this[_options].client,
           channel: opticalPathIdentifier,
-          iccProfiles: _getIccProfiles(pyramid, this[_options].client)
         }
       }
 
@@ -1649,7 +1651,16 @@ class VolumeImageViewer {
       ...Object.values(this[_segments]),
       ...Object.values(this[_mappings])
     ]
+
+    if (!this[_areIccProfilesFetched]) {
+      itemsRequiringDecodersAndTransformers.forEach(item => {
+        this[_iccProfiles] = this[_iccProfiles].concat(_getIccProfiles(item.pyramid, this[_options].client));
+      })
+      this[_areIccProfilesFetched] = true
+    }
+    
     itemsRequiringDecodersAndTransformers.forEach(item => {
+      item.loaderParams.iccProfiles = this[_iccProfiles]
       const source = item.layer.getSource()
       const loader = _createTileLoadFunction({
         ...item.loaderParams

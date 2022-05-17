@@ -52,7 +52,9 @@ export default class ColorTransformer extends Transformer {
    */
   async transform (iccProfiles, sopInstanceUID, decodedFrame) {
     if (!iccProfiles || iccProfiles.length === 0) {
-      return decodedFrame
+      return new Promise(function(resolve) {
+        resolve(decodedFrame)
+      })
     }
 
     if (!this.codec) {
@@ -61,9 +63,18 @@ export default class ColorTransformer extends Transformer {
 
     let transformedFrame
     if (sopInstanceUID in this.transformers) {
-      transformedFrame = this.transformers[sopInstanceUID].transform(decodedFrame)
+      const transformer = this.transformers[sopInstanceUID]
+      if (transformer) {
+        transformedFrame = transformer.transform(decodedFrame)
+      } else {
+        transformedFrame = new Promise(function(resolve) {
+          resolve(decodedFrame)
+        })
+      }
     } else {
-      transformedFrame = decodedFrame
+      transformedFrame = new Promise(function(resolve) {
+        resolve(decodedFrame)
+      })
     }
 
     return transformedFrame
