@@ -963,7 +963,7 @@ class VolumeImageViewer {
           loaderParams: {
             pyramid: pyramid,
             client: this[_options].client,
-            channel: opticalPathIdentifier,
+            channel: opticalPathIdentifier
           }
         }
 
@@ -1123,7 +1123,7 @@ class VolumeImageViewer {
         loaderParams: {
           pyramid: pyramid,
           client: this[_options].client,
-          channel: opticalPathIdentifier,
+          channel: opticalPathIdentifier
         }
       }
 
@@ -1654,11 +1654,11 @@ class VolumeImageViewer {
 
     if (!this[_areIccProfilesFetched]) {
       itemsRequiringDecodersAndTransformers.forEach(item => {
-        this[_iccProfiles] = this[_iccProfiles].concat(_getIccProfiles(item.pyramid, this[_options].client));
+        this[_iccProfiles] = this[_iccProfiles].concat(_getIccProfiles(item.pyramid, this[_options].client))
       })
       this[_areIccProfilesFetched] = true
     }
-    
+
     itemsRequiringDecodersAndTransformers.forEach(item => {
       item.loaderParams.iccProfiles = this[_iccProfiles]
       const source = item.layer.getSource()
