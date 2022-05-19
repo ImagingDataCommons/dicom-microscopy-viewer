@@ -31,10 +31,39 @@
         <h2><span class="attribs"><span class="type-signature"></span></span>
             <span class="ancestors"><a href="viewer.html">viewer</a>.</span>VolumeImageViewer<span class="signature">(options)</span><span class="type-signature"></span></h2>
         
-            <div class="class-description">Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
-with Image Type VOLUME.</div>
+            <div class="class-description">Interactive viewer for DICOM VL Whole Slide Microscopy Image instances with Image Type VOLUME.<br>
+
+            The volume image viewer is composed by several underline libraries and the final rendering comprehend several steps:<br>
+            <ul>
+                <li>At constructor:</li>
+                <ul>
+                    <li>Validation that the Optical Paths are geometrically compatible.</li>
+                    <li>Creation OpenLayer TileLayer objects for each Optical Path found in the input metadata.</li>
+                </ul>
+                <li>At rendering:</li>
+                <ul>
+                    <li>At the first rendering call, the viewet will also download the ICC profiles for RGB color images with an ICC profile.</li>
+                    <li>Fetching for each TileLayer the images at the current viewer resolution level with a DICOMwebClient interface. The volume image viewer can support the following syntaxes:</li>
+                    <ul>
+                        <li>'image/jpeg', TransferSyntaxUID = '1.2.840.10008.1.2.4.50'</li> 
+                        <li>'image/jls', TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80', TransferSyntaxUID = '1.2.840.10008.1.2.4.81'</li>
+                        <li>'image/jp2', TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90', TransferSyntaxUID = '1.2.840.10008.1.2.4.91'</li>
+                        <li>'image/jpx', TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92', TransferSyntaxUID = '1.2.840.10008.1.2.4.93'</li>
+                        <li>'application/octet-stream'</li>
+                    </ul>
+                    <li>Client side decoding. This step is operated in background with <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API">WebWorkers</a> and codecs wasm <a href="https://github.com/cornerstonejs/codecs">modules</a>.<br>
+                        The webWorkers infrastructure comprehends:</li>
+                    <ul>
+                        <li>Initialization: the workers are initialized at rendering time when a decode request is made (i.e., the call _decodeAndTransformFrame) and a decoding task is added to the webWorkerManager. The worker are then spwan as needed and each worker gets initialized by loading the correct codec wasm module needed for the task.</li>
+                        <li>Termination: all the workers are terminated in the method cleanup() with the call webWorkerManager.terminateAllWebWorkers().</li>
+                    </ul>   
+                    <li>Applying color correction with ICC profiles. This step occurs right after the image decoding, in the same worker used for decoding. This step also benifits in speedup by using a wasm <a href="https://github.com/hackermd/libdicomicc">module</a>.</li>
+                    <li>The images are rendered with OpenLayer using a 'style'. The style properties API allows advanced coloring and multichannels rendering using OpenGL as backend.</li>
+                    <li>The images are cached in OpenLayer tiles.</li>
+                </ul>
+            </ul>
+            </div>
         
-    
 </header>
 
 <article>
