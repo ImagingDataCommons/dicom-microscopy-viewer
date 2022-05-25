@@ -736,7 +736,8 @@ const _overviewMap = Symbol('overviewMap')
  *         <li>The images are cached in OpenLayer tiles.</li>
  *     </ul>
  * </ul>
- * </div> * @class
+ * </div> 
+ * @class
  * @memberof viewer
  */
 class VolumeImageViewer {
