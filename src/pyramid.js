@@ -18,7 +18,7 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
  */
 function _getIccProfiles (pyramid, client) {
   const metadata = pyramid.metadata
-  const iccProfiles = []
+  const profiles = []
   for (let i = 0; i < metadata.length; i++) {
     const image = metadata[i]
     if (image.SamplesPerPixel === 3) {
@@ -34,16 +34,15 @@ function _getIccProfiles (pyramid, client) {
             .OpticalPathSequence[0]
             .ICCProfile
         )
-      }).then((iccProfile) => {
-        if (iccProfile) {
-          image.iccProfile = iccProfile
-          iccProfiles.push(image)
+      }).then((data) => {
+        if (data) {
+          profiles.push(data)
         }
       })
     }
   }
 
-  return iccProfiles
+  return profiles
 }
 
 /**
@@ -503,6 +502,7 @@ function _createTileLoadFunction ({
               rows,
               samplesPerPixel,
               sopInstanceUID,
+              metadata: pyramid.metadata,
               iccProfiles
             }).then(pixelArray => {
               if (pixelArray.constructor === Float64Array) {

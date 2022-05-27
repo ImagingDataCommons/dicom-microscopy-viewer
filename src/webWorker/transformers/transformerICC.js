@@ -3,7 +3,26 @@ import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm'
 import Transformer from './transformerAbstract.js'
 
 export default class ColorTransformer extends Transformer {
-  _initialize (iccProfiles) {
+  /**
+   * Construct transformer object.
+   *
+   * @param {Array<metadata.VLWholeSlideMicroscopyImage>} - Metadata of all images
+   * @param {Array<TypedArray>} - ICC profiles of all images
+   */
+  constructor (metadata, iccProfiles) {
+    super()
+    if (metadata.length !== iccProfiles.length) {
+      throw new Error(
+        'Argument "metadata" and "iccProfiles" must have same length.'
+      )
+    }
+    this.metadata = metadata
+    this.iccProfiles = iccProfiles
+    this.codec = null
+    this.transformers = {}
+  }
+
+  _initialize () {
     if (this.codec) {
       return Promise.resolve()
     }
@@ -21,9 +40,9 @@ export default class ColorTransformer extends Transformer {
       dicomiccFactory.then((instance) => {
         this.codec = instance
 
-        for (let iccProfileIndex = 0; iccProfileIndex < iccProfiles.length; iccProfileIndex++) {
-          const image = iccProfiles[iccProfileIndex]
-
+        for (let index = 0; index < this.metadata.length; index++) {
+          const image = this.metadata[index]
+          const profile = this.iccProfiles[index]
           this.transformers[image.SOPInstanceUID] = new dicomicc.ColorManager(
             {
               columns: image.Columns,
@@ -32,33 +51,28 @@ export default class ColorTransformer extends Transformer {
               samplesPerPixel: image.SamplesPerPixel,
               planarConfiguration: image.PlanarConfiguration
             },
-            image.iccProfile
+            profile
           )
         }
-
         resolve(this.transformers)
       }, reject)
     })
   }
 
-  /** Transform image. The transform is applied only is iccProfiles are available.
+  /**
+   * Transform image.
+   *
+   * The transform is applied only is iccProfiles are available.
    * Otherwise the function return the original decoded frame.
    *
-   * @param {array} - images metadata with ICC profiles
-   * @param {string} - sopInstanceUID
+   * @param {string} - SOP Instance UID of current image that should be transformed
    * @param {Buffer} - decoded Frame
    *
    * @returns {Promise<Buffer>} transformed buffer
    */
-  async transform (iccProfiles, sopInstanceUID, decodedFrame) {
-    if (!iccProfiles || iccProfiles.length === 0) {
-      return new Promise(function (resolve) {
-        resolve(decodedFrame)
-      })
-    }
-
-    if (!this.codec) {
-      await this._initialize(iccProfiles)
+  async transform (sopInstanceUID, decodedFrame) {
+    if (this.codec == null) {
+      await this._initialize()
     }
 
     let transformedFrame

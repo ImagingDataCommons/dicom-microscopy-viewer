@@ -7,7 +7,7 @@ import imageType from 'image-type'
 const decoderJPEG2000 = new JPEG2000Decoder()
 const decoderJPEGLS = new JPEGLSDecoder()
 const decoderJPEG = new JPEGDecoder()
-const transformerColor = new ColorTransformer()
+let transformerColor
 
 /**
  * Task handler function
@@ -25,9 +25,14 @@ function _handler (data, doneCallback) {
     samplesPerPixel,
     pixelRepresentation,
     frame,
-    iccProfiles,
-    sopInstanceUID
+    sopInstanceUID,
+    metadata,
+    iccProfiles
   } = data.data
+
+  if (transformerColor === undefined) {
+    transformerColor = new ColorTransformer(metadata, iccProfiles)
+  }
 
   _checkImageTypeAndDecode(
     {
@@ -40,7 +45,10 @@ function _handler (data, doneCallback) {
     }
   ).then((decodedFrame) => {
     // Apply ICC color transform
-    transformerColor.transform(iccProfiles, sopInstanceUID, decodedFrame).then((transformedFrame) => {
+    transformerColor.transform(
+      sopInstanceUID,
+      decodedFrame
+    ).then((transformedFrame) => {
       // invoke the callback with our result and pass the frameData in the transferList to move it to
       // UI thread without making a copy
       doneCallback({

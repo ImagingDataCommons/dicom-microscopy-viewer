@@ -39,7 +39,8 @@ async function _decodeAndTransformFrame ({
   rows,
   samplesPerPixel,
   sopInstanceUID,
-  iccProfiles
+  metadata, // metadata of all images (different resolution levels)
+  iccProfiles // ICC profiles for all images
 }) {
   const result = await _processDecodeAndTrasformTask(
     frame,
@@ -49,7 +50,9 @@ async function _decodeAndTransformFrame ({
     rows,
     samplesPerPixel,
     sopInstanceUID,
-    iccProfiles)
+    metadata,
+    iccProfiles
+  )
 
   const signed = pixelRepresentation === 1
   let pixelArray
