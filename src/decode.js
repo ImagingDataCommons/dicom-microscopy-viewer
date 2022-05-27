@@ -1,7 +1,7 @@
 import webWorkerManager from './webWorker/webWorkerManager.js'
 import dcmjs from 'dcmjs'
 
-function _processDecodeAndTrasformTask (
+function _processDecodeAndTransformTask (
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -16,7 +16,7 @@ function _processDecodeAndTrasformTask (
   const transferList = undefined
 
   return webWorkerManager.addTask(
-    'decodeAndTrasformTask',
+    'decodeAndTransformTask',
     {
       frame,
       bitsAllocated,
@@ -44,7 +44,7 @@ async function _decodeAndTransformFrame ({
   metadata, // metadata of all images (different resolution levels)
   iccProfiles // ICC profiles for all images
 }) {
-  const result = await _processDecodeAndTrasformTask(
+  const result = await _processDecodeAndTransformTask(
     frame,
     bitsAllocated,
     pixelRepresentation,

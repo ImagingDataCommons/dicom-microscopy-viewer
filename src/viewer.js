@@ -1016,7 +1016,8 @@ class VolumeImageViewer {
             pyramid: pyramid,
             client: this[_options].client,
             channel: opticalPathIdentifier
-          }
+          },
+          hasLoader: false
         }
 
         const areImagePyramidsEqual = _areImagePyramidsEqual(
@@ -1142,7 +1143,8 @@ class VolumeImageViewer {
           pyramid: pyramid,
           client: this[_options].client,
           channel: opticalPathIdentifier
-        }
+        },
+        hasLoader: false
       }
 
       const source = new DataTileSource({
@@ -1596,6 +1598,21 @@ class VolumeImageViewer {
     if (!this.isOpticalPathActive(opticalPathIdentifier)) {
       this.activateOpticalPath(opticalPathIdentifier)
     }
+
+    const container = this[_map].getTargetElement()
+    if (container && !opticalPath.hasLoader) {
+      const metadata = opticalPath.pyramid.metadata
+      _getIccProfiles(metadata, this[_options].client).then(profiles => {
+        const loader = _createTileLoadFunction({
+          targetElement: container,
+          iccProfiles: profiles,
+          ...opticalPath.loaderParams
+        })
+        const source = opticalPath.layer.getSource()
+        source.setLoader(loader)
+      })
+    }
+
     opticalPath.layer.setVisible(true)
     opticalPath.overviewTileLayer.setVisible(true)
     this.setOpticalPathStyle(opticalPathIdentifier, styleOptions)
@@ -1698,18 +1715,18 @@ class VolumeImageViewer {
     ]
 
     itemsRequiringDecodersAndTransformers.forEach(item => {
-      _getIccProfiles(item.pyramid, this[_options].client).then(profiles => {
+      const metadata = item.pyramid.metadata
+      _getIccProfiles(metadata, this[_options].client).then(profiles => {
         itemsRequiringDecodersAndTransformers.forEach(item => {
           const source = item.layer.getSource()
           const loader = _createTileLoadFunction({
             targetElement: options.container,
-            opticalPath: item.opticalPath,
             iccProfiles: profiles,
             ...item.loaderParams
           })
           source.setLoader(loader)
+          item.hasLoader = true
           this[_map].setTarget(options.container)
-          const containerElement = this[_map].getTargetElement()
 
           const view = this[_map].getView()
           const projection = view.getProjection()
@@ -1717,7 +1734,7 @@ class VolumeImageViewer {
 
           this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
             publish(
-              containerElement,
+              options.container,
               EVENT.ROI_ADDED,
               this._getROIFromFeature(e.feature, this[_pyramid].metadata)
             )
@@ -1756,14 +1773,14 @@ class VolumeImageViewer {
               }
             }
             publish(
-              containerElement,
+              options.container,
               EVENT.ROI_MODIFIED,
               this._getROIFromFeature(e.feature, this[_pyramid].metadata)
             )
           })
           this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
             publish(
-              containerElement,
+              options.container,
               EVENT.ROI_REMOVED,
               this._getROIFromFeature(e.feature, this[_pyramid].metadata)
             )
@@ -3193,7 +3210,8 @@ class VolumeImageViewer {
           pyramid: fittedPyramid,
           client: this[_options].client,
           channel: segmentNumber
-        }
+        },
+        hasLoader: false
       }
 
       const source = new DataTileSource({
@@ -3278,6 +3296,18 @@ class VolumeImageViewer {
     }
     const segment = this[_segments][segmentUID]
     console.info(`show segment ${segmentUID}`)
+
+    const container = this[_map].getTargetElement()
+    if (container && !segment.hasLoader) {
+      const loader = _createTileLoadFunction({
+        targetElement: container,
+        iccProfiles: [],
+        ...segment.loaderParams
+      })
+      const source = segment.layer.getSource()
+      source.setLoader(loader)
+    }
+
     segment.layer.setVisible(true)
     this.setSegmentStyle(segmentUID, styleOptions)
   }
@@ -3619,7 +3649,8 @@ class VolumeImageViewer {
           pyramid: fittedPyramid,
           client: this[_options].client,
           channel: mappingNumber
-        }
+        },
+        hasLoader: false
       }
 
       const source = new DataTileSource({
@@ -3701,6 +3732,18 @@ class VolumeImageViewer {
     }
     const mapping = this[_mappings][mappingUID]
     console.info(`show mapping ${mappingUID}`)
+
+    const container = this[_map].getTargetElement()
+    if (container && !mapping.hasLoader) {
+      const loader = _createTileLoadFunction({
+        targetElement: container,
+        iccProfiles: [],
+        ...mapping.loaderParams
+      })
+      const source = mapping.layer.getSource()
+      source.setLoader(loader)
+    }
+
     mapping.layer.setVisible(true)
     this.setParameterMappingStyle(mappingUID, styleOptions)
   }

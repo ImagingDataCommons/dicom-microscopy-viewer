@@ -30,10 +30,6 @@ function _handler (data, doneCallback) {
     iccProfiles
   } = data.data
 
-  if (transformerColor === undefined) {
-    transformerColor = new ColorTransformer(metadata, iccProfiles)
-  }
-
   _checkImageTypeAndDecode(
     {
       bitsAllocated,
@@ -44,24 +40,38 @@ function _handler (data, doneCallback) {
       frame
     }
   ).then((decodedFrame) => {
-    // Apply ICC color transform
-    transformerColor.transform(
-      sopInstanceUID,
-      decodedFrame
-    ).then((transformedFrame) => {
-      // invoke the callback with our result and pass the frameData in the transferList to move it to
-      // UI thread without making a copy
-      doneCallback({
-        frameData: transformedFrame.buffer
-      }, [transformedFrame.buffer])
-    }).catch(
-      (error) => {
-        console.log(`Failed to transform frame: ${error}`)
+    if (iccProfiles != null && iccProfiles.length > 0) {
+      // Only instantiate the transformer once and cache it for reuse.
+      if (transformerColor === undefined) {
+        transformerColor = new ColorTransformer(metadata, iccProfiles)
       }
-    )
+      // Apply ICC color transform
+      transformerColor.transform(
+        sopInstanceUID,
+        decodedFrame
+      ).then((transformedFrame) => {
+        /*
+         * Invoke the callback with our result and pass the frameData in the
+         * transferList to move it to UI thread without making a copy.
+         */
+        doneCallback(
+          { frameData: transformedFrame.buffer },
+          [transformedFrame.buffer]
+        )
+      }).catch(
+        (error) => {
+          console.error(`failed to transform frame: ${error}`)
+        }
+      )
+    } else {
+      doneCallback(
+        { frameData: decodedFrame.buffer },
+        [decodedFrame.buffer]
+      )
+    }
   }).catch(
     (error) => {
-      console.log(`Failed to decode frame: ${error}`)
+      console.error(`failed to decode frame: ${error}`)
     }
   )
 }
@@ -138,31 +148,48 @@ async function _checkImageTypeAndDecode ({
 
   const { frameBuffer, frameInfo } = await _decode(mediaType, byteArray)
   if (frameInfo.bitsPerSample !== bitsAllocated) {
-    throw new Error('_checkImageTypeAndDecode: frame does not have expected Bits Allocated.')
+    throw new Error(
+      'Frame does not have expected Bits Allocated: ' +
+      `${frameInfo.bitsPerSample} instead of ${bitsAllocated}.`
+    )
   }
 
   if (frameInfo.height !== rows) {
-    throw new Error('_checkImageTypeAndDecode: frame does not have expected Rows.')
+    throw new Error(
+      'Frame does not have expected Rows: ' +
+      `${frameInfo.height} instead of ${rows}.`
+    )
   }
 
   if (frameInfo.width !== columns) {
-    throw new Error('_checkImageTypeAndDecode: frame does not have expected Columns.')
+    throw new Error(
+      'Frame does not have expected Columns: ' +
+      `${frameInfo.width} instead of ${columns}.`
+    )
   }
 
   if (frameInfo.componentCount !== samplesPerPixel) {
-    throw new Error('_checkImageTypeAndDecode: frame does not have expected Samples Per Pixel.')
+    throw new Error(
+      'Frame does not have expected Samples Per Pixel: ' +
+      `${frameInfo.componentCount} instead of ${samplesPerPixel}.`
+    )
   }
 
-  const signed = pixelRepresentation === 1
-  if (frameInfo.isSigned !== signed) {
-    throw new Error('_checkImageTypeAndDecode: frame does not have expected Pixel Representation.')
+  if (frameInfo.isSigned != null) {
+    const isSigned = pixelRepresentation === 1
+    if (frameInfo.isSigned !== isSigned) {
+      throw new Error(
+        'Frame does not have expected Pixel Representation: ' +
+        `"${frameInfo.isSigned}" instead of "${isSigned}".`
+      )
+    }
   }
 
   const length = columns * rows * samplesPerPixel * (bitsAllocated / 8)
   if (length !== frameBuffer.length) {
     throw new Error(
-      '_checkImageTypeAndDecode: frame value does not have expected length: ' +
-      frameBuffer.length + ' instead of ' + length + '.'
+      'Frame value does not have expected length: ' +
+      `${frameBuffer.length} instead of ${length}.`
     )
   }
 
@@ -188,6 +215,6 @@ async function _decode (mediaType, byteArray) {
 }
 
 export default {
-  taskType: 'decodeAndTrasformTask',
+  taskType: 'decodeAndTransformTask',
   _handler
 }

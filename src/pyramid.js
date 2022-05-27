@@ -18,17 +18,18 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
  *
  * @private
  */
-async function _getIccProfiles (pyramid, client) {
-  const metadata = pyramid.metadata
+async function _getIccProfiles (metadata, client) {
   const profiles = []
   for (let i = 0; i < metadata.length; i++) {
     const image = metadata[i]
     if (image.SamplesPerPixel === 3) {
       if (image.bulkdataReferences.OpticalPathSequence == null) {
-        console.warn('ICC Profile was not found')
+        console.warn(
+          `no ICC Profile was not found for image "${image.SOPInstanceUID}"`
+        )
         continue
       }
-      const data = await _fetchBulkdata({
+      const bulkdata = await _fetchBulkdata({
         client,
         reference: (
           image
@@ -37,7 +38,7 @@ async function _getIccProfiles (pyramid, client) {
             .ICCProfile
         )
       })
-      profiles.push(data)
+      profiles.push(bulkdata)
     }
   }
   return profiles
@@ -354,8 +355,7 @@ function _createTileLoadFunction ({
   client,
   channel,
   iccProfiles,
-  targetElement,
-  opticalPath
+  targetElement
 }) {
   return async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
@@ -484,8 +484,7 @@ function _createTileLoadFunction ({
           studyInstanceUID,
           seriesInstanceUID,
           sopInstanceUID,
-          frameNumber: frameNumbers[0],
-          opticalPath
+          frameNumber: frameNumbers[0]
         }
       )
 
@@ -505,7 +504,9 @@ function _createTileLoadFunction ({
             }).then(pixelArray => {
               if (pixelArray.constructor === Float64Array) {
                 // TODO: handle Float64Array using LUT
-                throw new Error('Double Float Pixel Data is not (yet) supported.')
+                throw new Error(
+                  'Double Float Pixel Data is not (yet) supported.'
+                )
               }
               publish(
                 targetElement,
@@ -515,7 +516,6 @@ function _createTileLoadFunction ({
                   seriesInstanceUID,
                   sopInstanceUID,
                   frameNumber: frameNumbers[0],
-                  opticalPath,
                   pixelArray
                 }
               )

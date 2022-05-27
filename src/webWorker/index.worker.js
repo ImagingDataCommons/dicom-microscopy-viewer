@@ -1,8 +1,8 @@
 import { registerTaskHandler } from './webWorker.js'
-import decodeAndTrasformTask from './decodeAndTrasformTask.js'
+import decodeAndTransformTask from './decodeAndTransformTask.js'
 
 // register our task
-registerTaskHandler(decodeAndTrasformTask)
+registerTaskHandler(decodeAndTransformTask)
 
 const DataLoader = {
   registerTaskHandler

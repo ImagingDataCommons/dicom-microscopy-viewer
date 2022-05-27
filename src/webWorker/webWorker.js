@@ -57,7 +57,7 @@ function initialize (data) {
  */
 export function registerTaskHandler (taskHandler) {
   if (taskHandlers[taskHandler.taskType]) {
-    console.log(
+    console.info(
       'attempt to register duplicate task handler "',
       taskHandler.taskType,
       '"'
@@ -90,25 +90,23 @@ function loadWebWorkerTask (data) {
  */
 self.onmessage = function (msg) {
   if (!msg.data.taskType) {
-    console.log(msg.data)
-
+    console.info(msg.data)
     return
   }
 
-  console.log('Web Worker onmessage. Task : ', msg.data.taskType,
-    ' . WorkerIndex :  ', msg.data.workerIndex)
+  console.info(
+    `run task "${msg.data.taskType}" on web worker #${msg.data.workerIndex}`
+  )
 
   // handle initialize message
   if (msg.data.taskType === 'initialize') {
     initialize(msg.data)
-
     return
   }
 
   // handle loadWebWorkerTask message
   if (msg.data.taskType === 'loadWebWorkerTask') {
     loadWebWorkerTask(msg.data)
-
     return
   }
 
@@ -130,7 +128,7 @@ self.onmessage = function (msg) {
         }
       )
     } catch (error) {
-      console.log(`task ${msg.data.taskType} failed - ${error.message}`)
+      console.error(`task "${msg.data.taskType}" failed: ${error.message}`)
       self.postMessage({
         taskType: msg.data.taskType,
         status: 'failed',
@@ -143,8 +141,7 @@ self.onmessage = function (msg) {
   }
 
   // not task handler registered - send a failure message back to ui thread
-  console.log('no task handler for ', msg.data.taskType)
-  console.log(taskHandlers)
+  console.warn('no task handler for ', msg.data.taskType, taskHandler)
 
   self.postMessage({
     taskType: msg.data.taskType,
