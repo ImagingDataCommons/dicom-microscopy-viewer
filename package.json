@@ -4,9 +4,6 @@
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "./src/dicom-microscopy-viewer.js",
   "standard": {
-    "env": [
-      "jest"
-    ],
     "ignore": [
       "/build/*",
       "/docs/*",
@@ -17,18 +14,25 @@
       "/src/dictionary.js",
       "/src/__mocks__/*",
       "/test/*"
+    ],
+    "env": [
+      "jest"
     ]
   },
   "scripts": {
     "test": "standard 'src/*.js' && jest --silent",
-    "build": "webpack --mode=development",
-    "build:prod": "webpack --mode=production",
+    "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
+    "build:prod": "npm run webpack:bundle && npm run webpack:dynamic-import",
     "prepublishOnly": "npm run build:prod",
     "generateStaticSite": "npm run build:prod && cp -R ./dist ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
     "fmt": "standard 'src/**/.js' --fix",
     "lint": "standard 'src/**/*.js'",
-    "clean": "rm -rf ./dist ./node_modules"
+    "clean": "rm -rf ./dist ./node_modules",
+    "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
+    "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
+    "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
+    "webpack:watch": "webpack --progress --watch  --config ./config/webpack"
   },
   "repository": {
     "type": "git",
@@ -47,17 +51,31 @@
   },
   "homepage": "https://github.com/herrmannlab/dicom-microscopy-viewer#readme",
   "devDependencies": {
-    "@babel/core": "7.17",
-    "@babel/preset-env": "7.16",
+    "@babel/core": "^7.17",
+    "@babel/plugin-proposal-object-rest-spread": "^7.14.7",
+    "@babel/plugin-transform-runtime": "^7.15.0",
+    "@babel/preset-env": "^7.16",
+    "@babel/runtime-corejs3": "^7.15.4",
+    "@webpack-cli/serve": "^1.5.2",
+    "babel-eslint": "10.1.0",
     "babel-jest": "27.5",
     "babel-loader": "^8.2.3",
-    "css-loader": "^6.6",
+    "chai": "^4.3.4",
+    "clean-webpack-plugin": "^4.0.0",
+    "copy-webpack-plugin": "9.0.1",
+    "core-js": "^3.17.2",
+    "css-loader": "^6.7.1",
+    "open-cli": "^7.0.1",
     "jest": "^27.5",
     "jest-canvas-mock": "^2.3",
     "jsdoc": "^3.6",
     "standard": "^16.0",
+    "terser-webpack-plugin": "^5.2.2",
     "webpack": "^5.68",
-    "webpack-cli": "^4.9"
+    "webpack-bundle-analyzer": "^4.4.2",
+    "webpack-cli": "^4.9",
+    "webpack-dev-server": "4.1.0",
+    "worker-loader": "^3.0.8"
   },
   "dependencies": {
     "@cornerstonejs/codec-charls": "^0.1.1",

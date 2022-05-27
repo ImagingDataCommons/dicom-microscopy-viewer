@@ -2,6 +2,7 @@ import 'ol/ol.css'
 import Collection from 'ol/Collection'
 import Draw, { createRegularPolygon } from 'ol/interaction/Draw'
 import EVENT from './events'
+import publish from './eventPublisher'
 import Feature from 'ol/Feature'
 import Fill from 'ol/style/Fill'
 import FullScreen from 'ol/control/FullScreen'
@@ -11,7 +12,6 @@ import Map from 'ol/Map'
 import Modify from 'ol/interaction/Modify'
 import OverviewMap from 'ol/control/OverviewMap'
 import Projection from 'ol/proj/Projection'
-import publish from './eventPublisher'
 import ScaleLine from 'ol/control/ScaleLine'
 import Select from 'ol/interaction/Select'
 import Snap from 'ol/interaction/Snap'
@@ -68,8 +68,7 @@ import {
   _generateUID,
   _getUnitSuffix,
   doContentItemsMatch,
-  createWindow,
-  _fetchBulkdata
+  createWindow
 } from './utils.js'
 import {
   _scoord3dCoordinates2geometryCoordinates,
@@ -84,117 +83,13 @@ import {
   _areImagePyramidsEqual,
   _computeImagePyramid,
   _createTileLoadFunction,
-  _fitImagePyramid
+  _fitImagePyramid,
+  _getIccProfiles
 } from './pyramid.js'
 
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
-
-import libjpegFactory from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.js'
-import libjpegWASM from '@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode.wasm'
-import openjpegFactory from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.js'
-import openjpegWASM from '@cornerstonejs/codec-openjpeg/dist/openjpegwasm_decode.wasm'
-import charlsFactory from '@cornerstonejs/codec-charls/dist/charlswasm_decode.js'
-import charlsWASM from '@cornerstonejs/codec-charls/dist/charlswasm_decode.wasm'
-import dicomiccFactory from 'dicomicc/dist/dicomiccwasm.js'
-import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm'
-
-const libjpeg = libjpegFactory({
-  locateFile: (f) => {
-    if (f.endsWith('.wasm')) {
-      return libjpegWASM
-    }
-    return f
-  }
-})
-
-const openjpeg = openjpegFactory({
-  locateFile: (f) => {
-    if (f.endsWith('.wasm')) {
-      return openjpegWASM
-    }
-    return f
-  }
-})
-
-const charls = charlsFactory({
-  locateFile: (f) => {
-    if (f.endsWith('.wasm')) {
-      return charlsWASM
-    }
-    return f
-  }
-})
-
-async function _initializeDecodersAndTransformers ({
-  client,
-  opticalPaths
-}) {
-  console.info('initialize decoders')
-
-  console.info('initialize JPEG decoder')
-  const jpegDecoder = new libjpeg.JPEGDecoder()
-
-  console.info('initialize JPEG 2000 decoder')
-  const jpeg2000Decoder = new openjpeg.J2KDecoder()
-
-  console.info('initialize JPEG-LS decoder')
-  const jpeglsDecoder = new charls.JpegLSDecoder()
-
-  console.info('initialize transformers')
-  const dicomicc = await dicomiccFactory({
-    locateFile: (f) => {
-      if (f.endsWith('.wasm')) {
-        return dicomiccWASM
-      }
-      return f
-    }
-  })
-  const transformers = {}
-  for (const id in opticalPaths) {
-    const metadata = opticalPaths[id].pyramid.metadata
-    for (let i = 0; i < metadata.length; i++) {
-      const image = metadata[i]
-      if (image.SamplesPerPixel === 3) {
-        if (image.bulkdataReferences.OpticalPathSequence == null) {
-          console.warn('ICC Profile was not found')
-          continue
-        }
-        const iccProfile = await _fetchBulkdata({
-          client,
-          reference: (
-            image
-              .bulkdataReferences
-              .OpticalPathSequence[0]
-              .ICCProfile
-          )
-        })
-        if (iccProfile) {
-          transformers[image.SOPInstanceUID] = new dicomicc.ColorManager(
-            {
-              columns: image.Columns,
-              rows: image.Rows,
-              bitsPerSample: image.BitsAllocated,
-              samplesPerPixel: image.SamplesPerPixel,
-              planarConfiguration: image.PlanarConfiguration
-            },
-            iccProfile
-          )
-        }
-      }
-    }
-  }
-
-  return {
-    decoders: {
-      'image/jpeg': jpegDecoder,
-      'image/jp2': jpeg2000Decoder,
-      'image/jpx': jpeg2000Decoder,
-      'image/jls': jpeglsDecoder
-    },
-    transformers
-  }
-}
+import webWorkerManager from './webWorker/webWorkerManager.js'
 
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
@@ -813,7 +708,6 @@ function _getColorPaletteStyleForPointLayer ({
 }
 
 const _controls = Symbol('controls')
-const _decoders = Symbol('decoders')
 const _drawingLayer = Symbol('drawingLayer')
 const _drawingSource = Symbol('drawingSource')
 const _features = Symbol('features')
@@ -822,6 +716,7 @@ const _interactions = Symbol('interactions')
 const _map = Symbol('map')
 const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
+const _areIccProfilesFetched = Symbol('areIccProfilesFetched')
 const _options = Symbol('options')
 const _pyramid = Symbol('pyramid')
 const _segments = Symbol('segments')
@@ -829,7 +724,6 @@ const _opticalPaths = Symbol('opticalPaths')
 const _rotation = Symbol('rotation')
 const _projection = Symbol('projection')
 const _tileGrid = Symbol('tileGrid')
-const _transformers = Symbol('transformers')
 const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
 const _overviewMap = Symbol('overviewMap')
@@ -888,6 +782,7 @@ class VolumeImageViewer {
     this[_segments] = {}
     this[_mappings] = {}
     this[_annotationGroups] = {}
+    this[_areIccProfilesFetched] = false
 
     // Collection of Openlayers "Feature" instances
     this[_features] = new Collection([], { unique: true })
@@ -1086,6 +981,7 @@ class VolumeImageViewer {
             blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData
           })
         }
+
         const opticalPath = {
           opticalPathIdentifier,
           opticalPath: new OpticalPath({
@@ -1147,14 +1043,6 @@ class VolumeImageViewer {
             event
           )
         })
-        if (this[_decoders] != null) {
-          const loader = _createTileLoadFunction({
-            decoders: this[_decoders],
-            transformers: this[_transformers][opticalPathIdentifier],
-            ...opticalPath.loaderParams
-          })
-          source.setLoader(loader)
-        }
 
         const [windowCenter, windowWidth] = createWindow(
           opticalPath.style.limitValues[0],
@@ -1229,6 +1117,7 @@ class VolumeImageViewer {
       const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
       const info = colorImageInformation[opticalPathIdentifier]
       const pyramid = _computeImagePyramid({ metadata: info.metadata })
+
       const opticalPath = {
         opticalPathIdentifier,
         opticalPath: new OpticalPath({
@@ -1269,14 +1158,6 @@ class VolumeImageViewer {
           event
         )
       })
-      if (this[_decoders] != null) {
-        const loader = _createTileLoadFunction({
-          decoders: this[_decoders],
-          transformers: this[_transformers][opticalPathIdentifier],
-          ...opticalPath.loaderParams
-        })
-        source.setLoader(loader)
-      }
 
       opticalPath.layer = new TileLayer({
         source,
@@ -1427,9 +1308,6 @@ class VolumeImageViewer {
       pyramid: this[_pyramid].metadata,
       drawingSource: this[_drawingSource]
     })
-
-    this[_decoders] = null
-    this[_transformers] = null
   }
 
   /**
@@ -1797,6 +1675,8 @@ class VolumeImageViewer {
       }
       this[_features].clear()
     })
+
+    webWorkerManager.terminateAllWebWorkers()
   }
 
   /**
@@ -1811,161 +1691,150 @@ class VolumeImageViewer {
       return
     }
 
-    console.info('initialize decoders and transformers')
-    _initializeDecodersAndTransformers({
-      client: this[_options].client,
-      opticalPaths: this[_opticalPaths]
-    }).then(handlers => {
-      console.info('provide decoders to loaders')
-      this[_decoders] = handlers.decoders
-      this[_transformers] = handlers.transformers
+    const itemsRequiringDecodersAndTransformers = [
+      ...Object.values(this[_opticalPaths]),
+      ...Object.values(this[_segments]),
+      ...Object.values(this[_mappings])
+    ]
 
-      const itemsRequiringDecodersAndTransformers = [
-        ...Object.values(this[_opticalPaths]),
-        ...Object.values(this[_segments]),
-        ...Object.values(this[_mappings])
-      ]
-      itemsRequiringDecodersAndTransformers.forEach(item => {
-        const source = item.layer.getSource()
-        const loader = _createTileLoadFunction({
-          decoders: this[_decoders],
-          transformers: this[_transformers],
-          ...item.loaderParams
-        })
-        source.setLoader(loader)
-      })
+    itemsRequiringDecodersAndTransformers.forEach(item => {
+      _getIccProfiles(item.pyramid, this[_options].client).then(profiles => {
+        itemsRequiringDecodersAndTransformers.forEach(item => {
+          const source = item.layer.getSource()
+          const loader = _createTileLoadFunction({
+            targetElement: options.container,
+            opticalPath: item.opticalPath,
+            iccProfiles: profiles,
+            ...item.loaderParams
+          })
+          source.setLoader(loader)
+          this[_map].setTarget(options.container)
+          const containerElement = this[_map].getTargetElement()
 
-      this[_map].setTarget(options.container)
-
-      const view = this[_map].getView()
-      const projection = view.getProjection()
-      const containerElement = this[_map].getTargetElement()
-
-      view.fit(projection.getExtent(), { size: this[_map].getSize() })
-
-      this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-        publish(
-          containerElement,
-          EVENT.ROI_ADDED,
-          this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-        )
-      })
-
-      this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-        if (e.feature !== undefined || e.feature !== null) {
-          const geometry = e.feature.getGeometry()
-          const type = geometry.getType()
-          // The first and last point of a polygon must be identical. The last point
-          // is an implementation detail and is hidden from the user in the graphical
-          // interface. However, we must update the last point in case the first
-          // point has been modified by the user.
-          if (type === 'Polygon') {
-            // NOTE: Polygon in GeoJSON format contains an array of geometries,
-            // where the first element represents the coordinates of the outer ring
-            // and the second element represents the coordinates of the inner ring
-            // (in our case the inner ring should not be present).
-            const layout = geometry.getLayout()
-            const coordinates = geometry.getCoordinates()
-            const firstPoint = coordinates[0][0]
-            const lastPoint = coordinates[0][coordinates[0].length - 1]
-            if (
-              firstPoint[0] !== lastPoint[0] ||
-              firstPoint[1] !== lastPoint[1]
-            ) {
-              coordinates[0][coordinates[0].length - 1] = firstPoint
-              geometry.setCoordinates(coordinates, layout)
-              e.feature.setGeometry(geometry)
+          const view = this[_map].getView()
+          const projection = view.getProjection()
+          view.fit(projection.getExtent(), { size: this[_map].getSize() })
+          this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+            publish(
+              containerElement,
+              EVENT.ROI_ADDED,
+              this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+            )
+          })
+          this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+            if (e.feature !== undefined || e.feature !== null) {
+              const geometry = e.feature.getGeometry()
+              const type = geometry.getType()
+              // The first and last point of a polygon must be identical. The last point
+              // is an implementation detail and is hidden from the user in the graphical
+              // interface. However, we must update the last point in case the first
+              // point has been modified by the user.
+              if (type === 'Polygon') {
+                // NOTE: Polygon in GeoJSON format contains an array of geometries,
+                // where the first element represents the coordinates of the outer ring
+                // and the second element represents the coordinates of the inner ring
+                // (in our case the inner ring should not be present).
+                const layout = geometry.getLayout()
+                const coordinates = geometry.getCoordinates()
+                const firstPoint = coordinates[0][0]
+                const lastPoint = coordinates[0][coordinates[0].length - 1]
+                if (
+                  firstPoint[0] !== lastPoint[0] ||
+                  firstPoint[1] !== lastPoint[1]
+                ) {
+                  coordinates[0][coordinates[0].length - 1] = firstPoint
+                  geometry.setCoordinates(coordinates, layout)
+                  e.feature.setGeometry(geometry)
+                }
+              }
             }
-          }
-        }
-        publish(
-          containerElement,
-          EVENT.ROI_MODIFIED,
-          this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-        )
+            publish(
+              containerElement,
+              EVENT.ROI_MODIFIED,
+              this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+            )
+          })
+          this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
+            publish(
+              containerElement,
+              EVENT.ROI_REMOVED,
+              this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+            )
+          })
+        })
       })
-
-      this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-        publish(
-          containerElement,
-          EVENT.ROI_REMOVED,
-          this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-        )
-      })
-
-      // Style scale element (overriding default Openlayers CSS "ol-scale-line")
-      const scaleElement = this[_controls].scale.element
-      scaleElement.style.position = 'absolute'
-      scaleElement.style.right = '.5em'
-      scaleElement.style.bottom = '.5em'
-      scaleElement.style.left = 'auto'
-      scaleElement.style.padding = '2px'
-      scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)'
-      scaleElement.style.borderRadius = '4px'
-      scaleElement.style.margin = '1px'
-
-      const scaleInnerElement = this[_controls].scale.innerElement_
-      scaleInnerElement.style.color = 'black'
-      scaleInnerElement.style.fontWeight = '600'
-      scaleInnerElement.style.fontSize = '10px'
-      scaleInnerElement.style.textAlign = 'center'
-      scaleInnerElement.style.borderWidth = '1.5px'
-      scaleInnerElement.style.borderStyle = 'solid'
-      scaleInnerElement.style.borderTop = 'none'
-      scaleInnerElement.style.borderRightColor = 'black'
-      scaleInnerElement.style.borderLeftColor = 'black'
-      scaleInnerElement.style.borderBottomColor = 'black'
-      scaleInnerElement.style.margin = '1px'
-      scaleInnerElement.style.willChange = 'contents,width'
-
-      if (this[_overviewMap]) {
-        const overviewElement = this[_overviewMap].element
-        const overviewmapElement = Object.values(overviewElement.children).find(
-          c => c.className === 'ol-overviewmap-map'
-        )
-        const buttonElement = Object.values(overviewElement.children).find(
-          c => c.type === 'button'
-        )
-        if (buttonElement) {
-          buttonElement.style.border = '0.25px solid black'
-          buttonElement.style.backgroundColor = 'white'
-        }
-        overviewmapElement.style.border = '1px solid black'
-        overviewmapElement.style.color = 'black'
-        // Try to fit the overview map into the target control overlay container
-        const height = Math.abs(this[_pyramid].extent[1])
-        const width = Math.abs(this[_pyramid].extent[2])
-        const rotation = this[_rotation] / Math.PI * 180
-        const windowSize = _getWindowSize()
-        let targetHeight
-        let resizeFactor
-        let targetWidth
-        if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
-          if (windowSize[1] > windowSize[0]) {
-            targetHeight = Math.ceil(windowSize[1] * 0.2)
-            resizeFactor = targetHeight / height
-            targetWidth = width * resizeFactor
-          } else {
-            targetWidth = Math.ceil(windowSize[0] * 0.15)
-            resizeFactor = targetWidth / width
-            targetHeight = height * resizeFactor
-          }
-        } else {
-          if (windowSize[1] > windowSize[0]) {
-            targetHeight = Math.ceil(windowSize[1] * 0.2)
-            resizeFactor = targetHeight / width
-            targetWidth = height * resizeFactor
-          } else {
-            targetWidth = Math.ceil(windowSize[0] * 0.15)
-            resizeFactor = targetWidth / height
-            targetHeight = width * resizeFactor
-          }
-        }
-        overviewmapElement.style.width = `${targetWidth}px`
-        overviewmapElement.style.height = `${targetHeight}px`
-        this[_overviewMap].getOverviewMap().updateSize()
-      }
     })
+
+    // Style scale element (overriding default Openlayers CSS "ol-scale-line")
+    const scaleElement = this[_controls].scale.element
+    scaleElement.style.position = 'absolute'
+    scaleElement.style.right = '.5em'
+    scaleElement.style.bottom = '.5em'
+    scaleElement.style.left = 'auto'
+    scaleElement.style.padding = '2px'
+    scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)'
+    scaleElement.style.borderRadius = '4px'
+    scaleElement.style.margin = '1px'
+    const scaleInnerElement = this[_controls].scale.innerElement_
+    scaleInnerElement.style.color = 'black'
+    scaleInnerElement.style.fontWeight = '600'
+    scaleInnerElement.style.fontSize = '10px'
+    scaleInnerElement.style.textAlign = 'center'
+    scaleInnerElement.style.borderWidth = '1.5px'
+    scaleInnerElement.style.borderStyle = 'solid'
+    scaleInnerElement.style.borderTop = 'none'
+    scaleInnerElement.style.borderRightColor = 'black'
+    scaleInnerElement.style.borderLeftColor = 'black'
+    scaleInnerElement.style.borderBottomColor = 'black'
+    scaleInnerElement.style.margin = '1px'
+    scaleInnerElement.style.willChange = 'contents,width'
+    if (this[_overviewMap]) {
+      const overviewElement = this[_overviewMap].element
+      const overviewmapElement = Object.values(overviewElement.children).find(
+        c => c.className === 'ol-overviewmap-map'
+      )
+      const buttonElement = Object.values(overviewElement.children).find(
+        c => c.type === 'button'
+      )
+      if (buttonElement) {
+        buttonElement.style.border = '0.25px solid black'
+        buttonElement.style.backgroundColor = 'white'
+      }
+      overviewmapElement.style.border = '1px solid black'
+      overviewmapElement.style.color = 'black'
+      // Try to fit the overview map into the target control overlay container
+      const height = Math.abs(this[_pyramid].extent[1])
+      const width = Math.abs(this[_pyramid].extent[2])
+      const rotation = this[_rotation] / Math.PI * 180
+      const windowSize = _getWindowSize()
+      let targetHeight
+      let resizeFactor
+      let targetWidth
+      if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
+        if (windowSize[1] > windowSize[0]) {
+          targetHeight = Math.ceil(windowSize[1] * 0.2)
+          resizeFactor = targetHeight / height
+          targetWidth = width * resizeFactor
+        } else {
+          targetWidth = Math.ceil(windowSize[0] * 0.15)
+          resizeFactor = targetWidth / width
+          targetHeight = height * resizeFactor
+        }
+      } else {
+        if (windowSize[1] > windowSize[0]) {
+          targetHeight = Math.ceil(windowSize[1] * 0.2)
+          resizeFactor = targetHeight / width
+          targetWidth = height * resizeFactor
+        } else {
+          targetWidth = Math.ceil(windowSize[0] * 0.15)
+          resizeFactor = targetWidth / height
+          targetHeight = width * resizeFactor
+        }
+      }
+      overviewmapElement.style.width = `${targetWidth}px`
+      overviewmapElement.style.height = `${targetHeight}px`
+      this[_overviewMap].getOverviewMap().updateSize()
+    }
   }
 
   /**
@@ -3325,14 +3194,6 @@ class VolumeImageViewer {
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of segment "${segmentUID}"`, event)
       })
-      if (this[_decoders]) {
-        const loader = _createTileLoadFunction({
-          decoders: this[_decoders],
-          transformers: this[_transformers],
-          ...segment.loaderParams
-        })
-        source.setLoader(loader)
-      }
 
       const [windowCenter, windowWidth] = createWindow(
         minStoredValue,
@@ -3759,14 +3620,6 @@ class VolumeImageViewer {
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of mapping "${mappingUID}"`, event)
       })
-      if (this[_decoders]) {
-        const loader = _createTileLoadFunction({
-          decoders: this[_decoders],
-          transformers: this[_transformers],
-          ...mapping.loaderParams
-        })
-        source.setLoader(loader)
-      }
 
       mapping.layer = new TileLayer({
         source,
