@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>JSDoc: Class: LabelImageViewer</title>
+    <title>JSDoc: Class: exports</title>
 
     <script src="scripts/prettify/prettify.js"> </script>
     <script src="scripts/prettify/lang-css.js"> </script>
@@ -17,7 +17,7 @@
 
 <div id="main">
 
-    <h1 class="page-title">Class: LabelImageViewer</h1>
+    <h1 class="page-title">Class: exports</h1>
 
     
 
@@ -28,11 +28,7 @@
 
 <header>
     
-        <h2><span class="attribs"><span class="type-signature"></span></span>
-            <span class="ancestors"><a href="viewer.html">viewer</a>.</span>LabelImageViewer<span class="signature">(options)</span><span class="type-signature"></span></h2>
-        
-            <div class="class-description">Static viewer for DICOM VL Whole Slide Microscopy Image instances
-with Image Type LABEL.</div>
+        <h2><span class="attribs"><span class="type-signature"></span></span>exports<span class="signature">(metadata, iccProfiles)</span><span class="type-signature"></span></h2>
         
     
 </header>
@@ -43,16 +39,18 @@ with Image Type LABEL.</div>
         
 
     
-    <h2>Constructor</h2>
-    
 
     
-    <h4 class="name" id="LabelImageViewer"><span class="type-signature"></span>new LabelImageViewer<span class="signature">(options)</span><span class="type-signature"></span></h4>
+    <h4 class="name" id="exports"><span class="type-signature"></span>new exports<span class="signature">(metadata, iccProfiles)</span><span class="type-signature"></span></h4>
     
 
     
 
 
+
+<div class="description">
+    Construct transformer object.
+</div>
 
 
 
@@ -87,87 +85,6 @@ with Image Type LABEL.</div>
 
         <tr>
             
-                <td class="name"><code>options</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Object</span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last">Options
-                <h6>Properties</h6>
-                
-
-<table class="params">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-        <th>Attributes</th>
-        
-
-        
-        <th>Default</th>
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>client</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Object</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last">A DICOMwebClient instance for interacting with an origin server over HTTP</td>
-        </tr>
-
-    
-
-        <tr>
-            
                 <td class="name"><code>metadata</code></td>
             
 
@@ -181,149 +98,34 @@ with Image Type LABEL.</div>
             </td>
 
             
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
 
             
-                <td class="default">
-                
-                </td>
-            
 
-            <td class="description last">Metadata of DICOM VL Whole Slide Microscopy Image instances</td>
+            <td class="description last">Metadata of each
+image</td>
         </tr>
 
     
 
         <tr>
             
-                <td class="name"><code>orientation</code></td>
+                <td class="name"><code>iccProfiles</code></td>
             
 
             <td class="type">
             
                 
-<span class="param-type">string</span>
+<span class="param-type">Array.&lt;TypedArray></span>
 
 
             
             </td>
 
             
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
 
             
-                <td class="default">
-                
-                    'vertical'
-                
-                </td>
-            
 
-            <td class="description last">Orientation of the
-slide (vertical: label on top, or horizontal: label on right side)</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>resizeFactor</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">number</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    1
-                
-                </td>
-            
-
-            <td class="description last">To which extent image should be
-reduced in size (fraction)</td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>includeIccProfile</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">boolean</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    false
-                
-                </td>
-            
-
-            <td class="description last">Whether ICC Profile
-should be included for correction of image colors</td>
-        </tr>
-
-    
-    </tbody>
-</table>
-
-            </td>
+            <td class="description last">ICC profiles of each image</td>
         </tr>
 
     
@@ -364,7 +166,7 @@ should be included for correction of image colors</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4086">line 4086</a>
+        <a href="webWorker_transformers_transformerICC.js.html">webWorker/transformers/transformerICC.js</a>, <a href="webWorker_transformers_transformerICC.js.html#line13">line 13</a>
     </li></ul></dd>
     
 

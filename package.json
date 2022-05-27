@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.37.1",
+  "version": "0.38.0",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "main": "./src/dicom-microscopy-viewer.js",
   "standard": {
@@ -65,16 +65,16 @@
     "copy-webpack-plugin": "9.0.1",
     "core-js": "^3.17.2",
     "css-loader": "^6.7.1",
-    "open-cli": "^7.0.1",
     "jest": "^27.5",
     "jest-canvas-mock": "^2.3",
     "jsdoc": "^3.6",
+    "open-cli": "^7.0.1",
     "standard": "^16.0",
     "terser-webpack-plugin": "^5.2.2",
     "webpack": "^5.68",
     "webpack-bundle-analyzer": "^4.4.2",
     "webpack-cli": "^4.9",
-    "webpack-dev-server": "4.1.0",
+    "webpack-dev-server": "^4.9.0",
     "worker-loader": "^3.0.8"
   },
   "dependencies": {

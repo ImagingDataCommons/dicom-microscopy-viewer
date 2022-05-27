@@ -1218,7 +1218,7 @@ class VolumeImageViewer {
         view: overviewView,
         layers: overviewLayers,
         collapsed: false,
-        collapsible: true,
+        collapsible: false,
         rotateWithView: true
       })
     } else {
@@ -1714,6 +1714,7 @@ class VolumeImageViewer {
           const view = this[_map].getView()
           const projection = view.getProjection()
           view.fit(projection.getExtent(), { size: this[_map].getSize() })
+
           this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
             publish(
               containerElement,
@@ -1725,15 +1726,21 @@ class VolumeImageViewer {
             if (e.feature !== undefined || e.feature !== null) {
               const geometry = e.feature.getGeometry()
               const type = geometry.getType()
-              // The first and last point of a polygon must be identical. The last point
-              // is an implementation detail and is hidden from the user in the graphical
-              // interface. However, we must update the last point in case the first
-              // point has been modified by the user.
+              /*
+               * The first and last point of a polygon must be identical. The
+               * last point is an implementation detail and is hidden from the
+               * user in the graphical interface. However, we must update the
+               * last point in case the first point has been modified by the
+               * user.
+               */
               if (type === 'Polygon') {
-                // NOTE: Polygon in GeoJSON format contains an array of geometries,
-                // where the first element represents the coordinates of the outer ring
-                // and the second element represents the coordinates of the inner ring
-                // (in our case the inner ring should not be present).
+                /*
+                 * Polygon in GeoJSON format contains an array of geometries,
+                 * where the first element represents the coordinates of the
+                 * outer ring and the second element represents the coordinates
+                 * of the inner ring (in our case the inner ring should not be
+                 * present).
+                 */
                 const layout = geometry.getLayout()
                 const coordinates = geometry.getCoordinates()
                 const firstPoint = coordinates[0][0]
@@ -1762,6 +1769,56 @@ class VolumeImageViewer {
             )
           })
         })
+
+        if (this[_controls].overview) {
+          const overviewElement = this[_controls].overview.element
+          console.log('DEBUG: ', overviewElement)
+          const overviewChildren = overviewElement.children
+          const overviewmapElement = Object.values(overviewChildren).find(
+            c => c.className === 'ol-overviewmap-map'
+          )
+          const buttonElement = Object.values(overviewChildren).find(
+            c => c.type === 'button'
+          )
+          if (buttonElement) {
+            buttonElement.style.border = '0.25px solid black'
+            buttonElement.style.backgroundColor = 'white'
+          }
+          overviewmapElement.style.border = '1px solid black'
+          overviewmapElement.style.color = 'black'
+          // Try to fit the overview map into the target control overlay container
+          const height = Math.abs(this[_pyramid].extent[1])
+          const width = Math.abs(this[_pyramid].extent[2])
+          const rotation = this[_rotation] / Math.PI * 180
+          const windowSize = _getWindowSize()
+          let targetHeight
+          let resizeFactor
+          let targetWidth
+          if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
+            if (windowSize[1] > windowSize[0]) {
+              targetHeight = Math.ceil(windowSize[1] * 0.2)
+              resizeFactor = targetHeight / height
+              targetWidth = width * resizeFactor
+            } else {
+              targetWidth = Math.ceil(windowSize[0] * 0.15)
+              resizeFactor = targetWidth / width
+              targetHeight = height * resizeFactor
+            }
+          } else {
+            if (windowSize[1] > windowSize[0]) {
+              targetHeight = Math.ceil(windowSize[1] * 0.2)
+              resizeFactor = targetHeight / width
+              targetWidth = height * resizeFactor
+            } else {
+              targetWidth = Math.ceil(windowSize[0] * 0.15)
+              resizeFactor = targetWidth / height
+              targetHeight = width * resizeFactor
+            }
+          }
+          overviewmapElement.style.width = `${targetWidth}px`
+          overviewmapElement.style.height = `${targetHeight}px`
+          this[_overviewMap].getOverviewMap().updateSize()
+        }
       })
     })
 
@@ -1788,53 +1845,6 @@ class VolumeImageViewer {
     scaleInnerElement.style.borderBottomColor = 'black'
     scaleInnerElement.style.margin = '1px'
     scaleInnerElement.style.willChange = 'contents,width'
-    if (this[_overviewMap]) {
-      const overviewElement = this[_overviewMap].element
-      const overviewmapElement = Object.values(overviewElement.children).find(
-        c => c.className === 'ol-overviewmap-map'
-      )
-      const buttonElement = Object.values(overviewElement.children).find(
-        c => c.type === 'button'
-      )
-      if (buttonElement) {
-        buttonElement.style.border = '0.25px solid black'
-        buttonElement.style.backgroundColor = 'white'
-      }
-      overviewmapElement.style.border = '1px solid black'
-      overviewmapElement.style.color = 'black'
-      // Try to fit the overview map into the target control overlay container
-      const height = Math.abs(this[_pyramid].extent[1])
-      const width = Math.abs(this[_pyramid].extent[2])
-      const rotation = this[_rotation] / Math.PI * 180
-      const windowSize = _getWindowSize()
-      let targetHeight
-      let resizeFactor
-      let targetWidth
-      if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
-        if (windowSize[1] > windowSize[0]) {
-          targetHeight = Math.ceil(windowSize[1] * 0.2)
-          resizeFactor = targetHeight / height
-          targetWidth = width * resizeFactor
-        } else {
-          targetWidth = Math.ceil(windowSize[0] * 0.15)
-          resizeFactor = targetWidth / width
-          targetHeight = height * resizeFactor
-        }
-      } else {
-        if (windowSize[1] > windowSize[0]) {
-          targetHeight = Math.ceil(windowSize[1] * 0.2)
-          resizeFactor = targetHeight / width
-          targetWidth = height * resizeFactor
-        } else {
-          targetWidth = Math.ceil(windowSize[0] * 0.15)
-          resizeFactor = targetWidth / height
-          targetHeight = width * resizeFactor
-        }
-      }
-      overviewmapElement.style.width = `${targetWidth}px`
-      overviewmapElement.style.height = `${targetHeight}px`
-      this[_overviewMap].getOverviewMap().updateSize()
-    }
   }
 
   /**
@@ -2088,13 +2098,15 @@ class VolumeImageViewer {
       const overview = controls.getArray().find((c) => c === this[_overviewMap])
       if (overview) {
         this[_map].removeControl(this[_overviewMap])
-        return
+        delete this[_controls].overview
+      } else {
+        this[_controls].overview = this[_overviewMap]
+        this[_map].addControl(this[_overviewMap])
+        const map = this[_overviewMap].getOverviewMap()
+        const view = map.getView()
+        const projection = view.getProjection()
+        view.fit(projection.getExtent(), { size: map.getSize() })
       }
-      this[_map].addControl(this[_overviewMap])
-      const map = this[_overviewMap].getOverviewMap()
-      const view = map.getView()
-      const projection = view.getProjection()
-      view.fit(projection.getExtent(), { size: map.getSize() })
     }
   }
 
