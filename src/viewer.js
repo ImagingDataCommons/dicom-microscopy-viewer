@@ -2,6 +2,7 @@ import 'ol/ol.css'
 import Collection from 'ol/Collection'
 import Draw, { createRegularPolygon } from 'ol/interaction/Draw'
 import EVENT from './events'
+import publish from './eventPublisher'
 import Feature from 'ol/Feature'
 import Fill from 'ol/style/Fill'
 import FullScreen from 'ol/control/FullScreen'
@@ -11,7 +12,6 @@ import Map from 'ol/Map'
 import Modify from 'ol/interaction/Modify'
 import OverviewMap from 'ol/control/OverviewMap'
 import Projection from 'ol/proj/Projection'
-import publish from './eventPublisher'
 import ScaleLine from 'ol/control/ScaleLine'
 import Select from 'ol/interaction/Select'
 import Snap from 'ol/interaction/Snap'
@@ -992,11 +992,6 @@ class VolumeImageViewer {
           )
         })
 
-        const loader = _createTileLoadFunction({
-          ...opticalPath.loaderParams
-        })
-        source.setLoader(loader)
-
         const [windowCenter, windowWidth] = createWindow(
           opticalPath.style.limitValues[0],
           opticalPath.style.limitValues[1]
@@ -1140,11 +1135,6 @@ class VolumeImageViewer {
           event
         )
       })
-
-      const loader = _createTileLoadFunction({
-        ...opticalPath.loaderParams
-      })
-      source.setLoader(loader)
 
       opticalPath.layer = new TileLayer({
         source,
@@ -1659,18 +1649,22 @@ class VolumeImageViewer {
       this[_areIccProfilesFetched] = true
     }
 
+    this[_map].setTarget(options.container)
+    const containerElement = this[_map].getTargetElement()
+
     itemsRequiringDecodersAndTransformers.forEach(item => {
       item.loaderParams.iccProfiles = this[_iccProfiles]
       const source = item.layer.getSource()
       const loader = _createTileLoadFunction({
+        targetElement: containerElement,
+        opticalPath: item.opticalPath,
         ...item.loaderParams
       })
       source.setLoader(loader)
     })
-    this[_map].setTarget(options.container)
+
     const view = this[_map].getView()
     const projection = view.getProjection()
-    const containerElement = this[_map].getTargetElement()
     view.fit(projection.getExtent(), { size: this[_map].getSize() })
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
       publish(
@@ -1719,6 +1713,7 @@ class VolumeImageViewer {
         this._getROIFromFeature(e.feature, this[_pyramid].metadata)
       )
     })
+
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")
     const scaleElement = this[_controls].scale.element
     scaleElement.style.position = 'absolute'
@@ -3249,11 +3244,6 @@ class VolumeImageViewer {
         console.error(`error loading tile of segment "${segmentUID}"`, event)
       })
 
-      const loader = _createTileLoadFunction({
-        ...segment.loaderParams
-      })
-      source.setLoader(loader)
-
       const [windowCenter, windowWidth] = createWindow(
         minStoredValue,
         maxStoredValue
@@ -3679,11 +3669,6 @@ class VolumeImageViewer {
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of mapping "${mappingUID}"`, event)
       })
-
-      const loader = _createTileLoadFunction({
-        ...mapping.loaderParams
-      })
-      source.setLoader(loader)
 
       mapping.layer = new TileLayer({
         source,

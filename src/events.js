@@ -27,7 +27,11 @@ const EVENTS = {
   /** Triggered when a loading of data has started. */
   LOADING_STARTED: `${PROJECT_NAME}_loading_started`,
   /** Triggered when a loading of data has ended. */
-  LOADING_ENDED: `${PROJECT_NAME}_loading_ended`
+  LOADING_ENDED: `${PROJECT_NAME}_loading_ended`,
+  /* Triggered when the loading of an image tile has started. */
+  FRAME_LOADING_STARTED: `${PROJECT_NAME}_frame_loading_started`,
+  /* Triggered when the loading of an image tile has ended. */
+  FRAME_LOADING_ENDED: `${PROJECT_NAME}_frame_loading_ended`
 }
 
 export default EVENTS

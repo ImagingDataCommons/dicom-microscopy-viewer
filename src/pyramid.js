@@ -1,6 +1,8 @@
 import * as dwc from 'dicomweb-client'
 
 import { _decodeAndTransformFrame } from './decode.js'
+import EVENT from './events'
+import publish from './eventPublisher'
 import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from './utils.js'
@@ -354,7 +356,9 @@ function _createTileLoadFunction ({
   pyramid,
   client,
   channel,
-  iccProfiles
+  iccProfiles,
+  targetElement,
+  opticalPath
 }) {
   return async (z, y, x) => {
     let index = (x + 1) + '-' + (y + 1)
@@ -476,6 +480,17 @@ function _createTileLoadFunction ({
         frameNumbers,
         mediaTypes
       }
+      publish(
+        targetElement,
+        EVENT.FRAME_LOADING_STARTED,
+        {
+          studyInstanceUID,
+          seriesInstanceUID,
+          sopInstanceUID,
+          frameNumber: frameNumbers[0],
+          opticalPath
+        }
+      )
 
       return client.retrieveInstanceFrames(retrieveOptions).then(
         (rawFrames) => {
@@ -494,6 +509,18 @@ function _createTileLoadFunction ({
                 // TODO: handle Float64Array using LUT
                 throw new Error('Double Float Pixel Data is not (yet) supported.')
               }
+              publish(
+                targetElement,
+                EVENT.FRAME_LOADING_ENDED,
+                {
+                  studyInstanceUID,
+                  seriesInstanceUID,
+                  sopInstanceUID,
+                  frameNumber: frameNumbers[0],
+                  opticalPath,
+                  pixelArray
+                }
+              )
               if (samplesPerPixel === 3 && bitsAllocated === 8) {
                 // Rendering of color images requires unsigned 8-bit integers
                 return pixelArray
