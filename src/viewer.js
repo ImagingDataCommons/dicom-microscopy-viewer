@@ -1789,7 +1789,6 @@ class VolumeImageViewer {
 
         if (this[_controls].overview) {
           const overviewElement = this[_controls].overview.element
-          console.log('DEBUG: ', overviewElement)
           const overviewChildren = overviewElement.children
           const overviewmapElement = Object.values(overviewChildren).find(
             c => c.className === 'ol-overviewmap-map'
@@ -2788,7 +2787,7 @@ class VolumeImageViewer {
             features.push(feature)
           }
 
-          console.log(
+          console.info(
             `add n=${features.length} annotations ` +
             `for annotation group "${annotationGroupUID}"`
           )
