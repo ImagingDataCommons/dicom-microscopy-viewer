@@ -10,13 +10,15 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
 /**
  * Get Image ICC profiles.
  *
- * @param {object} pyramid - Metadata of VL Whole Slide Microscopy Image instances
+ * @param {Array<metadata.VLWholeSlideMicroscopyImage>} pyramid - Metadata of
+ * VL Whole Slide Microscopy Image instances
  * @param {object} client - dicom web client
- * @returns {array} image array with ICC profiles
+ *
+ * @returns {Promise<Array<TypedArray>>} image array with ICC profiles
  *
  * @private
  */
-function _getIccProfiles (pyramid, client) {
+async function _getIccProfiles (pyramid, client) {
   const metadata = pyramid.metadata
   const profiles = []
   for (let i = 0; i < metadata.length; i++) {
@@ -26,7 +28,7 @@ function _getIccProfiles (pyramid, client) {
         console.warn('ICC Profile was not found')
         continue
       }
-      _fetchBulkdata({
+      const data = await _fetchBulkdata({
         client,
         reference: (
           image
@@ -34,14 +36,10 @@ function _getIccProfiles (pyramid, client) {
             .OpticalPathSequence[0]
             .ICCProfile
         )
-      }).then((data) => {
-        if (data) {
-          profiles.push(data)
-        }
       })
+      profiles.push(data)
     }
   }
-
   return profiles
 }
 

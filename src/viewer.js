@@ -662,7 +662,6 @@ const _interactions = Symbol('interactions')
 const _map = Symbol('map')
 const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
-const _iccProfiles = Symbol('iccProfiles')
 const _areIccProfilesFetched = Symbol('areIccProfilesFetched')
 const _options = Symbol('options')
 const _pyramid = Symbol('pyramid')
@@ -728,7 +727,6 @@ class VolumeImageViewer {
     this[_segments] = {}
     this[_mappings] = {}
     this[_annotationGroups] = {}
-    this[_iccProfiles] = []
     this[_areIccProfilesFetched] = false
 
     // Collection of Openlayers "Feature" instances
@@ -1642,76 +1640,72 @@ class VolumeImageViewer {
       ...Object.values(this[_mappings])
     ]
 
-    if (!this[_areIccProfilesFetched]) {
-      itemsRequiringDecodersAndTransformers.forEach(item => {
-        this[_iccProfiles] = this[_iccProfiles].concat(_getIccProfiles(item.pyramid, this[_options].client))
-      })
-      this[_areIccProfilesFetched] = true
-    }
-
-    this[_map].setTarget(options.container)
-    const containerElement = this[_map].getTargetElement()
-
     itemsRequiringDecodersAndTransformers.forEach(item => {
-      item.loaderParams.iccProfiles = this[_iccProfiles]
-      const source = item.layer.getSource()
-      const loader = _createTileLoadFunction({
-        targetElement: containerElement,
-        opticalPath: item.opticalPath,
-        ...item.loaderParams
-      })
-      source.setLoader(loader)
-    })
+      _getIccProfiles(item.pyramid, this[_options].client).then(profiles => {
+        itemsRequiringDecodersAndTransformers.forEach(item => {
+          const source = item.layer.getSource()
+          const loader = _createTileLoadFunction({
+            targetElement: options.container,
+            opticalPath: item.opticalPath,
+            iccProfiles: profiles,
+            ...item.loaderParams
+          })
+          source.setLoader(loader)
+          this[_map].setTarget(options.container)
+          const containerElement = this[_map].getTargetElement()
 
-    const view = this[_map].getView()
-    const projection = view.getProjection()
-    view.fit(projection.getExtent(), { size: this[_map].getSize() })
-    this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      publish(
-        containerElement,
-        EVENT.ROI_ADDED,
-        this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-      )
-    })
-    this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      if (e.feature !== undefined || e.feature !== null) {
-        const geometry = e.feature.getGeometry()
-        const type = geometry.getType()
-        // The first and last point of a polygon must be identical. The last point
-        // is an implementation detail and is hidden from the user in the graphical
-        // interface. However, we must update the last point in case the first
-        // point has been modified by the user.
-        if (type === 'Polygon') {
-          // NOTE: Polygon in GeoJSON format contains an array of geometries,
-          // where the first element represents the coordinates of the outer ring
-          // and the second element represents the coordinates of the inner ring
-          // (in our case the inner ring should not be present).
-          const layout = geometry.getLayout()
-          const coordinates = geometry.getCoordinates()
-          const firstPoint = coordinates[0][0]
-          const lastPoint = coordinates[0][coordinates[0].length - 1]
-          if (
-            firstPoint[0] !== lastPoint[0] ||
-            firstPoint[1] !== lastPoint[1]
-          ) {
-            coordinates[0][coordinates[0].length - 1] = firstPoint
-            geometry.setCoordinates(coordinates, layout)
-            e.feature.setGeometry(geometry)
-          }
-        }
-      }
-      publish(
-        containerElement,
-        EVENT.ROI_MODIFIED,
-        this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-      )
-    })
-    this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      publish(
-        containerElement,
-        EVENT.ROI_REMOVED,
-        this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-      )
+          const view = this[_map].getView()
+          const projection = view.getProjection()
+          view.fit(projection.getExtent(), { size: this[_map].getSize() })
+          this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+            publish(
+              containerElement,
+              EVENT.ROI_ADDED,
+              this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+            )
+          })
+          this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+            if (e.feature !== undefined || e.feature !== null) {
+              const geometry = e.feature.getGeometry()
+              const type = geometry.getType()
+              // The first and last point of a polygon must be identical. The last point
+              // is an implementation detail and is hidden from the user in the graphical
+              // interface. However, we must update the last point in case the first
+              // point has been modified by the user.
+              if (type === 'Polygon') {
+                // NOTE: Polygon in GeoJSON format contains an array of geometries,
+                // where the first element represents the coordinates of the outer ring
+                // and the second element represents the coordinates of the inner ring
+                // (in our case the inner ring should not be present).
+                const layout = geometry.getLayout()
+                const coordinates = geometry.getCoordinates()
+                const firstPoint = coordinates[0][0]
+                const lastPoint = coordinates[0][coordinates[0].length - 1]
+                if (
+                  firstPoint[0] !== lastPoint[0] ||
+                  firstPoint[1] !== lastPoint[1]
+                ) {
+                  coordinates[0][coordinates[0].length - 1] = firstPoint
+                  geometry.setCoordinates(coordinates, layout)
+                  e.feature.setGeometry(geometry)
+                }
+              }
+            }
+            publish(
+              containerElement,
+              EVENT.ROI_MODIFIED,
+              this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+            )
+          })
+          this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
+            publish(
+              containerElement,
+              EVENT.ROI_REMOVED,
+              this._getROIFromFeature(e.feature, this[_pyramid].metadata)
+            )
+          })
+        })
+      })
     })
 
     // Style scale element (overriding default Openlayers CSS "ol-scale-line")

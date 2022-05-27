@@ -6,14 +6,16 @@ export default class ColorTransformer extends Transformer {
   /**
    * Construct transformer object.
    *
-   * @param {Array<metadata.VLWholeSlideMicroscopyImage>} - Metadata of all images
-   * @param {Array<TypedArray>} - ICC profiles of all images
+   * @param {Array<metadata.VLWholeSlideMicroscopyImage>} - Metadata of each
+   * image
+   * @param {Array<TypedArray>} - ICC profiles of each image
    */
   constructor (metadata, iccProfiles) {
     super()
     if (metadata.length !== iccProfiles.length) {
       throw new Error(
-        'Argument "metadata" and "iccProfiles" must have same length.'
+        'Argument "metadata" and "iccProfiles" must have same length: ' +
+        `${metadata.length} versus ${iccProfiles.length}`
       )
     }
     this.metadata = metadata
@@ -37,19 +39,24 @@ export default class ColorTransformer extends Transformer {
     })
 
     return new Promise((resolve, reject) => {
-      dicomiccFactory.then((instance) => {
+      dicomicc.then((instance) => {
         this.codec = instance
 
         for (let index = 0; index < this.metadata.length; index++) {
-          const image = this.metadata[index]
+          const columns = this.metadata[index].Columns
+          const rows = this.metadata[index].Rows
+          const bitsPerSample = this.metadata[index].BitsAllocated
+          const samplesPerPixel = this.metadata[index].SamplesPerPixel
+          const planarConfiguration = this.metadata[index].PlanarConfiguration
+          const sopInstanceUID = this.metadata[index].SOPInstanceUID
           const profile = this.iccProfiles[index]
-          this.transformers[image.SOPInstanceUID] = new dicomicc.ColorManager(
+          this.transformers[sopInstanceUID] = new this.codec.ColorManager(
             {
-              columns: image.Columns,
-              rows: image.Rows,
-              bitsPerSample: image.BitsAllocated,
-              samplesPerPixel: image.SamplesPerPixel,
-              planarConfiguration: image.PlanarConfiguration
+              columns,
+              rows,
+              bitsPerSample,
+              samplesPerPixel,
+              planarConfiguration
             },
             profile
           )

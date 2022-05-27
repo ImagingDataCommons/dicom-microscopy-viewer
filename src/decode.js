@@ -9,6 +9,7 @@ function _processDecodeAndTrasformTask (
   rows,
   samplesPerPixel,
   sopInstanceUID,
+  metadata,
   iccProfiles
 ) {
   const priority = undefined
@@ -24,6 +25,7 @@ function _processDecodeAndTrasformTask (
       rows,
       samplesPerPixel,
       sopInstanceUID,
+      metadata,
       iccProfiles
     },
     priority,
