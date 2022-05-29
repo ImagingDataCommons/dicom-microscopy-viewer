@@ -1220,7 +1220,7 @@ class VolumeImageViewer {
         view: overviewView,
         layers: overviewLayers,
         collapsed: false,
-        collapsible: false,
+        collapsible: true,
         rotateWithView: true
       })
     } else {
@@ -1285,22 +1285,18 @@ class VolumeImageViewer {
         className: ''
       })
     }
-
     if (this[_options].controls.has('fullscreen')) {
       this[_controls].fullscreen = new FullScreen()
     }
-
     if (this[_options].controls.has('zoom')) {
       this[_controls].zoom = new Zoom()
       this[_controls].zoomslider = new ZoomSlider()
     }
-
     if (this[_options].controls.has('overview')) {
       if (this[_overviewMap]) {
         this[_controls].overview = this[_overviewMap]
       }
     }
-
     for (const control in this[_controls]) {
       this[_map].addControl(this[_controls][control])
     }
@@ -1787,7 +1783,7 @@ class VolumeImageViewer {
           })
         })
 
-        if (this[_controls].overview) {
+        if (this[_controls].overview && this[_overviewMap]) {
           const overviewElement = this[_controls].overview.element
           const overviewChildren = overviewElement.children
           const overviewmapElement = Object.values(overviewChildren).find(
