@@ -593,19 +593,7 @@ const doContentItemsMatch = (contentItem1, contentItem2) => {
  * @private
  */
 async function _fetchBulkdata ({ client, reference }) {
-  const fixBulkDataURI = (uri) => {
-    // FIXME: Configure dcm4che-arc-light so that BulkDataURI value is
-    // set correctly by the archive:
-    // https://dcm4chee-arc-cs.readthedocs.io/en/latest/networking/config/archiveDevice.html#dcmremapretrieveurl
-    return uri.replace(
-      'arc:8080/dcm4chee-arc/aets/DCM4CHEE/rs/',
-      'localhost:8008/dicomweb/'
-    )
-  }
-
-  const retrieveOptions = {
-    BulkDataURI: fixBulkDataURI(reference.BulkDataURI)
-  }
+  const retrieveOptions = { BulkDataURI: reference.BulkDataURI }
   return await client.retrieveBulkData(retrieveOptions).then(data => {
     const byteArray = new Uint8Array(data[0])
     if (reference.vr === 'OB') {
