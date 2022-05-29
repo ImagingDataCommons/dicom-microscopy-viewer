@@ -57,6 +57,7 @@ async function _decodeAndTransformFrame ({
   )
 
   const signed = pixelRepresentation === 1
+  const byteArray = new Uint8Array(result.frameData)
   let pixelArray
   switch (bitsAllocated) {
     case 1:
@@ -66,36 +67,36 @@ async function _decodeAndTransformFrame ({
       if (signed) {
         pixelArray = new Int8Array(result.frameData)
       } else {
-        pixelArray = new Uint8Array(result.frameData)
+        pixelArray = byteArray
       }
       break
     case 16:
       if (signed) {
         pixelArray = new Int16Array(
-          result.frameData.buffer,
-          result.frameData.byteOffset,
-          result.frameData.byteLength / 2
+          byteArray.buffer,
+          byteArray.byteOffset,
+          byteArray.byteLength / 2
         )
       } else {
         pixelArray = new Uint16Array(
-          result.frameData.buffer,
-          result.frameData.byteOffset,
-          result.frameData.byteLength / 2
+          byteArray.buffer,
+          byteArray.byteOffset,
+          byteArray.byteLength / 2
         )
       }
       break
     case 32:
       pixelArray = new Float32Array(
-        result.frameData.buffer,
-        result.frameData.byteOffset,
-        result.frameData.byteLength / 4
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 4
       )
       break
     case 64:
       pixelArray = new Float64Array(
-        result.frameData.buffer,
-        result.frameData.byteOffset,
-        result.frameData.byteLength / 8
+        byteArray.buffer,
+        byteArray.byteOffset,
+        byteArray.byteLength / 8
       )
       break
     default:
