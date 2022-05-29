@@ -363,7 +363,7 @@ function _createTileLoadFunction ({
 
     if (pyramid.metadata[z] === undefined) {
       throw new Error(
-        `Could not load tile for channel ${channel} ` +
+        `Could not load tile for channel "${channel}" ` +
         `at position (${x + 1}, ${y + 1}) at zoom level ${z} ` +
         ` because level ${z} does not exist.`
       )
@@ -390,6 +390,7 @@ function _createTileLoadFunction ({
     const pixelRepresentation = refImage.PixelRepresentation
     const samplesPerPixel = refImage.SamplesPerPixel
     const photometricInterpretation = refImage.PhotometricInterpretation
+    const sopClassUID = refImage.SOPClassUID
 
     if (src != null) {
       const studyInstanceUID = dwc.utils.getStudyInstanceUIDFromUri(src)
@@ -400,7 +401,7 @@ function _createTileLoadFunction ({
       if (samplesPerPixel === 1) {
         console.info(
           `retrieve frame ${frameNumbers} of monochrome image ` +
-          `for channel ${channel} at tile position (${x + 1}, ${y + 1}) ` +
+          `for channel "${channel}" at tile position (${x + 1}, ${y + 1}) ` +
           `at zoom level ${z}`
         )
       } else {
@@ -470,6 +471,20 @@ function _createTileLoadFunction ({
         })
       }
 
+      const frameInfo = {
+        studyInstanceUID,
+        seriesInstanceUID,
+        sopInstanceUID,
+        sopClassUID,
+        frameNumber: frameNumbers[0],
+        channelIdentifier: String(channel)
+      }
+      publish(
+        targetElement,
+        EVENT.FRAME_LOADING_STARTED,
+        frameInfo
+      )
+
       const retrieveOptions = {
         studyInstanceUID,
         seriesInstanceUID,
@@ -477,17 +492,6 @@ function _createTileLoadFunction ({
         frameNumbers,
         mediaTypes
       }
-      publish(
-        targetElement,
-        EVENT.FRAME_LOADING_STARTED,
-        {
-          studyInstanceUID,
-          seriesInstanceUID,
-          sopInstanceUID,
-          frameNumber: frameNumbers[0]
-        }
-      )
-
       return client.retrieveInstanceFrames(retrieveOptions).then(
         (rawFrames) => {
           try {
@@ -511,13 +515,7 @@ function _createTileLoadFunction ({
               publish(
                 targetElement,
                 EVENT.FRAME_LOADING_ENDED,
-                {
-                  studyInstanceUID,
-                  seriesInstanceUID,
-                  sopInstanceUID,
-                  frameNumber: frameNumbers[0],
-                  pixelArray
-                }
+                { pixelArray, ...frameInfo }
               )
               if (samplesPerPixel === 3 && bitsAllocated === 8) {
                 // Rendering of color images requires unsigned 8-bit integers
