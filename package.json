@@ -22,9 +22,8 @@
   "scripts": {
     "test": "standard 'src/*.js' && jest --silent",
     "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
-    "build:prod": "npm run webpack:bundle && npm run webpack:dynamic-import",
-    "prepublishOnly": "npm run build:prod",
-    "generateStaticSite": "npm run build:prod && cp -R ./dist ./examples",
+    "prepublishOnly": "npm run build",
+    "generateStaticSite": "npm run build && cp -R ./dist ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
     "fmt": "standard 'src/**/.js' --fix",
     "lint": "standard 'src/**/*.js'",
