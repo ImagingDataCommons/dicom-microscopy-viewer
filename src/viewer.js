@@ -1793,8 +1793,13 @@ class VolumeImageViewer {
             c => c.type === 'button'
           )
           if (buttonElement) {
+            buttonElement.title = 'Overview'
             buttonElement.style.border = '0.25px solid black'
             buttonElement.style.backgroundColor = 'white'
+            buttonElement.style.cursor = 'pointer'
+            const spanElement = buttonElement.children[0]
+            spanElement.style.color = 'black'
+            spanElement.style.backgroundColor = 'white'
           }
           overviewmapElement.style.border = '1px solid black'
           overviewmapElement.style.color = 'black'
