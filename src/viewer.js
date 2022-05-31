@@ -3177,6 +3177,18 @@ class VolumeImageViewer {
         bins: Math.pow(2, 8)
       })
 
+      const minZoomLevel = fittedPyramid.metadata.findIndex(item => {
+        return item !== undefined
+      })
+      let maxZoomLevel = fittedPyramid.metadata.findIndex((item, index) => {
+        return index > minZoomLevel && item === undefined
+      })
+      if (maxZoomLevel < 0) {
+        maxZoomLevel = fittedPyramid.metadata.length - 1
+      } else if (maxZoomLevel > 0) {
+        maxZoomLevel = maxZoomLevel - 1
+      }
+
       const segment = {
         segment: new Segment({
           uid: segmentUID,
@@ -3206,6 +3218,8 @@ class VolumeImageViewer {
         }),
         minStoredValue,
         maxStoredValue,
+        minZoomLevel,
+        maxZoomLevel,
         loaderParams: {
           pyramid: fittedPyramid,
           client: this[_options].client,
@@ -3306,6 +3320,15 @@ class VolumeImageViewer {
       })
       const source = segment.layer.getSource()
       source.setLoader(loader)
+    }
+
+    const view = this[_map].getView()
+    const currentZoomLevel = view.getZoom()
+    if (
+      currentZoomLevel < segment.minZoomLevel ||
+      currentZoomLevel > segment.maxZoomLevel
+    ) {
+      view.animate({ zoom: segment.minZoomLevel })
     }
 
     segment.layer.setVisible(true)
@@ -3616,6 +3639,18 @@ class VolumeImageViewer {
         }
       }
 
+      const minZoomLevel = fittedPyramid.metadata.findIndex(item => {
+        return item !== undefined
+      })
+      let maxZoomLevel = fittedPyramid.metadata.findIndex((item, index) => {
+        return index > minZoomLevel && item === undefined
+      })
+      if (maxZoomLevel < 0) {
+        maxZoomLevel = fittedPyramid.metadata.length - 1
+      } else if (maxZoomLevel > 0) {
+        maxZoomLevel = maxZoomLevel - 1
+      }
+
       const mapping = {
         mapping: new ParameterMapping({
           uid: mappingUID,
@@ -3645,6 +3680,8 @@ class VolumeImageViewer {
         },
         minStoredValue,
         maxStoredValue,
+        minZoomLevel,
+        maxZoomLevel,
         loaderParams: {
           pyramid: fittedPyramid,
           client: this[_options].client,
@@ -3742,6 +3779,15 @@ class VolumeImageViewer {
       })
       const source = mapping.layer.getSource()
       source.setLoader(loader)
+    }
+
+    const view = this[_map].getView()
+    const currentZoomLevel = view.getZoom()
+    if (
+      currentZoomLevel < mapping.minZoomLevel ||
+      currentZoomLevel > mapping.maxZoomLevel
+    ) {
+      view.animate({ zoom: mapping.minZoomLevel })
     }
 
     mapping.layer.setVisible(true)
@@ -4055,13 +4101,13 @@ class _NonVolumeImageViewer {
    * @param {Object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
-  render (options) {
-    if (options.container == null) {
+  render ({ container }) {
+    if (container == null) {
       console.error('container must be provided for rendering images')
       return
     }
 
-    this[_map].setTarget(options.container)
+    this[_map].setTarget(container)
     const view = this[_map].getView()
     const projection = view.getProjection()
     view.fit(projection.getExtent(), { size: this[_map].getSize() })
@@ -4072,7 +4118,26 @@ class _NonVolumeImageViewer {
   }
 
   /**
-   * DICOM metadata for the displayed VL Whole Slide Microscopy Image instance.
+   * Move the view to a spatial position or resolution level.
+   *
+   * @param {Object} options - Options.
+   * @param {number} level - Zoom level.
+   */
+  move ({ level }) {
+    const numLevels = this[_pyramid].resolutions.length
+    if (level > numLevels) {
+      throw new Error('Argument "level" exceeds number of resolution levels.')
+    }
+    // TODO: center position in slide/image coordinates
+    const view = this[_map].getView()
+    const currentZoomLevel = view.getZoom()
+    if (level !== currentZoomLevel) {
+      view.animate({ zoom: this[_pyramid] })
+    }
+  }
+
+  /**
+   * DICOM metadata for the displayed VL Whole Slide Microscopy Image instances.
    *
    * @return {VLWholeSlideMicroscopyImage}
    */
