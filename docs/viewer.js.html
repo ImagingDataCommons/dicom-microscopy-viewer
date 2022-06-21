@@ -971,7 +971,6 @@ class VolumeImageViewer {
     const overviewLayers = []
     this[_opticalPaths] = {}
     if (numChannels > 0) {
-      let channelCount = 0
       const helper = new WebGLHelper()
       const overviewHelper = new WebGLHelper()
       for (const opticalPathIdentifier in monochromeImageInformation) {
@@ -1116,7 +1115,7 @@ class VolumeImageViewer {
           )
         })
 
-        opticalPath.overviewTileLayer = new TileLayer({
+        opticalPath.overviewLayer = new TileLayer({
           source,
           extent: pyramid.extent,
           preload: 0,
@@ -1124,23 +1123,15 @@ class VolumeImageViewer {
           visible: false,
           useInterimTilesOnError: false
         })
-        opticalPath.overviewTileLayer.helper = overviewHelper
-        opticalPath.overviewTileLayer.on('precompose', (event) => {
+        opticalPath.overviewLayer.helper = overviewHelper
+        opticalPath.overviewLayer.on('precompose', (event) => {
           const gl = event.context
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
         })
 
-        if (channelCount === 0) {
-          layers.push(opticalPath.layer)
-          opticalPath.layer.setVisible(true)
-          overviewLayers.push(opticalPath.overviewTileLayer)
-          opticalPath.overviewTileLayer.setVisible(true)
-        }
-
         this[_opticalPaths][opticalPathIdentifier] = opticalPath
-        channelCount += 1
       }
     } else {
       const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
@@ -1203,7 +1194,7 @@ class VolumeImageViewer {
         )
       })
 
-      opticalPath.overviewTileLayer = new TileLayer({
+      opticalPath.overviewLayer = new TileLayer({
         source,
         extent: pyramid.extent,
         preload: 0,
@@ -1211,7 +1202,7 @@ class VolumeImageViewer {
       })
 
       layers.push(opticalPath.layer)
-      overviewLayers.push(opticalPath.overviewTileLayer)
+      overviewLayers.push(opticalPath.overviewLayer)
 
       this[_opticalPaths][opticalPathIdentifier] = opticalPath
     }
@@ -1383,7 +1374,7 @@ class VolumeImageViewer {
     if (styleOptions.opacity != null) {
       opticalPath.style.opacity = styleOptions.opacity
       opticalPath.layer.setOpacity(styleOptions.opacity)
-      opticalPath.overviewTileLayer.setOpacity(styleOptions.opacity)
+      opticalPath.overviewLayer.setOpacity(styleOptions.opacity)
     }
 
     if (opticalPath.opticalPath.isMonochromatic) {
@@ -1406,7 +1397,7 @@ class VolumeImageViewer {
         })
         opticalPath.style.paletteColorLookupTable = styleOptions.paletteColorLookupTable
         opticalPath.layer.setStyle(style)
-        opticalPath.overviewTileLayer.setStyle(style)
+        opticalPath.overviewLayer.setStyle(style)
       } else if (styleOptions.color != null) {
         opticalPath.style.color = styleOptions.color
         if (opticalPath.style.paletteColorLookupTable) {
@@ -1417,7 +1408,7 @@ class VolumeImageViewer {
           })
           opticalPath.style.paletteColorLookupTable = undefined
           opticalPath.layer.setStyle(style)
-          opticalPath.overviewTileLayer.setStyle(style)
+          opticalPath.overviewLayer.setStyle(style)
         } else {
           const styleVariables = {
             windowCenter: windowCenter,
@@ -1427,7 +1418,7 @@ class VolumeImageViewer {
             blue: opticalPath.style.color[2]
           }
           opticalPath.layer.updateStyleVariables(styleVariables)
-          opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
+          opticalPath.overviewLayer.updateStyleVariables(styleVariables)
         }
       } else {
         const styleVariables = {
@@ -1435,7 +1426,7 @@ class VolumeImageViewer {
           windowWidth: windowWidth
         }
         opticalPath.layer.updateStyleVariables(styleVariables)
-        opticalPath.overviewTileLayer.updateStyleVariables(styleVariables)
+        opticalPath.overviewLayer.updateStyleVariables(styleVariables)
       }
     }
   }
@@ -1543,18 +1534,11 @@ class VolumeImageViewer {
         `"${opticalPathIdentifier}".`
       )
     }
-    if (this.isOpticalPathActive(opticalPathIdentifier)) {
-      return
-    }
-    this[_map].getLayers().insertAt(
-      0,
-      opticalPath.layer
-    )
-    if (this[_overviewMap]) {
-      this[_overviewMap].getOverviewMap().getLayers().insertAt(
-        0,
-        opticalPath.overviewTileLayer
-      )
+    if (!this.isOpticalPathActive(opticalPathIdentifier)) {
+      this[_map].addLayer(opticalPath.layer)
+      if (this[_overviewMap]) {
+        this[_overviewMap].getOverviewMap().addLayer(opticalPath.overviewLayer)
+      }
     }
   }
 
@@ -1576,9 +1560,7 @@ class VolumeImageViewer {
     }
     this[_map].removeLayer(opticalPath.layer)
     if (this[_overviewMap]) {
-      this[_overviewMap].getOverviewMap().removeLayer(
-        opticalPath.overviewTileLayer
-      )
+      this[_overviewMap].getOverviewMap().removeLayer(opticalPath.overviewLayer)
     }
   }
 
@@ -1590,12 +1572,22 @@ class VolumeImageViewer {
    */
   isOpticalPathActive (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
-    if (opticalPath === undefined) {
+    if (opticalPath == null) {
       return false
     }
-    return !!this[_map].getLayers().getArray().find(layer => {
-      return layer === opticalPath.layer
+    const layers = this[_map].getLayers()
+    const match = layers.getArray().find(layer => {
+      return layer.ol_uid === opticalPath.layer.ol_uid
     })
+    if (this[_overviewMap]) {
+      const overviewLayers = this[_overviewMap].getOverviewMap().getLayers()
+      const overviewMatch = overviewLayers.getArray().find(layer => {
+        return layer.ol_uid === opticalPath.overviewLayer.ol_uid
+      })
+      return match != null || overviewMatch != null
+    } else {
+      return match != null
+    }
   }
 
   /**
@@ -1619,9 +1611,7 @@ class VolumeImageViewer {
       )
     }
     console.info(`show optical path ${opticalPathIdentifier}`)
-    if (!this.isOpticalPathActive(opticalPathIdentifier)) {
-      this.activateOpticalPath(opticalPathIdentifier)
-    }
+    this.activateOpticalPath(opticalPathIdentifier)
 
     const container = this[_map].getTargetElement()
     if (container &amp;&amp; !opticalPath.hasLoader) {
@@ -1638,7 +1628,7 @@ class VolumeImageViewer {
     }
 
     opticalPath.layer.setVisible(true)
-    opticalPath.overviewTileLayer.setVisible(true)
+    opticalPath.overviewLayer.setVisible(true)
     this.setOpticalPathStyle(opticalPathIdentifier, styleOptions)
   }
 
@@ -1657,7 +1647,7 @@ class VolumeImageViewer {
     }
     console.info(`hide optical path ${opticalPathIdentifier}`)
     opticalPath.layer.setVisible(false)
-    opticalPath.overviewTileLayer.setVisible(false)
+    opticalPath.overviewLayer.setVisible(false)
   }
 
   /**
@@ -1726,8 +1716,8 @@ class VolumeImageViewer {
    * @param {Object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
-  render (options) {
-    if (options.container == null) {
+  render ({ container }) {
+    if (container == null) {
       console.error('container must be provided for rendering images')
       return
     }
@@ -1740,75 +1730,74 @@ class VolumeImageViewer {
 
     itemsRequiringDecodersAndTransformers.forEach(item => {
       const metadata = item.pyramid.metadata
+      const source = item.layer.getSource()
       _getIccProfiles(metadata, this[_options].client).then(profiles => {
-        itemsRequiringDecodersAndTransformers.forEach(item => {
-          const source = item.layer.getSource()
-          const loader = _createTileLoadFunction({
-            targetElement: options.container,
-            iccProfiles: profiles,
-            ...item.loaderParams
-          })
-          source.setLoader(loader)
-          item.hasLoader = true
-          this[_map].setTarget(options.container)
+        const loader = _createTileLoadFunction({
+          targetElement: container,
+          iccProfiles: profiles,
+          ...item.loaderParams
+        })
+        console.log('DEBUG: ', item, item.layer.getSource(), loader)
+        source.setLoader(loader)
+        item.hasLoader = true
+        this[_map].setTarget(container)
 
-          const view = this[_map].getView()
-          const projection = view.getProjection()
-          view.fit(projection.getExtent(), { size: this[_map].getSize() })
+        const view = this[_map].getView()
+        const projection = view.getProjection()
+        view.fit(projection.getExtent(), { size: this[_map].getSize() })
 
-          this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-            publish(
-              options.container,
-              EVENT.ROI_ADDED,
-              this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-            )
-          })
-          this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-            if (e.feature !== undefined || e.feature !== null) {
-              const geometry = e.feature.getGeometry()
-              const type = geometry.getType()
+        this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+          publish(
+            container,
+            EVENT.ROI_ADDED,
+            this._getROIFromFeature(e.feature, metadata)
+          )
+        })
+        this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+          if (e.feature !== undefined || e.feature !== null) {
+            const geometry = e.feature.getGeometry()
+            const type = geometry.getType()
+            /*
+             * The first and last point of a polygon must be identical. The
+             * last point is an implementation detail and is hidden from the
+             * user in the graphical interface. However, we must update the
+             * last point in case the first point has been modified by the
+             * user.
+             */
+            if (type === 'Polygon') {
               /*
-               * The first and last point of a polygon must be identical. The
-               * last point is an implementation detail and is hidden from the
-               * user in the graphical interface. However, we must update the
-               * last point in case the first point has been modified by the
-               * user.
+               * Polygon in GeoJSON format contains an array of geometries,
+               * where the first element represents the coordinates of the
+               * outer ring and the second element represents the coordinates
+               * of the inner ring (in our case the inner ring should not be
+               * present).
                */
-              if (type === 'Polygon') {
-                /*
-                 * Polygon in GeoJSON format contains an array of geometries,
-                 * where the first element represents the coordinates of the
-                 * outer ring and the second element represents the coordinates
-                 * of the inner ring (in our case the inner ring should not be
-                 * present).
-                 */
-                const layout = geometry.getLayout()
-                const coordinates = geometry.getCoordinates()
-                const firstPoint = coordinates[0][0]
-                const lastPoint = coordinates[0][coordinates[0].length - 1]
-                if (
-                  firstPoint[0] !== lastPoint[0] ||
-                  firstPoint[1] !== lastPoint[1]
-                ) {
-                  coordinates[0][coordinates[0].length - 1] = firstPoint
-                  geometry.setCoordinates(coordinates, layout)
-                  e.feature.setGeometry(geometry)
-                }
+              const layout = geometry.getLayout()
+              const coordinates = geometry.getCoordinates()
+              const firstPoint = coordinates[0][0]
+              const lastPoint = coordinates[0][coordinates[0].length - 1]
+              if (
+                firstPoint[0] !== lastPoint[0] ||
+                firstPoint[1] !== lastPoint[1]
+              ) {
+                coordinates[0][coordinates[0].length - 1] = firstPoint
+                geometry.setCoordinates(coordinates, layout)
+                e.feature.setGeometry(geometry)
               }
             }
-            publish(
-              options.container,
-              EVENT.ROI_MODIFIED,
-              this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-            )
-          })
-          this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-            publish(
-              options.container,
-              EVENT.ROI_REMOVED,
-              this._getROIFromFeature(e.feature, this[_pyramid].metadata)
-            )
-          })
+          }
+          publish(
+            container,
+            EVENT.ROI_MODIFIED,
+            this._getROIFromFeature(e.feature, metadata)
+          )
+        })
+        this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
+          publish(
+            container,
+            EVENT.ROI_REMOVED,
+            this._getROIFromFeature(e.feature, metadata)
+          )
         })
 
         if (this[_controls].overview &amp;&amp; this[_overviewMap]) {
@@ -2111,25 +2100,22 @@ class VolumeImageViewer {
    * @private
    */
   _getROIFromFeature (feature, pyramid) {
-    if (feature !== undefined &amp;&amp; feature !== null) {
-      let scoord3d
-      try {
-        scoord3d = _geometry2Scoord3d(feature, pyramid)
-      } catch (error) {
-        const uid = feature.getId()
-        this.removeROI(uid)
-        throw error
-      }
-
-      const featureProperties = feature.getProperties()
-      const properties = {
-        measurements: featureProperties.measurements,
-        evaluations: featureProperties.evaluations
-      }
+    let scoord3d
+    try {
+      scoord3d = _geometry2Scoord3d(feature, pyramid)
+    } catch (error) {
       const uid = feature.getId()
-      const roi = new ROI({ scoord3d, properties, uid })
-      return roi
+      this.removeROI(uid)
+      throw error
     }
+
+    const featureProperties = feature.getProperties()
+    const properties = {
+      measurements: featureProperties.measurements,
+      evaluations: featureProperties.evaluations
+    }
+    const uid = feature.getId()
+    return new ROI({ scoord3d, properties, uid })
   }
 
   /**
@@ -4269,7 +4255,7 @@ export { LabelImageViewer, OverviewImageViewer, VolumeImageViewer }
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Tue May 31 2022 17:47:44 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Tue Jun 21 2022 20:14:38 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>
