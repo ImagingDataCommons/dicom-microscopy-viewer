@@ -1,5 +1,6 @@
 [![Build Status](https://github.com/herrmannlab/dicom-microscopy-viewer/actions/workflows/run_unit_tests.yml/badge.svg)](https://github.com/herrmannlab/dicom-microscopy-viewer/actions)
 [![NPM version](https://badge.fury.io/js/dicom-microscopy-viewer.svg)](http://badge.fury.io/js/dicom-microscopy-viewer)
+![NPM downloads per month](https://img.shields.io/npm/dm/dicom-microscopy-viewer?color=blue)
 
 # DICOM Microscopy Viewer
 
