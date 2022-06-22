@@ -798,10 +798,11 @@ describe.each(testCases)('test viewer API for optical paths of "$name"', ({
     const expectedIds = Object.keys(expectations.opticalPaths)
     expectedIds.forEach(id => {
       const style = viewer.getOpticalPathStyle(id)
-      const expectedOpticalPath = expectations.opticalPaths[
-        id
-      ]
+      const defaultStyle = viewer.getOpticalPathDefaultStyle(id)
+      const expectedOpticalPath = expectations.opticalPaths[id]
       expect(style).toEqual(expectedOpticalPath.style)
+      expect(!(style.color != null && style.paletteColorLookupTable != null))
+      expect(defaultStyle).toEqual(expectedOpticalPath.style)
     })
   })
 
@@ -817,6 +818,9 @@ describe.each(testCases)('test viewer API for optical paths of "$name"', ({
       expectedStyle[key] = styleOptions[key]
     })
     expect(style).toEqual(expectedStyle)
+    expect(!(style.color != null && style.paletteColorLookupTable != null))
+    const defaultStyle = viewer.getOpticalPathDefaultStyle(id)
+    expect(defaultStyle).not.toEqual(expectedStyle)
   })
 
   it('should change optical path visibility', () => {

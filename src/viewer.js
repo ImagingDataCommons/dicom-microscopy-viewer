@@ -952,6 +952,7 @@ class VolumeImageViewer {
         const bitsAllocated = info.metadata[0].BitsAllocated
         const minStoredValue = 0
         const maxStoredValue = Math.pow(2, bitsAllocated) - 1
+
         let paletteColorLookupTableUID
         let paletteColorLookupTable
         if (info.opticalPath.PaletteColorLookupTableSequence) {
@@ -980,6 +981,15 @@ class VolumeImageViewer {
             blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData
           })
         }
+        const defaultOpticalPathStyle = {
+          opacity: 1,
+          limitValues: [minStoredValue, maxStoredValue]
+        }
+        if (paletteColorLookupTable) {
+          defaultOpticalPathStyle.paletteColorLookupTable = paletteColorLookupTable
+        } else {
+          defaultOpticalPathStyle.color = [255, 255, 255]
+        }
 
         const opticalPath = {
           opticalPathIdentifier,
@@ -1002,12 +1012,8 @@ class VolumeImageViewer {
             paletteColorLookupTableUID
           }),
           pyramid: pyramid,
-          style: {
-            color: [255, 255, 255],
-            opacity: 1,
-            limitValues: [minStoredValue, maxStoredValue],
-            paletteColorLookupTable: paletteColorLookupTable
-          },
+          style: { ...defaultOpticalPathStyle },
+          defaultStyle: defaultOpticalPathStyle,
           bitsAllocated: bitsAllocated,
           minStoredValue,
           maxStoredValue,
@@ -1049,15 +1055,15 @@ class VolumeImageViewer {
           opticalPath.style.limitValues[1]
         )
 
-        let style
+        let layerStyle
         if (opticalPath.style.paletteColorLookupTable) {
-          style = _getColorPaletteStyleForTileLayer({
+          layerStyle = _getColorPaletteStyleForTileLayer({
             windowCenter,
             windowWidth,
             colormap: opticalPath.style.paletteColorLookupTable.data
           })
         } else {
-          style = _getColorInterpolationStyleForTileLayer({
+          layerStyle = _getColorInterpolationStyleForTileLayer({
             windowCenter,
             windowWidth,
             color: opticalPath.style.color
@@ -1068,7 +1074,7 @@ class VolumeImageViewer {
           source,
           extent: pyramid.extent,
           preload: this[_options].preload ? 1 : 0,
-          style: style,
+          style: layerStyle,
           visible: false,
           useInterimTilesOnError: false,
           cacheSize: this[_options].tilesCacheSize
@@ -1091,7 +1097,7 @@ class VolumeImageViewer {
           source,
           extent: pyramid.extent,
           preload: 0,
-          style: style,
+          style: layerStyle,
           visible: false,
           useInterimTilesOnError: false
         })
@@ -1110,6 +1116,10 @@ class VolumeImageViewer {
       const info = colorImageInformation[opticalPathIdentifier]
       const pyramid = _computeImagePyramid({ metadata: info.metadata })
 
+      const defaultOpticalPathStyle = {
+        opacity: 1
+      }
+
       const opticalPath = {
         opticalPathIdentifier,
         opticalPath: new OpticalPath({
@@ -1123,9 +1133,8 @@ class VolumeImageViewer {
             return element.SOPInstanceUID
           })
         }),
-        style: {
-          opacity: 1
-        },
+        style: { ...defaultOpticalPathStyle },
+        defaultStyle: defaultOpticalPathStyle,
         pyramid: pyramid,
         bitsAllocated: 8,
         minStoredValue: 0,
@@ -1362,12 +1371,12 @@ class VolumeImageViewer {
       )
 
       if (styleOptions.paletteColorLookupTable != null) {
+        opticalPath.style.paletteColorLookupTable = styleOptions.paletteColorLookupTable
         const style = _getColorPaletteStyleForTileLayer({
           windowCenter,
           windowWidth,
           colormap: styleOptions.paletteColorLookupTable.data
         })
-        opticalPath.style.paletteColorLookupTable = styleOptions.paletteColorLookupTable
         opticalPath.layer.setStyle(style)
         opticalPath.overviewLayer.setStyle(style)
       } else if (styleOptions.color != null) {
@@ -1429,6 +1438,37 @@ class VolumeImageViewer {
       return false
     }
     return opticalPath.opticalisMonochromatic
+  }
+
+  /**
+   * Get the default style of an optical path.
+   *
+   * @param {string} opticalPathIdentifier - Optical Path Identifier
+   * @return {Object} Default style of optical path
+   */
+  getOpticalPathDefaultStyle (opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+    if (opticalPath == null) {
+      throw new Error(
+        'Cannot get default style of optical path. ' +
+        `Could not find optical path "${opticalPathIdentifier}".`
+      )
+    }
+    if (opticalPath.opticalPath.isMonochromatic) {
+      if (opticalPath.defaultStyle.paletteColorLookupTable) {
+        return {
+          paletteColorLookupTable: opticalPath.defaultStyle.paletteColorLookupTable,
+          opacity: opticalPath.defaultStyle.opacity,
+          limitValues: opticalPath.defaultStyle.limitValues
+        }
+      }
+      return {
+        color: opticalPath.defaultStyle.color,
+        opacity: opticalPath.defaultStyle.opacity,
+        limitValues: opticalPath.defaultStyle.limitValues
+      }
+    }
+    return { opacity: opticalPath.defaultStyle.opacity }
   }
 
   /**
@@ -2674,6 +2714,11 @@ class VolumeImageViewer {
       `of series "${metadata.SeriesInstanceUID}"`
     )
 
+    const defaultAnnotationGroupStyle = {
+      opacity: 1.0,
+      color: '#027ea3'
+    }
+
     metadata.AnnotationGroupSequence.forEach((item, index) => {
       const annotationGroupUID = item.AnnotationGroupUID
       const algorithm = item.AnnotationGroupAlgorithmIdentificationSequence[0]
@@ -2690,10 +2735,8 @@ class VolumeImageViewer {
           seriesInstanceUID: metadata.SeriesInstanceUID,
           sopInstanceUIDs: [metadata.SOPInstanceUID]
         }),
-        style: {
-          opacity: 1.0,
-          color: '#027ea3'
-        },
+        style: { ...defaultAnnotationGroupStyle },
+        defaultStyle: defaultAnnotationGroupStyle,
         metadata: metadata
       }
 
@@ -3035,6 +3078,27 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get default style of an annotation group.
+   *
+   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   *
+   * @returns {Object} - Default style settings
+   */
+  getAnnotationGroupDefaultStyle (annotationGroupUID) {
+    if (!(annotationGroupUID in this[_annotationGroups])) {
+      throw new Error(
+        'Cannot get default style of annotation group. ' +
+        `Could not find annotation group "${annotationGroupUID}".`
+      )
+    }
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    return {
+      opacity: annotationGroup.defaultStyle.opacity,
+      color: annotationGroup.defaultStyle.color
+    }
+  }
+
+  /**
    * Get style of an annotation group.
    *
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
@@ -3185,6 +3249,14 @@ class VolumeImageViewer {
         maxZoomLevel = maxZoomLevel - 1
       }
 
+      const defaultSegmentStyle = {
+        opacity: 0.75,
+        paletteColorLookupTable: buildPaletteColorLookupTable({
+          data: colormap,
+          firstValueMapped: 0
+        })
+      }
+
       const segment = {
         segment: new Segment({
           uid: segmentUID,
@@ -3201,13 +3273,8 @@ class VolumeImageViewer {
           })
         }),
         pyramid,
-        style: {
-          opacity: 0.75,
-          paletteColorLookupTable: buildPaletteColorLookupTable({
-            data: colormap,
-            firstValueMapped: 0
-          })
-        },
+        style: { ...defaultSegmentStyle },
+        defaultStyle: defaultSegmentStyle,
         overlay: new Overlay({
           element: document.createElement('div'),
           offset: [5 + 5 * index + 2, 5]
@@ -3430,6 +3497,27 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get the default style of a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   *
+   * @returns {Object} Default style settings
+   */
+  getSegmentDefaultStyle (segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      throw new Error(
+        'Cannot get default style of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+    }
+    const segment = this[_segments][segmentUID]
+    return {
+      opacity: segment.defaultStyle.opacity,
+      paletteColorLookupTable: segment.defaultStyle.paletteColorLookupTable
+    }
+  }
+
+  /**
    * Get the style of a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
@@ -3444,7 +3532,6 @@ class VolumeImageViewer {
       )
     }
     const segment = this[_segments][segmentUID]
-
     return {
       opacity: segment.style.opacity,
       paletteColorLookupTable: segment.style.paletteColorLookupTable
@@ -3647,6 +3734,18 @@ class VolumeImageViewer {
         maxZoomLevel = maxZoomLevel - 1
       }
 
+      const defaultMappingStyle = {
+        opacity: 1.0,
+        limitValues: [
+          Math.ceil(windowCenter - windowWidth / 2),
+          Math.floor(windowCenter + windowWidth / 2)
+        ],
+        paletteColorLookupTable: buildPaletteColorLookupTable({
+          data: colormap,
+          firstValueMapped: 0
+        })
+      }
+
       const mapping = {
         mapping: new ParameterMapping({
           uid: mappingUID,
@@ -3663,17 +3762,8 @@ class VolumeImageViewer {
           element: document.createElement('div'),
           offset: [5 + 100 * index + 2, 5]
         }),
-        style: {
-          opacity: 1.0,
-          limitValues: [
-            Math.ceil(windowCenter - windowWidth / 2),
-            Math.floor(windowCenter + windowWidth / 2)
-          ],
-          paletteColorLookupTable: buildPaletteColorLookupTable({
-            data: colormap,
-            firstValueMapped: 0
-          })
-        },
+        style: { ...defaultMappingStyle },
+        defaultStyle: defaultMappingStyle,
         minStoredValue,
         maxStoredValue,
         minZoomLevel,
@@ -3906,6 +3996,27 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get the default style of a parameter mapping.
+   *
+   * @param {string} mappingUID - Unique tracking identifier of mapping
+   * @returns {Object} Default style Options
+   */
+  getParameterMappingDefaultStyle (mappingUID) {
+    if (!(mappingUID in this[_mappings])) {
+      throw new Error(
+        'Cannot get default style of mapping. ' +
+        `Could not find mapping "${mappingUID}".`
+      )
+    }
+    const mapping = this[_mappings][mappingUID]
+    return {
+      opacity: mapping.defaultStyle.opacity,
+      limitValues: mapping.defaultStyle.limitValues,
+      paletteColorLookupTable: mapping.defaultStyle.paletteColorLookupTable
+    }
+  }
+
+  /**
    * Get the style of a parameter mapping.
    *
    * @param {string} mappingUID - Unique tracking identifier of mapping
@@ -3919,7 +4030,6 @@ class VolumeImageViewer {
       )
     }
     const mapping = this[_mappings][mappingUID]
-
     return {
       opacity: mapping.style.opacity,
       limitValues: mapping.style.limitValues,
