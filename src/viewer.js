@@ -1904,6 +1904,25 @@ class VolumeImageViewer {
   }
 
   /**
+   * Navigate the view to a spatial position or resolution level.
+   *
+   * @param {Object} options - Options.
+   * @param {number} level - Zoom level.
+   */
+  navigate ({ level }) {
+    const numLevels = this[_pyramid].resolutions.length
+    if (level > numLevels) {
+      throw new Error('Argument "level" exceeds number of resolution levels.')
+    }
+    // TODO: center position in slide/image coordinates
+    const view = this[_map].getView()
+    const currentZoomLevel = view.getZoom()
+    if (level !== currentZoomLevel) {
+      view.animate({ zoom: this[_pyramid] })
+    }
+  }
+
+  /**
    * Activate the draw interaction for graphic annotation of regions of interest.
    *
    * @param {Object} options - Drawing options
@@ -4102,7 +4121,8 @@ class _NonVolumeImageViewer {
       })
     }
 
-    if (this[_metadata].ImageType[2] === 'VOLUME') {
+    const imageFlavor = this[_metadata].ImageType[2]
+    if (imageFlavor === 'VOLUME') {
       throw new Error('Viewer cannot render images of type VOLUME.')
     }
 
@@ -4117,7 +4137,7 @@ class _NonVolumeImageViewer {
     ]
 
     const imageLoadFunction = (image, src) => {
-      console.info('load image')
+      console.info(`load ${imageFlavor} image`)
       const mediaType = 'image/png'
       const queryParams = {}
       if (resizeFactor !== 1) {
@@ -4148,7 +4168,8 @@ class _NonVolumeImageViewer {
       units: 'metric',
       extent: extent,
       getPointResolution: (pixelRes, point) => {
-        /** DICOM Pixel Spacing has millimeter unit while the projection has
+        /*
+         * DICOM Pixel Spacing has millimeter unit while the projection has
          * meter unit.
          */
         const mmSpacing = getPixelSpacing(this[_metadata])[0]
@@ -4221,25 +4242,6 @@ class _NonVolumeImageViewer {
     this[_map].getInteractions().forEach((interaction) => {
       this[_map].removeInteraction(interaction)
     })
-  }
-
-  /**
-   * Move the view to a spatial position or resolution level.
-   *
-   * @param {Object} options - Options.
-   * @param {number} level - Zoom level.
-   */
-  move ({ level }) {
-    const numLevels = this[_pyramid].resolutions.length
-    if (level > numLevels) {
-      throw new Error('Argument "level" exceeds number of resolution levels.')
-    }
-    // TODO: center position in slide/image coordinates
-    const view = this[_map].getView()
-    const currentZoomLevel = view.getZoom()
-    if (level !== currentZoomLevel) {
-      view.animate({ zoom: this[_pyramid] })
-    }
   }
 
   /**
