@@ -1601,7 +1601,7 @@ class VolumeImageViewer {
     const match = layers.getArray().find(layer => {
       return layer.ol_uid === opticalPath.layer.ol_uid
     })
-    if (this[_overviewMap] !== undefined) {
+    if (this[_overviewMap] != null) {
       const overviewLayers = this[_overviewMap].getOverviewMap().getLayers()
       const overviewMatch = overviewLayers.getArray().find(layer => {
         return layer.ol_uid === opticalPath.overviewLayer.ol_uid
