@@ -496,6 +496,7 @@ function _createTileLoadFunction ({
         (rawFrames) => {
           return _decodeAndTransformFrame({
             frame: rawFrames[0],
+            frameNumber: frameNumbers[0],
             bitsAllocated,
             pixelRepresentation,
             columns,
@@ -530,6 +531,11 @@ function _createTileLoadFunction ({
         }
       ).catch(
         (error) => {
+          publish(
+            targetElement,
+            EVENT.FRAME_LOADING_ENDED,
+            null
+          )
           return Promise.reject(
             new Error(
               `Failed to load frames ${frameNumbers} ` +
