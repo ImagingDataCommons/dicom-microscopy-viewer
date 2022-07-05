@@ -494,48 +494,51 @@ function _createTileLoadFunction ({
       }
       return client.retrieveInstanceFrames(retrieveOptions).then(
         (rawFrames) => {
-          try {
-            return _decodeAndTransformFrame({
-              frame: rawFrames[0],
-              bitsAllocated,
-              pixelRepresentation,
-              columns,
-              rows,
-              samplesPerPixel,
-              sopInstanceUID,
-              metadata: pyramid.metadata,
-              iccProfiles
-            }).then(pixelArray => {
-              if (pixelArray.constructor === Float64Array) {
-                // TODO: handle Float64Array using LUT
-                throw new Error(
-                  'Double Float Pixel Data is not (yet) supported.'
-                )
-              }
-              publish(
-                targetElement,
-                EVENT.FRAME_LOADING_ENDED,
-                { pixelArray, ...frameInfo }
+          return _decodeAndTransformFrame({
+            frame: rawFrames[0],
+            bitsAllocated,
+            pixelRepresentation,
+            columns,
+            rows,
+            samplesPerPixel,
+            sopInstanceUID,
+            metadata: pyramid.metadata,
+            iccProfiles
+          }).then(pixelArray => {
+            if (pixelArray.constructor === Float64Array) {
+              // TODO: handle Float64Array using LUT
+              throw new Error(
+                'Double Float Pixel Data is not (yet) supported.'
               )
-              if (samplesPerPixel === 3 && bitsAllocated === 8) {
-                // Rendering of color images requires unsigned 8-bit integers
-                return pixelArray
-              }
-              // Rendering of grayscale images requires floating point values
-              return new Float32Array(
-                pixelArray,
-                pixelArray.byteOffset,
-                pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT
-              )
-            })
-          } catch (error) {
-            console.error('failed to decode frame: ', error)
-          }
+            }
+            publish(
+              targetElement,
+              EVENT.FRAME_LOADING_ENDED,
+              { pixelArray, ...frameInfo }
+            )
+            if (samplesPerPixel === 3 && bitsAllocated === 8) {
+              // Rendering of color images requires unsigned 8-bit integers
+              return pixelArray
+            }
+            // Rendering of grayscale images requires floating point values
+            return new Float32Array(
+              pixelArray,
+              pixelArray.byteOffset,
+              pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT
+            )
+          })
         }
       ).catch(
         (error) => {
           return Promise.reject(
-            new Error(`Failed to load tile "${index}" at level ${z}: ${error}`)
+            new Error(
+              `Failed to load frames ${frameNumbers} ` +
+              `of SOP instance "${sopInstanceUID}" ` +
+              `for channel "${channel}" ` +
+              `at tile position (${x + 1}, ${y + 1}) ` +
+              `at zoom level ${z}: `,
+              error
+            )
           )
         }
       )

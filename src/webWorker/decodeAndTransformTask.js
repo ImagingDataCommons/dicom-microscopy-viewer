@@ -60,7 +60,7 @@ function _handler (data, doneCallback) {
         )
       }).catch(
         (error) => {
-          console.error(`failed to transform frame: ${error}`)
+          throw new Error(`Failed to transform frame: ${error}`)
         }
       )
     } else {
@@ -71,7 +71,7 @@ function _handler (data, doneCallback) {
     }
   }).catch(
     (error) => {
-      console.error(`failed to decode frame: ${error}`)
+      throw new Error(`Failed to decode frame: ${error}`)
     }
   )
 }
