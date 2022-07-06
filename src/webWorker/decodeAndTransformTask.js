@@ -135,13 +135,13 @@ async function _checkImageTypeAndDecode ({
     if ((toHex(byteArray[3]) === 'F7') || (toHex(byteArray[3]) === 'E8')) {
       mediaType = 'image/jls'
     } else {
-      const supportedMediaTypes = new Set([
+      const supportedImageMediaTypes = new Set([
         'image/jpeg',
         'image/jls',
         'image/jp2',
         'image/jpx'
       ])
-      if (supportedMediaTypes.has(mediaType)) {
+      if (supportedImageMediaTypes.has(imageTypeObject.mime)) {
         mediaType = imageTypeObject.mime
       } else {
         mediaType = 'application/octet-stream'
