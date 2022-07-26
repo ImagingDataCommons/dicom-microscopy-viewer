@@ -625,7 +625,7 @@ function _getPolygonCentroid (
   const offset = graphicIndex[annotationIndex] - 1
   let length
   if (annotationIndex < (numberOfAnnotations - 1)) {
-    length = offset - graphicIndex[annotationIndex + 1]
+    length = graphicIndex[annotationIndex + 1] - offset
   } else {
     length = graphicData.length
   }
@@ -635,10 +635,11 @@ function _getPolygonCentroid (
   for (let j = offset; j < offset + length; j++) {
     const p0 = _getCoordinates(graphicData, j, commonZCoordinate)
     let p1
-    if (j === (offset + length - numberOfAnnotations)) {
+    if (j === (offset + length - 1)) {
       p1 = _getCoordinates(graphicData, offset, commonZCoordinate)
     } else {
-      p1 = _getCoordinates(graphicData, j + numberOfAnnotations, commonZCoordinate)
+      const nextOffset = j + coordinateDimensionality
+      p1 = _getCoordinates(graphicData, nextOffset, commonZCoordinate)
     }
     const a = p0[0] * p1[1] - p1[0] * p0[1]
     area += a
