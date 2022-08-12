@@ -3246,8 +3246,10 @@ class VolumeImageViewer {
     refSegmentation.SegmentSequence.forEach((item, index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment # ${segmentNumber}`)
-      let segmentUID = _generateUID()
-      if (item.TrackingUID) {
+      let segmentUID = _generateUID({
+        value: refSegmentation.SOPInstanceUID + segmentNumber.toString()
+      })
+      if (item.TrackingUID != null) {
         segmentUID = item.TrackingUID
       }
 
@@ -3671,10 +3673,13 @@ class VolumeImageViewer {
 
     let index = 0
     for (const mappingNumber in mappingNumberToDescriptions) {
-      const mappingLabel = `${mappingNumber}`
       const mappingDescriptions = mappingNumberToDescriptions[mappingNumber]
       const refItem = mappingDescriptions[0]
-      let mappingUID = _generateUID()
+      const mappingLabel = refItem.LUTLabel
+      const mappingExplanation = refItem.LUTExplanation
+      let mappingUID = _generateUID({
+        value: refInstance.SOPInstanceUID + mappingLabel
+      })
       if (refItem.TrackingUID != null) {
         mappingUID = refItem.TrackingUID
       }
@@ -3724,7 +3729,7 @@ class VolumeImageViewer {
       }
       if (refInstance.PixelPresentation === 'MONOCHROME') {
         colormap = createColormap({
-          name: ColormapNames.GRAY,
+          name: ColormapNames.MAGMA,
           bins: Math.pow(2, 8)
         })
       } else {
@@ -3770,6 +3775,7 @@ class VolumeImageViewer {
           uid: mappingUID,
           number: mappingNumber,
           label: mappingLabel,
+          description: mappingExplanation,
           studyInstanceUID: refInstance.StudyInstanceUID,
           seriesInstanceUID: refInstance.SeriesInstanceUID,
           sopInstanceUIDs: pyramid.metadata.map(element => {
@@ -3971,7 +3977,6 @@ class VolumeImageViewer {
     }
 
     let title = mapping.mapping.label
-    // FIXME
     const padding = Math.round((16 - title.length) / 2)
     title = title.padStart(title.length + padding)
     title = title.padEnd(title.length + 2 * padding)

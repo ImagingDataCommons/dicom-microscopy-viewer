@@ -1,5 +1,8 @@
 import { inv, multiply } from 'mathjs'
 import { getPointResolution } from 'ol/proj'
+import { v4 as createUUIDv4, v5 as createUUIDv5 } from 'uuid'
+
+const _UUID_NAMESPACE = 'c4f09b11-bac0-4f3a-8dc1-9f0046637383'
 
 /**
  * Generates a UUID-derived DICOM UID with root `2.25`.
@@ -8,7 +11,7 @@ import { getPointResolution } from 'ol/proj'
  *
  * @private
  */
-function _generateUID () {
+function _generateUID ({ value } = {}) {
   /**
    * A UUID can be represented as a single integer value.
    * http://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_B.2.html
@@ -20,12 +23,15 @@ function _generateUID () {
    * the least significant bit as the least significant bit (bit 0) of the last
    * of the sixteen octets (octet 0).
    */
-  let uid = '2.25.' + Math.floor(1 + Math.random() * 9)
-  // FIXME: This is not a valid UUID!
-  while (uid.length < 44) {
-    uid += Math.floor(1 + Math.random() * 10)
+  let uuid
+  if (value != null) {
+    uuid = createUUIDv5(value, _UUID_NAMESPACE)
+  } else {
+    uuid = createUUIDv4()
   }
-  return uid
+  const hex = '0x' + uuid.replace(/-/g, '')
+  const decimal = BigInt(hex)
+  return '2.25.' + decimal.toString()
 }
 
 /**

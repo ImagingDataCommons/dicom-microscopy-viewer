@@ -75,8 +75,9 @@ class ParameterMapping {
   /**
    * @param {Object} options
    * @param {string} options.uid - Unique tracking identifier
-   * @param {number} options.number - Mapping Number (one-based index value)
-   * @param {string} options.label - Mapping Label
+   * @param {number} options.number - Parameter Number (one-based index value)
+   * @param {string} options.label - Parameter Label
+   * @param {string} options.description - Parameter Description
    * @param {string} options.studyInstanceUID - Study Instance UID of DICOM
    * Parametric Map instances
    * @param {string} options.seriesInstanceUID - Series Instance UID of DICOM
@@ -90,6 +91,7 @@ class ParameterMapping {
     uid,
     number,
     label,
+    description,
     studyInstanceUID,
     seriesInstanceUID,
     sopInstanceUIDs,
@@ -103,14 +105,19 @@ class ParameterMapping {
     }
 
     if (number === undefined) {
-      throw new Error('Mapping Number is required.')
+      throw new Error('Parameter Number is required.')
     }
     this[_attrs].number = number
 
     if (label === undefined) {
-      throw new Error('Mapping Label is required.')
+      throw new Error('Parameter Label is required.')
     }
     this[_attrs].label = label
+
+    if (description === undefined) {
+      throw new Error('Parameter Description is required.')
+    }
+    this[_attrs].description = description
 
     if (studyInstanceUID === undefined) {
       throw new Error('Study Instance UID is required.')
@@ -142,7 +149,7 @@ class ParameterMapping {
   }
 
   /**
-   * Mapping Number.
+   * Parameter Number
    *
    * @type number
    */
@@ -151,12 +158,21 @@ class ParameterMapping {
   }
 
   /**
-   * Mapping Label
+   * Parameter Label
    *
    * @type string
    */
   get label () {
     return this[_attrs].label
+  }
+
+  /**
+   * Parameter Description
+   *
+   * @type string
+   */
+  get description () {
+    return this[_attrs].description
   }
 
   /**
