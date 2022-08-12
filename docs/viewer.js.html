@@ -66,7 +66,6 @@ import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
-import { quantileSeq } from 'mathjs'
 
 import {
   AnnotationGroup,
@@ -2835,15 +2834,16 @@ class VolumeImageViewer {
           return
         }
 
+        // TODO: Only fetch measurements if required.
         const promises = [
           _fetchGraphicData({ metadataItem, bulkdataItem, client }),
           _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
-          _fetchMeasurements({ metadataItem, bulkdataItem, client })
+          // _fetchMeasurements({ metadataItem, bulkdataItem, client })
         ]
         Promise.all(promises).then(retrievedBulkdata => {
           const graphicData = retrievedBulkdata[0]
           const graphicIndex = retrievedBulkdata[1]
-          const measurements = retrievedBulkdata[2]
+          // const measurements = retrievedBulkdata[2]
 
           for (let i = 0; i &lt; numberOfAnnotations; i++) {
             const point = _getCentroid(
@@ -2863,12 +2863,12 @@ class VolumeImageViewer {
               geometry: new PointGeometry(coordinates)
             })
             const properties = {}
-            measurements.forEach(item => {
-              const name = item.name
-              const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
-              const value = item.values[i]
-              properties[key] = value
-            })
+            // measurements.forEach(item => {
+            //   const name = item.name
+            //   const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
+            //   const value = item.values[i]
+            //   properties[key] = value
+            // })
             feature.setProperties(properties)
             feature.setId(i + 1)
             features.push(feature)
@@ -2880,15 +2880,15 @@ class VolumeImageViewer {
           )
           this.addFeatures(features)
           const properties = {}
-          measurements.forEach(item => {
-            const name = item.name
-            const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
-            const value = quantileSeq(
-              [...item.values],
-              [0, 0.015, 0.25, 0.5, 0.75, 0.95, 1]
-            )
-            properties[key] = value
-          })
+          // measurements.forEach(item => {
+          //   const name = item.name
+          //   const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
+          //   const value = quantileSeq(
+          //     [...item.values],
+          //     [0, 0.015, 0.25, 0.5, 0.75, 0.95, 1]
+          //   )
+          //   properties[key] = value
+          // })
           this.setProperties(properties)
           success(features)
         }).catch(error => {
@@ -3274,8 +3274,10 @@ class VolumeImageViewer {
     refSegmentation.SegmentSequence.forEach((item, index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment # ${segmentNumber}`)
-      let segmentUID = _generateUID()
-      if (item.TrackingUID) {
+      let segmentUID = _generateUID({
+        value: refSegmentation.SOPInstanceUID + segmentNumber.toString()
+      })
+      if (item.TrackingUID != null) {
         segmentUID = item.TrackingUID
       }
 
@@ -3699,10 +3701,13 @@ class VolumeImageViewer {
 
     let index = 0
     for (const mappingNumber in mappingNumberToDescriptions) {
-      const mappingLabel = `${mappingNumber}`
       const mappingDescriptions = mappingNumberToDescriptions[mappingNumber]
       const refItem = mappingDescriptions[0]
-      let mappingUID = _generateUID()
+      const mappingLabel = refItem.LUTLabel
+      const mappingExplanation = refItem.LUTExplanation
+      let mappingUID = _generateUID({
+        value: refInstance.SOPInstanceUID + mappingLabel
+      })
       if (refItem.TrackingUID != null) {
         mappingUID = refItem.TrackingUID
       }
@@ -3752,7 +3757,7 @@ class VolumeImageViewer {
       }
       if (refInstance.PixelPresentation === 'MONOCHROME') {
         colormap = createColormap({
-          name: ColormapNames.GRAY,
+          name: ColormapNames.MAGMA,
           bins: Math.pow(2, 8)
         })
       } else {
@@ -3798,6 +3803,7 @@ class VolumeImageViewer {
           uid: mappingUID,
           number: mappingNumber,
           label: mappingLabel,
+          description: mappingExplanation,
           studyInstanceUID: refInstance.StudyInstanceUID,
           seriesInstanceUID: refInstance.SeriesInstanceUID,
           sopInstanceUIDs: pyramid.metadata.map(element => {
@@ -3999,7 +4005,6 @@ class VolumeImageViewer {
     }
 
     let title = mapping.mapping.label
-    // FIXME
     const padding = Math.round((16 - title.length) / 2)
     title = title.padStart(title.length + padding)
     title = title.padEnd(title.length + 2 * padding)
@@ -4377,7 +4382,7 @@ export { LabelImageViewer, OverviewImageViewer, VolumeImageViewer }
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Wed Jul 06 2022 14:12:52 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Fri Aug 12 2022 18:10:00 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>
