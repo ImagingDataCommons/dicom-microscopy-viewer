@@ -10,6 +10,7 @@ import Icon from 'ol/style/Icon'
 import ImageLayer from 'ol/layer/Image'
 import Map from 'ol/Map'
 import Modify from 'ol/interaction/Modify'
+import MousePosition from 'ol/control/MousePosition'
 import OverviewMap from 'ol/control/OverviewMap'
 import Projection from 'ol/proj/Projection'
 import ScaleLine from 'ol/control/ScaleLine'
@@ -75,6 +76,7 @@ import {
   _scoord3d2Geometry,
   getPixelSpacing,
   _geometry2Scoord3d,
+  _geometryCoordinates2scoord3dCoordinates,
   _getFeatureLength,
   _getFeatureArea
 } from './scoord3dUtils'
@@ -1297,8 +1299,31 @@ class VolumeImageViewer {
         this[_controls].overview = this[_overviewMap]
       }
     }
-    for (const control in this[_controls]) {
-      this[_map].addControl(this[_controls][control])
+    if (this[_options].controls.has('position')) {
+      this[_controls].position = new MousePosition({
+        projection: this[_projection],
+        coordinateFormat: (imageCoordinates) => {
+          const slideCoordinates = _geometryCoordinates2scoord3dCoordinates(
+            imageCoordinates,
+            this[_pyramid].metadata
+          )
+          /*
+           * This assumes that the image is aligned with the X and Y axes
+           * of the slide (frame of reference).
+           * If one would ever change the orientation (rotation), this may
+           * need to be changed accordingly. The values would not become wrong,
+           * but the X and Y axes of the slide would no longer align with the
+           * vertical and horizontal axes of the viewport, respectively.
+           */
+          const x = slideCoordinates[0].toFixed(5)
+          const y = slideCoordinates[1].toFixed(5)
+          return `(${x}, ${y})`
+        }
+      })
+    }
+    for (const name in this[_controls]) {
+      console.info(`add control "${name}"`)
+      this[_map].addControl(this[_controls][name])
     }
 
     this[_annotationManager] = new _AnnotationManager({
@@ -1878,7 +1903,7 @@ class VolumeImageViewer {
       })
     })
 
-    // Style scale element (overriding default Openlayers CSS "ol-scale-line")
+    // Style scale element (overriding Openlayers CSS "ol-scale-line")
     const scaleElement = this[_controls].scale.element
     scaleElement.style.position = 'absolute'
     scaleElement.style.right = '.5em'
@@ -1901,6 +1926,24 @@ class VolumeImageViewer {
     scaleInnerElement.style.borderBottomColor = 'black'
     scaleInnerElement.style.margin = '1px'
     scaleInnerElement.style.willChange = 'contents,width'
+
+    // Style position element (overriding Openlayers CSS "ol-mouse-position")
+    if (this[_controls].position != null) {
+      const positionElement = this[_controls].position.element
+      positionElement.style.position = 'absolute'
+      positionElement.style.right = '.5em'
+      positionElement.style.top = '.5em'
+      positionElement.style.left = 'auto'
+      positionElement.style.bottom = 'auto'
+      positionElement.style.padding = '2px'
+      positionElement.style.backgroundColor = 'rgba(255,255,255,.5)'
+      positionElement.style.borderRadius = '4px'
+      positionElement.style.margin = '1px'
+      positionElement.style.color = 'black'
+      positionElement.style.fontWeight = '600'
+      positionElement.style.fontSize = '10px'
+      positionElement.style.textAlign = 'center'
+    }
   }
 
   /**
