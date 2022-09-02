@@ -93,6 +93,9 @@ import { ParameterMapping, _groupFramesPerMapping } from './mapping.js'
 import { ROI } from './roi.js'
 import { Segment } from './segment.js'
 import {
+  applyTransform,
+  buildInverseTransform,
+  buildTransform,
   computeRotation,
   _generateUID,
   _getUnitSuffix,
@@ -324,6 +327,7 @@ function _addROIPropertiesToFeature (feature, properties, optSilent) {
  * @param {Object} map - The map instance
  * @param {Object} feature - The feature instance
  * @param {Object} pyramid - The pyramid metadata
+ * @param {number[][]} affine - 3x3 affine transformation matrix
  * @returns {void}
  *
  * @private
@@ -331,14 +335,15 @@ function _addROIPropertiesToFeature (feature, properties, optSilent) {
 function _wireMeasurementsAndQualitativeEvaluationsEvents (
   map,
   feature,
-  pyramid
+  pyramid,
+  affine
 ) {
   /**
    * Update feature measurement properties first and then measurements
    */
-  _updateFeatureMeasurements(map, feature, pyramid)
+  _updateFeatureMeasurements(map, feature, pyramid, affine)
   feature.on(Enums.FeatureEvents.CHANGE, (event) => {
-    _updateFeatureMeasurements(map, event.target, pyramid)
+    _updateFeatureMeasurements(map, event.target, pyramid, affine)
   })
 
   /**
@@ -397,7 +402,7 @@ function _updateFeatureEvaluations (feature) {
  *
  * @private
  */
-function _updateFeatureMeasurements (map, feature, pyramid) {
+function _updateFeatureMeasurements (map, feature, pyramid, affine) {
   if (
     Enums.Markup.Measurement !== feature.get(Enums.InternalProperties.Markup)
   ) {
@@ -405,8 +410,8 @@ function _updateFeatureMeasurements (map, feature, pyramid) {
   }
 
   const measurements = feature.get(Enums.InternalProperties.Measurements) || []
-  const area = _getFeatureArea(feature, pyramid)
-  const length = _getFeatureLength(feature, pyramid)
+  const area = _getFeatureArea(feature, pyramid, affine)
+  const length = _getFeatureLength(feature, pyramid, affine)
 
   if (area == null &amp;&amp; length == null) {
     return
@@ -703,6 +708,8 @@ function _getColorPaletteStyleForPointLayer ({
   return { color: expression }
 }
 
+const _affine = Symbol('affine')
+const _affineInverse = Symbol('affineInverse')
 const _controls = Symbol('controls')
 const _drawingLayer = Symbol('drawingLayer')
 const _drawingSource = Symbol('drawingSource')
@@ -887,6 +894,25 @@ class VolumeImageViewer {
       const info = colorImageInformation[opticalPathIdentifier]
       this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
     }
+
+    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+    const origin = metadata.TotalPixelMatrixOriginSequence[0]
+    const orientation = metadata.ImageOrientationSlide
+    const spacing = getPixelSpacing(metadata)
+    const offset = [
+      Number(origin.XOffsetInSlideCoordinateSystem),
+      Number(origin.YOffsetInSlideCoordinateSystem)
+    ]
+    this[_affine] = buildTransform({
+      offset,
+      orientation,
+      spacing
+    })
+    this[_affineInverse] = buildInverseTransform({
+      offset,
+      orientation,
+      spacing
+    })
 
     this[_rotation] = _getRotation(this[_pyramid].metadata[0])
 
@@ -1207,9 +1233,12 @@ class VolumeImageViewer {
           projection: this[_projection],
           rotation: this[_rotation],
           constrainOnlyCenter: true,
-          minResolution: this[_tileGrid].getResolution(0),
+          resolutions: this[_tileGrid].getResolutions(),
+          minZoom: 0,
+          maxZoom: 0,
           center: center,
-          extent: center.concat(center)
+          extent: center.concat(center),
+          showFullExtent: true
         }),
         layers: overviewLayers,
         collapsed: false,
@@ -1344,7 +1373,8 @@ class VolumeImageViewer {
         coordinateFormat: (imageCoordinates) => {
           const slideCoordinates = _geometryCoordinates2scoord3dCoordinates(
             imageCoordinates,
-            this[_pyramid].metadata
+            this[_pyramid].metadata,
+            this[_affine]
           )
           /*
            * This assumes that the image is aligned with the X and Y axes
@@ -1368,6 +1398,7 @@ class VolumeImageViewer {
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
       pyramid: this[_pyramid].metadata,
+      affine: this[_affine],
       drawingSource: this[_drawingSource]
     })
   }
@@ -1844,7 +1875,7 @@ class VolumeImageViewer {
           publish(
             container,
             EVENT.ROI_ADDED,
-            this._getROIFromFeature(e.feature, metadata)
+            this._getROIFromFeature(e.feature, metadata, this[_affine])
           )
         })
         this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
@@ -1883,14 +1914,14 @@ class VolumeImageViewer {
           publish(
             container,
             EVENT.ROI_MODIFIED,
-            this._getROIFromFeature(e.feature, metadata)
+            this._getROIFromFeature(e.feature, metadata, this[_affine])
           )
         })
         this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
           publish(
             container,
             EVENT.ROI_REMOVED,
-            this._getROIFromFeature(e.feature, metadata)
+            this._getROIFromFeature(e.feature, metadata, this[_affine])
           )
         })
 
@@ -1960,22 +1991,108 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get the number of zoom levels.
+   *
+   * @type number
+   */
+  get numLevels () {
+    return this[_pyramid].pixelSpacings.length
+  }
+
+  /**
+   * Get the pixel spacing at a given zoom level.
+   *
+   * @param {Object} options - Options.
+   * @param {number} options.level - Zoom level.
+   * @returns {number[]} Spacing between the centers of two neighboring pixels
+   */
+  getPixelSpacing (level) {
+    return this[_pyramid].pixelSpacings[level].slice(0)
+  }
+
+  /**
+   * Get the physical offset of images on the slide.
+   * Offset along the X and Y axes of the slide coordinate system in
+   * millimeter unit.
+   *
+   * @type number[]
+   */
+  get physicalOffset () {
+    const point = applyTransform({
+      coordinate: [0, 0],
+      affine: this[_affine]
+    })
+    return [point[0], point[1], 0]
+  }
+
+  /**
+   * Get the physical size of images on the slide.
+   * Length along the X and Y axes of the slide coordinate system in
+   * millimeter unit.
+   *
+   * @type number[]
+   */
+  get physicalSize () {
+    const offset = this.physicalOffset
+    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+    const point = applyTransform({
+      coordinate: [
+        metadata.TotalPixelMatrixColumns,
+        metadata.TotalPixelMatrixRows
+      ],
+      affine: this[_affine]
+    })
+    return [
+      Math.abs(point[0] - offset[0]),
+      Math.abs(point[1] - offset[1])
+    ]
+  }
+
+  /**
+   * Get the offset and size of the bounding box that contains the images
+   * in the slide coordinate system in millimeter unit.
+   *
+   * @type number[]
+   */
+  get boundingBox () {
+    const startPoint = this.physicalOffset
+    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+    const endPoint = applyTransform({
+      coordinate: [
+        metadata.TotalPixelMatrixColumns,
+        metadata.TotalPixelMatrixRows
+      ],
+      affine: this[_affine]
+    })
+    const offset = [
+      Math.min(startPoint[0], endPoint[0]),
+      Math.min(startPoint[1], endPoint[1])
+    ]
+    const size = this.physicalSize
+    return [offset, size]
+  }
+
+  /**
    * Navigate the view to a spatial position or resolution level.
    *
    * @param {Object} options - Options.
-   * @param {number} level - Zoom level.
+   * @param {number} options.level - Zoom level.
+   * @param {number[]} options.position - X, Y coordinates in slide coordinate system.
    */
-  navigate ({ level }) {
-    const numLevels = this[_pyramid].resolutions.length
-    if (level > numLevels) {
+  navigate ({ level, position }) {
+    if (level > this.numLevels) {
       throw new Error('Argument "level" exceeds number of resolution levels.')
     }
-    // TODO: center position in slide/image coordinates
-    const view = this[_map].getView()
-    const currentZoomLevel = view.getZoom()
-    if (level !== currentZoomLevel) {
-      view.animate({ zoom: this[_pyramid] })
+    let coordinates
+    if (position != null) {
+      coordinates = _scoord3dCoordinates2geometryCoordinates(
+        position,
+        this[_pyramid],
+        this[_affineInverse]
+      )
     }
+    const view = this[_map].getView()
+    view.animate({ zoom: level, center: coordinates })
   }
 
   /**
@@ -2093,7 +2210,8 @@ class VolumeImageViewer {
       _wireMeasurementsAndQualitativeEvaluationsEvents(
         this[_map],
         event.feature,
-        this[_pyramid].metadata
+        this[_pyramid].metadata,
+        this[_affine]
       )
     })
 
@@ -2106,7 +2224,11 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_DRAWN,
-        this._getROIFromFeature(event.feature, this[_pyramid].metadata)
+        this._getROIFromFeature(
+          event.feature,
+          this[_pyramid].metadata,
+          this[_affine]
+        )
       )
     })
 
@@ -2192,14 +2314,15 @@ class VolumeImageViewer {
    *
    * @param {Object} feature - Openlayers Feature
    * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
+   * @param {number[][]} affine - 3x3 affine transformation matrix
    * @param {Object} context - Context
    * @returns {roi.ROI} Region of interest
    * @private
    */
-  _getROIFromFeature (feature, pyramid) {
+  _getROIFromFeature (feature, pyramid, affine) {
     let scoord3d
     try {
-      scoord3d = _geometry2Scoord3d(feature, pyramid)
+      scoord3d = _geometry2Scoord3d(feature, pyramid, affine)
     } catch (error) {
       const uid = feature.getId()
       this.removeROI(uid)
@@ -2319,7 +2442,11 @@ class VolumeImageViewer {
       publish(
         container,
         EVENT.ROI_SELECTED,
-        this._getROIFromFeature(e.selected[0], this[_pyramid].metadata)
+        this._getROIFromFeature(
+          e.selected[0],
+          this[_pyramid].metadata,
+          this[_affine]
+        )
       )
     })
 
@@ -2442,12 +2569,20 @@ class VolumeImageViewer {
 
     this[_interactions].modify.on(Enums.InteractionEvents.MODIFY_END, (event) => {
       const feature = event.features.item(0)
-      _updateFeatureMeasurements(this[_map], feature, this[_pyramid].metadata)
+      _updateFeatureMeasurements(
+        this[_map], feature,
+        this[_pyramid].metadata,
+        this[_affine]
+      )
       this[_annotationManager].onUpdate(feature)
       publish(
         container,
         EVENT.ROI_MODIFIED,
-        this._getROIFromFeature(feature, this[_pyramid].metadata)
+        this._getROIFromFeature(
+          feature,
+          this[_pyramid].metadata,
+          this[_affine]
+        )
       )
     })
 
@@ -2518,7 +2653,11 @@ class VolumeImageViewer {
   getROI (uid) {
     console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
-    return this._getROIFromFeature(feature, this[_pyramid].metadata)
+    return this._getROIFromFeature(
+      feature,
+      this[_pyramid].metadata,
+      this[_affine]
+    )
   }
 
   /**
@@ -2575,7 +2714,11 @@ class VolumeImageViewer {
   popROI () {
     console.info('pop ROI')
     const feature = this[_features].pop()
-    return this._getROIFromFeature(feature, this[_pyramid].metadata)
+    return this._getROIFromFeature(
+      feature,
+      this[_pyramid].metadata,
+      this[_affine]
+    )
   }
 
   /**
@@ -2602,7 +2745,11 @@ class VolumeImageViewer {
       )
     }
 
-    const geometry = _scoord3d2Geometry(roi.scoord3d, this[_pyramid].metadata)
+    const geometry = _scoord3d2Geometry(
+      roi.scoord3d,
+      this[_pyramid].metadata,
+      this[_affineInverse]
+    )
     const featureOptions = { geometry }
 
     const feature = new Feature(featureOptions)
@@ -2612,7 +2759,8 @@ class VolumeImageViewer {
     _wireMeasurementsAndQualitativeEvaluationsEvents(
       this[_map],
       feature,
-      this[_pyramid].metadata
+      this[_pyramid].metadata,
+      this[_affine]
     )
 
     this[_features].push(feature)
@@ -2830,6 +2978,7 @@ class VolumeImageViewer {
       // We need to bind those variables to constants for the loader function
       const client = this[_options].client
       const pyramid = this[_pyramid].metadata
+      const affineInverse = this[_affineInverse]
 
       /**
        * In the loader function "this" is bound to the vector source.
@@ -2886,7 +3035,8 @@ class VolumeImageViewer {
             )
             const coordinates = _scoord3dCoordinates2geometryCoordinates(
               point,
-              pyramid
+              pyramid,
+              affineInverse
             )
             const feature = new Feature({
               geometry: new PointGeometry(coordinates)
@@ -4330,7 +4480,7 @@ class _NonVolumeImageViewer {
   /**
    * Get the size of the viewport.
    *
-   * @return {number[]}
+   * @type number[]
    */
   get size () {
     return this[_map].getSize()
@@ -4411,7 +4561,7 @@ export { LabelImageViewer, OverviewImageViewer, VolumeImageViewer }
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Fri Sep 02 2022 00:27:07 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Fri Sep 02 2022 19:20:39 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>
