@@ -201,40 +201,6 @@ function _getRotation (metadata) {
 }
 
 /**
- * Determine size of browser window.
- *
- * @return {number[]} Width and height of the window
- *
- * @private
- */
-function _getWindowSize () {
-  let width = 0
-  let height = 0
-  if (typeof window.innerWidth === 'number') {
-    // Non-IE
-    width = window.innerWidth
-    height = window.innerHeight
-  } else if (
-    document.documentElement && (
-      document.documentElement.clientWidth || document.documentElement.clientHeight
-    )
-  ) {
-    // IE 6+ in 'standards compliant mode'
-    width = document.documentElement.clientWidth
-    height = document.documentElement.clientHeight
-  } else if (
-    document.body && (
-      document.body.clientWidth || document.body.clientHeight
-    )
-  ) {
-    // IE 4 compatible
-    width = document.body.clientWidth
-    height = document.body.clientHeight
-  }
-  return [width, height]
-}
-
-/**
  * Map style options to OpenLayers style.
  *
  * @param {Object} styleOptions - Style options
@@ -729,6 +695,7 @@ const _tileGrid = Symbol('tileGrid')
 const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
 const _overviewMap = Symbol('overviewMap')
+const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -936,7 +903,6 @@ class VolumeImageViewer {
       rotation: this[_rotation],
       constrainOnlyCenter: false,
       smoothResolutionConstraint: true,
-      smoothExtentConstraint: false,
       showFullExtent: true,
       extent: this[_pyramid].extent
     })
@@ -1207,26 +1173,75 @@ class VolumeImageViewer {
     }
 
     if (Math.max(...this[_pyramid].gridSizes[0]) <= 10) {
-      const overviewView = new View({
-        projection: this[_projection],
-        rotation: this[_rotation],
-        constrainOnlyCenter: false,
-        smoothExtentConstraint: true,
-        smoothResolutionConstraint: true,
-        minZoom: 0,
-        maxZoom: 0,
-        extent: this[_pyramid].extent
-      })
-
+      const center = view.getCenter()
       this[_overviewMap] = new OverviewMap({
-        view: overviewView,
+        view: new View({
+          projection: this[_projection],
+          rotation: this[_rotation],
+          constrainOnlyCenter: true,
+          resolutions: this[_tileGrid].getResolutions(),
+          // minResolution: this[_tileGrid].getResolution(0),
+          minZoom: 0,
+          maxZoom: 0,
+          center: center,
+          extent: center.concat(center),
+          showFullExtent: true
+        }),
         layers: overviewLayers,
         collapsed: false,
         collapsible: true,
         rotateWithView: true
       })
+      this[_updateOverviewMapSize] = () => {
+        const overviewElement = this[_controls].overview.element
+        const overviewChildren = overviewElement.children
+        const overviewmapElement = Object.values(overviewChildren).find(
+          c => c.className === 'ol-overviewmap-map'
+        )
+        // Try to fit the overview map into the target control overlay container
+        const height = this[_pyramid].metadata[0].TotalPixelMatrixRows
+        const width = this[_pyramid].metadata[0].TotalPixelMatrixColumns
+        const rotation = this[_rotation] / Math.PI * 180
+        const isRotated = !(
+          Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01
+        )
+        const viewport = this[_map].getViewport()
+        const viewportHeight = viewport.clientHeight
+        const viewportWidth = viewport.clientWidth
+        const viewportHeightFraction = 0.3
+        const viewportWidthFraction = 0.25
+        const maxTargetHeight = viewportHeight * viewportHeightFraction
+        const maxTargetWidth = viewportWidth * viewportWidthFraction
+        let targetHeight
+        let targetWidth
+        if (isRotated) {
+          targetHeight = width
+          targetWidth = height
+        } else {
+          targetHeight = height
+          targetWidth = width
+        }
+        let resizeFactor = 1
+        resizeFactor = (
+          maxTargetWidth / targetWidth +
+          maxTargetHeight / targetHeight
+        ) / 2
+        targetHeight *= resizeFactor
+        targetWidth *= resizeFactor
+        overviewmapElement.style.width = `${targetWidth}px`
+        overviewmapElement.style.height = `${targetHeight}px`
+        const map = this[_overviewMap].getOverviewMap()
+        map.updateSize()
+        const view = map.getView()
+        const center = view.getCenter()
+        view.fit(
+          center.concat(center),
+          { size: map.getSize() }
+        )
+      }
     } else {
       this[_overviewMap] = null
+      this[_updateOverviewMapSize] = () => {}
     }
 
     this[_drawingSource] = new VectorSource({
@@ -1721,6 +1736,7 @@ class VolumeImageViewer {
    */
   resize () {
     this[_map].updateSize()
+    this[_updateOverviewMapSize]()
   }
 
   /**
@@ -1775,6 +1791,13 @@ class VolumeImageViewer {
       ...Object.values(this[_segments]),
       ...Object.values(this[_mappings])
     ]
+
+    const styleControlElement = (element) => {
+      element.style.backgroundColor = 'rgba(255,255,255,.75)'
+      element.style.color = 'black'
+      element.style.padding = '2px'
+      element.style.margin = '1px'
+    }
 
     itemsRequiringDecodersAndTransformers.forEach(item => {
       const metadata = item.pyramid.metadata
@@ -1848,6 +1871,7 @@ class VolumeImageViewer {
         })
 
         if (this[_controls].overview && this[_overviewMap]) {
+          // Style overview element (overriding Openlayers CSS "ol-overviewmap")
           const overviewElement = this[_controls].overview.element
           const overviewChildren = overviewElement.children
           const overviewmapElement = Object.values(overviewChildren).find(
@@ -1865,40 +1889,10 @@ class VolumeImageViewer {
             spanElement.style.color = 'black'
             spanElement.style.backgroundColor = 'white'
           }
+          styleControlElement(overviewmapElement)
           overviewmapElement.style.border = '1px solid black'
           overviewmapElement.style.color = 'black'
-          // Try to fit the overview map into the target control overlay container
-          const height = Math.abs(this[_pyramid].extent[1])
-          const width = Math.abs(this[_pyramid].extent[2])
-          const rotation = this[_rotation] / Math.PI * 180
-          const windowSize = _getWindowSize()
-          let targetHeight
-          let resizeFactor
-          let targetWidth
-          if (Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01) {
-            if (windowSize[1] > windowSize[0]) {
-              targetHeight = Math.ceil(windowSize[1] * 0.2)
-              resizeFactor = targetHeight / height
-              targetWidth = width * resizeFactor
-            } else {
-              targetWidth = Math.ceil(windowSize[0] * 0.15)
-              resizeFactor = targetWidth / width
-              targetHeight = height * resizeFactor
-            }
-          } else {
-            if (windowSize[1] > windowSize[0]) {
-              targetHeight = Math.ceil(windowSize[1] * 0.2)
-              resizeFactor = targetHeight / width
-              targetWidth = height * resizeFactor
-            } else {
-              targetWidth = Math.ceil(windowSize[0] * 0.15)
-              resizeFactor = targetWidth / height
-              targetHeight = width * resizeFactor
-            }
-          }
-          overviewmapElement.style.width = `${targetWidth}px`
-          overviewmapElement.style.height = `${targetHeight}px`
-          this[_overviewMap].getOverviewMap().updateSize()
+          this[_updateOverviewMapSize]()
         }
       })
     })
@@ -1909,10 +1903,8 @@ class VolumeImageViewer {
     scaleElement.style.right = '.5em'
     scaleElement.style.bottom = '.5em'
     scaleElement.style.left = 'auto'
-    scaleElement.style.padding = '2px'
-    scaleElement.style.backgroundColor = 'rgba(255,255,255,.5)'
     scaleElement.style.borderRadius = '4px'
-    scaleElement.style.margin = '1px'
+    styleControlElement(scaleElement)
     const scaleInnerElement = this[_controls].scale.innerElement_
     scaleInnerElement.style.color = 'black'
     scaleInnerElement.style.fontWeight = '600'
@@ -1935,14 +1927,11 @@ class VolumeImageViewer {
       positionElement.style.top = '.5em'
       positionElement.style.left = 'auto'
       positionElement.style.bottom = 'auto'
-      positionElement.style.padding = '2px'
-      positionElement.style.backgroundColor = 'rgba(255,255,255,.5)'
-      positionElement.style.borderRadius = '4px'
-      positionElement.style.margin = '1px'
-      positionElement.style.color = 'black'
       positionElement.style.fontWeight = '600'
       positionElement.style.fontSize = '10px'
       positionElement.style.textAlign = 'center'
+      positionElement.style.borderRadius = '4px'
+      styleControlElement(positionElement)
     }
   }
 
@@ -2850,6 +2839,7 @@ class VolumeImageViewer {
           return
         }
 
+        // TODO: Only fetch measurements if required.
         const promises = [
           _fetchGraphicData({ metadataItem, bulkdataItem, client }),
           _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
