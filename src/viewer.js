@@ -1963,7 +1963,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Get the number of zoom levels.
+   * Number of zoom levels.
    *
    * @type number
    */
@@ -1983,7 +1983,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Get the physical offset of images on the slide.
+   * Physical offset of images.
    * Offset along the X and Y axes of the slide coordinate system in
    * millimeter unit.
    *
@@ -1998,7 +1998,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Get the physical size of images on the slide.
+   * Physical size of images.
    * Length along the X and Y axes of the slide coordinate system in
    * millimeter unit.
    *
@@ -2021,10 +2021,9 @@ class VolumeImageViewer {
   }
 
   /**
-   * Get the offset and size of the bounding box that contains the images
-   * in the slide coordinate system in millimeter unit.
+   * Bounding box that contains the images.
    *
-   * @type number[]
+   * @type number[][]
    */
   get boundingBox () {
     const startPoint = this.physicalOffset
