@@ -15,6 +15,9 @@ const defaultConfig = {
   webWorkerTaskPaths: []
 }
 
+// limit number of web workers to avoid memory problems in certain browsers
+defaultConfig.maxWebWorkers = Math.min(defaultConfig.maxWebWorkers, 7)
+
 let config
 
 const statistics = {
