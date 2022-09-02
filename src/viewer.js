@@ -65,6 +65,7 @@ import { ParameterMapping, _groupFramesPerMapping } from './mapping.js'
 import { ROI } from './roi.js'
 import { Segment } from './segment.js'
 import {
+  applyTransform,
   buildInverseTransform,
   buildTransform,
   computeRotation,
@@ -1962,6 +1963,88 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get the number of zoom levels.
+   *
+   * @type number
+   */
+  get numLevels () {
+    return this[_pyramid].pixelSpacings.length
+  }
+
+  /**
+   * Get the pixel spacing at a given zoom level.
+   *
+   * @param {Object} options - Options.
+   * @param {number} options.level - Zoom level.
+   * @returns {number[]} Spacing between the centers of two neighboring pixels
+   */
+  getPixelSpacing (level) {
+    return this[_pyramid].pixelSpacings[level].slice(0)
+  }
+
+  /**
+   * Get the physical offset of images on the slide.
+   * Offset along the X and Y axes of the slide coordinate system in
+   * millimeter unit.
+   *
+   * @type number[]
+   */
+  get physicalOffset () {
+    const point = applyTransform({
+      coordinate: [0, 0],
+      affine: this[_affine]
+    })
+    return [point[0], point[1], 0]
+  }
+
+  /**
+   * Get the physical size of images on the slide.
+   * Length along the X and Y axes of the slide coordinate system in
+   * millimeter unit.
+   *
+   * @type number[]
+   */
+  get physicalSize () {
+    const offset = this.physicalOffset
+    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+    const point = applyTransform({
+      coordinate: [
+        metadata.TotalPixelMatrixColumns,
+        metadata.TotalPixelMatrixRows
+      ],
+      affine: this[_affine]
+    })
+    return [
+      Math.abs(point[0] - offset[0]),
+      Math.abs(point[1] - offset[1])
+    ]
+  }
+
+  /**
+   * Get the offset and size of the bounding box that contains the images
+   * in the slide coordinate system in millimeter unit.
+   *
+   * @type number[]
+   */
+  get boundingBox () {
+    const startPoint = this.physicalOffset
+    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+    const endPoint = applyTransform({
+      coordinate: [
+        metadata.TotalPixelMatrixColumns,
+        metadata.TotalPixelMatrixRows
+      ],
+      affine: this[_affine]
+    })
+    const offset = [
+      Math.min(startPoint[0], endPoint[0]),
+      Math.min(startPoint[1], endPoint[1])
+    ]
+    const size = this.physicalSize
+    return [offset, size]
+  }
+
+  /**
    * Navigate the view to a spatial position or resolution level.
    *
    * @param {Object} options - Options.
@@ -1969,8 +2052,7 @@ class VolumeImageViewer {
    * @param {number[]} options.position - X, Y coordinates in slide coordinate system.
    */
   navigate ({ level, position }) {
-    const numLevels = this[_pyramid].resolutions.length
-    if (level > numLevels) {
+    if (level > this.numLevels) {
       throw new Error('Argument "level" exceeds number of resolution levels.')
     }
     let coordinates
@@ -2923,7 +3005,6 @@ class VolumeImageViewer {
               i,
               numberOfAnnotations
             )
-            console.log('DEBUG: ', this[_affineInverse])
             const coordinates = _scoord3dCoordinates2geometryCoordinates(
               point,
               pyramid,
@@ -4371,7 +4452,7 @@ class _NonVolumeImageViewer {
   /**
    * Get the size of the viewport.
    *
-   * @return {number[]}
+   * @type number[]
    */
   get size () {
     return this[_map].getSize()
