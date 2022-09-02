@@ -7,9 +7,7 @@ import LineStringGeometry from 'ol/geom/LineString'
 
 import {
   applyInverseTransform,
-  applyTransform,
-  buildInverseTransform,
-  buildTransform
+  applyTransform
 } from './utils.js'
 
 /**
@@ -18,17 +16,22 @@ import {
  *
  * @param {object} feature - OpenLayers Feature
  * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
+ * @param {number[][]} affine - 3x3 affine transformation matrix
  * @returns {Scoord3D} DICOM Microscopy Viewer Scoord3D
  * @private
  */
-function _geometry2Scoord3d (feature, pyramid) {
+function _geometry2Scoord3d (feature, pyramid, affine) {
   const geometry = feature.getGeometry()
   console.info('map coordinates from pixel matrix to slide coordinate system')
   const frameOfReferenceUID = pyramid[pyramid.length - 1].FrameOfReferenceUID
   const type = geometry.getType()
   if (type === 'Point') {
     let coordinates = geometry.getCoordinates()
-    coordinates = _geometryCoordinates2scoord3dCoordinates(coordinates, pyramid)
+    coordinates = _geometryCoordinates2scoord3dCoordinates(
+      coordinates,
+      pyramid,
+      affine
+    )
     return new Point({
       coordinates,
       frameOfReferenceUID: frameOfReferenceUID
@@ -39,7 +42,7 @@ function _geometry2Scoord3d (feature, pyramid) {
      * Each subsequent linear ring defines a hole in the surface.
      */
     const coordinates = geometry.getCoordinates()[0].map((c) => {
-      return _geometryCoordinates2scoord3dCoordinates(c, pyramid)
+      return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
     })
     return new Polygon({
       coordinates,
@@ -47,8 +50,7 @@ function _geometry2Scoord3d (feature, pyramid) {
     })
   } else if (type === 'LineString') {
     const coordinates = geometry.getCoordinates().map((c) => {
-      const result = _geometryCoordinates2scoord3dCoordinates(c, pyramid)
-      return result
+      return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
     })
     return new Polyline({
       coordinates,
@@ -65,7 +67,7 @@ function _geometry2Scoord3d (feature, pyramid) {
       [center[0], center[1] + radius, 0]
     ]
     coordinates = coordinates.map((c) => {
-      return _geometryCoordinates2scoord3dCoordinates(c, pyramid)
+      return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
     })
     return new Ellipse({
       coordinates,
@@ -83,25 +85,30 @@ function _geometry2Scoord3d (feature, pyramid) {
  *
  * @param {Scoord3D} scoord3d - DICOM Microscopy Viewer Scoord3D
  * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
+ * @param {number[][]} affine - 3x3 affine transformation matrix
  * @returns {object} Openlayers Geometry
  * @private
  */
-function _scoord3d2Geometry (scoord3d, pyramid) {
+function _scoord3d2Geometry (scoord3d, pyramid, affine) {
   console.info('map coordinates from slide coordinate system to pixel matrix')
   const type = scoord3d.graphicType
   const data = scoord3d.graphicData
 
   if (type === 'POINT') {
-    const coordinates = _scoord3dCoordinates2geometryCoordinates(data, pyramid)
+    const coordinates = _scoord3dCoordinates2geometryCoordinates(
+      data,
+      pyramid,
+      affine
+    )
     return new PointGeometry(coordinates)
   } else if (type === 'POLYLINE') {
     const coordinates = data.map((d) => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid)
+      return _scoord3dCoordinates2geometryCoordinates(d, pyramid, affine)
     })
     return new LineStringGeometry(coordinates)
   } else if (type === 'POLYGON') {
     const coordinates = data.map((d) => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid)
+      return _scoord3dCoordinates2geometryCoordinates(d, pyramid, affine)
     })
     return new PolygonGeometry([coordinates])
   } else if (type === 'ELLIPSE') {
@@ -122,7 +129,7 @@ function _scoord3d2Geometry (scoord3d, pyramid) {
       point2
     ]
     coordinates = coordinates.map((d) => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid)
+      return _scoord3dCoordinates2geometryCoordinates(d, pyramid, affine)
     })
     // to flat coordinates
     coordinates = [
@@ -177,29 +184,20 @@ function getPixelSpacing (metadata) {
  *
  * @param {array} coordinates - Array of Openlayers map coordinates
  * @param {object} pyramid - Metadata of images in the pyramid
+ * @param {number[][]} affine - 3x3 affine transformation matrix
  * @returns {array} Array of slide coordinates
  * @private
  */
-function _geometryCoordinates2scoord3dCoordinates (coordinates, pyramid) {
+function _geometryCoordinates2scoord3dCoordinates (
+  coordinates,
+  pyramid,
+  affine
+) {
   let transform = false
   if (!Array.isArray(coordinates[0])) {
     coordinates = [coordinates]
     transform = true
   }
-  const metadata = pyramid[pyramid.length - 1]
-  const origin = metadata.TotalPixelMatrixOriginSequence[0]
-  const orientation = metadata.ImageOrientationSlide
-  const spacing = getPixelSpacing(metadata)
-  const offset = [
-    Number(origin.XOffsetInSlideCoordinateSystem),
-    Number(origin.YOffsetInSlideCoordinateSystem)
-  ]
-
-  const affine = buildTransform({
-    offset,
-    orientation,
-    spacing
-  })
   coordinates = coordinates.map((c) => {
     const pixelCoord = [c[0], -(c[1] + 1)]
     const slideCoord = applyTransform({ coordinate: pixelCoord, affine })
@@ -216,30 +214,21 @@ function _geometryCoordinates2scoord3dCoordinates (coordinates, pyramid) {
  *
  * @param {array} coordinates - Array of slide coordinates
  * @param {object} pyramid - Metadata of images in the pyramid
+ * @param {number[][]} affine - 3x3 affine transformation matrix
  * @returns {array} Array of Openlayers map coordinates
  * @private
  */
-function _scoord3dCoordinates2geometryCoordinates (coordinates, pyramid) {
+function _scoord3dCoordinates2geometryCoordinates (
+  coordinates,
+  pyramid,
+  affine
+) {
   let transform = false
   if (!Array.isArray(coordinates[0])) {
     coordinates = [coordinates]
     transform = true
   }
-  const metadata = pyramid[pyramid.length - 1]
-  const orientation = metadata.ImageOrientationSlide
-  const spacing = getPixelSpacing(metadata)
-  const origin = metadata.TotalPixelMatrixOriginSequence[0]
-  const offset = [
-    Number(origin.XOffsetInSlideCoordinateSystem),
-    Number(origin.YOffsetInSlideCoordinateSystem)
-  ]
-
   let outOfFrame = false
-  const affine = buildInverseTransform({
-    offset,
-    orientation,
-    spacing
-  })
   coordinates = coordinates.map((c) => {
     if (c[0] > 25 || c[1] > 76) {
       outOfFrame = true
@@ -292,10 +281,11 @@ function _computeAreaOfPolygon (coordinates) {
  *
  * @param {Feature} feature - Openlayers feature
  * @param {object} pyramid - Metadata of images in the pyramid
+ * @param {number[][]} affine - 3x3 affine transformation matrix
  * @returns {number} Length in millimeter
  * @private
  */
-function _getFeatureLength (feature, pyramid) {
+function _getFeatureLength (feature, pyramid, affine) {
   const geometry = feature.getGeometry()
   const type = geometry.getType()
 
@@ -303,7 +293,7 @@ function _getFeatureLength (feature, pyramid) {
     const coordinates = geometry.getCoordinates()
     if (coordinates && coordinates.length) {
       const scoord3dCoordinates = coordinates.map((c) =>
-        _geometryCoordinates2scoord3dCoordinates(c, pyramid)
+        _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
       )
       let length = 0
       for (let i = 0; i < (scoord3dCoordinates.length - 1); i++) {
@@ -327,10 +317,11 @@ function _getFeatureLength (feature, pyramid) {
  *
  * @param {Feature} feature - Openlayers feature
  * @param {object} pyramid - Metadata of images in the pyramid
+ * @param {number[][]} affine - 3x3 affine transformation matrix
  * @returns {number} Area in square millimeter
  * @private
  */
-function _getFeatureArea (feature, pyramid) {
+function _getFeatureArea (feature, pyramid, affine) {
   let geometry = feature.getGeometry()
   let type = geometry.getType()
 
@@ -344,7 +335,9 @@ function _getFeatureArea (feature, pyramid) {
     if (coordinates && coordinates.length) {
       const scoord3dCoordinates = geometry
         .getCoordinates()[0]
-        .map((c) => _geometryCoordinates2scoord3dCoordinates(c, pyramid))
+        .map((c) => {
+          return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
+        })
       return _computeAreaOfPolygon(scoord3dCoordinates) * 1000
     }
   }

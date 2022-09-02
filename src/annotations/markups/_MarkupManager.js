@@ -60,9 +60,18 @@ const _getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
 }
 
 class _MarkupManager {
-  constructor ({ map, pyramid, drawingSource, formatters, onClick, onStyle } = {}) {
+  constructor ({
+    map,
+    pyramid,
+    affine,
+    drawingSource,
+    formatters,
+    onClick,
+    onStyle
+  } = {}) {
     this._map = map
     this._pyramid = pyramid
+    this._affine = affine
     this._formatters = formatters
     this._drawingSource = drawingSource
 
@@ -251,7 +260,12 @@ class _MarkupManager {
           const view = this._map.getView()
           const unitSuffix = _getUnitSuffix(view)
           const format = this._getFormatter(event.target)
-          const output = format(event.target, unitSuffix, this._pyramid)
+          const output = format(
+            event.target,
+            unitSuffix,
+            this._pyramid,
+            this._affine
+          )
           this.update({
             feature,
             value: output,

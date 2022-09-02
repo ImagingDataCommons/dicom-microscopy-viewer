@@ -79,6 +79,7 @@ describe('_AnnotationManager', () => {
       set: jest.fn()
     }
     map = { addOverlay: jest.fn(), addLayer: jest.fn() }
+    // TODO
     _markupManager = new _MarkupManager()
     _annotationManager = new _AnnotationManager({
       map: {}

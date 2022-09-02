@@ -15,9 +15,9 @@ import {
  *
  * @private
  */
-export const _format = (feature, units, pyramid) => {
-  const area = _getFeatureArea(feature, pyramid)
-  const length = _getFeatureLength(feature, pyramid)
+export const _format = (feature, units, pyramid, affine) => {
+  const area = _getFeatureArea(feature, pyramid, affine)
+  const length = _getFeatureLength(feature, pyramid, affine)
   const value = length || area || 0
   return length
     ? `${value.toFixed(2)} ${units}`
@@ -39,14 +39,15 @@ const _isMeasurement = (feature) =>
 /**
  * Measurement markup definition.
  *
- * @param {object} dependencies Shared dependencies
- * @param {object} dependencies.map Viewer's map instance
- * @param {object} dependencies.pyramid Pyramid metadata
- * @param {object} dependencies.markupManager MarkupManager shared instance
+ * @param {object} dependencies - Shared dependencies
+ * @param {object} dependencies.map - Viewer's map instance
+ * @param {object} dependencies.pyramid - Pyramid metadata
+ * @param {number[][]} dependencies.affine - 3x3 affine transformation matrix
+ * @param {object} dependencies.markupManager - MarkupManager shared instance
  *
  * @private
  */
-const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
+const MeasurementMarkup = ({ map, pyramid, affine, markupManager }) => {
   return {
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
@@ -54,7 +55,7 @@ const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
         const unitSuffix = _getUnitSuffix(view)
         markupManager.create({
           feature,
-          value: _format(feature, unitSuffix, pyramid)
+          value: _format(feature, unitSuffix, pyramid, affine)
         })
       }
     },
@@ -81,7 +82,7 @@ const MeasurementMarkup = ({ map, pyramid, markupManager }) => {
       const markup = markupManager.get(id)
       markupManager.update({
         feature,
-        value: _format(feature, unitSuffix, pyramid),
+        value: _format(feature, unitSuffix, pyramid, affine),
         coordinate: markup.overlay.getPosition()
       })
     },
