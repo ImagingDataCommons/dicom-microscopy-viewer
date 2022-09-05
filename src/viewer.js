@@ -36,7 +36,7 @@ import WebGLHelper from 'ol/webgl/Helper'
 import TileDebug from 'ol/source/TileDebug'
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
-import { getCenter } from 'ol/extent'
+import { getCenter, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
 import { quantileSeq } from 'mathjs'
@@ -1199,16 +1199,13 @@ class VolumeImageViewer {
     }
 
     if (Math.max(...this[_pyramid].gridSizes[0]) <= 10) {
-      const center = view.getCenter()
+      const center = getCenter(this[_projection].getExtent())
       this[_overviewMap] = new OverviewMap({
         view: new View({
           projection: this[_projection],
           rotation: this[_rotation],
           constrainOnlyCenter: true,
-          resolutions: this[_tileGrid].getResolutions(),
-          minZoom: 0,
-          maxZoom: 0,
-          center: center,
+          resolutions: [this[_tileGrid].getResolution(0)],
           extent: center.concat(center),
           showFullExtent: true
         }),
@@ -1218,51 +1215,66 @@ class VolumeImageViewer {
         rotateWithView: true
       })
       this[_updateOverviewMapSize] = () => {
-        const overviewElement = this[_controls].overview.element
-        const overviewChildren = overviewElement.children
-        const overviewmapElement = Object.values(overviewChildren).find(
-          c => c.className === 'ol-overviewmap-map'
-        )
-        // Try to fit the overview map into the target control overlay container
-        const height = this[_pyramid].metadata[0].TotalPixelMatrixRows
-        const width = this[_pyramid].metadata[0].TotalPixelMatrixColumns
-        const rotation = this[_rotation] / Math.PI * 180
+        const degrees = this[_rotation] / Math.PI * 180
         const isRotated = !(
-          Math.abs(rotation - 180) < 0.01 || Math.abs(rotation - 0) < 0.01
+          Math.abs(degrees - 180) < 0.01 || Math.abs(degrees - 0) < 0.01
         )
         const viewport = this[_map].getViewport()
         const viewportHeight = viewport.clientHeight
         const viewportWidth = viewport.clientWidth
-        const viewportHeightFraction = 0.3
+        const viewportHeightFraction = 0.45
         const viewportWidthFraction = 0.25
-        const maxTargetHeight = viewportHeight * viewportHeightFraction
-        const maxTargetWidth = viewportWidth * viewportWidthFraction
-        let targetHeight
-        let targetWidth
+        const targetHeight = viewportHeight * viewportHeightFraction
+        const targetWidth = viewportWidth * viewportWidthFraction
+
+        const extent = this[_projection].getExtent()
+        let height
+        let width
+        let resolution
         if (isRotated) {
-          targetHeight = width
-          targetWidth = height
+          if (targetWidth > targetHeight) {
+            height = targetHeight
+            width = (height * getHeight(extent)) / getWidth(extent)
+            resolution = getWidth(extent) / height
+          } else {
+            width = targetWidth
+            height = (width * getWidth(extent)) / getHeight(extent)
+            resolution = getHeight(extent) / width
+          }
         } else {
-          targetHeight = height
-          targetWidth = width
+          if (targetHeight > targetWidth) {
+            width = targetWidth
+            height = (width * getHeight(extent)) / getWidth(extent)
+            resolution = getWidth(extent) / width
+          } else {
+            height = targetHeight
+            width = (height * getWidth(extent)) / getHeight(extent)
+            resolution = getHeight(extent) / height
+          }
         }
-        let resizeFactor = 1
-        resizeFactor = (
-          maxTargetWidth / targetWidth +
-          maxTargetHeight / targetHeight
-        ) / 2
-        targetHeight *= resizeFactor
-        targetWidth *= resizeFactor
-        overviewmapElement.style.width = `${targetWidth}px`
-        overviewmapElement.style.height = `${targetHeight}px`
+        const center = getCenter(extent)
+        const overviewView = new View({
+          projection: this[_projection],
+          rotation: this[_rotation],
+          constrainOnlyCenter: true,
+          minResolution: resolution,
+          maxResolution: resolution,
+          extent: center.concat(center),
+          showFullExtent: true
+        })
         const map = this[_overviewMap].getOverviewMap()
-        map.updateSize()
-        const view = map.getView()
-        const center = view.getCenter()
-        view.fit(
-          center.concat(center),
-          { size: map.getSize() }
+
+        const overviewElement = this[_overviewMap].element
+        const overviewChildren = overviewElement.children
+        const overviewmapElement = Object.values(overviewChildren).find(
+          c => c.className === 'ol-overviewmap-map'
         )
+        overviewmapElement.style.width = `${width}px`
+        overviewmapElement.style.height = `${height}px`
+        map.updateSize()
+        map.setView(overviewView)
+        this[_map].removeControl(this[_overviewMap])
+        this[_map].addControl(this[_overviewMap])
       }
     } else {
       this[_overviewMap] = null
@@ -1767,9 +1779,9 @@ class VolumeImageViewer {
   }
 
   /**
-   * Get the size of the viewport.
+   * Size of the viewport.
    *
-   * @return {number[]}
+   * @type {number[]}
    */
   get size () {
     return this[_map].getSize()
@@ -1842,6 +1854,7 @@ class VolumeImageViewer {
         const view = this[_map].getView()
         const projection = view.getProjection()
         view.fit(projection.getExtent(), { size: this[_map].getSize() })
+        this[_updateOverviewMapSize]()
 
         this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
           publish(
@@ -4430,7 +4443,7 @@ class _NonVolumeImageViewer {
   /**
    * DICOM metadata for the displayed VL Whole Slide Microscopy Image instances.
    *
-   * @return {VLWholeSlideMicroscopyImage}
+   * @type {VLWholeSlideMicroscopyImage}
    */
   get imageMetadata () {
     return this[_metadata]
@@ -4449,7 +4462,7 @@ class _NonVolumeImageViewer {
   }
 
   /**
-   * Get the size of the viewport.
+   * Size of the viewport.
    *
    * @type number[]
    */
