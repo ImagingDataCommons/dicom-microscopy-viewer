@@ -1985,6 +1985,15 @@ class VolumeImageViewer {
   }
 
   /**
+   * Frame of Reference UID.
+   *
+   * @type string
+   */
+  get frameOfReferenceUID () {
+    return this[_pyramid].metadata[0].FrameOfReferenceUID
+  }
+
+  /**
    * Get the pixel spacing at a given zoom level.
    *
    * @param {Object} options - Options.
@@ -4450,6 +4459,15 @@ class _NonVolumeImageViewer {
    */
   get imageMetadata () {
     return this[_metadata]
+  }
+
+  /**
+   * Frame of Reference UID.
+   *
+   * @type string
+   */
+  get frameOfReferenceUID () {
+    return this[_metadata].FrameOfReferenceUID
   }
 
   /**
