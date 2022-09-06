@@ -2635,8 +2635,11 @@ class VolumeImageViewer {
    * @returns {roi.ROI} Region of interest.
    */
   getROI (uid) {
-    console.info(`get ROI ${uid}`)
+    console.debug(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
+    if (feature == null) {
+      throw new Error(`Could not find a ROI with UID "${uid}".`)
+    }
     return this._getROIFromFeature(
       feature,
       this[_pyramid].metadata,
@@ -2788,7 +2791,7 @@ class VolumeImageViewer {
       return feature.getId() === uid
     })
     if (feature == null) {
-      throw new Error()
+      throw new Error(`Could not find a ROI with UID "${uid}".`)
     }
     const style = feature.getStyle()
     const stroke = style.getStroke()
@@ -4441,7 +4444,7 @@ class _NonVolumeImageViewer {
   }
 
   /**
-   * DICOM metadata for the displayed VL Whole Slide Microscopy Image instances.
+   * DICOM metadata for the displayed VL Whole Slide Microscopy Image instance.
    *
    * @type {VLWholeSlideMicroscopyImage}
    */

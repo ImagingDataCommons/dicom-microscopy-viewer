@@ -22,7 +22,6 @@ import {
  */
 function _geometry2Scoord3d (feature, pyramid, affine) {
   const geometry = feature.getGeometry()
-  console.info('map coordinates from pixel matrix to slide coordinate system')
   const frameOfReferenceUID = pyramid[pyramid.length - 1].FrameOfReferenceUID
   const type = geometry.getType()
   if (type === 'Point') {
@@ -90,7 +89,6 @@ function _geometry2Scoord3d (feature, pyramid, affine) {
  * @private
  */
 function _scoord3d2Geometry (scoord3d, pyramid, affine) {
-  console.info('map coordinates from slide coordinate system to pixel matrix')
   const type = scoord3d.graphicType
   const data = scoord3d.graphicData
 
