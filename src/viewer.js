@@ -1,6 +1,6 @@
 import 'ol/ol.css'
 import Collection from 'ol/Collection'
-import Draw, { createRegularPolygon } from 'ol/interaction/Draw'
+import Draw, { createBox } from 'ol/interaction/Draw'
 import EVENT from './events'
 import publish from './eventPublisher'
 import Feature from 'ol/Feature'
@@ -2113,7 +2113,7 @@ class VolumeImageViewer {
       box: {
         type: 'Circle',
         geometryName: 'Box',
-        geometryFunction: createRegularPolygon(4)
+        geometryFunction: createBox()
       },
       polygon: {
         type: 'Polygon',
