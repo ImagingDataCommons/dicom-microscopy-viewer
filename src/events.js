@@ -28,10 +28,14 @@ const EVENTS = {
   LOADING_STARTED: `${PROJECT_NAME}_loading_started`,
   /** Triggered when a loading of data has ended. */
   LOADING_ENDED: `${PROJECT_NAME}_loading_ended`,
+  /** Triggered when an error occurs during loading of data. */
+  LOADING_ERROR: `${PROJECT_NAME}_loading_error`,
   /* Triggered when the loading of an image tile has started. */
   FRAME_LOADING_STARTED: `${PROJECT_NAME}_frame_loading_started`,
   /* Triggered when the loading of an image tile has ended. */
-  FRAME_LOADING_ENDED: `${PROJECT_NAME}_frame_loading_ended`
+  FRAME_LOADING_ENDED: `${PROJECT_NAME}_frame_loading_ended`,
+  /* Triggered when the error occurs during loading of an image tile. */
+  FRAME_LOADING_ERROR: `${PROJECT_NAME}_frame_loading_ended`
 }
 
 export default EVENTS

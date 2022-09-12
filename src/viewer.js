@@ -3076,7 +3076,8 @@ class VolumeImageViewer {
         loader,
         wrapX: false,
         rotateWithView: true,
-        overlaps: false
+        overlaps: false,
+        features: new Collection([], { unique: true })
       })
       source.on('featuresloadstart', (event) => {
         const container = this[_map].getTargetElement()
@@ -3089,6 +3090,7 @@ class VolumeImageViewer {
       source.on('featuresloaderror', (event) => {
         const container = this[_map].getTargetElement()
         publish(container, EVENT.LOADING_ENDED)
+        publish(container, EVENT.LOADING_ERROR)
       })
 
       /*

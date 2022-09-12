@@ -479,11 +479,7 @@ function _createTileLoadFunction ({
         frameNumber: frameNumbers[0],
         channelIdentifier: String(channel)
       }
-      publish(
-        targetElement,
-        EVENT.FRAME_LOADING_STARTED,
-        frameInfo
-      )
+      publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
 
       const retrieveOptions = {
         studyInstanceUID,
@@ -531,11 +527,8 @@ function _createTileLoadFunction ({
         }
       ).catch(
         (error) => {
-          publish(
-            targetElement,
-            EVENT.FRAME_LOADING_ENDED,
-            null
-          )
+          publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
+          publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo)
           return Promise.reject(
             new Error(
               `Failed to load frames ${frameNumbers} ` +
