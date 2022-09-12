@@ -425,7 +425,8 @@ async function _fetchMeasurements ({
   if (metadataItem.MeasurementsSequence !== undefined) {
     for (let i = 0; i < metadataItem.MeasurementsSequence.length; i++) {
       const item = metadataItem.MeasurementsSequence[i]
-      const name = getContentItemNameCodedConcept(item)
+      const name = item.ConceptNameCodeSequence[0]
+      const unit = item.MeasurementUnitsCodeSequence[0]
       const values = await _fetchMeasurementValues({
         metadataItem,
         bulkdataItem,
@@ -440,6 +441,7 @@ async function _fetchMeasurements ({
       })
       measurements.push({
         name,
+        unit,
         values,
         indices
       })
@@ -483,7 +485,8 @@ async function _fetchMeasurement ({
       `Measurements Sequence does not contain an item #${index}.`
     )
   }
-  const name = getContentItemNameCodedConcept(item)
+  const name = item.ConceptNameCodeSequence[0]
+  const unit = item.MeasurementUnitsCodeSequence[0]
   const values = await _fetchMeasurementValues({
     metadataItem,
     bulkdataItem,
@@ -496,7 +499,7 @@ async function _fetchMeasurement ({
     index,
     client
   })
-  return { name, values, indices }
+  return { name, unit, values, indices }
 }
 
 /**
