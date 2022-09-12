@@ -676,7 +676,7 @@ function _getColorPaletteStyleForPointLayer ({
   const expression = [
     'palette',
     indexExpression,
-    colormap.map(c => rgb2hex(c))
+    colormap
   ]
 
   return { color: expression }
@@ -684,6 +684,9 @@ function _getColorPaletteStyleForPointLayer ({
 
 const _affine = Symbol('affine')
 const _affineInverse = Symbol('affineInverse')
+const _annotationManager = Symbol('annotationManager')
+const _annotationGroups = Symbol('annotationGroups')
+const _areIccProfilesFetched = Symbol('areIccProfilesFetched')
 const _controls = Symbol('controls')
 const _drawingLayer = Symbol('drawingLayer')
 const _drawingSource = Symbol('drawingSource')
@@ -693,17 +696,15 @@ const _interactions = Symbol('interactions')
 const _map = Symbol('map')
 const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
-const _areIccProfilesFetched = Symbol('areIccProfilesFetched')
+const _opticalPaths = Symbol('opticalPaths')
 const _options = Symbol('options')
+const _overlays = Symbol('overlays')
+const _overviewMap = Symbol('overviewMap')
+const _projection = Symbol('projection')
 const _pyramid = Symbol('pyramid')
 const _segments = Symbol('segments')
-const _opticalPaths = Symbol('opticalPaths')
 const _rotation = Symbol('rotation')
-const _projection = Symbol('projection')
 const _tileGrid = Symbol('tileGrid')
-const _annotationManager = Symbol('annotationManager')
-const _annotationGroups = Symbol('annotationGroups')
-const _overviewMap = Symbol('overviewMap')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 
 /**
@@ -731,6 +732,10 @@ class VolumeImageViewer {
    * turned on (e.g., display of tile boundaries)
    * @param {number} [options.tilesCacheSize=1000] - Number of tiles that should
    * be cached to avoid repeated retrieval for the DICOMweb server
+   * @param {number[]} [options.primaryColor=[0, 126, 163]] - Primary color of
+   * the application
+   * @param {number[]} [options.highlightColor=[140, 184, 198]] - Color that
+   * should be used to highlight things that get selected by the user
    */
   constructor (options) {
     this[_options] = options
@@ -755,6 +760,13 @@ class VolumeImageViewer {
       this[_options].controls = []
     }
     this[_options].controls = new Set(this[_options].controls)
+
+    if (this[_options].primaryColor == null) {
+      this[_options].primaryColor = [0, 126, 163]
+    }
+    if (this[_options].highlightColor == null) {
+      this[_options].highlightColor = [140, 184, 198]
+    }
 
     // Collection of Openlayers "TileLayer" instances
     this[_segments] = {}
@@ -1473,8 +1485,8 @@ class VolumeImageViewer {
           opticalPath.overviewLayer.setStyle(style)
         } else {
           const styleVariables = {
-            windowCenter: windowCenter,
-            windowWidth: windowWidth,
+            windowCenter,
+            windowWidth,
             red: opticalPath.style.color[0],
             green: opticalPath.style.color[1],
             blue: opticalPath.style.color[2]
@@ -2950,7 +2962,108 @@ class VolumeImageViewer {
 
     const defaultAnnotationGroupStyle = {
       opacity: 1.0,
-      color: [2, 126, 163]
+      color: this[_options].primaryColor
+    }
+
+    // We need to bind those variables to constants for the loader function
+    const client = this[_options].client
+    const pyramid = this[_pyramid].metadata
+    const affineInverse = this[_affineInverse]
+    const container = this[_map].getTargetElement()
+    const _getROIFromFeature = (feature) => {
+      const roi = this._getROIFromFeature(
+        feature,
+        this[_pyramid].metadata,
+        this[_affine]
+      )
+      const annotationGroupUID = feature.get('annotationGroupUID')
+      const annotationGroupMetadata = metadata.AnnotationGroupSequence.find(
+        item => item.AnnotationGroupUID === annotationGroupUID
+      )
+
+      const findingCategory = (
+        annotationGroupMetadata
+          .AnnotationPropertyCategoryCodeSequence[0]
+      )
+      roi.addEvaluation(
+        new dcmjs.sr.valueTypes.CodeContentItem({
+          name: new dcmjs.sr.coding.CodedConcept({
+            value: '276214006',
+            meaning: 'Finding category',
+            schemeDesignator: 'SCT'
+          }),
+          value: new dcmjs.sr.coding.CodedConcept({
+            value: findingCategory.CodeValue,
+            meaning: findingCategory.CodeMeaning,
+            schemeDesignator: findingCategory.CodingSchemeDesignator
+          }),
+          relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
+        })
+      )
+      const findingType = (
+        annotationGroupMetadata
+          .AnnotationPropertyTypeCodeSequence[0]
+      )
+      roi.addEvaluation(
+        new dcmjs.sr.valueTypes.CodeContentItem({
+          name: new dcmjs.sr.coding.CodedConcept({
+            value: '121071',
+            meaning: 'Finding',
+            schemeDesignator: 'DCM'
+          }),
+          value: new dcmjs.sr.coding.CodedConcept({
+            value: findingType.CodeValue,
+            meaning: findingType.CodeMeaning,
+            schemeDesignator: findingType.CodingSchemeDesignator
+          }),
+          relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
+        })
+      )
+
+      annotationGroupMetadata.MeasurementsSequence.forEach(
+        (measurementItem, measurementIndex) => {
+          const key = `measurementValue${measurementIndex.toString()}`
+          const value = feature.get(key)
+          const name = measurementItem.ConceptNameCodeSequence[0]
+          const unit = measurementItem.MeasurementUnitsCodeSequence[0]
+
+          const measurement = new dcmjs.sr.valueTypes.NumContentItem({
+            value: Number(value),
+            name: new dcmjs.sr.coding.CodedConcept({
+              value: name.CodeValue,
+              meaning: name.CodeMeaning,
+              schemeDesignator: name.CodingSchemeDesignator
+            }),
+            unit: new dcmjs.sr.coding.CodedConcept({
+              value: unit.CodeValue,
+              meaning: unit.CodeMeaning,
+              schemeDesignator: unit.CodingSchemeDesignator
+            }),
+            relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.CONTAINS
+          })
+          if (measurementItem.ReferencedImageSequence != null) {
+            const ref = measurementItem.ReferencedImageSequence[0]
+            const image = new dcmjs.sr.valueTypes.ImageContentItem({
+              name: new dcmjs.sr.coding.CodedConcept({
+                value: '121112',
+                meaning: 'Source of Measurement',
+                schemeDesignator: 'DCM'
+              }),
+              referencedSOPClassUID: ref.ReferencedSOPClassUID,
+              referencedSOPInstanceUID: ref.ReferencedSOPInstanceUID
+            })
+            if (ref.ReferencedOpticalPathIdentifier != null) {
+              image.ReferencedSOPSequence[0].ReferencedOpticalPathIdentifier = (
+                ref.ReferencedOpticalPathIdentifier
+              )
+            }
+            measurement.ContentSequence = [image]
+          }
+          roi.addMeasurement(measurement)
+        }
+      )
+
+      return roi
     }
 
     metadata.AnnotationGroupSequence.forEach((item, index) => {
@@ -2971,7 +3084,7 @@ class VolumeImageViewer {
         }),
         style: { ...defaultAnnotationGroupStyle },
         defaultStyle: defaultAnnotationGroupStyle,
-        metadata: metadata
+        metadata
       }
 
       if (item.GraphicType === 'POLYLINE') {
@@ -2985,11 +3098,6 @@ class VolumeImageViewer {
         )
         return
       }
-
-      // We need to bind those variables to constants for the loader function
-      const client = this[_options].client
-      const pyramid = this[_pyramid].metadata
-      const affineInverse = this[_affineInverse]
 
       /**
        * In the loader function "this" is bound to the vector source.
@@ -3053,13 +3161,16 @@ class VolumeImageViewer {
             const feature = new Feature({
               geometry: new PointGeometry(coordinates)
             })
-            const properties = {}
+
+            feature.set('annotationGroupUID', annotationGroupUID, true)
             measurements.forEach((measurementItem, measurementIndex) => {
+              const key = `measurementValue${measurementIndex.toString()}`
               const value = measurementItem.values[i]
-              properties[measurementIndex] = value
+              // Needed for the WebGL renderer
+              feature.set(key, value, true)
             })
-            feature.setProperties(properties, true)
-            feature.setId(i + 1)
+            const uid = _generateUID(`${annotationGroupUID}-${i}`)
+            feature.setId(uid)
             features.push(feature)
           }
 
@@ -3086,7 +3197,8 @@ class VolumeImageViewer {
               (a, b) => Math.max(a, b),
               -Infinity
             )
-            properties[measurementIndex] = { min, max }
+            const key = `measurementValue${measurementIndex.toString()}`
+            properties[key] = { min, max }
           })
           this.setProperties(properties, true)
           success(features)
@@ -3139,12 +3251,39 @@ class VolumeImageViewer {
       }
       annotationGroup.layer = new PointsLayer({
         source,
-        style
+        style,
+        disableHitDetection: false
       })
       annotationGroup.layer.setVisible(false)
 
       this[_map].addLayer(annotationGroup.layer)
       this[_annotationGroups][annotationGroupUID] = annotationGroup
+    })
+
+    let selectedAnnotation = null
+    this[_map].on('singleclick', (e) => {
+      if (selectedAnnotation !== null) {
+        selectedAnnotation.set('selected', 0)
+        selectedAnnotation = null
+      }
+
+      this[_map].forEachFeatureAtPixel(
+        e.pixel,
+        (feature) => {
+          feature.set('selected', 1)
+          selectedAnnotation = feature
+          publish(
+            container,
+            EVENT.ROI_SELECTED,
+            _getROIFromFeature(feature)
+          )
+          return true
+        },
+        {
+          hitTolerance: 1,
+          layerFilter: (layer) => (layer instanceof PointsLayer)
+        }
+      )
     })
   }
 
@@ -3286,11 +3425,8 @@ class VolumeImageViewer {
         )
       }
       const properties = source.getProperties()
-      if (properties[measurementIndex]) {
-        const colormap = createColormap({
-          name: ColormapNames.VIRIDIS,
-          bins: 50
-        })
+      const key = `measurementValue${measurementIndex.toString()}`
+      if (properties[key]) {
         const style = {
           symbol: {
             symbolType: 'circle',
@@ -3306,19 +3442,23 @@ class VolumeImageViewer {
             opacity: annotationGroup.style.opacity
           }
         }
+        const colormap = createColormap({
+          name: ColormapNames.VIRIDIS,
+          bins: 50
+        })
         Object.assign(
-          style,
+          style.symbol,
           _getColorPaletteStyleForPointLayer({
-            key: measurementIndex,
-            minValue: properties[measurementIndex].min,
-            maxValue: properties[measurementIndex].max,
+            key,
+            minValue: properties[key].min,
+            maxValue: properties[key].max,
             colormap
           })
         )
         const newLayer = new PointsLayer({
           source,
           style,
-          disableHitDetection: true,
+          disableHitDetection: false,
           visible: false
         })
         this[_map].addLayer(newLayer)
@@ -3339,14 +3479,20 @@ class VolumeImageViewer {
             this[_pyramid].metadata.length,
             15
           ],
-          color: rgb2hex(annotationGroup.style.color),
+          color: [
+            'match',
+            ['get', 'selected'],
+            1,
+            rgb2hex(this[_options].highlightColor),
+            rgb2hex(annotationGroup.style.color)
+          ],
           opacity: annotationGroup.style.opacity
         }
       }
       const newLayer = new PointsLayer({
         source,
         style,
-        disableHitDetection: true,
+        disableHitDetection: false,
         visible: false
       })
       this[_map].addLayer(newLayer)
