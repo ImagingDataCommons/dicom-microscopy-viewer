@@ -214,11 +214,13 @@ async function _fetchGraphicData ({
       )
     } else {
       if ('PointCoordinatesData' in bulkdataItem) {
+        console.info(`fetch point coordinate data of annotation group "${uid}"`)
         return await _fetchBulkdata({
           client,
           reference: bulkdataItem.PointCoordinatesData
         })
       } else if ('DoublePointCoordinatesData' in bulkdataItem) {
+        console.info(`fetch point coordinate data of annotation group "${uid}"`)
         return await _fetchBulkdata({
           client,
           reference: bulkdataItem.DoublePointCoordinatesData
@@ -266,6 +268,7 @@ async function _fetchGraphicIndex ({
       }
     } else {
       if ('LongPrimitivePointIndexList' in bulkdataItem) {
+        console.info(`fetch point index list of annotation group "${uid}"`)
         return await _fetchBulkdata({
           client,
           reference: bulkdataItem.LongPrimitivePointIndexList
@@ -324,6 +327,11 @@ async function _fetchMeasurementValues ({
         measurementBulkdataItem.MeasurementValuesSequence[0]
       )
       if ('FloatingPointValues' in valuesBulkdataItem) {
+        const nameItem = measurementMetadataItem.ConceptNameCodeSequence[0]
+        const name = nameItem.CodeMeaning
+        console.info(
+          `fetch measurement values for measurement #${index} "${name}"`
+        )
         return await _fetchBulkdata({
           client,
           reference: valuesBulkdataItem.FloatingPointValues
@@ -380,6 +388,11 @@ async function _fetchMeasurementIndices ({
           .MeasurementValuesSequence[0]
       )
       if ('AnnotationIndexList' in valuesBulkdataItem) {
+        const nameItem = measurementMetadataItem.ConceptNameCodeSequence[0]
+        const name = nameItem.CodeMeaning
+        console.info(
+          `fetch measurement indices for measurement #${index} "${name}"`
+        )
         return await _fetchBulkdata({
           client,
           reference: valuesBulkdataItem.AnnotationIndexList
@@ -392,7 +405,7 @@ async function _fetchMeasurementIndices ({
 }
 
 /**
- * Fetch measurements of an annotation group.
+ * Fetch all measurements of an annotation group.
  *
  * @param {object} options
  * @param {object} options.metadataItem - Metadata of Annotation Group Sequence item
@@ -433,6 +446,57 @@ async function _fetchMeasurements ({
     }
   }
   return measurements
+}
+
+/**
+ * Fetch an individual measurement of an annotation group.
+ *
+ * @param {object} options
+ * @param {object} options.metadataItem - Metadata of Annotation Group Sequence item
+ * @param {object} options.bulkdataItem - Bulkdata of Annotation Group Sequence item
+ * @param {object} options.index - Index of the Measurements Sequence item
+ * @param {object} options.client - DICOMweb client
+ *
+ * @returns {Promise<Array<object>>} Name, values, and indices of measurements
+ *
+ * @private
+ */
+async function _fetchMeasurement ({
+  metadataItem,
+  bulkdataItem,
+  index,
+  client
+}) {
+  if (metadataItem.MeasurementsSequence == null) {
+    throw new Error(
+      'Measurements Sequence element is not contained in metadata.'
+    )
+  }
+  if (metadataItem.MeasurementsSequence.length === 0) {
+    throw new Error(
+      'Measurements Sequence element in empty.'
+    )
+  }
+  const item = metadataItem.MeasurementsSequence[index]
+  if (item == null) {
+    throw new Error(
+      `Measurements Sequence does not contain an item #${index}.`
+    )
+  }
+  const name = getContentItemNameCodedConcept(item)
+  const values = await _fetchMeasurementValues({
+    metadataItem,
+    bulkdataItem,
+    index,
+    client
+  })
+  const indices = await _fetchMeasurementIndices({
+    metadataItem,
+    bulkdataItem,
+    index,
+    client
+  })
+  return { name, values, indices }
 }
 
 /**
@@ -725,6 +789,7 @@ export {
   _fetchGraphicData,
   _fetchGraphicIndex,
   _fetchMeasurements,
+  _fetchMeasurement,
   _getCentroid,
   _getCommonZCoordinate,
   _getCoordinateDimensionality
