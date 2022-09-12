@@ -2733,7 +2733,20 @@ class VolumeImageViewer {
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
    */
   addROI (roi, styleOptions = {}) {
-    console.info(`add ROI ${roi.uid}`)
+    console.info(`add ROI "${roi.uid}"`)
+
+    // Avoid insertion of duplicates
+    let exists = false
+    for (let i = 0; i < this[_features].getLength(); i++) {
+      const feature = this[_features].item(i)
+      if (feature.getId() === roi.uid) {
+        exists = true
+        break
+      }
+    }
+    if (exists) {
+      console.warn(`ROI "${roi.uid}" not added because it already exists`)
+    }
 
     const frameOfReferenceUID = this[_pyramid].metadata.FrameOfReferenceUID
     if (roi.frameOfReferenceUID !== frameOfReferenceUID) {
