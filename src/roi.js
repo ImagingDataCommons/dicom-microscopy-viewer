@@ -13,7 +13,7 @@ const _properties = Symbol('properties')
 class ROI {
   /**
    * @param {Object} options - Options for construction of ROI
-   * @param {scoord3d.Scoord3D} options.scoord3d - Spatial 3D coordinates
+   * @param {scoord3d.scoord3d} options.scoord3d - Spatial 3D coordinates
    * @param {string} options.uid - Unique idenfifier
    * @param {Object} options.properties - Properties (name-value pairs)
    */
