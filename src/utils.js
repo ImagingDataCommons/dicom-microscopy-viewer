@@ -102,7 +102,7 @@ function createWindow (lowerBound, upperBound) {
 }
 
 /**
- * Computes the rotation of the image with respect to the frame of reference.
+ * Compute the rotation of the image with respect to the frame of reference.
  *
  * @param {Object} options - Options
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
@@ -644,6 +644,21 @@ async function _fetchBulkdata ({ client, reference }) {
   })
 }
 
+/**
+ * Convert RGB color triplet into hex code.
+ *
+ * @param {Number[]} values - RGB triplet
+ * @returns {String} Hex code
+ *
+ * @private
+ */
+function rgb2hex (values) {
+  const r = values[0]
+  const g = values[1]
+  const b = values[2]
+  return '#' + (0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1)
+}
+
 export {
   _getUnitSuffix,
   applyInverseTransform,
@@ -651,6 +666,7 @@ export {
   buildInverseTransform,
   buildTransform,
   computeRotation,
+  createWindow,
   _fetchBulkdata,
   _generateUID,
   mapPixelCoordToSlideCoord,
@@ -661,6 +677,6 @@ export {
   doContentItemsMatch,
   areCodedConceptsEqual,
   getContentItemNameCodedConcept,
-  rescale,
-  createWindow
+  rgb2hex,
+  rescale
 }

@@ -39,7 +39,6 @@ import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
-import { quantileSeq } from 'mathjs'
 
 import {
   AnnotationGroup,
@@ -65,14 +64,17 @@ import { ParameterMapping, _groupFramesPerMapping } from './mapping.js'
 import { ROI } from './roi.js'
 import { Segment } from './segment.js'
 import {
+  areCodedConceptsEqual,
   applyTransform,
   buildInverseTransform,
   buildTransform,
   computeRotation,
+  getContentItemNameCodedConcept,
   _generateUID,
   _getUnitSuffix,
   doContentItemsMatch,
-  createWindow
+  createWindow,
+  rgb2hex
 } from './utils.js'
 import {
   _scoord3dCoordinates2geometryCoordinates,
@@ -630,7 +632,7 @@ function _getColorInterpolationStyleForTileLayer ({
  * @private
  */
 function _getColorPaletteStyleForPointLayer ({
-  name,
+  key,
   minValue,
   maxValue,
   colormap
@@ -649,7 +651,7 @@ function _getColorPaletteStyleForPointLayer ({
             '*',
             [
               '-',
-              ['get', name],
+              ['get', key],
               minValue
             ],
             [
@@ -674,7 +676,7 @@ function _getColorPaletteStyleForPointLayer ({
   const expression = [
     'palette',
     indexExpression,
-    colormap
+    colormap.map(c => rgb2hex(c))
   ]
 
   return { color: expression }
@@ -2935,7 +2937,7 @@ class VolumeImageViewer {
 
     const defaultAnnotationGroupStyle = {
       opacity: 1.0,
-      color: '#027ea3'
+      color: [2, 126, 163]
     }
 
     metadata.AnnotationGroupSequence.forEach((item, index) => {
@@ -3019,6 +3021,7 @@ class VolumeImageViewer {
           const graphicIndex = retrievedBulkdata[1]
           const measurements = retrievedBulkdata[2]
 
+          console.log('process annotations')
           for (let i = 0; i < numberOfAnnotations; i++) {
             const point = _getCentroid(
               graphicType,
@@ -3038,13 +3041,11 @@ class VolumeImageViewer {
               geometry: new PointGeometry(coordinates)
             })
             const properties = {}
-            measurements.forEach(item => {
-              const name = item.name
-              const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
-              const value = item.values[i]
-              properties[key] = value
+            measurements.forEach((measurementItem, measurementIndex) => {
+              const value = measurementItem.values[i]
+              properties[measurementIndex] = value
             })
-            feature.setProperties(properties)
+            feature.setProperties(properties, true)
             feature.setId(i + 1)
             features.push(feature)
           }
@@ -3054,17 +3055,27 @@ class VolumeImageViewer {
             `for annotation group "${annotationGroupUID}"`
           )
           this.addFeatures(features)
+          console.info(
+            'compute statistics for measurement values ' +
+            `of annotation group "${annotationGroupUID}"`
+          )
           const properties = {}
-          measurements.forEach(item => {
-            const name = item.name
-            const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
-            const value = quantileSeq(
-              [...item.values],
-              [0, 0.015, 0.25, 0.5, 0.75, 0.95, 1]
+          measurements.forEach((measurementItem, measurementIndex) => {
+            /*
+             * Ideally, we would compute quantiles, but that is an expensive
+             * operation. For now, just compute mininum and maximum.
+             */
+            const min = measurementItem.values.reduce(
+              (a, b) => Math.min(a, b),
+              Infinity
             )
-            properties[key] = value
+            const max = measurementItem.values.reduce(
+              (a, b) => Math.max(a, b),
+              -Infinity
+            )
+            properties[measurementIndex] = { min, max }
           })
-          this.setProperties(properties)
+          this.setProperties(properties, true)
           success(features)
         }).catch(error => {
           console.error(error)
@@ -3076,8 +3087,7 @@ class VolumeImageViewer {
         loader,
         wrapX: false,
         rotateWithView: true,
-        overlaps: false,
-        features: new Collection([], { unique: true })
+        overlaps: false
       })
       source.on('featuresloadstart', (event) => {
         const container = this[_map].getTargetElement()
@@ -3116,8 +3126,7 @@ class VolumeImageViewer {
       }
       annotationGroup.layer = new PointsLayer({
         source,
-        style,
-        disableHitDetection: true
+        style
       })
       annotationGroup.layer.setVisible(false)
 
@@ -3159,7 +3168,9 @@ class VolumeImageViewer {
    *
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
    * @param {Object} styleOptions
-   * @param {number} styleOptions.measurement - Selected measurement for colorizing annotations
+   * @param {number} [styleOptions.opacity] - Opacity
+   * @param {number[]} [styleOptions.color] - RGB color triplet
+   * @param {Object} [styleOptions.measurement] - Selected measurement
    */
   showAnnotationGroup (annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -3212,8 +3223,10 @@ class VolumeImageViewer {
    *
    * @param {string} annotationGroupUID - Unique identifier of an annotation group
    * @param {Object} styleOptions - Style options
-   * @param {number} styleOptions.opacity - Opacity
-   * @param {number} styleOptions.measurement - Selected measurement for colorizing annotations
+   * @param {number} [styleOptions.opacity] - Opacity
+   * @param {number[]} [styleOptions.color] - RGB color triplet
+   * @param {Object} [styleOptions.measurement] - Selected measurement for
+   * colorizing annotations
    */
   setAnnotationGroupStyle (annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -3227,13 +3240,40 @@ class VolumeImageViewer {
       annotationGroup.style.opacity = styleOptions.opacity
       annotationGroup.layer.setOpacity(styleOptions.opacity)
     }
+    if (styleOptions.color != null) {
+      annotationGroup.style.color = styleOptions.color
+    }
+    console.info(
+      `set style for annotation group "${annotationGroupUID}"`,
+      styleOptions
+    )
 
+    const metadata = annotationGroup.metadata
     const source = annotationGroup.layer.getSource()
+    const groupItem = metadata.AnnotationGroupSequence.find(item => {
+      return item.AnnotationGroupUID === annotationGroupUID
+    })
+    if (groupItem == null) {
+      throw new Error(
+        'Cannot set style of annotation group. ' +
+        `Could not find metadata of annotation group "${annotationGroupUID}".`
+      )
+    }
+
     const name = styleOptions.measurement
     if (name) {
-      const key = `${name.CodingSchemeDesignator}${name.CodeValue}`
+      const measurementIndex = groupItem.MeasurementsSequence.findIndex(item => {
+        return areCodedConceptsEqual(name, getContentItemNameCodedConcept(item))
+      })
+      if (measurementIndex == null) {
+        throw new Error(
+          'Cannot set style of annotation group. ' +
+          `Could not find measurement "${name.CodeMeaning}" ` +
+          `of annotation group "${annotationGroupUID}".`
+        )
+      }
       const properties = source.getProperties()
-      if (properties[key]) {
+      if (properties[measurementIndex]) {
         const colormap = createColormap({
           name: ColormapNames.VIRIDIS,
           bins: 50
@@ -3256,16 +3296,17 @@ class VolumeImageViewer {
         Object.assign(
           style,
           _getColorPaletteStyleForPointLayer({
-            name: key,
-            minValue: properties[key][0],
-            maxValue: properties[key][properties[key].length - 2],
+            key: measurementIndex,
+            minValue: properties[measurementIndex].min,
+            maxValue: properties[measurementIndex].max,
             colormap
           })
         )
         const newLayer = new PointsLayer({
           source,
           style,
-          disableHitDetection: true
+          disableHitDetection: true,
+          visible: false
         })
         this[_map].addLayer(newLayer)
         this[_map].removeLayer(annotationGroup.layer)
@@ -3285,20 +3326,22 @@ class VolumeImageViewer {
             this[_pyramid].metadata.length,
             15
           ],
-          color: annotationGroup.style.color,
+          color: rgb2hex(annotationGroup.style.color),
           opacity: annotationGroup.style.opacity
         }
       }
       const newLayer = new PointsLayer({
         source,
         style,
-        disableHitDetection: true
+        disableHitDetection: true,
+        visible: false
       })
       this[_map].addLayer(newLayer)
       this[_map].removeLayer(annotationGroup.layer)
       annotationGroup.layer.dispose()
       annotationGroup.layer = newLayer
     }
+    annotationGroup.layer.setVisible(true)
   }
 
   /**
