@@ -85,7 +85,7 @@ class ROI {
    * @type Object[]
    */
   get measurements () {
-    return this[_properties].measurements
+    return this[_properties][Enums.InternalProperties.Measurements].slice(0)
   }
 
   /**
@@ -94,7 +94,7 @@ class ROI {
    * @type Object[]
    */
   get evaluations () {
-    return this[_properties].evaluations
+    return this[_properties][Enums.InternalProperties.Evaluations].slice(0)
   }
 
   /**
