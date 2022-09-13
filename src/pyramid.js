@@ -369,6 +369,8 @@ function _createTileLoadFunction ({
       )
     }
 
+    const studyInstanceUID = pyramid.metadata[z].StudyInstanceUID
+    const seriesInstanceUID = pyramid.metadata[z].SeriesInstanceUID
     const path = pyramid.frameMappings[z][index]
     let src
     if (path != null) {
@@ -377,8 +379,8 @@ function _createTileLoadFunction ({
         src += client.wadoURL
       }
       src += (
-        '/studies/' + pyramid.metadata[z].StudyInstanceUID +
-        '/series/' + pyramid.metadata[z].SeriesInstanceUID +
+        '/studies/' + studyInstanceUID +
+        '/series/' + seriesInstanceUID +
         '/instances/' + path
       )
     }
@@ -393,8 +395,6 @@ function _createTileLoadFunction ({
     const sopClassUID = refImage.SOPClassUID
 
     if (src != null) {
-      const studyInstanceUID = dwc.utils.getStudyInstanceUIDFromUri(src)
-      const seriesInstanceUID = dwc.utils.getSeriesInstanceUIDFromUri(src)
       const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src)
       const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
 
@@ -584,11 +584,11 @@ function _fitImagePyramid (pyramid, refPyramid) {
 
   // Fit the pyramid levels to the reference image pyramid
   const fittedPyramid = {
-    extent: refPyramid.extent,
-    origins: refPyramid.origins,
-    resolutions: refPyramid.resolutions,
-    gridSizes: refPyramid.gridSizes,
-    tileSizes: refPyramid.tileSizes,
+    extent: [...refPyramid.extent],
+    origins: [...refPyramid.origins],
+    resolutions: [...refPyramid.resolutions],
+    gridSizes: [...refPyramid.gridSizes],
+    tileSizes: [...refPyramid.tileSizes],
     pixelSpacings: [],
     metadata: [],
     frameMappings: []
@@ -597,9 +597,9 @@ function _fitImagePyramid (pyramid, refPyramid) {
     const index = matchingLevelIndices.find(element => element[0] === i)
     if (index) {
       const j = index[1]
-      fittedPyramid.gridSizes[i] = pyramid.gridSizes[j]
-      fittedPyramid.tileSizes[i] = pyramid.tileSizes[j]
-      fittedPyramid.pixelSpacings.push(pyramid.pixelSpacings[j])
+      fittedPyramid.gridSizes[i] = [...pyramid.gridSizes[j]]
+      fittedPyramid.tileSizes[i] = [...pyramid.tileSizes[j]]
+      fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
     } else {
