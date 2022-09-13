@@ -1,7 +1,4 @@
-import {
-  _fetchBulkdata,
-  getContentItemNameCodedConcept
-} from './utils.js'
+import { _fetchBulkdata } from './utils.js'
 
 const _attrs = Symbol('attrs')
 

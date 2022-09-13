@@ -31,10 +31,7 @@ function _geometry2Scoord3d (feature, pyramid, affine) {
       pyramid,
       affine
     )
-    return new Point({
-      coordinates,
-      frameOfReferenceUID: frameOfReferenceUID
-    })
+    return new Point({ coordinates, frameOfReferenceUID })
   } else if (type === 'Polygon') {
     /*
      * The first linear ring of the array defines the outer-boundary (surface).
@@ -43,18 +40,12 @@ function _geometry2Scoord3d (feature, pyramid, affine) {
     const coordinates = geometry.getCoordinates()[0].map((c) => {
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
     })
-    return new Polygon({
-      coordinates,
-      frameOfReferenceUID: frameOfReferenceUID
-    })
+    return new Polygon({ coordinates, frameOfReferenceUID })
   } else if (type === 'LineString') {
     const coordinates = geometry.getCoordinates().map((c) => {
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
     })
-    return new Polyline({
-      coordinates,
-      frameOfReferenceUID: frameOfReferenceUID
-    })
+    return new Polyline({ coordinates, frameOfReferenceUID })
   } else if (type === 'Circle') {
     const center = geometry.getCenter()
     const radius = geometry.getRadius()
@@ -68,10 +59,7 @@ function _geometry2Scoord3d (feature, pyramid, affine) {
     coordinates = coordinates.map((c) => {
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
     })
-    return new Ellipse({
-      coordinates,
-      frameOfReferenceUID: frameOfReferenceUID
-    })
+    return new Ellipse({ coordinates, frameOfReferenceUID })
   } else {
     // TODO: Combine multiple points into MULTIPOINT.
     console.error(`unknown geometry type "${type}"`)

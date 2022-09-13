@@ -371,7 +371,7 @@ function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing }) {
     offset,
     spacing
   })
-  return applyTransform({ coordinate: point, affine: affine })
+  return applyTransform({ coordinate: point, affine })
 }
 
 /**
@@ -404,7 +404,7 @@ function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
     spacing
   })
 
-  return applyInverseTransform({ coordinate: point, affine: affine })
+  return applyInverseTransform({ coordinate: point, affine })
 }
 
 /**

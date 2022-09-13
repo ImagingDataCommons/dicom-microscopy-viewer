@@ -1019,14 +1019,14 @@ class VolumeImageViewer {
             }),
             paletteColorLookupTableUID
           }),
-          pyramid: pyramid,
+          pyramid,
           style: { ...defaultOpticalPathStyle },
           defaultStyle: defaultOpticalPathStyle,
-          bitsAllocated: bitsAllocated,
+          bitsAllocated,
           minStoredValue,
           maxStoredValue,
           loaderParams: {
-            pyramid: pyramid,
+            pyramid,
             client: this[_options].client,
             channel: opticalPathIdentifier
           },
@@ -1143,12 +1143,12 @@ class VolumeImageViewer {
         }),
         style: { ...defaultOpticalPathStyle },
         defaultStyle: defaultOpticalPathStyle,
-        pyramid: pyramid,
+        pyramid,
         bitsAllocated: 8,
         minStoredValue: 0,
         maxStoredValue: 255,
         loaderParams: {
-          pyramid: pyramid,
+          pyramid,
           client: this[_options].client,
           channel: opticalPathIdentifier
         },
@@ -1399,6 +1399,8 @@ class VolumeImageViewer {
       affine: this[_affine],
       drawingSource: this[_drawingSource]
     })
+
+    this[_overlays] = {}
   }
 
   /**
@@ -1495,10 +1497,7 @@ class VolumeImageViewer {
           opticalPath.overviewLayer.updateStyleVariables(styleVariables)
         }
       } else {
-        const styleVariables = {
-          windowCenter: windowCenter,
-          windowWidth: windowWidth
-        }
+        const styleVariables = { windowCenter, windowWidth }
         opticalPath.layer.updateStyleVariables(styleVariables)
         opticalPath.overviewLayer.updateStyleVariables(styleVariables)
       }
@@ -2870,19 +2869,49 @@ class VolumeImageViewer {
   /**
    * Add a new viewport overlay.
    *
-   * @param {Object} options Overlay options
-   * @param {Object} options.element The custom overlay HTML element
-   * @param {string} options.className Class to style the overlay container
-   * @param {number[]} options.offset Horizontal and vertical offset of the overlay container in pixels
+   * @param {Object} options - Overlay options
+   * @param {Object} options.element - The custom overlay HTML element
+   * @param {number[]} options.coordinates - Offset of the overlay along the X and
+   * Y axes of the slide coordinate system
+   * @param {bool} [options.coordinates=false] - Whether the viewer should
+   * automatically navigate to the element such that it is in focus and fully
+   * visible
+   * @param {string} [options.className] - Class to style the overlay container
    */
-  addViewportOverlay ({ element, className, offset }) {
+  addViewportOverlay ({ element, coordinates, navigate, className }) {
+    const offset = _scoord3dCoordinates2geometryCoordinates(
+      coordinates,
+      this[_pyramid],
+      this[_affineInverse]
+    )
     const overlay = new Overlay({
       element,
-      className,
+      className: (
+        className != null
+          ? `ol-overlay-container ol-selectable ${className}`
+          : 'ol-overlay-container ol-selectable'
+      ),
       offset,
+      autoPan: navigate != null ? navigate : false,
       stopEvent: false
     })
+    this[_overlays][element.id] = overlay
     this[_map].addOverlay(overlay)
+  }
+
+  /**
+   * Remove an existing viewport overlay.
+   *
+   * @param {Object} options - Overlay options
+   * @param {Object} options.element - The custom overlay HTML element
+   */
+  removeViewportOverlay ({ element }) {
+    const id = element.id
+    if (id in this[_overlays]) {
+      const overlay = this[_overlays][id]
+      this[_map].removeOverlay(overlay)
+      delete this[_overlays][id]
+    }
   }
 
   /**
@@ -3720,7 +3749,7 @@ class VolumeImageViewer {
       }
 
       const source = new DataTileSource({
-        tileGrid: tileGrid,
+        tileGrid,
         projection: this[_projection],
         wrapX: false,
         bandCount: 1,
@@ -4189,7 +4218,7 @@ class VolumeImageViewer {
             return element.SOPInstanceUID
           })
         }),
-        pyramid: pyramid,
+        pyramid,
         overlay: new Overlay({
           element: document.createElement('div'),
           offset: [5 + 100 * index + 2, 5]
@@ -4209,7 +4238,7 @@ class VolumeImageViewer {
       }
 
       const source = new DataTileSource({
-        tileGrid: tileGrid,
+        tileGrid,
         projection: this[_projection],
         wrapX: false,
         bandCount: 1,
@@ -4565,7 +4594,7 @@ class _NonVolumeImageViewer {
         seriesInstanceUID: this[_metadata].SeriesInstanceUID,
         sopInstanceUID: this[_metadata].SOPInstanceUID,
         mediaTypes: [{ mediaType }],
-        queryParams: queryParams
+        queryParams
       }
       options.client.retrieveInstanceRendered(retrieveOptions).then(
         (thumbnail) => {
@@ -4578,7 +4607,7 @@ class _NonVolumeImageViewer {
     const projection = new Projection({
       code: 'DICOM',
       units: 'metric',
-      extent: extent,
+      extent,
       getPointResolution: (pixelRes, point) => {
         /*
          * DICOM Pixel Spacing has millimeter unit while the projection has
@@ -4592,12 +4621,12 @@ class _NonVolumeImageViewer {
 
     const source = new Static({
       imageExtent: extent,
-      projection: projection,
-      imageLoadFunction: imageLoadFunction,
+      projection,
+      imageLoadFunction,
       url: '' // will be set by imageLoadFunction()
     })
 
-    this[_imageLayer] = new ImageLayer({ source: source })
+    this[_imageLayer] = new ImageLayer({ source })
 
     // The default rotation is 'horizontal' with the slide label on the right
     let rotation = _getRotation(this[_metadata])
@@ -4608,9 +4637,9 @@ class _NonVolumeImageViewer {
 
     const view = new View({
       center: getCenter(extent),
-      rotation: rotation,
-      projection: projection,
-      extent: extent,
+      rotation,
+      projection,
+      extent,
       smoothExtentConstraint: true,
       smoothResolutionConstraint: true,
       showFullExtent: true
@@ -4619,7 +4648,7 @@ class _NonVolumeImageViewer {
     // Creates the map with the defined layers and view and renders it.
     this[_map] = new Map({
       layers: [this[_imageLayer]],
-      view: view,
+      view,
       controls: [],
       keyboardEventTarget: document
     })

@@ -367,7 +367,7 @@ class Ellipse extends Scoord3D {
       ]
     }
     super({
-      coordinates: coordinates,
+      coordinates,
       frameOfReferenceUID: options.frameOfReferenceUID,
       fiducialUID: options.fiducialUID
     })
