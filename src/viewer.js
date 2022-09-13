@@ -1279,10 +1279,10 @@ class VolumeImageViewer {
         const map = this[_overviewMap].getOverviewMap()
 
         const overviewElement = this[_overviewMap].element
-        const overviewChildren = overviewElement.children
-        const overviewmapElement = Object.values(overviewChildren).find(
+        const overviewmapElement = Object.values(overviewElement.children).find(
           c => c.className === 'ol-overviewmap-map'
         )
+        // TODO: color "ol-overviewmap-map-box" using primary color
         overviewmapElement.style.width = `${width}px`
         overviewmapElement.style.height = `${height}px`
         map.updateSize()
@@ -3662,7 +3662,10 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const fittedPyramid = _fitImagePyramid(pyramid, this[_pyramid])
+    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
+      pyramid,
+      this[_pyramid]
+    )
 
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
@@ -3693,18 +3696,6 @@ class VolumeImageViewer {
         name: ColormapNames.VIRIDIS,
         bins: Math.pow(2, 8)
       })
-
-      const minZoomLevel = fittedPyramid.metadata.findIndex(item => {
-        return item !== undefined
-      })
-      let maxZoomLevel = fittedPyramid.metadata.findIndex((item, index) => {
-        return index > minZoomLevel && item === undefined
-      })
-      if (maxZoomLevel < 0) {
-        maxZoomLevel = fittedPyramid.metadata.length - 1
-      } else if (maxZoomLevel > 0) {
-        maxZoomLevel = maxZoomLevel - 1
-      }
 
       const defaultSegmentStyle = {
         opacity: 0.75,
@@ -4082,7 +4073,10 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const fittedPyramid = _fitImagePyramid(pyramid, this[_pyramid])
+    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
+      pyramid,
+      this[_pyramid]
+    )
 
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
@@ -4180,18 +4174,6 @@ class VolumeImageViewer {
             bins: Math.pow(2, 8)
           })
         }
-      }
-
-      const minZoomLevel = fittedPyramid.metadata.findIndex(item => {
-        return item !== undefined
-      })
-      let maxZoomLevel = fittedPyramid.metadata.findIndex((item, index) => {
-        return index > minZoomLevel && item === undefined
-      })
-      if (maxZoomLevel < 0) {
-        maxZoomLevel = fittedPyramid.metadata.length - 1
-      } else if (maxZoomLevel > 0) {
-        maxZoomLevel = maxZoomLevel - 1
       }
 
       const defaultMappingStyle = {

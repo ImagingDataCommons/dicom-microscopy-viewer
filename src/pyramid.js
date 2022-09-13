@@ -585,10 +585,10 @@ function _fitImagePyramid (pyramid, refPyramid) {
   // Fit the pyramid levels to the reference image pyramid
   const fittedPyramid = {
     extent: [...refPyramid.extent],
-    origins: [...refPyramid.origins],
-    resolutions: [...refPyramid.resolutions],
-    gridSizes: [...refPyramid.gridSizes],
-    tileSizes: [...refPyramid.tileSizes],
+    origins: [],
+    resolutions: [],
+    gridSizes: [],
+    tileSizes: [],
     pixelSpacings: [],
     metadata: [],
     frameMappings: []
@@ -597,19 +597,36 @@ function _fitImagePyramid (pyramid, refPyramid) {
     const index = matchingLevelIndices.find(element => element[0] === i)
     if (index) {
       const j = index[1]
-      fittedPyramid.gridSizes[i] = [...pyramid.gridSizes[j]]
-      fittedPyramid.tileSizes[i] = [...pyramid.tileSizes[j]]
+      fittedPyramid.origins.push([...pyramid.origins[j]])
+      fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
+      fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
+      fittedPyramid.resolutions.push(Number(refPyramid.resolutions[i]))
       fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
-    } else {
-      fittedPyramid.pixelSpacings.push(undefined)
-      fittedPyramid.metadata.push(undefined)
-      fittedPyramid.frameMappings.push(undefined)
     }
   }
 
-  return fittedPyramid
+  let minZoom = 0
+  for (let i = 0; i < refPyramid.resolutions.length; i++) {
+    for (let j = 0; j < fittedPyramid.resolutions.length; j++) {
+      if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
+        minZoom = i
+        break
+      }
+    }
+  }
+  let maxZoom = refPyramid.resolutions.length - 1
+  for (let i = (refPyramid.resolutions.length - 1); i >= minZoom; i--) {
+    for (let j = (fittedPyramid.resolutions.length - 1); j >= 0; j--) {
+      if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
+        maxZoom = i
+        break
+      }
+    }
+  }
+
+  return [fittedPyramid, minZoom, maxZoom]
 }
 
 export {
