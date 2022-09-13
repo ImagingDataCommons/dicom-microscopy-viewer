@@ -2994,11 +2994,6 @@ class VolumeImageViewer {
       color: this[_options].primaryColor
     }
 
-    // We need to bind those variables to constants for the loader function
-    const client = this[_options].client
-    const pyramid = this[_pyramid].metadata
-    const affineInverse = this[_affineInverse]
-    const container = this[_map].getTargetElement()
     const _getROIFromFeature = (feature) => {
       const roi = this._getROIFromFeature(
         feature,
@@ -3009,91 +3004,108 @@ class VolumeImageViewer {
       const annotationGroupMetadata = metadata.AnnotationGroupSequence.find(
         item => item.AnnotationGroupUID === annotationGroupUID
       )
+      if (annotationGroupUID == null || annotationGroupMetadata == null) {
+        throw new Error(
+          'Could not obtain information of annotation from ' +
+          `annotation group "${annotationGroupUID}".`
+        )
+      }
 
-      const findingCategory = (
-        annotationGroupMetadata
-          .AnnotationPropertyCategoryCodeSequence[0]
-      )
-      roi.addEvaluation(
-        new dcmjs.sr.valueTypes.CodeContentItem({
-          name: new dcmjs.sr.coding.CodedConcept({
-            value: '276214006',
-            meaning: 'Finding category',
-            schemeDesignator: 'SCT'
-          }),
-          value: new dcmjs.sr.coding.CodedConcept({
-            value: findingCategory.CodeValue,
-            meaning: findingCategory.CodeMeaning,
-            schemeDesignator: findingCategory.CodingSchemeDesignator
-          }),
-          relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
-        })
-      )
-      const findingType = (
-        annotationGroupMetadata
-          .AnnotationPropertyTypeCodeSequence[0]
-      )
-      roi.addEvaluation(
-        new dcmjs.sr.valueTypes.CodeContentItem({
-          name: new dcmjs.sr.coding.CodedConcept({
-            value: '121071',
-            meaning: 'Finding',
-            schemeDesignator: 'DCM'
-          }),
-          value: new dcmjs.sr.coding.CodedConcept({
-            value: findingType.CodeValue,
-            meaning: findingType.CodeMeaning,
-            schemeDesignator: findingType.CodingSchemeDesignator
-          }),
-          relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
-        })
-      )
-
-      annotationGroupMetadata.MeasurementsSequence.forEach(
-        (measurementItem, measurementIndex) => {
-          const key = `measurementValue${measurementIndex.toString()}`
-          const value = feature.get(key)
-          const name = measurementItem.ConceptNameCodeSequence[0]
-          const unit = measurementItem.MeasurementUnitsCodeSequence[0]
-
-          const measurement = new dcmjs.sr.valueTypes.NumContentItem({
-            value: Number(value),
+      if (annotationGroupMetadata.AnnotationPropertyCategoryCodeSequence != null) {
+        const findingCategory = (
+          annotationGroupMetadata.AnnotationPropertyCategoryCodeSequence[0]
+        )
+        roi.addEvaluation(
+          new dcmjs.sr.valueTypes.CodeContentItem({
             name: new dcmjs.sr.coding.CodedConcept({
-              value: name.CodeValue,
-              meaning: name.CodeMeaning,
-              schemeDesignator: name.CodingSchemeDesignator
+              value: '276214006',
+              meaning: 'Finding category',
+              schemeDesignator: 'SCT'
             }),
-            unit: new dcmjs.sr.coding.CodedConcept({
-              value: unit.CodeValue,
-              meaning: unit.CodeMeaning,
-              schemeDesignator: unit.CodingSchemeDesignator
+            value: new dcmjs.sr.coding.CodedConcept({
+              value: findingCategory.CodeValue,
+              meaning: findingCategory.CodeMeaning,
+              schemeDesignator: findingCategory.CodingSchemeDesignator
             }),
-            relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.CONTAINS
+            relationshipType:
+              dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
           })
-          if (measurementItem.ReferencedImageSequence != null) {
-            const ref = measurementItem.ReferencedImageSequence[0]
-            const image = new dcmjs.sr.valueTypes.ImageContentItem({
+        )
+      }
+      if (annotationGroupMetadata.AnnotationPropertyTypeCodeSequence != null) {
+        const findingType = (
+          annotationGroupMetadata.AnnotationPropertyTypeCodeSequence[0]
+        )
+        roi.addEvaluation(
+          new dcmjs.sr.valueTypes.CodeContentItem({
+            name: new dcmjs.sr.coding.CodedConcept({
+              value: '121071',
+              meaning: 'Finding',
+              schemeDesignator: 'DCM'
+            }),
+            value: new dcmjs.sr.coding.CodedConcept({
+              value: findingType.CodeValue,
+              meaning: findingType.CodeMeaning,
+              schemeDesignator: findingType.CodingSchemeDesignator
+            }),
+            relationshipType:
+              dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
+          })
+        )
+      }
+
+      if (annotationGroupMetadata.MeasurementsSequence != null) {
+        annotationGroupMetadata.MeasurementsSequence.forEach(
+          (measurementItem, measurementIndex) => {
+            const key = `measurementValue${measurementIndex.toString()}`
+            const value = feature.get(key)
+            const name = measurementItem.ConceptNameCodeSequence[0]
+            const unit = measurementItem.MeasurementUnitsCodeSequence[0]
+
+            const measurement = new dcmjs.sr.valueTypes.NumContentItem({
+              value: Number(value),
               name: new dcmjs.sr.coding.CodedConcept({
-                value: '121112',
-                meaning: 'Source of Measurement',
-                schemeDesignator: 'DCM'
+                value: name.CodeValue,
+                meaning: name.CodeMeaning,
+                schemeDesignator: name.CodingSchemeDesignator
               }),
-              referencedSOPClassUID: ref.ReferencedSOPClassUID,
-              referencedSOPInstanceUID: ref.ReferencedSOPInstanceUID
+              unit: new dcmjs.sr.coding.CodedConcept({
+                value: unit.CodeValue,
+                meaning: unit.CodeMeaning,
+                schemeDesignator: unit.CodingSchemeDesignator
+              }),
+              relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.CONTAINS
             })
-            if (ref.ReferencedOpticalPathIdentifier != null) {
-              image.ReferencedSOPSequence[0].ReferencedOpticalPathIdentifier = (
-                ref.ReferencedOpticalPathIdentifier
-              )
+            if (measurementItem.ReferencedImageSequence != null) {
+              const ref = measurementItem.ReferencedImageSequence[0]
+              const image = new dcmjs.sr.valueTypes.ImageContentItem({
+                name: new dcmjs.sr.coding.CodedConcept({
+                  value: '121112',
+                  meaning: 'Source of Measurement',
+                  schemeDesignator: 'DCM'
+                }),
+                referencedSOPClassUID: ref.ReferencedSOPClassUID,
+                referencedSOPInstanceUID: ref.ReferencedSOPInstanceUID
+              })
+              if (ref.ReferencedOpticalPathIdentifier != null) {
+                image.ReferencedSOPSequence[0].ReferencedOpticalPathIdentifier = (
+                  ref.ReferencedOpticalPathIdentifier
+                )
+              }
+              measurement.ContentSequence = [image]
             }
-            measurement.ContentSequence = [image]
+            roi.addMeasurement(measurement)
           }
-          roi.addMeasurement(measurement)
-        }
-      )
+        )
+      }
 
       return roi
     }
+
+    // We need to bind those variables to constants for the loader function
+    const client = this[_options].client
+    const pyramid = this[_pyramid].metadata
+    const affineInverse = this[_affineInverse]
 
     metadata.AnnotationGroupSequence.forEach((item, index) => {
       const annotationGroupUID = item.AnnotationGroupUID
@@ -3291,28 +3303,33 @@ class VolumeImageViewer {
 
     let selectedAnnotation = null
     this[_map].on('singleclick', (e) => {
-      if (selectedAnnotation !== null) {
-        selectedAnnotation.set('selected', 0)
-        selectedAnnotation = null
-      }
-
-      this[_map].forEachFeatureAtPixel(
-        e.pixel,
-        (feature) => {
-          feature.set('selected', 1)
-          selectedAnnotation = feature
-          publish(
-            container,
-            EVENT.ROI_SELECTED,
-            _getROIFromFeature(feature)
-          )
-          return true
-        },
-        {
-          hitTolerance: 1,
-          layerFilter: (layer) => (layer instanceof PointsLayer)
+      if (e != null) {
+        if (selectedAnnotation != null) {
+          selectedAnnotation.set('selected', 0)
+          selectedAnnotation = null
         }
-      )
+        const container = this[_map].getTargetElement()
+        this[_map].forEachFeatureAtPixel(
+          e.pixel,
+          (feature) => {
+            if (feature != null) {
+              feature.set('selected', 1)
+              selectedAnnotation = feature
+              publish(
+                container,
+                EVENT.ROI_SELECTED,
+                _getROIFromFeature(feature)
+              )
+              return true
+            }
+            return false
+          },
+          {
+            hitTolerance: 1,
+            layerFilter: (layer) => (layer instanceof PointsLayer)
+          }
+        )
+      }
     })
   }
 
@@ -3767,7 +3784,12 @@ class VolumeImageViewer {
           colormap: segment.style.paletteColorLookupTable.data
         }),
         useInterimTilesOnError: false,
-        cacheSize: this[_options].tilesCacheSize
+        cacheSize: this[_options].tilesCacheSize,
+        minResolution: (
+          minZoomLevel > 0
+            ? this[_pyramid].resolutions[minZoomLevel]
+            : undefined
+        )
       })
       segment.layer.on('error', (event) => {
         console.error(`error rendering segment "${segmentUID}"`, event)
