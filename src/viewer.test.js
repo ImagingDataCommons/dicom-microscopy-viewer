@@ -83,7 +83,7 @@ const testCases = [
             ]
           }),
           style: {
-            color: '#027ea3',
+            color: [0, 126, 163],
             opacity: 1
           }
         }

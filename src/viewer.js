@@ -3198,7 +3198,7 @@ class VolumeImageViewer {
               // Needed for the WebGL renderer
               feature.set(key, value, true)
             })
-            const uid = _generateUID(`${annotationGroupUID}-${i}`)
+            const uid = _generateUID({ value: `${annotationGroupUID}-${i}` })
             feature.setId(uid)
             features.push(feature)
           }
