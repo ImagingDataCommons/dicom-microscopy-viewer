@@ -134,10 +134,10 @@ function getFrameMapping (metadata) {
     numberOfOpticalPaths = Number(metadata.NumberOfOpticalPaths || 1)
     numberOfChannels = numberOfOpticalPaths
   } else if (metadata.SegmentSequence != null) {
-    numberOfSegments = metadata.SegmentSequence.length
+    numberOfSegments = Number(metadata.SegmentSequence.length)
     numberOfChannels = numberOfSegments
   } else if (Object.keys(mappingNumberToFrameNumbers).length > 0) {
-    numberOfMappings = Object.keys(mappingNumberToFrameNumbers).length
+    numberOfMappings = Number(Object.keys(mappingNumberToFrameNumbers).length)
     numberOfChannels = numberOfMappings
   } else {
     throw new Error('Could not determine the number of image channels.')
@@ -154,7 +154,7 @@ function getFrameMapping (metadata) {
     metadata.DimensionOrganizationType || 'TILED_SPARSE'
   )
   if (dimensionOrganizationType === 'TILED_FULL') {
-    let n = 1
+    let number = 1
     // Forth, along "channels"
     for (let i = 0; i < numberOfChannels; i++) {
       // Third, along the depth direction from glass slide -> coverslip
@@ -171,19 +171,21 @@ function getFrameMapping (metadata) {
             let channelIdentifier
             if (numberOfOpticalPaths > 0) {
               const opticalPath = metadata.OpticalPathSequence[i]
-              channelIdentifier = opticalPath.OpticalPathIdentifier
+              channelIdentifier = String(opticalPath.OpticalPathIdentifier)
             } else if (numberOfSegments > 0) {
-              const segment = metadata.SegmentIdentificationSequence[i]
-              channelIdentifier = String(segment.ReferencedSegmentNumber)
+              const segment = metadata.SegmentSequence[i]
+              channelIdentifier = String(segment.SegmentNumber)
             } else if (numberOfMappings > 0) {
               // TODO: ensure that frames are mapped accordingly
-              channelIdentifier = String(frameNumberToMappingNumber[n])
+              channelIdentifier = String(frameNumberToMappingNumber[number])
             } else {
-              throw new Error(`Could not determine channel of frame #${n}.`)
+              throw new Error(
+                `Could not determine channel of frame #${number}.`
+              )
             }
-            const index = `${r + 1}-${c + 1}-${channelIdentifier}`
-            frameMapping[index] = `${sopInstanceUID}/frames/${n}`
-            n += 1
+            const key = `${r + 1}-${c + 1}-${channelIdentifier}`
+            frameMapping[key] = `${sopInstanceUID}/frames/${number}`
+            number += 1
           }
         }
       }
@@ -197,6 +199,7 @@ function getFrameMapping (metadata) {
       const columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix
       const rowIndex = Math.ceil(rowPosition / rows)
       const colIndex = Math.ceil(columnPosition / columns)
+      const number = j + 1
       let channelIdentifier
       if (numberOfOpticalPaths === 1) {
         try {
@@ -207,14 +210,14 @@ function getFrameMapping (metadata) {
           )
         } catch {
           channelIdentifier = String(
-            perframeFuncGroups[0]
+            perframeFuncGroups[j]
               .OpticalPathIdentificationSequence[0]
               .OpticalPathIdentifier
           )
         }
       } else if (numberOfOpticalPaths > 1) {
         channelIdentifier = String(
-          perframeFuncGroups[0]
+          perframeFuncGroups[j]
             .OpticalPathIdentificationSequence[0]
             .OpticalPathIdentifier
         )
@@ -227,25 +230,25 @@ function getFrameMapping (metadata) {
           )
         } catch {
           channelIdentifier = String(
-            perframeFuncGroups[0]
+            perframeFuncGroups[j]
               .SegmentIdentificationSequence[0]
               .ReferencedSegmentNumber
           )
         }
       } else if (numberOfSegments > 1) {
         channelIdentifier = String(
-          perframeFuncGroups[0]
+          perframeFuncGroups[j]
             .SegmentIdentificationSequence[0]
             .ReferencedSegmentNumber
         )
       } else if (numberOfMappings > 0) {
-        channelIdentifier = String(frameNumberToMappingNumber[j + 1])
+        channelIdentifier = String(frameNumberToMappingNumber[number])
       } else {
-        throw new Error(`Could not determine channel of frame ${j}.`)
+        throw new Error(`Could not determine channel of frame ${number}.`)
       }
-      const index = `${rowIndex}-${colIndex}-${channelIdentifier}`
+      const key = `${rowIndex}-${colIndex}-${channelIdentifier}`
       const frameNumber = j + 1
-      frameMapping[index] = `${sopInstanceUID}/frames/${frameNumber}`
+      frameMapping[key] = `${sopInstanceUID}/frames/${frameNumber}`
     }
   }
   return {
