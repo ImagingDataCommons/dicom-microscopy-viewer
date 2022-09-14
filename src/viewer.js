@@ -3336,7 +3336,8 @@ class VolumeImageViewer {
   /**
    * Remove an annotation group.
    *
-   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   * @param {string} annotationGroupUID - Unique identifier of an annotation
+   * group
    */
   removeAnnotationGroup (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -3364,7 +3365,8 @@ class VolumeImageViewer {
   /**
    * Show an annotation group.
    *
-   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   * @param {string} annotationGroupUID - Unique identifier of an annotation
+   * group
    * @param {Object} styleOptions
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.color] - RGB color triplet
@@ -3386,7 +3388,8 @@ class VolumeImageViewer {
   /**
    * Hide an annotation group.
    *
-   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   * @param {string} annotationGroupUID - Unique identifier of an annotation
+   * group
    */
   hideAnnotationGroup (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -3403,7 +3406,8 @@ class VolumeImageViewer {
   /**
    * Is annotation group visible.
    *
-   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   * @param {string} annotationGroupUID - Unique identifier of an annotation
+   * group
    */
   isAnnotationGroupVisible (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -3419,12 +3423,13 @@ class VolumeImageViewer {
   /**
    * Set style of an annotation group.
    *
-   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   * @param {string} annotationGroupUID - Unique identifier of an annotation
+   * group
    * @param {Object} styleOptions - Style options
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.color] - RGB color triplet
    * @param {Object} [styleOptions.measurement] - Selected measurement for
-   * colorizing annotations
+   * pseudo-coloring of annotations using measurement values
    */
   setAnnotationGroupStyle (annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -3459,6 +3464,22 @@ class VolumeImageViewer {
       )
     }
 
+    const markerType = 'circle'
+    const topLayerIndex = 0
+    const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
+    const baseLayerIndex = this[_pyramid].metadata.length - 1
+    const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
+    const diameter = 5 * 10 ** -3 // micometer
+    const markerSize = [
+      'interpolate',
+      ['exponential', 2],
+      ['zoom'],
+      1,
+      Math.max(diameter / topLayerPixelSpacing[0], 1),
+      this[_pyramid].resolutions.length,
+      Math.min(diameter / baseLayerPixelSpacing[0], 50)
+    ]
+
     const name = styleOptions.measurement
     if (name) {
       const measurementIndex = groupItem.MeasurementsSequence.findIndex(item => {
@@ -3473,19 +3494,12 @@ class VolumeImageViewer {
       }
       const properties = source.getProperties()
       const key = `measurementValue${measurementIndex.toString()}`
+
       if (properties[key]) {
         const style = {
           symbol: {
-            symbolType: 'circle',
-            size: [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              1,
-              2,
-              this[_pyramid].metadata.length,
-              15
-            ],
+            symbolType: markerType,
+            size: markerSize,
             opacity: annotationGroup.style.opacity
           }
         }
@@ -3518,16 +3532,8 @@ class VolumeImageViewer {
         // Only replace the layer if necessary
         const style = {
           symbol: {
-            symbolType: 'circle',
-            size: [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              1,
-              2,
-              this[_pyramid].metadata.length,
-              15
-            ],
+            symbolType: markerType,
+            size: markerSize,
             color: [
               'match',
               ['get', 'selected'],
@@ -3557,7 +3563,8 @@ class VolumeImageViewer {
   /**
    * Get default style of an annotation group.
    *
-   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   * @param {string} annotationGroupUID - Unique identifier of an annotation
+   * group
    *
    * @returns {Object} - Default style settings
    */
@@ -3578,7 +3585,8 @@ class VolumeImageViewer {
   /**
    * Get style of an annotation group.
    *
-   * @param {string} annotationGroupUID - Unique identifier of an annotation group
+   * @param {string} annotationGroupUID - Unique identifier of an annotation
+   * group
    *
    * @returns {Object} - Style settings
    */
@@ -3706,7 +3714,7 @@ class VolumeImageViewer {
 
     refSegmentation.SegmentSequence.forEach((item, index) => {
       const segmentNumber = Number(item.SegmentNumber)
-      console.info(`add segment # ${segmentNumber}`)
+      console.info(`add segment #${segmentNumber}`)
       let segmentUID = _generateUID({
         value: refSegmentation.SOPInstanceUID + segmentNumber.toString()
       })
