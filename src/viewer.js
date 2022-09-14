@@ -3434,6 +3434,11 @@ class VolumeImageViewer {
       )
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    console.info(
+      `set style for annotation group "${annotationGroupUID}"`,
+      styleOptions
+    )
+
     if (styleOptions.opacity != null) {
       annotationGroup.style.opacity = styleOptions.opacity
       annotationGroup.layer.setOpacity(styleOptions.opacity)
@@ -3441,10 +3446,6 @@ class VolumeImageViewer {
     if (styleOptions.color != null) {
       annotationGroup.style.color = styleOptions.color
     }
-    console.info(
-      `set style for annotation group "${annotationGroupUID}"`,
-      styleOptions
-    )
 
     const metadata = annotationGroup.metadata
     const source = annotationGroup.layer.getSource()
@@ -3513,40 +3514,44 @@ class VolumeImageViewer {
         annotationGroup.layer = newLayer
       }
     } else {
-      const style = {
-        symbol: {
-          symbolType: 'circle',
-          size: [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            1,
-            2,
-            this[_pyramid].metadata.length,
-            15
-          ],
-          color: [
-            'match',
-            ['get', 'selected'],
-            1,
-            rgb2hex(this[_options].highlightColor),
-            rgb2hex(annotationGroup.style.color)
-          ],
-          opacity: annotationGroup.style.opacity
+      if (styleOptions.color != null) {
+        // Only replace the layer if necessary
+        const style = {
+          symbol: {
+            symbolType: 'circle',
+            size: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              1,
+              2,
+              this[_pyramid].metadata.length,
+              15
+            ],
+            color: [
+              'match',
+              ['get', 'selected'],
+              1,
+              rgb2hex(this[_options].highlightColor),
+              rgb2hex(annotationGroup.style.color)
+            ],
+            opacity: annotationGroup.style.opacity
+          }
         }
+        const newLayer = new PointsLayer({
+          source,
+          style,
+          disableHitDetection: false,
+          visible: false
+        })
+        this[_map].addLayer(newLayer)
+        this[_map].removeLayer(annotationGroup.layer)
+        const isVisible = annotationGroup.layer.getVisible()
+        annotationGroup.layer.dispose()
+        annotationGroup.layer = newLayer
+        annotationGroup.layer.setVisible(isVisible)
       }
-      const newLayer = new PointsLayer({
-        source,
-        style,
-        disableHitDetection: false,
-        visible: false
-      })
-      this[_map].addLayer(newLayer)
-      this[_map].removeLayer(annotationGroup.layer)
-      annotationGroup.layer.dispose()
-      annotationGroup.layer = newLayer
     }
-    annotationGroup.layer.setVisible(true)
   }
 
   /**
