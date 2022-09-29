@@ -4610,10 +4610,6 @@ class _NonVolumeImageViewer {
    * @param {Object} options
    * @param {Object} options.client - A DICOMwebClient instance for interacting
    * with an origin server over HTTP.
-   * @param {Object} options.clientMapping - Mapping of SOP Class UID to
-   * DICOMwebClient instance for interacting with more than one origin server
-   * over HTTP. The viewer will select the configured client for searching,
-   * retrieving, or storing data on a per SOP Class basis.
    * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata -
    * Metadata of DICOM VL Whole Slide Microscopy Image instances
    * @param {string} options.orientation - Orientation of the slide (vertical:
