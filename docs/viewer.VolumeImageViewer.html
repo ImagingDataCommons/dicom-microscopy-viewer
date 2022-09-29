@@ -137,42 +137,6 @@ with Image Type VOLUME.</div>
 
         <tr>
             
-                <td class="name"><code>client</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">Object</span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last">A DICOMwebClient instance for interacting
-with an origin server over HTTP</td>
-        </tr>
-
-    
-
-        <tr>
-            
                 <td class="name"><code>metadata</code></td>
             
 
@@ -203,6 +167,85 @@ with an origin server over HTTP</td>
 
             <td class="description last">Metadata of DICOM VL Whole Slide Microscopy Image instances that should be
 diplayed.</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>client</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last">A DICOMwebClient instance for search for
+and retrieve data from an origin server over HTTP</td>
+        </tr>
+
+    
+
+        <tr>
+            
+                <td class="name"><code>clientMapping</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+                <td class="default">
+                
+                </td>
+            
+
+            <td class="description last">Mapping of SOP Class UIDs to
+DICOMwebClient instances to search for and retrieve data from different
+origin servers, depending on the type of DICOM object. Using a mapping can
+be usedful, for example, if images, image annotations, or image analysis
+results are stored in different archives.</td>
         </tr>
 
     
@@ -241,8 +284,8 @@ diplayed.</td>
                 </td>
             
 
-            <td class="description last">Number of resolution levels that should
-be preloaded</td>
+            <td class="description last">Number of resolution levels that
+should be preloaded</td>
         </tr>
 
     
@@ -490,7 +533,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line717">line 717</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line725">line 725</a>
     </li></ul></dd>
     
 
@@ -584,7 +627,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2969">line 2969</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3016">line 3016</a>
     </li></ul></dd>
     
 
@@ -656,7 +699,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2063">line 2063</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2110">line 2110</a>
     </li></ul></dd>
     
 
@@ -728,7 +771,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2005">line 2005</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2052">line 2052</a>
     </li></ul></dd>
     
 
@@ -800,7 +843,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2269">line 2269</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2316">line 2316</a>
     </li></ul></dd>
     
 
@@ -872,7 +915,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2278">line 2278</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2325">line 2325</a>
     </li></ul></dd>
     
 
@@ -944,7 +987,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2260">line 2260</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2307">line 2307</a>
     </li></ul></dd>
     
 
@@ -1016,7 +1059,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2614">line 2614</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2661">line 2661</a>
     </li></ul></dd>
     
 
@@ -1088,7 +1131,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2544">line 2544</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2591">line 2591</a>
     </li></ul></dd>
     
 
@@ -1160,7 +1203,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2287">line 2287</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2334">line 2334</a>
     </li></ul></dd>
     
 
@@ -1222,7 +1265,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2649">line 2649</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2696">line 2696</a>
     </li></ul></dd>
     
 
@@ -1294,7 +1337,7 @@ should be used to highlight things that get selected by the user</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1996">line 1996</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2043">line 2043</a>
     </li></ul></dd>
     
 
@@ -1368,7 +1411,7 @@ millimeter unit.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2027">line 2027</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2074">line 2074</a>
     </li></ul></dd>
     
 
@@ -1442,7 +1485,7 @@ millimeter unit.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2042">line 2042</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2089">line 2089</a>
     </li></ul></dd>
     
 
@@ -1514,7 +1557,7 @@ millimeter unit.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1799">line 1799</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1842">line 1842</a>
     </li></ul></dd>
     
 
@@ -1643,7 +1686,7 @@ millimeter unit.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2478">line 2478</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2525">line 2525</a>
     </li></ul></dd>
     
 
@@ -1780,7 +1823,7 @@ millimeter unit.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2388">line 2388</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2435">line 2435</a>
     </li></ul></dd>
     
 
@@ -2276,7 +2319,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2122">line 2122</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2169">line 2169</a>
     </li></ul></dd>
     
 
@@ -2413,7 +2456,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2553">line 2553</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2600">line 2600</a>
     </li></ul></dd>
     
 
@@ -2550,7 +2593,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1633">line 1633</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1672">line 1672</a>
     </li></ul></dd>
     
 
@@ -2687,7 +2730,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2426">line 2426</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2473">line 2473</a>
     </li></ul></dd>
     
 
@@ -2824,7 +2867,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2518">line 2518</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2565">line 2565</a>
     </li></ul></dd>
     
 
@@ -2961,7 +3004,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2296">line 2296</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2343">line 2343</a>
     </li></ul></dd>
     
 
@@ -3099,7 +3142,7 @@ DICOM Microscopy Simple Bulk Annotations instance</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2979">line 2979</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3026">line 3026</a>
     </li></ul></dd>
     
 
@@ -3236,7 +3279,7 @@ DICOM Microscopy Simple Bulk Annotations instance</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4060">line 4060</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4110">line 4110</a>
     </li></ul></dd>
     
 
@@ -3633,7 +3676,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2746">line 2746</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2793">line 2793</a>
     </li></ul></dd>
     
 
@@ -3793,7 +3836,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2701">line 2701</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2748">line 2748</a>
     </li></ul></dd>
     
 
@@ -3953,7 +3996,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2678">line 2678</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2725">line 2725</a>
     </li></ul></dd>
     
 
@@ -4090,7 +4133,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3644">line 3644</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3694">line 3694</a>
     </li></ul></dd>
     
 
@@ -4406,7 +4449,7 @@ visible</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2881">line 2881</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2928">line 2928</a>
     </li></ul></dd>
     
 
@@ -4496,7 +4539,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1808">line 1808</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1851">line 1851</a>
     </li></ul></dd>
     
 
@@ -4584,7 +4627,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2505">line 2505</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2552">line 2552</a>
     </li></ul></dd>
     
 
@@ -4672,7 +4715,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2413">line 2413</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2460">line 2460</a>
     </li></ul></dd>
     
 
@@ -4760,7 +4803,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2247">line 2247</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2294">line 2294</a>
     </li></ul></dd>
     
 
@@ -4848,7 +4891,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2601">line 2601</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2648">line 2648</a>
     </li></ul></dd>
     
 
@@ -4985,7 +5028,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1664">line 1664</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1703">line 1703</a>
     </li></ul></dd>
     
 
@@ -5073,7 +5116,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2465">line 2465</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2512">line 2512</a>
     </li></ul></dd>
     
 
@@ -5161,7 +5204,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2531">line 2531</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2578">line 2578</a>
     </li></ul></dd>
     
 
@@ -5249,7 +5292,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2375">line 2375</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2422">line 2422</a>
     </li></ul></dd>
     
 
@@ -5355,7 +5398,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3612">line 3612</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3662">line 3662</a>
     </li></ul></dd>
     
 
@@ -5461,7 +5504,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1620">line 1620</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1659">line 1659</a>
     </li></ul></dd>
     
 
@@ -5567,7 +5610,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4541">line 4541</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4591">line 4591</a>
     </li></ul></dd>
     
 
@@ -5673,7 +5716,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2623">line 2623</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2670">line 2670</a>
     </li></ul></dd>
     
 
@@ -5783,7 +5826,7 @@ Release allocated memory and clear the viewport.
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4047">line 4047</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4097">line 4097</a>
     </li></ul></dd>
     
 
@@ -5939,7 +5982,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3571">line 3571</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3621">line 3621</a>
     </li></ul></dd>
     
 
@@ -6098,7 +6141,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3628">line 3628</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3678">line 3678</a>
     </li></ul></dd>
     
 
@@ -6259,7 +6302,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3593">line 3593</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3643">line 3643</a>
     </li></ul></dd>
     
 
@@ -6418,7 +6461,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1541">line 1541</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1580">line 1580</a>
     </li></ul></dd>
     
 
@@ -6577,7 +6620,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1604">line 1604</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1643">line 1643</a>
     </li></ul></dd>
     
 
@@ -6737,7 +6780,7 @@ metadata
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1572">line 1572</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1611">line 1611</a>
     </li></ul></dd>
     
 
@@ -6896,7 +6939,7 @@ metadata
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4481">line 4481</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4531">line 4531</a>
     </li></ul></dd>
     
 
@@ -7055,7 +7098,7 @@ metadata
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4525">line 4525</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4575">line 4575</a>
     </li></ul></dd>
     
 
@@ -7215,7 +7258,7 @@ instances
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4502">line 4502</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4552">line 4552</a>
     </li></ul></dd>
     
 
@@ -7423,7 +7466,7 @@ instances
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2016">line 2016</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2063">line 2063</a>
     </li></ul></dd>
     
 
@@ -7582,7 +7625,7 @@ instances
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2659">line 2659</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2706">line 2706</a>
     </li></ul></dd>
     
 
@@ -7741,7 +7784,7 @@ instances
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2824">line 2824</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2871">line 2871</a>
     </li></ul></dd>
     
 
@@ -7900,7 +7943,7 @@ instances
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3989">line 3989</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4039">line 4039</a>
     </li></ul></dd>
     
 
@@ -8059,7 +8102,7 @@ instances
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4031">line 4031</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4081">line 4081</a>
     </li></ul></dd>
     
 
@@ -8218,7 +8261,7 @@ instances
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4010">line 4010</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4060">line 4060</a>
     </li></ul></dd>
     
 
@@ -8378,7 +8421,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3394">line 3394</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3444">line 3444</a>
     </li></ul></dd>
     
 
@@ -8515,7 +8558,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1754">line 1754</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1797">line 1797</a>
     </li></ul></dd>
     
 
@@ -8652,7 +8695,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4366">line 4366</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4416">line 4416</a>
     </li></ul></dd>
     
 
@@ -8740,7 +8783,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2949">line 2949</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2996">line 2996</a>
     </li></ul></dd>
     
 
@@ -8877,7 +8920,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3889">line 3889</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3939">line 3939</a>
     </li></ul></dd>
     
 
@@ -9015,7 +9058,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3412">line 3412</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3462">line 3462</a>
     </li></ul></dd>
     
 
@@ -9152,7 +9195,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1687">line 1687</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1726">line 1726</a>
     </li></ul></dd>
     
 
@@ -9311,7 +9354,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1513">line 1513</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1552">line 1552</a>
     </li></ul></dd>
     
 
@@ -9470,7 +9513,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1527">line 1527</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1566">line 1566</a>
     </li></ul></dd>
     
 
@@ -9629,7 +9672,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1773">line 1773</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1816">line 1816</a>
     </li></ul></dd>
     
 
@@ -9784,7 +9827,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4384">line 4384</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4434">line 4434</a>
     </li></ul></dd>
     
 
@@ -9939,7 +9982,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3907">line 3907</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3957">line 3957</a>
     </li></ul></dd>
     
 
@@ -10166,7 +10209,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2088">line 2088</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2135">line 2135</a>
     </li></ul></dd>
     
 
@@ -10254,7 +10297,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2723">line 2723</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2770">line 2770</a>
     </li></ul></dd>
     
 
@@ -10364,7 +10407,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3359">line 3359</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3409">line 3409</a>
     </li></ul></dd>
     
 
@@ -10452,7 +10495,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4314">line 4314</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4364">line 4364</a>
     </li></ul></dd>
     
 
@@ -10540,7 +10583,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2941">line 2941</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2988">line 2988</a>
     </li></ul></dd>
     
 
@@ -10628,7 +10671,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3838">line 3838</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3888">line 3888</a>
     </li></ul></dd>
     
 
@@ -10766,7 +10809,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3342">line 3342</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3392">line 3392</a>
     </li></ul></dd>
     
 
@@ -10903,7 +10946,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4298">line 4298</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4348">line 4348</a>
     </li></ul></dd>
     
 
@@ -11040,7 +11083,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2922">line 2922</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2969">line 2969</a>
     </li></ul></dd>
     
 
@@ -11177,7 +11220,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3822">line 3822</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3872">line 3872</a>
     </li></ul></dd>
     
 
@@ -11363,7 +11406,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2908">line 2908</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2955">line 2955</a>
     </li></ul></dd>
     
 
@@ -11552,7 +11595,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1835">line 1835</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1878">line 1878</a>
     </li></ul></dd>
     
 
@@ -11640,7 +11683,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1789">line 1789</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1832">line 1832</a>
     </li></ul></dd>
     
 
@@ -11947,7 +11990,7 @@ pseudo-coloring of annotations using measurement values</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3434">line 3434</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3484">line 3484</a>
     </li></ul></dd>
     
 
@@ -12284,7 +12327,7 @@ limits</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1433">line 1433</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1472">line 1472</a>
     </li></ul></dd>
     
 
@@ -12538,7 +12581,7 @@ limits</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4403">line 4403</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4453">line 4453</a>
     </li></ul></dd>
     
 
@@ -12915,7 +12958,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2858">line 2858</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2905">line 2905</a>
     </li></ul></dd>
     
 
@@ -13136,7 +13179,7 @@ geometry
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3925">line 3925</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3975">line 3975</a>
     </li></ul></dd>
     
 
@@ -13424,7 +13467,7 @@ group</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3375">line 3375</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3425">line 3425</a>
     </li></ul></dd>
     
 
@@ -13766,7 +13809,7 @@ limits</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1719">line 1719</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line1758">line 1758</a>
     </li></ul></dd>
     
 
@@ -14040,7 +14083,7 @@ limits</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4328">line 4328</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line4378">line 4378</a>
     </li></ul></dd>
     
 
@@ -14128,7 +14171,7 @@ limits</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2958">line 2958</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3005">line 3005</a>
     </li></ul></dd>
     
 
@@ -14369,7 +14412,7 @@ limits</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3851">line 3851</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line3901">line 3901</a>
     </li></ul></dd>
     
 
@@ -14457,7 +14500,7 @@ limits</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2352">line 2352</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2399">line 2399</a>
     </li></ul></dd>
     
 
@@ -14844,7 +14887,7 @@ limits</td>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2806">line 2806</a>
+        <a href="viewer.js.html">viewer.js</a>, <a href="viewer.js.html#line2853">line 2853</a>
     </li></ul></dd>
     
 
@@ -14896,7 +14939,7 @@ limits</td>
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Wed Sep 14 2022 16:41:20 GMT-0400 (Eastern Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.10</a> on Thu Sep 29 2022 16:54:54 GMT-0400 (Eastern Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>
