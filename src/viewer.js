@@ -98,6 +98,13 @@ import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
+function _getClient (clientMapping, sopClassUID) {
+  if (clientMapping[sopClassUID] == null) {
+    return clientMapping.default
+  }
+  return clientMapping[sopClassUID]
+}
+
 function _getInteractionBindingCondition (bindings) {
   const BUTTONS = {
     left: 1,
@@ -687,6 +694,7 @@ const _affineInverse = Symbol('affineInverse')
 const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
 const _areIccProfilesFetched = Symbol('areIccProfilesFetched')
+const _clients = Symbol('clients')
 const _controls = Symbol('controls')
 const _drawingLayer = Symbol('drawingLayer')
 const _drawingSource = Symbol('drawingSource')
@@ -719,13 +727,18 @@ class VolumeImageViewer {
    * Create a viewer instance for displaying VOLUME images.
    *
    * @param {Object} options
-   * @param {Object} options.client - A DICOMwebClient instance for interacting
-   * with an origin server over HTTP
    * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata -
    * Metadata of DICOM VL Whole Slide Microscopy Image instances that should be
    * diplayed.
-   * @param {number} [options.preload=0] - Number of resolution levels that should
-   * be preloaded
+   * @param {Object} [options.client] - A DICOMwebClient instance for search for
+   * and retrieve data from an origin server over HTTP
+   * @param {Object} [options.clientMapping] - Mapping of SOP Class UIDs to
+   * DICOMwebClient instances to search for and retrieve data from different
+   * origin servers, depending on the type of DICOM object. Using a mapping can
+   * be usedful, for example, if images, image annotations, or image analysis
+   * results are stored in different archives.
+   * @param {number} [options.preload=0] - Number of resolution levels that
+   * should be preloaded
    * @param {string[]} [options.controls=[]] - Names of viewer control elements
    * that should be included in the viewport
    * @param {boolean} [options.debug=false] - Whether debug features should be
@@ -739,6 +752,26 @@ class VolumeImageViewer {
    */
   constructor (options) {
     this[_options] = options
+
+    this[_clients] = {}
+    if (this[_options].client) {
+      this[_clients].default = this[_options].client
+    } else {
+      if (this[_options].clientMapping == null) {
+        throw new Error(
+          'Either option "client" or option "clientMapping" must be provided.'
+        )
+      }
+      if (!(typeof this[_options].clientMapping === 'object')) {
+        throw new Error('Option "clientMapping" must be an object.')
+      }
+      if (this[_options].clientMapping.default == null) {
+        throw new Error('Option "clientMapping" must contain "default" key.')
+      }
+      for (const key in this[_options].clientMapping) {
+        this[_clients][key] = this[_options].clientMapping[key]
+      }
+    }
 
     if (this[_options].debug == null) {
       this[_options].debug = false
@@ -1027,7 +1060,10 @@ class VolumeImageViewer {
           maxStoredValue,
           loaderParams: {
             pyramid,
-            client: this[_options].client,
+            client: _getClient(
+              this[_clients],
+              Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
+            ),
             channel: opticalPathIdentifier
           },
           hasLoader: false
@@ -1149,7 +1185,10 @@ class VolumeImageViewer {
         maxStoredValue: 255,
         loaderParams: {
           pyramid,
-          client: this[_options].client,
+          client: _getClient(
+            this[_clients],
+            Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
+          ),
           channel: opticalPathIdentifier
         },
         hasLoader: false
@@ -1730,7 +1769,11 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement()
     if (container && !opticalPath.hasLoader) {
       const metadata = opticalPath.pyramid.metadata
-      _getIccProfiles(metadata, this[_options].client).then(profiles => {
+      const client = _getClient(
+        this[_clients],
+        Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
+      )
+      _getIccProfiles(metadata, client).then(profiles => {
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
@@ -1853,7 +1896,11 @@ class VolumeImageViewer {
 
     itemsRequiringDecodersAndTransformers.forEach(item => {
       const metadata = item.pyramid.metadata
-      _getIccProfiles(metadata, this[_options].client).then(profiles => {
+      const client = _getClient(
+        this[_clients],
+        Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
+      )
+      _getIccProfiles(metadata, client).then(profiles => {
         const source = item.layer.getSource()
         const loader = _createTileLoadFunction({
           targetElement: container,
@@ -3103,7 +3150,10 @@ class VolumeImageViewer {
     }
 
     // We need to bind those variables to constants for the loader function
-    const client = this[_options].client
+    const client = _getClient(
+      this[_clients],
+      Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
+    )
     const pyramid = this[_pyramid].metadata
     const affineInverse = this[_affineInverse]
 
@@ -3763,7 +3813,7 @@ class VolumeImageViewer {
         maxZoomLevel,
         loaderParams: {
           pyramid: fittedPyramid,
-          client: this[_options].client,
+          client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
           channel: segmentNumber
         },
         hasLoader: false
@@ -4248,7 +4298,7 @@ class VolumeImageViewer {
         maxZoomLevel,
         loaderParams: {
           pyramid: fittedPyramid,
-          client: this[_options].client,
+          client: _getClient(this[_clients], Enums.SOPClassUIDs.PARAMETRIC_MAP),
           channel: mappingNumber
         },
         hasLoader: false
@@ -4560,6 +4610,10 @@ class _NonVolumeImageViewer {
    * @param {Object} options
    * @param {Object} options.client - A DICOMwebClient instance for interacting
    * with an origin server over HTTP.
+   * @param {Object} options.clientMapping - Mapping of SOP Class UID to
+   * DICOMwebClient instance for interacting with more than one origin server
+   * over HTTP. The viewer will select the configured client for searching,
+   * retrieving, or storing data on a per SOP Class basis.
    * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata -
    * Metadata of DICOM VL Whole Slide Microscopy Image instances
    * @param {string} options.orientation - Orientation of the slide (vertical:
