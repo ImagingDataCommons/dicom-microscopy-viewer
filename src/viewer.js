@@ -625,7 +625,8 @@ function _getColorInterpolationStyleForTileLayer ({
  * Build OpenLayers style expression for coloring a WebGL PointLayer.
  *
  * @param {Object} styleOptions - Style options
- * @param {string} styleOptions.name - Name of a property for which values should be colorized
+ * @param {string} styleOptions.key - Name of a property for which values
+ * should be colorized
  * @param {number} styleOptions.minValue - Mininum value of the output range
  * @param {number} styleOptions.maxValue - Maxinum value of the output range
  * @param {number[][]} styleOptions.colormap - RGB color triplets
@@ -680,6 +681,67 @@ function _getColorPaletteStyleForPointLayer ({
     'palette',
     indexExpression,
     colormap
+  ]
+
+  return { color: expression }
+}
+
+/**
+ * Build OpenLayers style expression for coloring a WebGL PointLayer.
+ *
+ * @param {Object} styleOptions - Style options
+ * @param {string} styleOptions.key - Name of a property for which values
+ * should be colorized
+ * @param {number} styleOptions.minValue - Mininum value of the output range
+ * @param {number} styleOptions.maxValue - Maxinum value of the output range
+ * @param {number[]} styleOptions.color - RGB color triplet
+ *
+ * @returns {Object} color style expression and corresponding variables
+ *
+ * @private
+ */
+function _getColorInterpolationStyleForPointLayer ({
+  key,
+  minValue,
+  maxValue,
+  color
+}) {
+  const minIndexValue = 0
+  const maxIndexValue = 1
+  const indexExpression = [
+    '+',
+    [
+      '/',
+      [
+        '*',
+        [
+          '-',
+          ['get', key],
+          minValue
+        ],
+        [
+          '-',
+          maxIndexValue,
+          minIndexValue
+        ]
+      ],
+      [
+        '-',
+        maxValue,
+        minValue
+      ]
+    ],
+    minIndexValue
+  ]
+
+  const expression = [
+    'interpolate',
+    ['linear'],
+    indexExpression,
+    0,
+    [255, 255, 255, 1],
+    1,
+    color
   ]
 
   return { color: expression }
@@ -3510,21 +3572,26 @@ class VolumeImageViewer {
       )
     }
 
-    const markerType = 'circle'
     const topLayerIndex = 0
     const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
     const baseLayerIndex = this[_pyramid].metadata.length - 1
     const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
     const diameter = 5 * 10 ** -3 // micometer
-    const markerSize = [
-      'interpolate',
-      ['exponential', 2],
-      ['zoom'],
-      1,
-      Math.max(diameter / topLayerPixelSpacing[0], 1),
-      this[_pyramid].resolutions.length,
-      Math.min(diameter / baseLayerPixelSpacing[0], 50)
-    ]
+    const style = {
+      symbol: {
+        symbolType: 'circle',
+        size: [
+          'interpolate',
+          ['exponential', 2],
+          ['zoom'],
+          1,
+          Math.max(diameter / topLayerPixelSpacing[0], 1),
+          this[_pyramid].resolutions.length,
+          Math.min(diameter / baseLayerPixelSpacing[0], 50)
+        ],
+        opacity: annotationGroup.style.opacity
+      }
+    }
 
     const name = styleOptions.measurement
     if (name) {
@@ -3540,26 +3607,19 @@ class VolumeImageViewer {
       }
       const properties = source.getProperties()
       const key = `measurementValue${measurementIndex.toString()}`
-
       if (properties[key]) {
-        const style = {
-          symbol: {
-            symbolType: markerType,
-            size: markerSize,
-            opacity: annotationGroup.style.opacity
-          }
-        }
-        const colormap = createColormap({
-          name: ColormapNames.VIRIDIS,
-          bins: 50
-        })
+        /*
+         * Ideally, we would use a color palette to colorize objects.
+         * However, it appears the "palette" expression is not yet supported for
+         * styling PointLayer.
+         */
         Object.assign(
           style.symbol,
-          _getColorPaletteStyleForPointLayer({
+          _getColorInterpolationStyleForPointLayer({
             key,
             minValue: properties[key].min,
             maxValue: properties[key].max,
-            colormap
+            color: annotationGroup.style.color
           })
         )
         const newLayer = new PointsLayer({
@@ -3570,26 +3630,26 @@ class VolumeImageViewer {
         })
         this[_map].addLayer(newLayer)
         this[_map].removeLayer(annotationGroup.layer)
+        const isVisible = annotationGroup.layer.getVisible()
         annotationGroup.layer.dispose()
         annotationGroup.layer = newLayer
+        annotationGroup.layer.setVisible(isVisible)
       }
     } else {
       if (styleOptions.color != null) {
         // Only replace the layer if necessary
-        const style = {
-          symbol: {
-            symbolType: markerType,
-            size: markerSize,
+        Object.assign(
+          style.symbol,
+          {
             color: [
               'match',
               ['get', 'selected'],
               1,
               rgb2hex(this[_options].highlightColor),
               rgb2hex(annotationGroup.style.color)
-            ],
-            opacity: annotationGroup.style.opacity
+            ]
           }
-        }
+        )
         const newLayer = new PointsLayer({
           source,
           style,
