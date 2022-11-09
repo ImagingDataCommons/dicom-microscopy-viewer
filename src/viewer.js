@@ -422,13 +422,11 @@ function _updateFeatureMeasurements (map, feature, pyramid, affine) {
         schemeDesignator: 'SCT'
       }),
       value: area,
-      unit: [
-        new dcmjs.sr.coding.CodedConcept({
-          value: unitCodedConceptValue,
-          meaning: unitCodedConceptMeaning,
-          schemeDesignator: 'SCT'
-        })
-      ]
+      unit: new dcmjs.sr.coding.CodedConcept({
+        value: unitCodedConceptValue,
+        meaning: unitCodedConceptMeaning,
+        schemeDesignator: 'SCT'
+      })
     })
   }
 
@@ -442,13 +440,11 @@ function _updateFeatureMeasurements (map, feature, pyramid, affine) {
         schemeDesignator: 'SCT'
       }),
       value: length,
-      unit: [
-        new dcmjs.sr.coding.CodedConcept({
-          value: unitCodedConceptValue,
-          meaning: unitCodedConceptMeaning,
-          schemeDesignator: 'SCT'
-        })
-      ]
+      unit: new dcmjs.sr.coding.CodedConcept({
+        value: unitCodedConceptValue,
+        meaning: unitCodedConceptMeaning,
+        schemeDesignator: 'SCT'
+      })
     })
   }
 
