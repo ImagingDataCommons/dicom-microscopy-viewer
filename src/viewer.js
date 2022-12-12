@@ -755,16 +755,19 @@ class VolumeImageViewer {
   constructor (options) {
     this[_options] = options
 
-    if(!('errorInterceptor' in this[_options])){
-      this[_options].errorInterceptor = error => {throw error}}
+    if(this[_options].errorInterceptor == null) {
+      this[_options].errorInterceptor = error => {throw error}
+    }
 
     this[_clients] = {}
     if (this[_options].client) {
       this[_clients].default = this[_options].client
     } else {
       if (this[_options].clientMapping == null) {
-        this[_options].errorInterceptor(new Error(
-          'Either option "client" or option "clientMapping" must be provided.'))
+        const error = new Error(
+          'Either option "client" or option "clientMapping" must be provided.'
+        )
+        this[_options].errorInterceptor(error)
       }
       if (!(typeof this[_options].clientMapping === 'object')) {
         this[_options].errorInterceptor(new Error('Option "clientMapping" must be an object.'))
@@ -4628,7 +4631,7 @@ class _NonVolumeImageViewer {
    */
   constructor (options) {
 
-    if(!('errorInterceptor' in options)){
+    if(options.errorInterceptor == null){
       options.errorInterceptor = error => {throw error}}
       
     // We also accept metadata in raw JSON format for backwards compatibility
@@ -4825,7 +4828,7 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
    * should be included for correction of image colors.
    */
   constructor (options) {
-    if(!('errorInterceptor' in options)){
+    if(options.errorInterceptor == null){
       options.errorInterceptor = error => {throw error}}
 
     if (options.orientation === undefined) {
@@ -4856,7 +4859,7 @@ class LabelImageViewer extends _NonVolumeImageViewer {
    * should be included for correction of image colors
    */
   constructor (options) {
-    if(!('errorInterceptor' in options)){
+    if(options.errorInterceptor == null){
       options.errorInterceptor = error => {throw error}}
 
     if (options.orientation === undefined) {
