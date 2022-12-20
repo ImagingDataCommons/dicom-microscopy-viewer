@@ -39,6 +39,7 @@ import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
+import {CustomError, errorTypes} from './customerror'
 
 import {
   AnnotationGroup,
@@ -727,7 +728,7 @@ class VolumeImageViewer {
    * Callback for intercepting errors.
    * 
    * @callback errorInterceptor
-   * @param {Error} error - Error instance
+   * @param {CustomError} error - Error instance
    */
   /**
    * Create a viewer instance for displaying VOLUME images.
@@ -762,7 +763,9 @@ class VolumeImageViewer {
     this[_options] = options
 
     if(this[_options].errorInterceptor == null) {
-      this[_options].errorInterceptor = error => {throw error}
+      this[_options].errorInterceptor = error => {
+        throw error
+      }
     }
 
     this[_clients] = {}
@@ -770,19 +773,22 @@ class VolumeImageViewer {
       this[_clients].default = this[_options].client
     } else {
       if (this[_options].clientMapping == null) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Either option "client" or option "clientMapping" must be provided.'
         )
         this[_options].errorInterceptor(error)
       }
       if (!(typeof this[_options].clientMapping === 'object')) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Option "clientMapping" must be an object.'
         )
         this[_options].errorInterceptor(error)
       }
       if (this[_options].clientMapping.default == null) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Option "clientMapping" must contain "default" key.'
         )
         this[_options].errorInterceptor(error)
@@ -845,21 +851,24 @@ class VolumeImageViewer {
     })
 
     if (this[_options].metadata.constructor.name !== 'Array') {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Input metadata must be an array.'
       )
       this[_options].errorInterceptor(error)
     }
 
     if (this[_options].metadata.length === 0) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Input metadata array is empty.'
       )
       this[_options].errorInterceptor(error)
     }
 
     if (this[_options].metadata.some((item) => typeof item !== 'object')) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Input metadata must be an array of objects.'
       )
       this[_options].errorInterceptor(error)
@@ -911,19 +920,22 @@ class VolumeImageViewer {
     const numChannels = monochromeOpticalPathIdentifiers.length
     const numColorImages = colorOpticalPathIdentifiers.length
     if (numChannels === 0 && numColorImages === 0) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Could not find any channels or color images.'
       )
       this[_options].errorInterceptor(error)
     }
     if (numChannels > 0 && numColorImages > 0) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Found both channels and color images.'
       )
       this[_options].errorInterceptor(error)
     }
     if (numColorImages > 1) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Found more than one color image.'
       )
       this[_options].errorInterceptor(error)
@@ -1111,7 +1123,8 @@ class VolumeImageViewer {
           this[_pyramid]
         )
         if (!areImagePyramidsEqual) {
-          const error = new Error(
+          const error = new CustomError(
+            errorTypes.VISUALIZATION,
             `Pyramid of optical path "${opticalPathIdentifier}" ` +
             'is different from reference pyramid.'
           )
@@ -1510,7 +1523,8 @@ class VolumeImageViewer {
   setOpticalPathStyle (opticalPathIdentifier, styleOptions = {}) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath === undefined) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot set optical path style. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
@@ -1619,7 +1633,8 @@ class VolumeImageViewer {
   getOpticalPathDefaultStyle (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath == null) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get default style of optical path. ' +
         `Could not find optical path "${opticalPathIdentifier}".`
       )
@@ -1651,7 +1666,8 @@ class VolumeImageViewer {
   getOpticalPathStyle (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath == null) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get style of optical path. ' +
         `Could not find optical path "${opticalPathIdentifier}".`
       )
@@ -1684,7 +1700,8 @@ class VolumeImageViewer {
   getOpticalPathMetadata (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath === undefined) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get image metadata optical path. ' +
         `Could not find optical path "${opticalPathIdentifier}".`
       )
@@ -1714,7 +1731,8 @@ class VolumeImageViewer {
   activateOpticalPath (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath === undefined) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot activate optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
@@ -1746,7 +1764,8 @@ class VolumeImageViewer {
   deactivateOpticalPath (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath === undefined) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot deactivate optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
@@ -1802,7 +1821,8 @@ class VolumeImageViewer {
   showOpticalPath (opticalPathIdentifier, styleOptions = {}) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath === undefined) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot show optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
@@ -1842,7 +1862,8 @@ class VolumeImageViewer {
   hideOpticalPath (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath === undefined) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot hide optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
@@ -1862,7 +1883,8 @@ class VolumeImageViewer {
   isOpticalPathVisible (opticalPathIdentifier) {
     const opticalPath = this[_opticalPaths][opticalPathIdentifier]
     if (opticalPath === undefined) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot show optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
@@ -2181,7 +2203,8 @@ class VolumeImageViewer {
    */
   navigate ({ level, position }) {
     if (level > this.numLevels) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Argument "level" exceeds number of resolution levels.'
       )
       this[_options].errorInterceptor(error)
@@ -2429,9 +2452,11 @@ class VolumeImageViewer {
     } catch (error) {
       const uid = feature.getId()
       this.removeROI(uid)
-      if(!(error instanceof Error))
-      {error = new error(String(error))}
-      this[_options].errorInterceptor(error)
+      const roiError = new CustomError(
+        errorTypes.VISUALIZATION,
+        'Unable to get ROI'
+      )
+      this[_options].errorInterceptor(roiError)
     }
 
     const featureProperties = feature.getProperties()
@@ -2759,7 +2784,8 @@ class VolumeImageViewer {
     console.debug(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
     if (feature == null) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         `Could not find a ROI with UID "${uid}".`
       )
       this[_options].errorInterceptor(error)
@@ -2864,7 +2890,8 @@ class VolumeImageViewer {
 
     const frameOfReferenceUID = this[_pyramid].metadata.FrameOfReferenceUID
     if (roi.frameOfReferenceUID !== frameOfReferenceUID) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         `Frame of Reference UID of ROI ${roi.uid} does not match ` +
         'Frame of Reference UID of source images.'
       )
@@ -2930,7 +2957,8 @@ class VolumeImageViewer {
       return feature.getId() === uid
     })
     if (feature == null) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         `Could not find a ROI with UID "${uid}".`
       )
       this[_options].errorInterceptor(error)
@@ -3086,7 +3114,8 @@ class VolumeImageViewer {
   addAnnotationGroups (metadata) {
     const refImage = this[_pyramid].metadata[0]
     if (refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Microscopy Bulk Simple Annotation instances must have the same ' +
         'Frame of Reference UID as the corresponding source images.'
       )
@@ -3113,7 +3142,8 @@ class VolumeImageViewer {
         item => item.AnnotationGroupUID === annotationGroupUID
       )
       if (annotationGroupUID == null || annotationGroupMetadata == null) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Could not obtain information of annotation from ' +
           `annotation group "${annotationGroupUID}".`
         )
@@ -3453,7 +3483,8 @@ class VolumeImageViewer {
    */
   removeAnnotationGroup (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Cannot remove annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
@@ -3487,7 +3518,8 @@ class VolumeImageViewer {
    */
   showAnnotationGroup (annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Cannot show annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
@@ -3507,7 +3539,8 @@ class VolumeImageViewer {
    */
   hideAnnotationGroup (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Cannot hide annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
@@ -3526,7 +3559,8 @@ class VolumeImageViewer {
    */
   isAnnotationGroupVisible (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Cannot determine if annotation group is visible. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
@@ -3549,7 +3583,8 @@ class VolumeImageViewer {
    */
   setAnnotationGroupStyle (annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot set style of annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
@@ -3575,7 +3610,8 @@ class VolumeImageViewer {
       return item.AnnotationGroupUID === annotationGroupUID
     })
     if (groupItem == null) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot set style of annotation group. ' +
         `Could not find metadata of annotation group "${annotationGroupUID}".`
       )
@@ -3604,7 +3640,8 @@ class VolumeImageViewer {
         return areCodedConceptsEqual(name, getContentItemNameCodedConcept(item))
       })
       if (measurementIndex == null) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
           'Cannot set style of annotation group. ' +
           `Could not find measurement "${name.CodeMeaning}" ` +
           `of annotation group "${annotationGroupUID}".`
@@ -3689,7 +3726,8 @@ class VolumeImageViewer {
    */
   getAnnotationGroupDefaultStyle (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get default style of annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
@@ -3712,7 +3750,8 @@ class VolumeImageViewer {
    */
   getAnnotationGroupStyle (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get style of annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
@@ -3748,7 +3787,8 @@ class VolumeImageViewer {
    */
   getAnnotationGroupMetadata (annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get metadata of annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
@@ -3765,7 +3805,8 @@ class VolumeImageViewer {
    */
   addSegments (metadata) {
     if (metadata.length === 0) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Metadata of Segmentation instances needs to be provided to ' +
         'add segments.'
       )
@@ -3778,27 +3819,31 @@ class VolumeImageViewer {
         instance.TotalPixelMatrixColumns === undefined ||
         instance.TotalPixelMatrixRows === undefined
       ) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Segmentation instances must contain attributes ' +
           '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
         )
         this[_options].errorInterceptor(error)
       }
       if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Segmentation instances must have the same Frame of Reference UID ' +
           'as the corresponding source images.'
         )
         this[_options].errorInterceptor(error)
       }
       if (refSegmentation.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Segmentation instances must all have same Frame of Reference UID.'
         )
         this[_options].errorInterceptor(error)
       }
       if (refSegmentation.SeriesInstanceUID !== instance.SeriesInstanceUID) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Segmentation instances must all have same Series Instance UID.'
         )
         this[_options].errorInterceptor(error)
@@ -3807,7 +3852,8 @@ class VolumeImageViewer {
         refSegmentation.SegmentSequence.length !==
         instance.SegmentSequence.length
       ) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Segmentation instances must all contain the same number of items ' +
           'in the Segment Sequence.'
         )
@@ -3949,7 +3995,8 @@ class VolumeImageViewer {
    */
   removeSegment (segmentUID) {
     if (!(segmentUID in this[_segments])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         `Cannot remove segment. Could not find segment "${segmentUID}".`
       )
       this[_options].errorInterceptor(error)
@@ -3979,7 +4026,8 @@ class VolumeImageViewer {
    */
   showSegment (segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         `Cannot show segment. Could not find segment "${segmentUID}".`
       )
       this[_options].errorInterceptor(error)
@@ -4018,7 +4066,8 @@ class VolumeImageViewer {
    */
   hideSegment (segmentUID) {
     if (!(segmentUID in this[_segments])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         `Cannot hide segment. Could not find segment "${segmentUID}".`
       )
       this[_options].errorInterceptor(error)
@@ -4037,7 +4086,8 @@ class VolumeImageViewer {
    */
   isSegmentVisible (segmentUID) {
     if (!(segmentUID in this[_segments])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot determine if segment is visible. ' +
         `Could not find segment "${segmentUID}".`
       )
@@ -4056,7 +4106,8 @@ class VolumeImageViewer {
    */
   setSegmentStyle (segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot set style of segment. ' +
         `Could not find segment "${segmentUID}".`
       )
@@ -4121,7 +4172,8 @@ class VolumeImageViewer {
    */
   getSegmentDefaultStyle (segmentUID) {
     if (!(segmentUID in this[_segments])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get default style of segment. ' +
         `Could not find segment "${segmentUID}".`
       )
@@ -4143,7 +4195,8 @@ class VolumeImageViewer {
    */
   getSegmentStyle (segmentUID) {
     if (!(segmentUID in this[_segments])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get style of segment. ' +
         `Could not find segment "${segmentUID}".`
       )
@@ -4165,7 +4218,8 @@ class VolumeImageViewer {
    */
   getSegmentMetadata (segmentUID) {
     if (!(segmentUID in this[_segments])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get image metadata of segment. ' +
         `Could not find segment "${segmentUID}".`
       )
@@ -4195,7 +4249,8 @@ class VolumeImageViewer {
    */
   addParameterMappings (metadata) {
     if (metadata.length === 0) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Metadata of Parametric Map instances needs to be provided to ' +
         'add mappings.'
       )
@@ -4217,27 +4272,31 @@ class VolumeImageViewer {
         instance.TotalPixelMatrixColumns === undefined ||
         instance.TotalPixelMatrixRows === undefined
       ) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Parametric Map instances must contain attributes ' +
           '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
         )
         this[_options].errorInterceptor(error)
       }
       if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Parametric Map instances must have the same Frame of Reference UID ' +
           'as the corresponding source images.'
         )
         this[_options].errorInterceptor(error)
       }
       if (refParametricMap.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Parametric Map instances must all have same Frame of Reference UID.'
         )
         this[_options].errorInterceptor(error)
       }
       if (refParametricMap.SeriesInstanceUID !== instance.SeriesInstanceUID) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Parametric Map instances must all have same Series Instance UID.'
         )
         this[_options].errorInterceptor(error)
@@ -4267,7 +4326,8 @@ class VolumeImageViewer {
     const sharedFuncGroup = refInstance.SharedFunctionalGroupsSequence[0]
     const frameVOILUT = sharedFuncGroup.FrameVOILUTSequence[0]
     if (frameVOILUT === undefined) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'The Parametric Map image does not specify a shared frame ' +
         'Value of Interest (VOI) lookup table (LUT).'
       )
@@ -4295,7 +4355,8 @@ class VolumeImageViewer {
       mappingDescriptions.forEach((item, i) => {
         if (item.TrackingUID != null) {
           if (item.TrackingUID !== mappingUID) {
-            const error = new Error(
+            const error = new CustomError(
+              errorTypes.ENCODINGANDDECODING,
               `Item #${i + 1} of Real World Value Mapping Sequence ` +
               `of frame #${index + 1} has unexpected Tracking UID. ` +
               'All items must have the same unique identifier value.'
@@ -4324,7 +4385,8 @@ class VolumeImageViewer {
 
       // TODO: include real world values in legend
       if (isNaN(range[0]) || isNaN(range[1])) {
-        const error = new Error(
+        const error = new CustomError(
+          errorTypes.ENCODINGANDDECODING,
           'Could not determine range of real world values.'
         )
         this[_options].errorInterceptor(error)
@@ -4443,7 +4505,8 @@ class VolumeImageViewer {
    */
   removeParameterMapping (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         `Cannot remove mapping. Could not find mapping "${mappingUID}".`
       )
       this[_options].errorInterceptor(error)
@@ -4474,7 +4537,8 @@ class VolumeImageViewer {
    */
   showParameterMapping (mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         `Cannot show mapping. Could not find mapping "${mappingUID}".`
       )
       this[_options].errorInterceptor(error)
@@ -4513,7 +4577,8 @@ class VolumeImageViewer {
    */
   hideParameterMapping (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         `Cannot hide mapping. Could not find mapping "${mappingUID}".`
       )
       this[_options].errorInterceptor(error)
@@ -4532,7 +4597,8 @@ class VolumeImageViewer {
    */
   isParameterMappingVisible (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.ENCODINGANDDECODING,
         'Cannot determine if mapping is visible. ' +
         `Could not find mapping "${mappingUID}".`
       )
@@ -4552,7 +4618,8 @@ class VolumeImageViewer {
    */
   setParameterMappingStyle (mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot set style of mapping. ' +
         `Could not find mapping "${mappingUID}".`
       )
@@ -4631,7 +4698,8 @@ class VolumeImageViewer {
    */
   getParameterMappingDefaultStyle (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get default style of mapping. ' +
         `Could not find mapping "${mappingUID}".`
       )
@@ -4653,7 +4721,8 @@ class VolumeImageViewer {
    */
   getParameterMappingStyle (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get style of mapping. ' +
         `Could not find mapping "${mappingUID}".`
       )
@@ -4677,7 +4746,8 @@ class VolumeImageViewer {
    */
   getParameterMappingMetadata (mappingUID) {
     if (!(mappingUID in this[_mappings])) {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Cannot get image metadata of mapping. ' +
         `Could not find mapping "${mappingUID}".`
       )
@@ -4740,7 +4810,8 @@ class _NonVolumeImageViewer {
 
     const imageFlavor = this[_metadata].ImageType[2]
     if (imageFlavor === 'VOLUME') {
-      const error = new Error(
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
         'Viewer cannot render images of type VOLUME.'
       )
       options.errorInterceptor(error)
