@@ -35,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/herrmannlab/dicom-microscopy-viewer.git"
+    "url": "git+https://github.com/ImagingDataCommons/dicom-microscopy-viewer.git"
   },
   "keywords": [
     "dicom",
@@ -46,9 +46,9 @@
   "author": "Markus D. Herrmann",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/herrmannlab/dicom-microscopy-viewer/issues"
+    "url": "https://github.com/ImagingDataCommons/dicom-microscopy-viewer/issues"
   },
-  "homepage": "https://github.com/herrmannlab/dicom-microscopy-viewer#readme",
+  "homepage": "https://github.com/ImagingDataCommons/dicom-microscopy-viewer#readme",
   "devDependencies": {
     "@babel/core": "^7.17",
     "@babel/plugin-proposal-object-rest-spread": "^7.14.7",
