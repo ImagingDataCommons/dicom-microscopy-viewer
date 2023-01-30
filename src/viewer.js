@@ -39,7 +39,7 @@ import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
-import {CustomError, errorTypes} from './customerror'
+import { CustomError, errorTypes } from './customerror'
 
 import {
   AnnotationGroup,
@@ -726,7 +726,7 @@ const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 class VolumeImageViewer {
   /**
    * Callback for intercepting errors.
-   * 
+   *
    * @callback errorInterceptor
    * @param {CustomError} error - Error instance
    */
@@ -762,7 +762,7 @@ class VolumeImageViewer {
   constructor (options) {
     this[_options] = options
 
-    if(this[_options].errorInterceptor == null) {
+    if (this[_options].errorInterceptor == null) {
       this[_options].errorInterceptor = error => {
         throw error
       }
@@ -4794,11 +4794,10 @@ class _NonVolumeImageViewer {
    * should be included for correction of image colors.
    */
   constructor (options) {
-
-    if(options.errorInterceptor == null){
-      options.errorInterceptor = error => {throw error}
+    if (options.errorInterceptor == null) {
+      options.errorInterceptor = error => { throw error }
     }
-      
+
     // We also accept metadata in raw JSON format for backwards compatibility
     if (options.metadata.SOPClassUID != null) {
       this[_metadata] = options.metadata
@@ -4997,8 +4996,8 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
    * should be included for correction of image colors.
    */
   constructor (options) {
-    if(options.errorInterceptor == null){
-      options.errorInterceptor = error => {throw error}
+    if (options.errorInterceptor == null) {
+      options.errorInterceptor = error => { throw error }
     }
 
     if (options.orientation === undefined) {
@@ -5029,8 +5028,8 @@ class LabelImageViewer extends _NonVolumeImageViewer {
    * should be included for correction of image colors
    */
   constructor (options) {
-    if(options.errorInterceptor == null){
-      options.errorInterceptor = error => {throw error}
+    if (options.errorInterceptor == null) {
+      options.errorInterceptor = error => { throw error }
     }
 
     if (options.orientation === undefined) {

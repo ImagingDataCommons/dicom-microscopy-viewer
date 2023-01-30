@@ -20,13 +20,13 @@
     ]
   },
   "scripts": {
-    "test": "standard 'src/*.js' && jest --silent",
+    "test": "standard \"src/**/*.js\" && jest --silent",
     "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
     "prepublishOnly": "npm run build",
     "generateStaticSite": "npm run build && cp -R ./dist ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
     "fmt": "standard 'src/**/.js' --fix",
-    "lint": "standard 'src/**/*.js'",
+    "lint": "standard \"src/**/*.js\"",
     "clean": "rm -rf ./dist ./node_modules",
     "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
     "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
