@@ -39,7 +39,7 @@ import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
-import { CustomError, errorTypes } from './customerror'
+import { CustomError, errorTypes } from './customError'
 
 import {
   AnnotationGroup,
