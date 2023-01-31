@@ -775,7 +775,7 @@ class VolumeImageViewer {
       if (this[_options].clientMapping == null) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
-          'Either option "client" or option "clientMapping" must be provided.'
+          'Either option "client" or option "clientMapping" must be provided .'
         )
         this[_options].errorInterceptor(error)
       }
