@@ -21,20 +21,20 @@ It leverages the [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)
 
 ## Documentation
 
-Documentation of the JavaScript Application Programming Interface (API) is available online at [herrmannlab.github.io/dicom-microscopy-viewer](https://herrmannlab.github.io/dicom-microscopy-viewer/).
+Documentation of the JavaScript Application Programming Interface (API) is available online at [imagingdatacommons.github.io/dicom-microscopy-viewer](https://imagingdatacommons.github.io/dicom-microscopy-viewer/).
 
 ## Getting started
 
 Note that the *dicom-microscopy-viewer* package is **not** a viewer application, it is a library to build viewer applications.
 
 Below is an example for the most basic usage: a web page that displays a collection of DICOM VL Whole Slide Microscopy Image instances of a digital slide.
-For more advanced usage, take a look at the [Slim](https://github.com/herrmannlab/slim) viewer.
+For more advanced usage, take a look at the [Slim](https://github.com/imagingdatacommons/slim) viewer.
 
 ### Basic usage
 
 The viewer can be embedded in any website, one only needs to
 
-* Create an instance of [VolumeImageViewer](https://herrmannlab.github.io/dicom-microscopy-viewer/viewer.VolumeImageViewer.html). The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image as an instance of [VLWholeSlideMicroscopyImage](https://herrmannlab.github.io/dicom-microscopy-viewer/metadata.VLWholeSlideMicroscopyImage.html).
+* Create an instance of [VolumeImageViewer](https://imagingdatacommons.github.io/dicom-microscopy-viewer/viewer.VolumeImageViewer.html). The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image as an instance of [VLWholeSlideMicroscopyImage](https://imagingdatacommons.github.io/dicom-microscopy-viewer/metadata.VLWholeSlideMicroscopyImage.html).
 
 * Call the `render()` method, passing it the HTML element (or the name of the element), which shall contain the viewport.
 
