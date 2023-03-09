@@ -468,9 +468,9 @@ function _createTileLoadFunction ({
       }
       // Add this last as the fallback option, see issue #90
       mediaTypes.push({
-          mediaType: octetStreamMediaType,
-          transferSyntaxUID: octetStreamTransferSyntaxUID
-        })
+        mediaType: octetStreamMediaType,
+        transferSyntaxUID: octetStreamTransferSyntaxUID
+      })
 
       const frameInfo = {
         studyInstanceUID,
