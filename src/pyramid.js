@@ -458,10 +458,6 @@ function _createTileLoadFunction ({
         {
           mediaType: jpxMediaType,
           transferSyntaxUID: jpxTransferSyntaxUID
-        },
-        {
-          mediaType: octetStreamMediaType,
-          transferSyntaxUID: octetStreamTransferSyntaxUID
         }
       ])
       if (bitsAllocated <= 8) {
@@ -470,6 +466,11 @@ function _createTileLoadFunction ({
           transferSyntaxUID: jpegTransferSyntaxUID
         })
       }
+      // Add this last as the fallback option, see issue #90
+      mediaTypes.push({
+          mediaType: octetStreamMediaType,
+          transferSyntaxUID: octetStreamTransferSyntaxUID
+        })
 
       const frameInfo = {
         studyInstanceUID,
