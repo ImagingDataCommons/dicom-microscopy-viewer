@@ -422,7 +422,8 @@ function _createTileLoadFunction ({
       const jpxMediaType = 'image/jpx'
       const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
       const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-      const octetStreamMediaType = 'application/octet-stream'
+      // (GH#90) Set q < 1 to prefer compressed media types
+      const octetStreamMediaType = 'application/octet-stream;q=0.1'
       /*
        * Use of the "*" transfer syntax is a hack to work around standard
        * compliance issues of the Google Cloud Healthcare API.
@@ -458,6 +459,10 @@ function _createTileLoadFunction ({
         {
           mediaType: jpxMediaType,
           transferSyntaxUID: jpxTransferSyntaxUID
+        },
+        {
+          mediaType: octetStreamMediaType,
+          transferSyntaxUID: octetStreamTransferSyntaxUID
         }
       ])
       if (bitsAllocated <= 8) {
@@ -466,11 +471,6 @@ function _createTileLoadFunction ({
           transferSyntaxUID: jpegTransferSyntaxUID
         })
       }
-      // Add this last as the fallback option, see issue #90
-      mediaTypes.push({
-        mediaType: octetStreamMediaType,
-        transferSyntaxUID: octetStreamTransferSyntaxUID
-      })
 
       const frameInfo = {
         studyInstanceUID,
