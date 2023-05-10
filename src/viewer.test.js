@@ -10,6 +10,12 @@ jest.mock(
   { virtual: true }
 )
 
+window.ResizeObserver = window.ResizeObserver || jest.fn().mockImplementation(() => ({
+  disconnect: jest.fn(),
+  observe: jest.fn(),
+  unobserve: jest.fn()
+}))
+
 const testCases = [
   {
     name: 'TCGA-LUAD_TCGA-05-4244-01Z-00-DX1',
