@@ -436,6 +436,10 @@ function _createTileLoadFunction ({
       const mediaTypes = []
       mediaTypes.push(...[
         {
+          mediaType: octetStreamMediaType,
+          transferSyntaxUID: octetStreamTransferSyntaxUID
+        },
+        {
           mediaType: jlsMediaType,
           transferSyntaxUID: jlsTransferSyntaxUIDlossless
         },
@@ -458,10 +462,6 @@ function _createTileLoadFunction ({
         {
           mediaType: jpxMediaType,
           transferSyntaxUID: jpxTransferSyntaxUID
-        },
-        {
-          mediaType: octetStreamMediaType,
-          transferSyntaxUID: octetStreamTransferSyntaxUID
         }
       ])
       if (bitsAllocated <= 8) {
