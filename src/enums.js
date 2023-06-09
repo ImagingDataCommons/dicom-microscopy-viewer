@@ -18,6 +18,7 @@ export const Markup = {
 
 export const FeatureEvents = {
   CHANGE: 'change',
+  GEOMETRY_CHANGE: 'change:geometry',
   PROPERTY_CHANGE: 'propertychange'
 }
 

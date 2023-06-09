@@ -422,13 +422,11 @@ function _updateFeatureMeasurements (map, feature, pyramid, affine) {
         schemeDesignator: 'SCT'
       }),
       value: area,
-      unit: [
-        new dcmjs.sr.coding.CodedConcept({
-          value: unitCodedConceptValue,
-          meaning: unitCodedConceptMeaning,
-          schemeDesignator: 'SCT'
-        })
-      ]
+      unit: new dcmjs.sr.coding.CodedConcept({
+        value: unitCodedConceptValue,
+        meaning: unitCodedConceptMeaning,
+        schemeDesignator: 'SCT'
+      })
     })
   }
 
@@ -442,13 +440,11 @@ function _updateFeatureMeasurements (map, feature, pyramid, affine) {
         schemeDesignator: 'SCT'
       }),
       value: length,
-      unit: [
-        new dcmjs.sr.coding.CodedConcept({
-          value: unitCodedConceptValue,
-          meaning: unitCodedConceptMeaning,
-          schemeDesignator: 'SCT'
-        })
-      ]
+      unit: new dcmjs.sr.coding.CodedConcept({
+        value: unitCodedConceptValue,
+        meaning: unitCodedConceptMeaning,
+        schemeDesignator: 'SCT'
+      })
     })
   }
 
@@ -1902,6 +1898,9 @@ class VolumeImageViewer {
       )
       _getIccProfiles(metadata, client).then(profiles => {
         const source = item.layer.getSource()
+        if (!source) {
+          return
+        }
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
@@ -2972,6 +2971,7 @@ class VolumeImageViewer {
 
     if (feature) {
       this[_features].remove(feature)
+      this[_annotationManager].onRemove(feature)
       return
     }
 
