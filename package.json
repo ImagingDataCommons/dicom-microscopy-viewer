@@ -1,7 +1,23 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.45.0",
+  "version": "0.45.0",  
+  "license": "MIT",
+  "author": "ImagingDataCommons",
+  "homepage": "https://github.com/imagingdatacommons/dicom-microscopy-viewer#readme",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
+  "bugs": {
+    "url": "https://github.com/imagingdatacommons/dicom-microscopy-viewer/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imagingdatacommons/dicom-microscopy-viewer.git"
+  },
+  "keywords": [
+    "dicom",
+    "dcmjs",
+    "dicomweb",
+    "microscopy"
+  ],
   "main": "./src/dicom-microscopy-viewer.js",
   "standard": {
     "ignore": [
@@ -33,22 +49,6 @@
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
     "webpack:watch": "webpack --progress --watch  --config ./config/webpack"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/herrmannlab/dicom-microscopy-viewer.git"
-  },
-  "keywords": [
-    "dicom",
-    "dcmjs",
-    "dicomweb",
-    "microscopy"
-  ],
-  "author": "Markus D. Herrmann",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/herrmannlab/dicom-microscopy-viewer/issues"
-  },
-  "homepage": "https://github.com/herrmannlab/dicom-microscopy-viewer#readme",
   "devDependencies": {
     "@babel/core": "^7.17",
     "@babel/plugin-proposal-object-rest-spread": "^7.14.7",

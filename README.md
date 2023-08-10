@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/herrmannlab/dicom-microscopy-viewer/actions/workflows/run_unit_tests.yml/badge.svg)](https://github.com/herrmannlab/dicom-microscopy-viewer/actions)
+[![Build Status](https://github.com/imagingdatacommons/dicom-microscopy-viewer/actions/workflows/run_unit_tests.yml/badge.svg)](https://github.com/imagingdatacommons/dicom-microscopy-viewer/actions)
 [![NPM version](https://badge.fury.io/js/dicom-microscopy-viewer.svg)](http://badge.fury.io/js/dicom-microscopy-viewer)
 ![NPM downloads per month](https://img.shields.io/npm/dm/dicom-microscopy-viewer?color=blue)
 
@@ -114,7 +114,7 @@ We use [Babel](https://babeljs.io/) to compile (transpile), [webpack](https://we
 Get the source code by cloning the git repository:
 
 ```None
-git clone https://github.com/herrmannlab/dicom-microscopy-viewer
+git clone https://github.com/imagingdatacommons/dicom-microscopy-viewer
 cd dicom-microscopy-viewer
 ```
 
