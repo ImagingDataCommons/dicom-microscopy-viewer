@@ -745,6 +745,8 @@ class VolumeImageViewer {
    * the application
    * @param {number[]} [options.highlightColor=[140, 184, 198]] - Color that
    * should be used to highlight things that get selected by the user
+   * @param {number[]} [options.mapViewResolutions] Map's view list of
+   * resolutions. If not passed, the tile grid resolution will be used.
    */
   constructor (options) {
     this[_options] = options
@@ -793,10 +795,11 @@ class VolumeImageViewer {
     if (this[_options].primaryColor == null) {
       this[_options].primaryColor = [0, 126, 163]
     }
+
     if (this[_options].highlightColor == null) {
       this[_options].highlightColor = [140, 184, 198]
     }
-
+    
     // Collection of Openlayers "TileLayer" instances
     this[_segments] = {}
     this[_mappings] = {}
@@ -965,10 +968,16 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
+    let mapViewResolutions = this[_tileGrid].getResolutions();
+    
+    if (this[_options].hasOwnProperty('mapViewResolutions')) {
+      mapViewResolutions = this[_options].mapViewResolutions
+    }
+
     const view = new View({
       center: getCenter(this[_pyramid].extent),
       projection: this[_projection],
-      resolutions: this[_tileGrid].getResolutions(),
+      resolutions: mapViewResolutions,
       rotation: this[_rotation],
       constrainOnlyCenter: false,
       smoothResolutionConstraint: true,
