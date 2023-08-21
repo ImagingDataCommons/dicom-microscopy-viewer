@@ -39,6 +39,7 @@ import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
+import _ from 'lodash'
 
 import {
   AnnotationGroup,
@@ -970,7 +971,7 @@ class VolumeImageViewer {
 
     let mapViewResolutions = this[_tileGrid].getResolutions()
 
-    if (Object.hasOwn(this[_options], 'mapViewResolutions')) {
+    if (_.has(this[_options], 'mapViewResolutions')) {
       mapViewResolutions = this[_options].mapViewResolutions
     }
 
