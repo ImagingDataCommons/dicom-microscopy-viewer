@@ -799,7 +799,7 @@ class VolumeImageViewer {
     if (this[_options].highlightColor == null) {
       this[_options].highlightColor = [140, 184, 198]
     }
-    
+
     // Collection of Openlayers "TileLayer" instances
     this[_segments] = {}
     this[_mappings] = {}
@@ -968,9 +968,9 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
-    let mapViewResolutions = this[_tileGrid].getResolutions();
-    
-    if (this[_options].hasOwnProperty('mapViewResolutions')) {
+    let mapViewResolutions = this[_tileGrid].getResolutions()
+
+    if (Object.hasOwn(this[_options], 'mapViewResolutions')) {
       mapViewResolutions = this[_options].mapViewResolutions
     }
 
