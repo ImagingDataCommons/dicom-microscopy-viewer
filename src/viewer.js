@@ -796,7 +796,6 @@ class VolumeImageViewer {
     if (this[_options].primaryColor == null) {
       this[_options].primaryColor = [0, 126, 163]
     }
-
     if (this[_options].highlightColor == null) {
       this[_options].highlightColor = [140, 184, 198]
     }
