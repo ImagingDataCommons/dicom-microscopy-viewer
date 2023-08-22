@@ -792,5 +792,7 @@ export {
   _fetchMeasurement,
   _getCentroid,
   _getCommonZCoordinate,
-  _getCoordinateDimensionality
+  _getCoordinateDimensionality,
+  _getPoint,
+  _getCoordinates,
 }
