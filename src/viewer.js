@@ -18,6 +18,7 @@ import Select from 'ol/interaction/Select'
 import Snap from 'ol/interaction/Snap'
 import Translate from 'ol/interaction/Translate'
 import PointGeometry from 'ol/geom/Point'
+import PolygonGeometry from 'ol/geom/Polygon'
 import Style from 'ol/style/Style'
 import Stroke from 'ol/style/Stroke'
 import Circle from 'ol/style/Circle'
@@ -36,7 +37,7 @@ import WebGLHelper from 'ol/webgl/Helper'
 import TileDebug from 'ol/source/TileDebug'
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
-import { getCenter, getHeight, getWidth } from 'ol/extent'
+import { getCenter, getHeight, getWidth, getTopLeft, getTopRight, getBottomLeft, getBottomRight } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
 
@@ -47,7 +48,9 @@ import {
   _fetchMeasurements,
   _getCentroid,
   _getCommonZCoordinate,
-  _getCoordinateDimensionality
+  _getCoordinateDimensionality,
+  _getCoordinates,
+  _getPoint
 } from './annotation.js'
 import {
   ColormapNames,
@@ -3051,6 +3054,7 @@ class VolumeImageViewer {
       const annotationGroupMetadata = metadata.AnnotationGroupSequence.find(
         item => item.AnnotationGroupUID === annotationGroupUID
       )
+
       if (annotationGroupUID == null || annotationGroupMetadata == null) {
         throw new Error(
           'Could not obtain information of annotation from ' +
@@ -3079,6 +3083,7 @@ class VolumeImageViewer {
           })
         )
       }
+
       if (annotationGroupMetadata.AnnotationPropertyTypeCodeSequence != null) {
         const findingType = (
           annotationGroupMetadata.AnnotationPropertyTypeCodeSequence[0]
@@ -3101,6 +3106,10 @@ class VolumeImageViewer {
         )
       }
 
+      /**
+       * Measurements for some or all annotations in the annotation group.
+       * Each item describes one type of measurement.
+       */
       if (annotationGroupMetadata.MeasurementsSequence != null) {
         annotationGroupMetadata.MeasurementsSequence.forEach(
           (measurementItem, measurementIndex) => {
@@ -3156,7 +3165,13 @@ class VolumeImageViewer {
     )
     const pyramid = this[_pyramid].metadata
     const affineInverse = this[_affineInverse]
+    const affine = this[_affine]
+    const map = this[_map]
 
+    /**
+     * Groups of annotations sharing common characteristics, such as graphic type,
+     * properties or measurements.
+     */
     metadata.AnnotationGroupSequence.forEach((item, index) => {
       const annotationGroupUID = item.AnnotationGroupUID
       const algorithm = item.AnnotationGroupAlgorithmIdentificationSequence[0]
@@ -3180,20 +3195,54 @@ class VolumeImageViewer {
 
       if (item.GraphicType === 'POLYLINE') {
         /*
-         * We represent graphics as centroid points, but it's unclear whether
-         * the centroid of a polyline would be meaningful
+         * We represent graphics as polygons in low zoom levels 
+         * or centroid points when in high zoom levels, but it's unclear whether
+         * the centroid of a polyline would be meaningful.
          */
         console.warn(
-          `skip annotation group "${annotationGroupUID}" ` +
+          `Skipping annotation group "${annotationGroupUID}" ` +
           'with Graphic Type POLYLINE'
         )
         return
       }
 
+      // TODO: Temporary code to workaround CORS
+      let bulkdataReferences = JSON.stringify(annotationGroup.metadata.bulkdataReferences).replaceAll(':8008', ':5001')
+      bulkdataReferences = JSON.parse(bulkdataReferences)
+
       /**
+       * The loader function used to load features, from a remote source for example. 
+       * The 'featuresloadend' and 'featuresloaderror' events will only fire if the success 
+       * and failure callbacks are used.
+       * https://openlayers.org/en/latest/apidoc/module-ol_source_Vector-VectorSource.html
+       * 
        * In the loader function "this" is bound to the vector source.
        */
       function loader (extent, resolution, projection, success, failure) {
+        console.debug('loader(extent, resolution, projection, success, failure)')
+
+        const visibleExtent = map.getView().calculateExtent()
+        let topLeft = getTopLeft(visibleExtent)
+        let bottomRight = getBottomRight(visibleExtent)
+        let visibleBoundingBoxCoordinates = [topLeft, bottomRight]
+        visibleBoundingBoxCoordinates = _geometryCoordinates2scoord3dCoordinates (
+          visibleBoundingBoxCoordinates,
+          pyramid,
+          affine
+        )
+        topLeft = visibleBoundingBoxCoordinates[0]
+        bottomRight = visibleBoundingBoxCoordinates[1]
+        const isCoordinatesInsideBoundingBox = (coordinates, topLeft, bottomRight) => {
+          return coordinates.every((coordinate) => {
+            return (
+              Math.abs(topLeft[0]) <= Math.abs(coordinate[0]) &&
+              Math.abs(coordinate[0]) <= Math.abs(bottomRight[0]) &&
+                Math.abs(topLeft[1]) <= Math.abs(coordinate[1]) &&
+                  Math.abs(coordinate[1]) <= Math.abs(bottomRight[1])
+            )
+          })
+        }
+
         // TODO: figure out how to use "loader" with bbox or tile "strategy"?
         const index = annotationGroup.annotationGroup.number - 1
         const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[index]
@@ -3203,17 +3252,24 @@ class VolumeImageViewer {
          * only be provided if information has been included by reference as
          * BulkDataURI.
          */
-        const bulkdataReferences = annotationGroup.metadata.bulkdataReferences
         let bulkdataItem
         if (bulkdataReferences.AnnotationGroupSequence != null) {
           bulkdataItem = bulkdataReferences.AnnotationGroupSequence[index]
         }
 
+        /**
+         * The number of Annotations in this Annotation Group. 
+         * Each point, open polyline or closed polygon, circle,
+         * ellipse or rectangle is counted as one Annotation.
+         */
         const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
+        /** Point, Open/Closed Polygon, Circle, Ellipse, etc. */
         const graphicType = metadataItem.GraphicType
+        /** 2D or 3D dimentionality: (x, y) if value 2 and (x, y, z) if value 3. */
         const coordinateDimensionality = _getCoordinateDimensionality(
           metadataItem
         )
+        /** Required if all points are in the same Z plane. */
         const commonZCoordinate = _getCommonZCoordinate(metadataItem)
 
         const features = this.getFeatures()
@@ -3229,41 +3285,132 @@ class VolumeImageViewer {
           _fetchMeasurements({ metadataItem, bulkdataItem, client })
         ]
         Promise.all(promises).then(retrievedBulkdata => {
+          /** Points coordinates of all annotations in this annotation group */
           const graphicData = retrievedBulkdata[0]
+          /** Annotation indexes of all annotations in this annotation group */
           const graphicIndex = retrievedBulkdata[1]
+          /** Measurements for some of all annotations in this annotation group */
           const measurements = retrievedBulkdata[2]
 
-          console.log('process annotations')
-          for (let i = 0; i < numberOfAnnotations; i++) {
-            const point = _getCentroid(
-              graphicType,
-              graphicData,
-              graphicIndex,
-              coordinateDimensionality,
-              commonZCoordinate,
-              i,
-              numberOfAnnotations
-            )
-            const coordinates = _scoord3dCoordinates2geometryCoordinates(
-              point,
-              pyramid,
-              affineInverse
-            )
-            const feature = new Feature({
-              geometry: new PointGeometry(coordinates)
-            })
+          console.info('process bulk annotations')
+
+          for (let annotationIndex = 0; annotationIndex < numberOfAnnotations; annotationIndex++) {
+            /** TODO: Check for graphic type (points or polygons or polylines) */
+            let feature;
+
+            // let shouldRenderPoints = false;
+            // if (shouldRenderPoints === true) {
+              /** 
+               * Render Points (only when zoomed out to avoid cluttering)
+               */
+              const point = _getCentroid(
+                graphicType,
+                graphicData,
+                graphicIndex,
+                coordinateDimensionality,
+                commonZCoordinate,
+                annotationIndex,
+                numberOfAnnotations
+              )
+
+              if (annotationIndex === 500) {
+                console.debug('[point], topLeft, bottomRight', [point], topLeft, bottomRight)
+              }
+
+              const isInsideBoundingBox = isCoordinatesInsideBoundingBox([point], topLeft, bottomRight)
+              if (!isInsideBoundingBox) {
+                continue;
+              } else {
+                console.debug('Rendering polygon!')
+              }
+
+              // const coordinates = _scoord3dCoordinates2geometryCoordinates(
+              //   point,
+              //   pyramid,
+              //   affineInverse
+              // )
+
+              // feature = new Feature({ 
+              //   geometry: new PointGeometry(coordinates) 
+              // })
+            //} else {
+              /** 
+               * Render Polygons (only when zoomed in)
+               */
+              const polygonCoordinates = []
+
+              const offset = graphicIndex[annotationIndex] - 1
+              let annotationLength
+              if (annotationIndex < (numberOfAnnotations - 1)) {
+                annotationLength = graphicIndex[annotationIndex + 1] - offset
+              } else {
+                annotationLength = graphicData.length
+              }
+
+              // const annotationGraphData = graphicData.slice(offset, annotationLength);
+              const polCoordinates = [];
+              for (let j = offset; j < offset + (annotationLength - (coordinateDimensionality - 1)); j++) {
+                const coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
+                polCoordinates.push(coordinate)
+              }
+
+              for (let j = offset; j < offset + (annotationLength - (coordinateDimensionality - 1)); j++) {
+                const coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
+
+                const renderableCoordinate = _scoord3dCoordinates2geometryCoordinates(
+                  coordinate,
+                  pyramid,
+                  affineInverse
+                )
+
+                polygonCoordinates.push(renderableCoordinate)
+                /** Jump to the next point: (x, y) if 2 or (x, y, z) if 3 */
+                j += coordinateDimensionality - 1
+              }
+
+              feature = new Feature({
+                geometry: new PolygonGeometry([polygonCoordinates]),
+              });
+          //  }
 
             feature.set('annotationGroupUID', annotationGroupUID, true)
             measurements.forEach((measurementItem, measurementIndex) => {
               const key = `measurementValue${measurementIndex.toString()}`
-              const value = measurementItem.values[i]
-              // Needed for the WebGL renderer
+              const value = measurementItem.values[annotationIndex]
+              /** 
+               * Needed for the WebGL renderer. This is required for the point layer which uses webgl
+               * so it might not be required for other layers e.g. vector layer.
+               */
               feature.set(key, value, true)
             })
-            const uid = _generateUID({ value: `${annotationGroupUID}-${i}` })
+            const uid = _generateUID({ value: `${annotationGroupUID}-${annotationIndex}` })
             feature.setId(uid)
-            features.push(feature)
+
+          //  if (feature.getGeometry().intersectsExtent(visibleExtent)) {
+              // feature is visible to user
+              features.push(feature)
+          //  }
+
+            // const featureExtent = feature.getGeometry().getExtent();
+            // if (viewportExtent.containsExtent(mapExtent, featureExtent)) { }
+            // this.getFeaturesInExtent(extent, projection)
+            // this.clear(skipRemoveFeatureEvent) to remove all features from the source
+   
           }
+
+          // TODO
+          // Approach 1: When zoom level changes, reload this loader function rendering polygons
+          // instead of points if zoom level is high. this.clear() force vector source to reload
+          // from the loader function (this === the vector source).
+          // 
+          // Get extent of feature and current viewport and check if feature is inside viewport
+          // Do not include features not part of the viewport in the layer
+          //
+          // const mapExtent = map.getView().calculateExtent()
+          // const extentFeature = feature.getGeometry().getExtent()
+          // if (extent.containsExtent(mapExtent, extentFeature)){
+          //   return true;
+          // } 
 
           console.info(
             `add n=${features.length} annotations ` +
@@ -3325,25 +3472,36 @@ class VolumeImageViewer {
        * Use style variable(s) that can subsequently be updated.
        */
       const style = {
-        symbol: {
-          symbolType: 'circle',
-          size: [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            1,
-            2,
-            this[_pyramid].metadata.length,
-            15
-          ],
-          color: annotationGroup.style.color,
-          opacity: annotationGroup.style.opacity
-        }
+        // symbol: {
+        //   symbolType: 'circle',
+        //   size: [
+        //     'interpolate',
+        //     ['linear'],
+        //     ['zoom'],
+        //     1,
+        //     2,
+        //     this[_pyramid].metadata.length,
+        //     15
+        //   ],
+        //   color: annotationGroup.style.color,
+        //   opacity: annotationGroup.style.opacity
+        // }
       }
-      annotationGroup.layer = new PointsLayer({
+
+      annotationGroup.layer = new VectorLayer({
         source,
-        style,
-        disableHitDetection: false
+        style: [
+          new Style({
+            stroke: new Stroke({
+              color: 'yellow',
+              width: 1
+            }),
+            fill: new Fill({
+              color: 'rgba(0, 0, 255, 0.1)',
+            }),
+          }),
+        ],
+        //disableHitDetection: false
       })
       annotationGroup.layer.setVisible(false)
 
@@ -3829,6 +3987,9 @@ class VolumeImageViewer {
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of segment "${segmentUID}"`, event)
       })
+      source.on('tileloadend', () => {
+        console.debug('data tile source: tile load end')
+      });
 
       const [windowCenter, windowWidth] = createWindow(
         minStoredValue,
@@ -4119,7 +4280,7 @@ class VolumeImageViewer {
     const refParametricMap = metadata[0]
     if (refParametricMap.ContentLabel !== 'HEATMAP') {
       console.warn(
-        'skip mappings because value of "Content Label" attribute of ' +
+        'Skipping mappings because value of "Content Label" attribute of ' +
         'Parametric Map instances is not "HEATMAP"'
       )
       return
