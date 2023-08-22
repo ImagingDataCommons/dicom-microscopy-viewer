@@ -3281,17 +3281,6 @@ class VolumeImageViewer {
         //   return
         // }
 
-        let cachedBulkdata = getCachedBulkdata(annotationGroupUID)
-        if (cachedBulkdata) {
-          try {
-            console.debug('use cached bulk annotations')
-            processBulkdata(cachedBulkdata)
-          } catch(error) {
-            console.error(error)
-            failure()
-          }
-        }
-
         const processBulkdata = (retrievedBulkdata) => {
           hasProcessedAnnotationsOnce = true
 
@@ -3451,20 +3440,31 @@ class VolumeImageViewer {
           success(this.getFeatures())
         }
 
-        // TODO: Only fetch measurements if required.
-        const promises = [
-          _fetchGraphicData({ metadataItem, bulkdataItem, client }),
-          _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
-          _fetchMeasurements({ metadataItem, bulkdataItem, client })
-        ]
-        Promise.all(promises).then(retrievedBulkdata => {
-          console.debug('retrieve and cache bulk annotations')
-          cacheBulkdata(annotationGroupUID, retrievedBulkdata)
-          processBulkdata(retrievedBulkdata)
-        }).catch(error => {
-          console.error(error)
-          failure()
-        })
+        let cachedBulkdata = getCachedBulkdata(annotationGroupUID)
+        if (cachedBulkdata) {
+          try {
+            console.debug('use cached bulk annotations')
+            processBulkdata(cachedBulkdata)
+          } catch(error) {
+            console.error(error)
+            failure()
+          }
+        } else {
+          // TODO: Only fetch measurements if required.
+          const promises = [
+            _fetchGraphicData({ metadataItem, bulkdataItem, client }),
+            _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
+            _fetchMeasurements({ metadataItem, bulkdataItem, client })
+          ]
+          Promise.all(promises).then(retrievedBulkdata => {
+            console.debug('retrieve and cache bulk annotations')
+            cacheBulkdata(annotationGroupUID, retrievedBulkdata)
+            processBulkdata(retrievedBulkdata)
+          }).catch(error => {
+            console.error(error)
+            failure()
+          })
+        }
       }
 
       /**
