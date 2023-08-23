@@ -3342,13 +3342,8 @@ class VolumeImageViewer {
               annotationLength = graphicData.length
             }
 
-            const polCoordinates = [];
-            for (let j = offset; j < offset + (annotationLength - (coordinateDimensionality - 1)); j++) {
-              const coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
-              polCoordinates.push(coordinate)
-            }
-
-            for (let j = offset; j < offset + (annotationLength - (coordinateDimensionality - 1)); j++) {
+            const roof = offset + (annotationLength - (coordinateDimensionality - 1));
+            for (let j = offset; j < roof; j++) {
               const coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
               const renderableCoordinate = _scoord3dCoordinates2geometryCoordinates(
                 coordinate,
