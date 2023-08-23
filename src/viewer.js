@@ -39,6 +39,7 @@ import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
+import _ from 'lodash'
 
 import {
   AnnotationGroup,
@@ -745,6 +746,8 @@ class VolumeImageViewer {
    * the application
    * @param {number[]} [options.highlightColor=[140, 184, 198]] - Color that
    * should be used to highlight things that get selected by the user
+   * @param {number[]} [options.mapViewResolutions] Map's view list of
+   * resolutions. If not passed, the tile grid resolution will be used.
    */
   constructor (options) {
     this[_options] = options
@@ -965,10 +968,16 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
+    let mapViewResolutions = this[_tileGrid].getResolutions()
+
+    if (_.has(this[_options], 'mapViewResolutions')) {
+      mapViewResolutions = this[_options].mapViewResolutions
+    }
+
     const view = new View({
       center: getCenter(this[_pyramid].extent),
       projection: this[_projection],
-      resolutions: this[_tileGrid].getResolutions(),
+      resolutions: mapViewResolutions,
       rotation: this[_rotation],
       constrainOnlyCenter: false,
       smoothResolutionConstraint: true,
