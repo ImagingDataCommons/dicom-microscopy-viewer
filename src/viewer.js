@@ -3205,15 +3205,13 @@ class VolumeImageViewer {
          * the centroid of a polyline would be meaningful.
          */
         console.warn(
-          `Skipping annotation group "${annotationGroupUID}" ` +
+          `skip annotation group "${annotationGroupUID}" ` +
           'with Graphic Type POLYLINE'
         )
         return
       }
 
-      // TODO: Temporary code to workaround CORS
-      let bulkdataReferences = JSON.stringify(annotationGroup.metadata.bulkdataReferences).replaceAll(':8008', ':5001')
-      bulkdataReferences = JSON.parse(bulkdataReferences)
+      const { bulkdataReferences } = annotationGroup.metadata
 
       let hasProcessedAnnotationsOnce = false
 
@@ -3264,6 +3262,7 @@ class VolumeImageViewer {
         )
         topLeft = visibleBoundingBoxCoordinates[0]
         bottomRight = visibleBoundingBoxCoordinates[1]
+
         const isCoordinatesInsideBoundingBox = (coordinates, topLeft, bottomRight) => {
           return coordinates.every((coordinate) => {
             return (
@@ -3274,12 +3273,6 @@ class VolumeImageViewer {
             )
           })
         }
-
-        //const features = this.getFeatures()
-        // if (features.length > 0) {
-        //   success(features)
-        //   return
-        // }
 
         const processBulkdata = (retrievedBulkdata) => {
           hasProcessedAnnotationsOnce = true
@@ -3293,26 +3286,12 @@ class VolumeImageViewer {
 
           console.info('process bulk annotations')
 
-          // TODO: divide and conquer approach (cutting possibilities in half depending 
-          // where the point lies within the array
-
-          const secondHalfAnnotationIndex = numberOfAnnotations / 2 + 1; 
-          const secondHalfPoint = _getCentroid(
-            graphicType,
-            graphicData,
-            graphicIndex,
-            coordinateDimensionality,
-            commonZCoordinate,
-            secondHalfAnnotationIndex,
-            numberOfAnnotations
-          )
-          const isInTheSecondHalf = secondHalfPoint[0] >= topLeft[0] && secondHalfPoint[1] >= topLeft[1]
-
           const newFeatures = []
 
-          const startingPoint = isInTheSecondHalf ? Math.floor(numberOfAnnotations / 2) - 1 : 0
-          const endPoint = isInTheSecondHalf ? numberOfAnnotations : Math.floor(numberOfAnnotations / 2)
-          for (let annotationIndex = startingPoint; annotationIndex < endPoint; annotationIndex++) {
+          // TODO: binary search annotations based on viewport extent
+          // On every viewport movement, toggle annotation groups off? 
+          
+          for (let annotationIndex = 0; annotationIndex < numberOfAnnotations; annotationIndex++) { 
             /** TODO: Check for graphic type (points or polygons or polylines) */
             let feature
 
@@ -3363,7 +3342,6 @@ class VolumeImageViewer {
               annotationLength = graphicData.length
             }
 
-            // const annotationGraphData = graphicData.slice(offset, annotationLength);
             const polCoordinates = [];
             for (let j = offset; j < offset + (annotationLength - (coordinateDimensionality - 1)); j++) {
               const coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
@@ -3372,13 +3350,11 @@ class VolumeImageViewer {
 
             for (let j = offset; j < offset + (annotationLength - (coordinateDimensionality - 1)); j++) {
               const coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
-
               const renderableCoordinate = _scoord3dCoordinates2geometryCoordinates(
                 coordinate,
                 pyramid,
                 affineInverse
               )
-
               polygonCoordinates.push(renderableCoordinate)
               /** Jump to the next point: (x, y) if 2 or (x, y, z) if 3 */
               j += coordinateDimensionality - 1
@@ -3398,17 +3374,11 @@ class VolumeImageViewer {
                */
               feature.set(key, value, true)
             })
-            const uid = _generateUID({ value: `${annotationGroupUID}-${annotationIndex}` })
-            feature.setId(uid)
+            feature.setId(featureUID)
 
             // feature is visible to user
             newFeatures.push(feature)
           }
-
-          // TODO
-          // Approach 1: When zoom level changes, reload this loader function rendering polygons
-          // instead of points if zoom level is high. this.clear() force vector source to reload
-          // from the loader function (this === the vector source).
 
           console.info(
             `add n=${newFeatures.length} annotations ` +
@@ -3450,6 +3420,10 @@ class VolumeImageViewer {
             failure()
           }
         } else {
+          const bulkDataString = JSON.stringify(bulkdataItem)
+          const result = bulkDataString.replaceAll(':8008', ':5001')
+          bulkdataItem = JSON.parse(result)
+
           // TODO: Only fetch measurements if required.
           const promises = [
             _fetchGraphicData({ metadataItem, bulkdataItem, client }),
@@ -3502,10 +3476,8 @@ class VolumeImageViewer {
       const view = this[_map].getView()
       const debouncedUpdate = debounce(() => {
         if (hasProcessedAnnotationsOnce) {
-          console.debug('View changed!')
-          // source.refresh()
           const onSuccess = () => {}
-          const onFailure = () => {}
+          const onFailure = (error) => { console.error(error) }
           loadAnnotationsToSourceLayer.call(source, onSuccess, onFailure)
         }
       }, 500)
@@ -3546,6 +3518,7 @@ class VolumeImageViewer {
             }),
           }),
         ],
+        // Only works for webgl point layer
         //disableHitDetection: false
       })
       annotationGroup.layer.setVisible(false)
@@ -4325,7 +4298,7 @@ class VolumeImageViewer {
     const refParametricMap = metadata[0]
     if (refParametricMap.ContentLabel !== 'HEATMAP') {
       console.warn(
-        'Skipping mappings because value of "Content Label" attribute of ' +
+        'skip mappings because value of "Content Label" attribute of ' +
         'Parametric Map instances is not "HEATMAP"'
       )
       return
