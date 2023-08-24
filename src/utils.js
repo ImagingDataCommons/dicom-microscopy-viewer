@@ -418,7 +418,7 @@ function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
  *
  * @memberof utils
  */
-function are2DArraysAlmostEqual (a, b, eps = 1.e-6) {
+function are2DArraysAlmostEqual (a, b, eps = 1.e-5) {
   if (a === b) return true
   if (a == null || b == null) return false
   if (a.length !== b.length) return false
@@ -445,7 +445,7 @@ function are2DArraysAlmostEqual (a, b, eps = 1.e-6) {
  *
  * @memberof utils
  */
-function are1DArraysAlmostEqual (a, b, eps = 1.e-6) {
+function are1DArraysAlmostEqual (a, b, eps = 1.e-5) {
   if (a == null || b == null) return false
   if (a.length !== b.length) return false
 

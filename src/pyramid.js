@@ -269,7 +269,7 @@ function _computeImagePyramid ({ metadata }) {
 
 function _areImagePyramidsEqual (pyramid, refPyramid) {
   // Check that all the channels have the same pyramid parameters
-  if (!are2DArraysAlmostEqual(pyramid.extent, refPyramid.extent)) {
+  if (!are1DArraysAlmostEqual(pyramid.extent, refPyramid.extent)) {
     console.warn(
       'pyramid has different extent as reference pyramid: ',
       pyramid.extent,
@@ -285,7 +285,7 @@ function _areImagePyramidsEqual (pyramid, refPyramid) {
     )
     return false
   }
-  if (!are2DArraysAlmostEqual(pyramid.resolutions, refPyramid.resolutions)) {
+  if (!are1DArraysAlmostEqual(pyramid.resolutions, refPyramid.resolutions)) {
     console.warn(
       'pyramid has different resolutions as reference pyramid: ',
       pyramid.resolutions,
