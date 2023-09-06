@@ -3288,18 +3288,9 @@ class VolumeImageViewer {
 
           const newFeatures = []
 
-          // TODO: binary search annotations based on viewport extent
-          // On every viewport movement, toggle annotation groups off? 
-          
-          for (let annotationIndex = 0; annotationIndex < numberOfAnnotations; annotationIndex++) { 
+          const addFeature = (annotationIndex) => {
             /** TODO: Check for graphic type (points or polygons or polylines) */
             let feature
-
-            const featureUID = _generateUID({ value: `${annotationGroupUID}-${annotationIndex}` })
-            const existentFeature = this.getFeatureById(featureUID)
-            if (existentFeature) {
-              continue
-            }
 
             /** 
              * Render Points (only when zoomed out to avoid cluttering)
@@ -3316,8 +3307,10 @@ class VolumeImageViewer {
 
             const isInsideBoundingBox = isCoordinatesInsideBoundingBox([point], topLeft, bottomRight)
             if (!isInsideBoundingBox) {
-              continue
+              return 
             } 
+
+            const featureUID = _generateUID({ value: `${annotationGroupUID}-${annotationIndex}` })
 
             // const coordinates = _scoord3dCoordinates2geometryCoordinates(
             //   point,
@@ -3373,6 +3366,15 @@ class VolumeImageViewer {
 
             // feature is visible to user
             newFeatures.push(feature)
+          }
+
+          let leftIndex = 0
+          let rightIndex = numberOfAnnotations
+          while (leftIndex < rightIndex) { 
+            addFeature(leftIndex)
+            addFeature(rightIndex)
+            leftIndex++
+            rightIndex--
           }
 
           console.info(
