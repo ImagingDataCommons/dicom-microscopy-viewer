@@ -3263,15 +3263,13 @@ class VolumeImageViewer {
         topLeft = visibleBoundingBoxCoordinates[0]
         bottomRight = visibleBoundingBoxCoordinates[1]
 
-        const isCoordinatesInsideBoundingBox = (coordinates, topLeft, bottomRight) => {
-          return coordinates.every((coordinate) => {
-            return (
-              Math.abs(topLeft[0]) <= Math.abs(coordinate[0]) &&
-              Math.abs(coordinate[0]) <= Math.abs(bottomRight[0]) &&
-                Math.abs(topLeft[1]) <= Math.abs(coordinate[1]) &&
-                  Math.abs(coordinate[1]) <= Math.abs(bottomRight[1])
-            )
-          })
+        const isCoordinateInsideBoundingBox = (coordinate, topLeft, bottomRight) => {
+          return (
+            Math.abs(topLeft[0]) <= Math.abs(coordinate[0]) &&
+            Math.abs(coordinate[0]) <= Math.abs(bottomRight[0]) &&
+              Math.abs(topLeft[1]) <= Math.abs(coordinate[1]) &&
+                Math.abs(coordinate[1]) <= Math.abs(bottomRight[1])
+          )
         }
 
         const processBulkdata = (retrievedBulkdata) => {
@@ -3287,37 +3285,27 @@ class VolumeImageViewer {
           console.info('process bulk annotations')
 
           const newFeatures = []
-
-          const addFeature = (annotationIndex) => {
+          const addNewFeature = (annotationIndex) => {
             /** TODO: Check for graphic type (points or polygons or polylines) */
             let feature
 
-            /** 
-             * Render Points (only when zoomed out to avoid cluttering)
-             */
-            const point = _getCentroid(
-              graphicType,
-              graphicData,
-              graphicIndex,
-              coordinateDimensionality,
-              commonZCoordinate,
-              annotationIndex,
-              numberOfAnnotations
-            )
-
-            const isInsideBoundingBox = isCoordinatesInsideBoundingBox([point], topLeft, bottomRight)
+            const offset = graphicIndex[annotationIndex] - 1
+            const firstCoord = _getCoordinates(graphicData, offset, commonZCoordinate)
+            const isInsideBoundingBox = isCoordinateInsideBoundingBox(firstCoord, topLeft, bottomRight)
             if (!isInsideBoundingBox) {
               return 
             } 
 
             const featureUID = _generateUID({ value: `${annotationGroupUID}-${annotationIndex}` })
 
+            /** 
+             * Render Points (only when zoomed out to avoid cluttering)
+             */
             // const coordinates = _scoord3dCoordinates2geometryCoordinates(
             //   point,
             //   pyramid,
             //   affineInverse
             // )
-
             // feature = new Feature({ 
             //   geometry: new PointGeometry(coordinates) 
             // })
@@ -3325,9 +3313,6 @@ class VolumeImageViewer {
             /** 
              * Render Polygons (only when zoomed in)
              */
-            const polygonCoordinates = []
-
-            const offset = graphicIndex[annotationIndex] - 1
             let annotationLength
             if (annotationIndex < (numberOfAnnotations - 1)) {
               annotationLength = graphicIndex[annotationIndex + 1] - offset
@@ -3335,6 +3320,7 @@ class VolumeImageViewer {
               annotationLength = graphicData.length
             }
 
+            const polygonCoordinates = []
             const roof = offset + (annotationLength - (coordinateDimensionality - 1));
             for (let j = offset; j < roof; j++) {
               const coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
@@ -3371,8 +3357,8 @@ class VolumeImageViewer {
           let leftIndex = 0
           let rightIndex = numberOfAnnotations
           while (leftIndex < rightIndex) { 
-            addFeature(leftIndex)
-            addFeature(rightIndex)
+            addNewFeature(leftIndex)
+            addNewFeature(rightIndex)
             leftIndex++
             rightIndex--
           }
