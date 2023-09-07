@@ -17,8 +17,6 @@ import ScaleLine from 'ol/control/ScaleLine'
 import Select from 'ol/interaction/Select'
 import Snap from 'ol/interaction/Snap'
 import Translate from 'ol/interaction/Translate'
-import PointGeometry from 'ol/geom/Point'
-import PolygonGeometry from 'ol/geom/Polygon'
 import Style from 'ol/style/Style'
 import Stroke from 'ol/style/Stroke'
 import Circle from 'ol/style/Circle'
@@ -29,9 +27,7 @@ import TileLayer from 'ol/layer/WebGLTile'
 import DataTileSource from 'ol/source/DataTile'
 import TileGrid from 'ol/tilegrid/TileGrid'
 import VectorSource from 'ol/source/Vector'
-import VectorTileSource from 'ol/source/VectorTile'
 import VectorLayer from 'ol/layer/Vector'
-import VectorTileLayer from 'ol/layer/VectorTile'
 import View from 'ol/View'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
@@ -39,7 +35,7 @@ import WebGLHelper from 'ol/webgl/Helper'
 import TileDebug from 'ol/source/TileDebug'
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
-import { getCenter, getHeight, getWidth, getTopLeft, getTopRight, getBottomLeft, getBottomRight } from 'ol/extent'
+import { getCenter, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
 import { debounce } from 'lodash'
@@ -99,6 +95,12 @@ import {
   _fitImagePyramid,
   _getIccProfiles
 } from './pyramid.js'
+import {
+  getPointFeature,
+  getPolygonFeature,
+  isCoordinateInsideBoundingBox,
+  getViewportBoundingBox
+} from './bulkAnnotations/utils'
 
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
@@ -721,6 +723,7 @@ const _segments = Symbol('segments')
 const _rotation = Symbol('rotation')
 const _tileGrid = Symbol('tileGrid')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
+const _annotationOptions = Symbol('annotationOptions')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -756,10 +759,12 @@ class VolumeImageViewer {
    * the application
    * @param {number[]} [options.highlightColor=[140, 184, 198]] - Color that
    * should be used to highlight things that get selected by the user
+   * @param {object} [options.annotationOptions] - Annotation options
    */
   constructor (options) {
     this[_options] = options
     this[_retrievedBulkdata] = {}
+    this[_annotationOptions] = {}
 
     this[_clients] = {}
     if (this[_options].client) {
@@ -779,6 +784,10 @@ class VolumeImageViewer {
       for (const key in this[_options].clientMapping) {
         this[_clients][key] = this[_options].clientMapping[key]
       }
+    }
+
+    if (this[_options].annotationOptions) { 
+      this[_annotationOptions] = this[_options].annotationOptions
     }
 
     if (this[_options].debug == null) {
@@ -3172,6 +3181,12 @@ class VolumeImageViewer {
     const affineInverse = this[_affineInverse]
     const affine = this[_affine]
     const map = this[_map]
+    const view = map.getView()
+    const isHighResolution = () => {
+      const zoom = view.getZoom()
+      const maxZoom = view.getMaxZoom()
+      return zoom >= (this[_annotationOptions].maxZoom || maxZoom)
+    }
 
     /**
      * Groups of annotations sharing common characteristics, such as graphic type,
@@ -3214,7 +3229,7 @@ class VolumeImageViewer {
       const { bulkdataReferences } = annotationGroup.metadata
 
       let hasProcessedAnnotationsOnce = false
-
+  
       const cacheBulkdata = (id, data) => this[_retrievedBulkdata][id] = data
       const getCachedBulkdata = (id) => this[_retrievedBulkdata][id]
 
@@ -3247,96 +3262,41 @@ class VolumeImageViewer {
       )
       /** Required if all points are in the same Z plane. */
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)
-    
-      const loadAnnotationsToSourceLayer = function (success, failure) {
-        console.debug('loader(extent, resolution, projection, success, failure)')
 
-        const visibleExtent = map.getView().calculateExtent()
-        let topLeft = getTopLeft(visibleExtent)
-        let bottomRight = getBottomRight(visibleExtent)
-        let visibleBoundingBoxCoordinates = [topLeft, bottomRight]
-        visibleBoundingBoxCoordinates = _geometryCoordinates2scoord3dCoordinates (
-          visibleBoundingBoxCoordinates,
-          pyramid,
-          affine
-        )
-        topLeft = visibleBoundingBoxCoordinates[0]
-        bottomRight = visibleBoundingBoxCoordinates[1]
+      const loadAnnotationsToSourceLayer = function (featureFunction, success, failure) {
+        console.info('load bulk annotation layer')
 
-        const isCoordinateInsideBoundingBox = (coordinate, topLeft, bottomRight) => {
-          return (
-            Math.abs(topLeft[0]) <= Math.abs(coordinate[0]) &&
-            Math.abs(coordinate[0]) <= Math.abs(bottomRight[0]) &&
-              Math.abs(topLeft[1]) <= Math.abs(coordinate[1]) &&
-                Math.abs(coordinate[1]) <= Math.abs(bottomRight[1])
-          )
-        }
+        const { topLeft, bottomRight } = getViewportBoundingBox({ view, pyramid, affine })
 
-        const processBulkdata = (retrievedBulkdata) => {
+        const processBulkdataAnnotations = (retrievedBulkdata) => {
           hasProcessedAnnotationsOnce = true
 
-          /** Points coordinates of all annotations in this annotation group */
           const graphicData = retrievedBulkdata[0]
-          /** Annotation indexes of all annotations in this annotation group */
           const graphicIndex = retrievedBulkdata[1]
-          /** Measurements for some of all annotations in this annotation group */
           const measurements = retrievedBulkdata[2]
 
           console.info('process bulk annotations')
 
-          const newFeatures = []
-          const addNewFeature = (annotationIndex) => {
-            /** TODO: Check for graphic type (points or polygons or polylines) */
-            let feature
-
+          const newAnnotationFeatures = []
+          const addAnnotationFeature = (annotationIndex) => {
             const offset = graphicIndex[annotationIndex] - 1
             const firstCoord = _getCoordinates(graphicData, offset, commonZCoordinate)
             const isInsideBoundingBox = isCoordinateInsideBoundingBox(firstCoord, topLeft, bottomRight)
-            if (!isInsideBoundingBox) {
+            if (!isInsideBoundingBox && isHighResolution()) {
               return 
             } 
 
-            const featureUID = _generateUID({ value: `${annotationGroupUID}-${annotationIndex}` })
-
-            /** 
-             * Render Points (only when zoomed out to avoid cluttering)
-             */
-            // const coordinates = _scoord3dCoordinates2geometryCoordinates(
-            //   point,
-            //   pyramid,
-            //   affineInverse
-            // )
-            // feature = new Feature({ 
-            //   geometry: new PointGeometry(coordinates) 
-            // })
-
-            /** 
-             * Render Polygons (only when zoomed in)
-             */
-            let annotationLength
-            if (annotationIndex < (numberOfAnnotations - 1)) {
-              annotationLength = graphicIndex[annotationIndex + 1] - offset
-            } else {
-              annotationLength = graphicData.length
-            }
-
-            const polygonCoordinates = []
-            const roof = offset + (annotationLength - (coordinateDimensionality - 1));
-            for (let j = offset; j < roof; j++) {
-              const coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
-              const renderableCoordinate = _scoord3dCoordinates2geometryCoordinates(
-                coordinate,
-                pyramid,
-                affineInverse
-              )
-              polygonCoordinates.push(renderableCoordinate)
-              /** Jump to the next point: (x, y) if 2 or (x, y, z) if 3 */
-              j += coordinateDimensionality - 1
-            }
-
-            feature = new Feature({
-              geometry: new PolygonGeometry([polygonCoordinates]),
-            });
+            const feature = featureFunction({
+              graphicType,
+              graphicIndex, 
+              graphicData,
+              numberOfAnnotations, 
+              annotationIndex,
+              pyramid,
+              affineInverse,
+              commonZCoordinate,
+              coordinateDimensionality
+            })
 
             feature.set('annotationGroupUID', annotationGroupUID, true)
             measurements.forEach((measurementItem, measurementIndex) => {
@@ -3348,26 +3308,27 @@ class VolumeImageViewer {
                */
               feature.set(key, value, true)
             })
+            const featureUID = _generateUID({ value: `${annotationGroupUID}-${annotationIndex}` })
             feature.setId(featureUID)
 
             // feature is visible to user
-            newFeatures.push(feature)
+            newAnnotationFeatures.push(feature)
           }
 
           let leftIndex = 0
           let rightIndex = numberOfAnnotations
           while (leftIndex < rightIndex) { 
-            addNewFeature(leftIndex)
-            addNewFeature(rightIndex)
+            addAnnotationFeature(leftIndex)
+            addAnnotationFeature(rightIndex)
             leftIndex++
             rightIndex--
           }
 
           console.info(
-            `add n=${newFeatures.length} annotations ` +
+            `add n=${newAnnotationFeatures.length} annotations ` +
             `for annotation group "${annotationGroupUID}"`
           )
-          this.addFeatures(newFeatures)
+          this.addFeatures(newAnnotationFeatures)
           console.info(
             'compute statistics for measurement values ' +
             `of annotation group "${annotationGroupUID}"`
@@ -3397,12 +3358,13 @@ class VolumeImageViewer {
         if (cachedBulkdata) {
           try {
             console.debug('use cached bulk annotations')
-            processBulkdata(cachedBulkdata)
+            processBulkdataAnnotations(cachedBulkdata)
           } catch(error) {
             console.error(error)
             failure()
           }
         } else {
+          // TODO: Remove this (temp code to workaround bulkdata url)
           const bulkDataString = JSON.stringify(bulkdataItem)
           const result = bulkDataString.replaceAll(':8008', ':5001')
           bulkdataItem = JSON.parse(result)
@@ -3416,7 +3378,7 @@ class VolumeImageViewer {
           Promise.all(promises).then(retrievedBulkdata => {
             console.debug('retrieve and cache bulk annotations')
             cacheBulkdata(annotationGroupUID, retrievedBulkdata)
-            processBulkdata(retrievedBulkdata)
+            processBulkdataAnnotations(retrievedBulkdata)
           }).catch(error => {
             console.error(error)
             failure()
@@ -3432,36 +3394,58 @@ class VolumeImageViewer {
        * 
        * In the loader function "this" is bound to the vector source.
        */
-      function loader (extent, resolution, projection, success, failure) {
-        loadAnnotationsToSourceLayer.call(this, success, failure)
+      function pointsLoader (extent, resolution, projection, success, failure) {
+        loadAnnotationsToSourceLayer.call(this, getPointFeature, success, failure)
+      }
+      function polygonsLoader (extent, resolution, projection, success, failure) {
+        loadAnnotationsToSourceLayer.call(this, getPolygonFeature, success, failure)
       }
 
-      const source = new VectorSource({
-        loader,
+      const pointsSource = new VectorSource({
+        loader: pointsLoader,
         wrapX: false,
         rotateWithView: true,
         overlaps: false
       })
-      source.on('featuresloadstart', (event) => {
+      const polygonsSource = new VectorSource({
+        loader: polygonsLoader,
+        wrapX: false,
+        rotateWithView: true,
+        overlaps: false
+      })
+      const onFeaturesLoadStart = () => {
         const container = this[_map].getTargetElement()
         publish(container, EVENT.LOADING_STARTED)
-      })
-      source.on('featuresloadend', (event) => {
+      }
+      const onFeaturesLoadEnd = () => {
         const container = this[_map].getTargetElement()
         publish(container, EVENT.LOADING_ENDED)
-      })
-      source.on('featuresloaderror', (event) => {
+      }
+      const onFeaturesLoadError = () => {
         const container = this[_map].getTargetElement()
         publish(container, EVENT.LOADING_ENDED)
         publish(container, EVENT.LOADING_ERROR)
-      })
+      }
+      pointsSource.on('featuresloadstart', onFeaturesLoadStart)
+      pointsSource.on('featuresloadend', onFeaturesLoadEnd)
+      pointsSource.on('featuresloaderror', onFeaturesLoadError)
+      polygonsSource.on('featuresloadstart', onFeaturesLoadStart)
+      polygonsSource.on('featuresloadend', onFeaturesLoadEnd)
+      polygonsSource.on('featuresloaderror', onFeaturesLoadError)
 
-      const view = this[_map].getView()
+      const onLayerLoadSuccess = () => {}
+      const onLayerLoadFailure = (error) => { console.error(error) }
       const debouncedUpdate = debounce(() => {
-        if (hasProcessedAnnotationsOnce) {
-          const onSuccess = () => {}
-          const onFailure = (error) => { console.error(error) }
-          loadAnnotationsToSourceLayer.call(source, onSuccess, onFailure)
+        const isVisible = annotationGroup.activeLayer.getVisible()
+        if (hasProcessedAnnotationsOnce && isVisible && isHighResolution()) {
+          const source = isHighResolution() ? polygonsSource : pointsSource
+          const featureFunc = isHighResolution() ? getPolygonFeature : getPointFeature
+          loadAnnotationsToSourceLayer.call(
+            source,
+            featureFunc, 
+            onLayerLoadSuccess, 
+            onLayerLoadFailure
+          )
         }
       }, 500)
       view.on('change:center', debouncedUpdate)
@@ -3471,42 +3455,83 @@ class VolumeImageViewer {
        * number of objects, and zoom factor between levels.
        * Use style variable(s) that can subsequently be updated.
        */
-      const style = {
-        // symbol: {
-        //   symbolType: 'circle',
-        //   size: [
-        //     'interpolate',
-        //     ['linear'],
-        //     ['zoom'],
-        //     1,
-        //     2,
-        //     this[_pyramid].metadata.length,
-        //     15
-        //   ],
-        //   color: annotationGroup.style.color,
-        //   opacity: annotationGroup.style.opacity
-        // }
+      const pointStyle = {
+        symbol: {
+          symbolType: 'circle',
+          size: [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            1,
+            2,
+            this[_pyramid].metadata.length,
+            15
+          ],
+          color: annotationGroup.style.color,
+          opacity: annotationGroup.style.opacity
+        }
       }
 
-      annotationGroup.layer = new VectorLayer({
-        source,
-        style: [
-          new Style({
-            stroke: new Stroke({
-              color: 'yellow',
-              width: 1
-            }),
-            fill: new Fill({
-              color: 'rgba(0, 0, 255, 0.1)',
-            }),
-          }),
-        ],
-        // Only works for webgl point layer
-        //disableHitDetection: false
+      const polygonStyle = new Style({
+        stroke: new Stroke({
+          color: `rgba(${annotationGroup.style.color[0]}, ${annotationGroup.style.color[1]}, ${annotationGroup.style.color[2]}, ${annotationGroup.style.opacity})`,
+          width: 1,
+          opacity: annotationGroup.style.opacity
+        }),
+        fill: new Fill({
+          color: 'rgba(0, 0, 255, 0)',
+        }),
       })
-      annotationGroup.layer.setVisible(false)
 
-      this[_map].addLayer(annotationGroup.layer)
+      annotationGroup.layers = []
+      annotationGroup.layers[0] = new VectorLayer({
+        source: polygonsSource,
+        style: [ polygonStyle ],
+      })
+      annotationGroup.layers[1] = new PointsLayer({
+        source: pointsSource,
+        style: pointStyle,
+        disableHitDetection: false
+      })
+
+      const initActiveLayer = () => {
+        const polygonsLayer = annotationGroup.layers[0]
+        const pointsLayer = annotationGroup.layers[1]
+        annotationGroup.activeLayer = isHighResolution() 
+          ? polygonsLayer : pointsLayer
+      }
+      initActiveLayer()
+
+      /** Updating layers when zoom changes */
+      this[_map].on('moveend', () => {
+        if (hasProcessedAnnotationsOnce) {
+          const polygonsLayer = annotationGroup.layers[0]
+          const pointsLayer = annotationGroup.layers[1]
+          if (isHighResolution()) {
+            const isVisible = annotationGroup.activeLayer.getVisible()
+            if (isVisible) {
+              polygonsLayer.setVisible(true)
+              pointsLayer.setVisible(false)
+            }
+            annotationGroup.activeLayer = polygonsLayer
+          } else {
+            const isVisible = annotationGroup.activeLayer.getVisible()
+            if (isVisible) {
+              polygonsLayer.setVisible(false)
+              pointsLayer.setVisible(true)
+            }
+            annotationGroup.activeLayer = pointsLayer
+          }
+        } else {
+          initActiveLayer()
+        }
+      })
+
+      annotationGroup.layers.forEach(layer => {
+        layer.setVisible(false)
+        this[_map].addLayer(layer)
+      })
+
       this[_annotationGroups][annotationGroupUID] = annotationGroup
     })
 
@@ -3557,8 +3582,12 @@ class VolumeImageViewer {
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`remove annotation group ${annotationGroupUID}`)
-    this[_map].removeLayer(annotationGroup.layer)
-    annotationGroup.layer.dispose()
+
+    annotationGroup.layers.forEach(layer => {
+      this[_map].removeLayer(layer)
+      layer.dispose()
+    })
+    delete this[_retrievedBulkdata][annotationGroupUID]
     delete this[_annotationGroups][annotationGroupUID]
   }
 
@@ -3591,7 +3620,8 @@ class VolumeImageViewer {
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`show annotation group ${annotationGroupUID}`)
     this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
-    annotationGroup.layer.setVisible(true)
+
+    annotationGroup.activeLayer.setVisible(true)
   }
 
   /**
@@ -3609,7 +3639,8 @@ class VolumeImageViewer {
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`hide annotation group ${annotationGroupUID}`)
-    annotationGroup.layer.setVisible(false)
+
+    annotationGroup.activeLayer.setVisible(false)
   }
 
   /**
@@ -3626,7 +3657,8 @@ class VolumeImageViewer {
       )
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    return annotationGroup.layer.getVisible()
+
+    return annotationGroup.activeLayer.getVisible()
   }
 
   /**
@@ -3655,14 +3687,16 @@ class VolumeImageViewer {
 
     if (styleOptions.opacity != null) {
       annotationGroup.style.opacity = styleOptions.opacity
-      annotationGroup.layer.setOpacity(styleOptions.opacity)
+      annotationGroup.layers.forEach(layer => {
+        layer.setOpacity(styleOptions.opacity)
+      })
     }
     if (styleOptions.color != null) {
       annotationGroup.style.color = styleOptions.color
     }
 
     const metadata = annotationGroup.metadata
-    const source = annotationGroup.layer.getSource()
+    const source = annotationGroup.layers[1].getSource()
     const groupItem = metadata.AnnotationGroupSequence.find(item => {
       return item.AnnotationGroupUID === annotationGroupUID
     })
@@ -3705,10 +3739,26 @@ class VolumeImageViewer {
       const key = `measurementValue${measurementIndex.toString()}`
 
       if (properties[key]) {
-        const style = {
+        // const pointStyle = {
+        //   symbol: {
+        //     symbolType: markerType,
+        //     size: markerSize,
+        //     opacity: annotationGroup.style.opacity
+        //   }
+        // }
+        const pointStyle = {
           symbol: {
-            symbolType: markerType,
-            size: markerSize,
+            symbolType: 'circle',
+            size: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              1,
+              2,
+              this[_pyramid].metadata.length,
+              15
+            ],
+            color: annotationGroup.style.color,
             opacity: annotationGroup.style.opacity
           }
         }
@@ -3717,7 +3767,7 @@ class VolumeImageViewer {
           bins: 50
         })
         Object.assign(
-          style.symbol,
+          pointStyle.symbol,
           _getColorPaletteStyleForPointLayer({
             key,
             minValue: properties[key].min,
@@ -3725,46 +3775,112 @@ class VolumeImageViewer {
             colormap
           })
         )
+
+        const polygonStyle = new Style({
+          stroke: new Stroke({
+            color: `rgba(${annotationGroup.style.color[0]}, ${annotationGroup.style.color[1]}, ${annotationGroup.style.color[2]}, ${annotationGroup.style.opacity})`,
+            width: 1,
+            opacity: annotationGroup.style.opacity
+          }),
+          fill: new Fill({
+            color: 'rgba(0, 0, 255, 0)',
+          }),
+        })
+
+        /** Update polygons layer */
+        const previousPolygonsLayer = annotationGroup.layers[0]
+        const newPolygonsLayer = new VectorLayer({
+          source: previousPolygonsLayer.getSource(),
+          style: [ polygonStyle ],
+          visible: previousPolygonsLayer.getVisible()
+        })
+        this[_map].addLayer(newPolygonsLayer)
+        this[_map].removeLayer(previousPolygonsLayer)
+        previousPolygonsLayer.dispose()
+        annotationGroup.layers[0] = newPolygonsLayer
+
+        /** Update points layer */
+        const previousLayer = annotationGroup.layers[1]
         const newLayer = new PointsLayer({
-          source,
-          style,
+          source: previousLayer.getSource(),
+          style: pointStyle,
           disableHitDetection: false,
-          visible: false
+          visible: previousLayer.getVisible()
         })
         this[_map].addLayer(newLayer)
-        this[_map].removeLayer(annotationGroup.layer)
-        annotationGroup.layer.dispose()
-        annotationGroup.layer = newLayer
+        this[_map].removeLayer(previousLayer)
+        previousLayer.dispose()
+        annotationGroup.layers[1] = newLayer
       }
     } else {
       if (styleOptions.color != null) {
         // Only replace the layer if necessary
-        const style = {
+        // const pointStyle = {
+        //   symbol: {
+        //     symbolType: markerType,
+        //     size: markerSize,
+        //     color: [
+        //       'match',
+        //       ['get', 'selected'],
+        //       1,
+        //       rgb2hex(this[_options].highlightColor),
+        //       rgb2hex(annotationGroup.style.color)
+        //     ],
+        //     opacity: annotationGroup.style.opacity
+        //   }
+        // }
+        const pointStyle = {
           symbol: {
-            symbolType: markerType,
-            size: markerSize,
-            color: [
-              'match',
-              ['get', 'selected'],
+            symbolType: 'circle',
+            size: [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
               1,
-              rgb2hex(this[_options].highlightColor),
-              rgb2hex(annotationGroup.style.color)
+              2,
+              this[_pyramid].metadata.length,
+              15
             ],
+            color: annotationGroup.style.color,
             opacity: annotationGroup.style.opacity
           }
         }
+
+        const polygonStyle = new Style({
+          stroke: new Stroke({
+            color: `rgba(${annotationGroup.style.color[0]}, ${annotationGroup.style.color[1]}, ${annotationGroup.style.color[2]}, ${annotationGroup.style.opacity})`,
+            width: 1,
+            opacity: annotationGroup.style.opacity
+          }),
+          fill: new Fill({
+            color: 'rgba(0, 0, 255, 0)',
+          }),
+        })
+
+        /** Update polygons layer */
+        const previousPolygonsLayer = annotationGroup.layers[0]
+        const newPolygonsLayer = new VectorLayer({
+          source: previousPolygonsLayer.getSource(),
+          style: [ polygonStyle ],
+          visible: previousPolygonsLayer.getVisible()
+        })
+        this[_map].addLayer(newPolygonsLayer)
+        this[_map].removeLayer(previousPolygonsLayer)
+        previousPolygonsLayer.dispose()
+        annotationGroup.layers[0] = newPolygonsLayer
+
+        /** Update points layer */
+        const previousLayer = annotationGroup.layers[1]
         const newLayer = new PointsLayer({
-          source,
-          style,
+          source: previousLayer.getSource(),
+          style: pointStyle,
           disableHitDetection: false,
-          visible: false
+          visible: previousLayer.getVisible()
         })
         this[_map].addLayer(newLayer)
-        this[_map].removeLayer(annotationGroup.layer)
-        const isVisible = annotationGroup.layer.getVisible()
-        annotationGroup.layer.dispose()
-        annotationGroup.layer = newLayer
-        annotationGroup.layer.setVisible(isVisible)
+        this[_map].removeLayer(previousLayer)
+        previousLayer.dispose()
+        annotationGroup.layers[1] = newLayer
       }
     }
   }
@@ -3988,9 +4104,6 @@ class VolumeImageViewer {
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of segment "${segmentUID}"`, event)
       })
-      source.on('tileloadend', () => {
-        console.debug('data tile source: tile load end')
-      });
 
       const [windowCenter, windowWidth] = createWindow(
         minStoredValue,
