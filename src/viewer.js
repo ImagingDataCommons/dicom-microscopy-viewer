@@ -3364,11 +3364,6 @@ class VolumeImageViewer {
             failure()
           }
         } else {
-          // TODO: Remove this (temp code to workaround bulkdata url)
-          const bulkDataString = JSON.stringify(bulkdataItem)
-          const result = bulkDataString.replaceAll(':8008', ':5001')
-          bulkdataItem = JSON.parse(result)
-
           // TODO: Only fetch measurements if required.
           const promises = [
             _fetchGraphicData({ metadataItem, bulkdataItem, client }),
