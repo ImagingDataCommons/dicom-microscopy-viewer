@@ -106,21 +106,14 @@ export const getPointFeature = ({
   commonZCoordinate,
   coordinateDimensionality,
 }) => {
-  const point = _getCentroid(
-    graphicType,
-    graphicData,
-    graphicIndex,
-    coordinateDimensionality,
-    commonZCoordinate,
-    annotationIndex,
-    numberOfAnnotations
-  )
-  const coordinates = _scoord3dCoordinates2geometryCoordinates(
-    point,
+  const offset = graphicIndex[annotationIndex] - 1
+  const coordinate = _getCoordinates(graphicData, offset, commonZCoordinate)
+    const renderableCoordinate = _scoord3dCoordinates2geometryCoordinates(
+    coordinate,
     pyramid,
     affineInverse
   )
-  return new Feature({ geometry: new PointGeometry(coordinates) })
+  return new Feature({ geometry: new PointGeometry(renderableCoordinate) })
 }
 
 export default {

@@ -3182,9 +3182,9 @@ class VolumeImageViewer {
     const affine = this[_affine]
     const map = this[_map]
     const view = map.getView()
+    const maxZoom = view.getMaxZoom()
     const isHighResolution = () => {
       const zoom = view.getZoom()
-      const maxZoom = view.getMaxZoom()
       return zoom >= (this[_annotationOptions].maxZoom || maxZoom)
     }
 
@@ -3279,12 +3279,13 @@ class VolumeImageViewer {
 
           const newAnnotationFeatures = []
           const addAnnotationFeature = (annotationIndex) => {
+
             const offset = graphicIndex[annotationIndex] - 1
             const firstCoord = _getCoordinates(graphicData, offset, commonZCoordinate)
-            const isInsideBoundingBox = isCoordinateInsideBoundingBox(firstCoord, topLeft, bottomRight)
-            if (!isInsideBoundingBox && isHighResolution()) {
-              return 
-            } 
+            const isOutsideViewport = !isCoordinateInsideBoundingBox(firstCoord, topLeft, bottomRight)
+            if (isOutsideViewport) {
+              return
+            }
 
             const feature = featureFunction({
               graphicType,
@@ -3316,12 +3317,12 @@ class VolumeImageViewer {
           }
 
           let leftIndex = 0
-          let rightIndex = numberOfAnnotations
+          let rightIndex = numberOfAnnotations - 1
           while (leftIndex < rightIndex) { 
             addAnnotationFeature(leftIndex)
             addAnnotationFeature(rightIndex)
-            leftIndex++
-            rightIndex--
+            leftIndex += 1
+            rightIndex -= 1
           }
 
           console.info(
