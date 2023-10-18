@@ -98,13 +98,13 @@ import {
 import {
   getPointFeature,
   getPolygonFeature,
-  isCoordinateInsideBoundingBox,
-  getViewportBoundingBox
+  getFeaturesFromBulkAnnotations
 } from './bulkAnnotations/utils'
 
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 import webWorkerManager from './webWorker/webWorkerManager.js'
+import getExtendedROI from './bulkAnnotations/getExtendedROI'
 
 function _getClient (clientMapping, sopClassUID) {
   if (clientMapping[sopClassUID] == null) {
@@ -3058,120 +3058,6 @@ class VolumeImageViewer {
       color: this[_options].primaryColor
     }
 
-    const _getROIFromFeature = (feature) => {
-      const roi = this._getROIFromFeature(
-        feature,
-        this[_pyramid].metadata,
-        this[_affine]
-      )
-      const annotationGroupUID = feature.get('annotationGroupUID')
-      const annotationGroupMetadata = metadata.AnnotationGroupSequence.find(
-        item => item.AnnotationGroupUID === annotationGroupUID
-      )
-
-      if (annotationGroupUID == null || annotationGroupMetadata == null) {
-        throw new Error(
-          'Could not obtain information of annotation from ' +
-          `annotation group "${annotationGroupUID}".`
-        )
-      }
-
-      if (annotationGroupMetadata.AnnotationPropertyCategoryCodeSequence != null) {
-        const findingCategory = (
-          annotationGroupMetadata.AnnotationPropertyCategoryCodeSequence[0]
-        )
-        roi.addEvaluation(
-          new dcmjs.sr.valueTypes.CodeContentItem({
-            name: new dcmjs.sr.coding.CodedConcept({
-              value: '276214006',
-              meaning: 'Finding category',
-              schemeDesignator: 'SCT'
-            }),
-            value: new dcmjs.sr.coding.CodedConcept({
-              value: findingCategory.CodeValue,
-              meaning: findingCategory.CodeMeaning,
-              schemeDesignator: findingCategory.CodingSchemeDesignator
-            }),
-            relationshipType:
-              dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
-          })
-        )
-      }
-
-      if (annotationGroupMetadata.AnnotationPropertyTypeCodeSequence != null) {
-        const findingType = (
-          annotationGroupMetadata.AnnotationPropertyTypeCodeSequence[0]
-        )
-        roi.addEvaluation(
-          new dcmjs.sr.valueTypes.CodeContentItem({
-            name: new dcmjs.sr.coding.CodedConcept({
-              value: '121071',
-              meaning: 'Finding',
-              schemeDesignator: 'DCM'
-            }),
-            value: new dcmjs.sr.coding.CodedConcept({
-              value: findingType.CodeValue,
-              meaning: findingType.CodeMeaning,
-              schemeDesignator: findingType.CodingSchemeDesignator
-            }),
-            relationshipType:
-              dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
-          })
-        )
-      }
-
-      /**
-       * Measurements for some or all annotations in the annotation group.
-       * Each item describes one type of measurement.
-       */
-      if (annotationGroupMetadata.MeasurementsSequence != null) {
-        annotationGroupMetadata.MeasurementsSequence.forEach(
-          (measurementItem, measurementIndex) => {
-            const key = `measurementValue${measurementIndex.toString()}`
-            const value = feature.get(key)
-            const name = measurementItem.ConceptNameCodeSequence[0]
-            const unit = measurementItem.MeasurementUnitsCodeSequence[0]
-
-            const measurement = new dcmjs.sr.valueTypes.NumContentItem({
-              value: Number(value),
-              name: new dcmjs.sr.coding.CodedConcept({
-                value: name.CodeValue,
-                meaning: name.CodeMeaning,
-                schemeDesignator: name.CodingSchemeDesignator
-              }),
-              unit: new dcmjs.sr.coding.CodedConcept({
-                value: unit.CodeValue,
-                meaning: unit.CodeMeaning,
-                schemeDesignator: unit.CodingSchemeDesignator
-              }),
-              relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.CONTAINS
-            })
-            if (measurementItem.ReferencedImageSequence != null) {
-              const ref = measurementItem.ReferencedImageSequence[0]
-              const image = new dcmjs.sr.valueTypes.ImageContentItem({
-                name: new dcmjs.sr.coding.CodedConcept({
-                  value: '121112',
-                  meaning: 'Source of Measurement',
-                  schemeDesignator: 'DCM'
-                }),
-                referencedSOPClassUID: ref.ReferencedSOPClassUID,
-                referencedSOPInstanceUID: ref.ReferencedSOPInstanceUID
-              })
-              if (ref.ReferencedOpticalPathIdentifier != null) {
-                image.ReferencedSOPSequence[0].ReferencedOpticalPathIdentifier = (
-                  ref.ReferencedOpticalPathIdentifier
-                )
-              }
-              measurement.ContentSequence = [image]
-            }
-            roi.addMeasurement(measurement)
-          }
-        )
-      }
-
-      return roi
-    }
-
     // We need to bind those variables to constants for the loader function
     const client = _getClient(
       this[_clients],
@@ -3228,11 +3114,6 @@ class VolumeImageViewer {
 
       const { bulkdataReferences } = annotationGroup.metadata
 
-      let hasProcessedAnnotationsOnce = false
-  
-      const cacheBulkdata = (id, data) => this[_retrievedBulkdata][id] = data
-      const getCachedBulkdata = (id) => this[_retrievedBulkdata][id]
-
       // TODO: figure out how to use "loader" with bbox or tile "strategy"?
       const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
       const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
@@ -3263,73 +3144,19 @@ class VolumeImageViewer {
       /** Required if all points are in the same Z plane. */
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)
 
-      const loadAnnotationsToSourceLayer = function (featureFunction, success, failure) {
-        console.info('load bulk annotation layer')
+      let areBulkAnnotationsProcessed = false
+      const cacheBulkAnnotations = (id, data) => this[_retrievedBulkdata][id] = data
+      const getCachedBulkAnnotations = (id) => this[_retrievedBulkdata][id]
 
-        const { topLeft, bottomRight } = getViewportBoundingBox({ view, pyramid, affine })
+      const bulkAnnotationsLoader = function (featureFunction, success, failure) {
+        console.info('load bulk annotations layer')
 
-        const processBulkdataAnnotations = (retrievedBulkdata) => {
-          hasProcessedAnnotationsOnce = true
-
-          const graphicData = retrievedBulkdata[0]
-          const graphicIndex = retrievedBulkdata[1]
-          const measurements = retrievedBulkdata[2]
-
+        const processBulkAnnotations = (retrievedBulkdata) => {
           console.info('process bulk annotations')
+          areBulkAnnotationsProcessed = true
+          
+          const [ graphicData, graphicIndex, measurements ] = retrievedBulkdata
 
-          const newAnnotationFeatures = []
-          const addAnnotationFeature = (annotationIndex) => {
-
-            const offset = graphicIndex[annotationIndex] - 1
-            const firstCoord = _getCoordinates(graphicData, offset, commonZCoordinate)
-            const isOutsideViewport = !isCoordinateInsideBoundingBox(firstCoord, topLeft, bottomRight)
-            if (isOutsideViewport) {
-              return
-            }
-
-            const feature = featureFunction({
-              graphicType,
-              graphicIndex, 
-              graphicData,
-              numberOfAnnotations, 
-              annotationIndex,
-              pyramid,
-              affineInverse,
-              commonZCoordinate,
-              coordinateDimensionality
-            })
-
-            feature.set('annotationGroupUID', annotationGroupUID, true)
-            measurements.forEach((measurementItem, measurementIndex) => {
-              const key = `measurementValue${measurementIndex.toString()}`
-              const value = measurementItem.values[annotationIndex]
-              /** 
-               * Needed for the WebGL renderer. This is required for the point layer which uses webgl
-               * so it might not be required for other layers e.g. vector layer.
-               */
-              feature.set(key, value, true)
-            })
-            const featureUID = _generateUID({ value: `${annotationGroupUID}-${annotationIndex}` })
-            feature.setId(featureUID)
-
-            // feature is visible to user
-            newAnnotationFeatures.push(feature)
-          }
-
-          let leftIndex = 0
-          let rightIndex = numberOfAnnotations - 1
-          while (leftIndex < rightIndex) { 
-            addAnnotationFeature(leftIndex)
-            addAnnotationFeature(rightIndex)
-            leftIndex += 1
-            rightIndex -= 1
-          }
-
-          console.info(
-            `add n=${newAnnotationFeatures.length} annotations ` +
-            `for annotation group "${annotationGroupUID}"`
-          )
-          this.addFeatures(newAnnotationFeatures)
           console.info(
             'compute statistics for measurement values ' +
             `of annotation group "${annotationGroupUID}"`
@@ -3352,14 +3179,38 @@ class VolumeImageViewer {
             properties[key] = { min, max }
           })
           this.setProperties(properties, true)
-          success(this.getFeatures())
+
+          const features = getFeaturesFromBulkAnnotations({
+            graphicType,
+            graphicData,
+            graphicIndex,
+            measurements,
+            commonZCoordinate,
+            coordinateDimensionality,
+            numberOfAnnotations,
+            annotationGroupUID,
+            pyramid,
+            affine,
+            affineInverse,
+            view,
+            featureFunction
+          })
+
+          console.info(
+            `add n=${features.length} annotations ` +
+            `for annotation group "${annotationGroupUID}"`
+          )
+          this.addFeatures(features)
+          success(features)
+          console.info('number of annotations:', numberOfAnnotations)
+          console.debug('features added')
         }
 
-        let cachedBulkdata = getCachedBulkdata(annotationGroupUID)
-        if (cachedBulkdata) {
+        let cachedBulkAnnotations = getCachedBulkAnnotations(annotationGroupUID)
+        if (cachedBulkAnnotations) {
           try {
             console.debug('use cached bulk annotations')
-            processBulkdataAnnotations(cachedBulkdata)
+            processBulkAnnotations(cachedBulkAnnotations)
           } catch(error) {
             console.error(error)
             failure()
@@ -3373,8 +3224,8 @@ class VolumeImageViewer {
           ]
           Promise.all(promises).then(retrievedBulkdata => {
             console.debug('retrieve and cache bulk annotations')
-            cacheBulkdata(annotationGroupUID, retrievedBulkdata)
-            processBulkdataAnnotations(retrievedBulkdata)
+            cacheBulkAnnotations(annotationGroupUID, retrievedBulkdata)
+            processBulkAnnotations(retrievedBulkdata)
           }).catch(error => {
             console.error(error)
             failure()
@@ -3391,10 +3242,10 @@ class VolumeImageViewer {
        * In the loader function "this" is bound to the vector source.
        */
       function pointsLoader (extent, resolution, projection, success, failure) {
-        loadAnnotationsToSourceLayer.call(this, getPointFeature, success, failure)
+        bulkAnnotationsLoader.call(this, getPointFeature, success, failure)
       }
       function polygonsLoader (extent, resolution, projection, success, failure) {
-        loadAnnotationsToSourceLayer.call(this, getPolygonFeature, success, failure)
+        bulkAnnotationsLoader.call(this, getPolygonFeature, success, failure)
       }
 
       const pointsSource = new VectorSource({
@@ -3433,12 +3284,11 @@ class VolumeImageViewer {
       const onLayerLoadFailure = (error) => { console.error(error) }
       const debouncedUpdate = debounce(() => {
         const isVisible = annotationGroup.activeLayer.getVisible()
-        if (hasProcessedAnnotationsOnce && isVisible && isHighResolution()) {
-          const source = isHighResolution() ? polygonsSource : pointsSource
-          const featureFunc = isHighResolution() ? getPolygonFeature : getPointFeature
-          loadAnnotationsToSourceLayer.call(
-            source,
-            featureFunc, 
+        if (isVisible && areBulkAnnotationsProcessed && isHighResolution()) {
+          console.info('load high resolution bulk annotations')
+          bulkAnnotationsLoader.call(
+            polygonsSource,
+            getPolygonFeature, 
             onLayerLoadSuccess, 
             onLayerLoadFailure
           )
@@ -3487,7 +3337,7 @@ class VolumeImageViewer {
       annotationGroup.layers[1] = new PointsLayer({
         source: pointsSource,
         style: pointStyle,
-        disableHitDetection: false
+        disableHitDetection: true
       })
 
       const initActiveLayer = () => {
@@ -3500,7 +3350,7 @@ class VolumeImageViewer {
 
       /** Updating layers when zoom changes */
       this[_map].on('moveend', () => {
-        if (hasProcessedAnnotationsOnce) {
+        if (areBulkAnnotationsProcessed) {
           const polygonsLayer = annotationGroup.layers[0]
           const pointsLayer = annotationGroup.layers[1]
           if (isHighResolution()) {
@@ -3545,10 +3395,16 @@ class VolumeImageViewer {
             if (feature != null) {
               feature.set('selected', 1)
               selectedAnnotation = feature
+              const roi = this._getROIFromFeature(
+                feature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+              const extendedROI = getExtendedROI({ feature, roi, metadata })
               publish(
                 container,
                 EVENT.ROI_SELECTED,
-                _getROIFromFeature(feature)
+                extendedROI
               )
               return true
             }
@@ -3556,7 +3412,7 @@ class VolumeImageViewer {
           },
           {
             hitTolerance: 1,
-            layerFilter: (layer) => (layer instanceof PointsLayer)
+            layerFilter: (layer) => (layer instanceof VectorLayer)
           }
         )
       }
