@@ -3193,7 +3193,8 @@ class VolumeImageViewer {
             affine,
             affineInverse,
             view,
-            featureFunction
+            featureFunction,
+            isHighResolution: isHighResolution()
           })
 
           console.info(
@@ -3203,7 +3204,6 @@ class VolumeImageViewer {
           this.addFeatures(features)
           success(features)
           console.info('number of annotations:', numberOfAnnotations)
-          console.debug('features added')
         }
 
         let cachedBulkAnnotations = getCachedBulkAnnotations(annotationGroupUID)
@@ -3212,8 +3212,7 @@ class VolumeImageViewer {
             console.debug('use cached bulk annotations')
             processBulkAnnotations(cachedBulkAnnotations)
           } catch(error) {
-            console.error(error)
-            failure()
+            failure(error)
           }
         } else {
           // TODO: Only fetch measurements if required.
@@ -3226,10 +3225,7 @@ class VolumeImageViewer {
             console.debug('retrieve and cache bulk annotations')
             cacheBulkAnnotations(annotationGroupUID, retrievedBulkdata)
             processBulkAnnotations(retrievedBulkdata)
-          }).catch(error => {
-            console.error(error)
-            failure()
-          })
+          }).catch(error => failure(error))
         }
       }
 

@@ -139,31 +139,34 @@ export const getFeaturesFromBulkAnnotations = ({
   affine,
   affineInverse,
   view,
-  featureFunction
+  featureFunction,
+  isHighResolution,
 }) => {
   console.info('create features from bulk annotations')
 
   const { topLeft, bottomRight } = getViewportBoundingBox({ view, pyramid, affine })
 
   const features = []
+
   for (
     let annotationIndex = 0;
-    annotationIndex < numberOfAnnotations - 1;
+    annotationIndex < numberOfAnnotations;
     annotationIndex++
   ) {
-    const offset = graphicIndex[annotationIndex] - 1
-    const firstCoordinate = _getCoordinates(
-      graphicData,
-      offset,
-      commonZCoordinate
-    )
-    const isOutsideViewport = !isCoordinateInsideBoundingBox(
-      firstCoordinate,
-      topLeft,
-      bottomRight
-    )
-    if (isOutsideViewport) {
-      continue
+    if (isHighResolution) {
+      const offset = graphicIndex[annotationIndex] - 1
+      const firstCoordinate = _getCoordinates(
+        graphicData,
+        offset,
+        commonZCoordinate
+      )
+      if (!isCoordinateInsideBoundingBox(
+        firstCoordinate,
+        topLeft,
+        bottomRight
+      )) {
+        continue
+      }
     }
 
     const feature = featureFunction({
@@ -179,18 +182,18 @@ export const getFeaturesFromBulkAnnotations = ({
       annotationGroupUID,
     })
 
+    feature.setId(annotationGroupUID + '-' + annotationIndex)
     feature.set("annotationGroupUID", annotationGroupUID, true)
-    measurements.forEach((measurementItem, measurementIndex) => {
-      const key = `measurementValue${measurementIndex.toString()}`
-      const value = measurementItem.values[annotationIndex]
+
+    measurements.forEach((measurement, measurementIndex) => {
+      const key = "measurementValue" + measurementIndex
+      const value = measurement.values[annotationIndex]
       /**
        * Needed for the WebGL renderer. This is required for the point layer which uses webgl
        * so it might not be required for other layers e.g. vector layer.
        */
       feature.set(key, value, true)
     })
-
-    feature.setId(annotationGroupUID + '-' + annotationIndex)
 
     features.push(feature)
   }
