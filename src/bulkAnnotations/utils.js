@@ -1,13 +1,13 @@
-import PointGeometry from "ol/geom/Point"
-import PolygonGeometry from "ol/geom/Polygon"
-import Feature from "ol/Feature"
-import { getTopLeft, getBottomRight } from "ol/extent"
+import PointGeometry from 'ol/geom/Point'
+import PolygonGeometry from 'ol/geom/Polygon'
+import Feature from 'ol/Feature'
+import { getTopLeft, getBottomRight } from 'ol/extent'
 
-import { _getCentroid, _getCoordinates } from "../annotation"
+import { _getCoordinates } from '../annotation'
 import {
   _scoord3dCoordinates2geometryCoordinates,
-  _geometryCoordinates2scoord3dCoordinates,
-} from "../scoord3dUtils"
+  _geometryCoordinates2scoord3dCoordinates
+} from '../scoord3dUtils'
 
 /**
  * Get viewport bounding box
@@ -26,7 +26,7 @@ export const getViewportBoundingBox = ({ view, pyramid, affine }) => {
   )
   return {
     topLeft: scoord3DCoords[0],
-    bottomRight: scoord3DCoords[1],
+    bottomRight: scoord3DCoords[1]
   }
 }
 
@@ -66,7 +66,7 @@ export const getPolygonFeature = ({
   affineInverse,
   commonZCoordinate,
   coordinateDimensionality,
-  annotationGroupUID,
+  annotationGroupUID
 }) => {
   const offset = graphicIndex[annotationIndex] - 1
 
@@ -92,7 +92,7 @@ export const getPolygonFeature = ({
   }
 
   return new Feature({
-    geometry: new PolygonGeometry([polygonCoordinates]),
+    geometry: new PolygonGeometry([polygonCoordinates])
   })
 }
 
@@ -112,7 +112,7 @@ export const getPointFeature = ({
   affineInverse,
   commonZCoordinate,
   coordinateDimensionality,
-  annotationGroupUID,
+  annotationGroupUID
 }) => {
   const offset = graphicIndex[annotationIndex] - 1
   const coordinate = _getCoordinates(graphicData, offset, commonZCoordinate)
@@ -122,7 +122,7 @@ export const getPointFeature = ({
     affineInverse
   )
   return new Feature({
-    geometry: new PointGeometry(renderableCoordinate),
+    geometry: new PointGeometry(renderableCoordinate)
   })
 }
 
@@ -140,7 +140,7 @@ export const getFeaturesFromBulkAnnotations = ({
   affineInverse,
   view,
   featureFunction,
-  isHighResolution,
+  isHighResolution
 }) => {
   console.info('create features from bulk annotations')
 
@@ -179,14 +179,14 @@ export const getFeaturesFromBulkAnnotations = ({
       affineInverse,
       commonZCoordinate,
       coordinateDimensionality,
-      annotationGroupUID,
+      annotationGroupUID
     })
 
     feature.setId(annotationGroupUID + '-' + annotationIndex)
-    feature.set("annotationGroupUID", annotationGroupUID, true)
+    feature.set('annotationGroupUID', annotationGroupUID, true)
 
     measurements.forEach((measurement, measurementIndex) => {
-      const key = "measurementValue" + measurementIndex
+      const key = 'measurementValue' + measurementIndex
       const value = measurement.values[annotationIndex]
       /**
        * Needed for the WebGL renderer. This is required for the point layer which uses webgl
@@ -199,12 +199,12 @@ export const getFeaturesFromBulkAnnotations = ({
   }
 
   return features
-};
+}
 
 export default {
   getFeaturesFromBulkAnnotations,
   getPointFeature,
   getPolygonFeature,
   isCoordinateInsideBoundingBox,
-  getViewportBoundingBox,
+  getViewportBoundingBox
 }

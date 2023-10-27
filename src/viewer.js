@@ -45,11 +45,8 @@ import {
   _fetchGraphicData,
   _fetchGraphicIndex,
   _fetchMeasurements,
-  _getCentroid,
   _getCommonZCoordinate,
-  _getCoordinateDimensionality,
-  _getCoordinates,
-  _getPoint
+  _getCoordinateDimensionality
 } from './annotation.js'
 import {
   ColormapNames,
@@ -75,8 +72,7 @@ import {
   _generateUID,
   _getUnitSuffix,
   doContentItemsMatch,
-  createWindow,
-  rgb2hex
+  createWindow
 } from './utils.js'
 import {
   _scoord3dCoordinates2geometryCoordinates,
@@ -784,7 +780,7 @@ class VolumeImageViewer {
       }
     }
 
-    if (this[_options].annotationOptions) { 
+    if (this[_options].annotationOptions) {
       this[_annotationOptions] = this[_options].annotationOptions
     }
 
@@ -3109,7 +3105,7 @@ class VolumeImageViewer {
 
       if (item.GraphicType === 'POLYLINE') {
         /*
-         * We represent graphics as polygons in low zoom levels 
+         * We represent graphics as polygons in low zoom levels
          * or centroid points when in high zoom levels, but it's unclear whether
          * the centroid of a polyline would be meaningful.
          */
@@ -3125,7 +3121,7 @@ class VolumeImageViewer {
       // TODO: figure out how to use "loader" with bbox or tile "strategy"?
       const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
       const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
-      
+
       /**
        * Bulkdata may not be available, since it's possible that all information
        * has been included into the metadata by value as InlineBinary. It must
@@ -3138,7 +3134,7 @@ class VolumeImageViewer {
       }
 
       /**
-       * The number of Annotations in this Annotation Group. 
+       * The number of Annotations in this Annotation Group.
        * Each point, open polyline or closed polygon, circle,
        * ellipse or rectangle is counted as one Annotation.
        */
@@ -3153,8 +3149,8 @@ class VolumeImageViewer {
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)
 
       let areBulkAnnotationsProcessed = false
-      const cacheBulkAnnotations = (id, data) => this[_retrievedBulkdata][id] = data
-      const getCachedBulkAnnotations = (id) => this[_retrievedBulkdata][id]
+      const cacheBulkAnnotations = (id, data) => (this[_retrievedBulkdata][id] = data)
+      const getCachedBulkAnnotations = (id) => (this[_retrievedBulkdata][id])
 
       const bulkAnnotationsLoader = function (featureFunction, success, failure) {
         console.info('load bulk annotations layer')
@@ -3162,8 +3158,8 @@ class VolumeImageViewer {
         const processBulkAnnotations = (retrievedBulkdata) => {
           console.info('process bulk annotations')
           areBulkAnnotationsProcessed = true
-          
-          const [ graphicData, graphicIndex, measurements ] = retrievedBulkdata
+
+          const [graphicData, graphicIndex, measurements] = retrievedBulkdata
 
           console.info(
             'compute statistics for measurement values ' +
@@ -3214,12 +3210,12 @@ class VolumeImageViewer {
           console.info('number of annotations:', numberOfAnnotations)
         }
 
-        let cachedBulkAnnotations = getCachedBulkAnnotations(annotationGroupUID)
+        const cachedBulkAnnotations = getCachedBulkAnnotations(annotationGroupUID)
         if (cachedBulkAnnotations) {
           try {
             console.info('use cached bulk annotations')
             processBulkAnnotations(cachedBulkAnnotations)
-          } catch(error) {
+          } catch (error) {
             console.error('Failed to process cached bulk annotations', error)
             failure(error)
           }
@@ -3255,11 +3251,11 @@ class VolumeImageViewer {
       }
 
       /**
-       * The loader function used to load features, from a remote source for example. 
-       * The 'featuresloadend' and 'featuresloaderror' events will only fire if the success 
+       * The loader function used to load features, from a remote source for example.
+       * The 'featuresloadend' and 'featuresloaderror' events will only fire if the success
        * and failure callbacks are used.
        * https://openlayers.org/en/latest/apidoc/module-ol_source_Vector-VectorSource.html
-       * 
+       *
        * In the loader function "this" is bound to the vector source.
        */
       function pointsLoader (extent, resolution, projection, success, failure) {
@@ -3309,8 +3305,8 @@ class VolumeImageViewer {
           console.info('load high resolution bulk annotations')
           bulkAnnotationsLoader.call(
             polygonsSource,
-            getPolygonFeature, 
-            onLayerLoadSuccess, 
+            getPolygonFeature,
+            onLayerLoadSuccess,
             onLayerLoadFailure
           )
         }
@@ -3346,14 +3342,14 @@ class VolumeImageViewer {
           opacity: annotationGroup.style.opacity
         }),
         fill: new Fill({
-          color: 'rgba(0, 0, 255, 0)',
-        }),
+          color: 'rgba(0, 0, 255, 0)'
+        })
       })
 
       annotationGroup.layers = []
       annotationGroup.layers[0] = new VectorLayer({
         source: polygonsSource,
-        style: [ polygonStyle ],
+        style: [polygonStyle]
       })
       annotationGroup.layers[1] = new PointsLayer({
         source: pointsSource,
@@ -3364,8 +3360,9 @@ class VolumeImageViewer {
       const initActiveLayer = () => {
         const polygonsLayer = annotationGroup.layers[0]
         const pointsLayer = annotationGroup.layers[1]
-        annotationGroup.activeLayer = isHighResolution() 
-          ? polygonsLayer : pointsLayer
+        annotationGroup.activeLayer = isHighResolution()
+          ? polygonsLayer
+          : pointsLayer
       }
       initActiveLayer()
 
@@ -3580,21 +3577,21 @@ class VolumeImageViewer {
       )
     }
 
-    const markerType = 'circle'
-    const topLayerIndex = 0
-    const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
-    const baseLayerIndex = this[_pyramid].metadata.length - 1
-    const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
-    const diameter = 5 * 10 ** -3 // micometer
-    const markerSize = [
-      'interpolate',
-      ['exponential', 2],
-      ['zoom'],
-      1,
-      Math.max(diameter / topLayerPixelSpacing[0], 1),
-      this[_pyramid].resolutions.length,
-      Math.min(diameter / baseLayerPixelSpacing[0], 50)
-    ]
+    // const markerType = 'circle'
+    // const topLayerIndex = 0
+    // const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
+    // const baseLayerIndex = this[_pyramid].metadata.length - 1
+    // const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
+    // const diameter = 5 * 10 ** -3 // micometer
+    // const markerSize = [
+    //   'interpolate',
+    //   ['exponential', 2],
+    //   ['zoom'],
+    //   1,
+    //   Math.max(diameter / topLayerPixelSpacing[0], 1),
+    //   this[_pyramid].resolutions.length,
+    //   Math.min(diameter / baseLayerPixelSpacing[0], 50)
+    // ]
 
     const name = styleOptions.measurement
     if (name) {
@@ -3656,15 +3653,15 @@ class VolumeImageViewer {
             opacity: annotationGroup.style.opacity
           }),
           fill: new Fill({
-            color: 'rgba(0, 0, 255, 0)',
-          }),
+            color: 'rgba(0, 0, 255, 0)'
+          })
         })
 
         /** Update polygons layer */
         const previousPolygonsLayer = annotationGroup.layers[0]
         const newPolygonsLayer = new VectorLayer({
           source: previousPolygonsLayer.getSource(),
-          style: [ polygonStyle ],
+          style: [polygonStyle],
           visible: previousPolygonsLayer.getVisible()
         })
         this[_map].addLayer(newPolygonsLayer)
@@ -3726,15 +3723,15 @@ class VolumeImageViewer {
             opacity: annotationGroup.style.opacity
           }),
           fill: new Fill({
-            color: 'rgba(0, 0, 255, 0)',
-          }),
+            color: 'rgba(0, 0, 255, 0)'
+          })
         })
 
         /** Update polygons layer */
         const previousPolygonsLayer = annotationGroup.layers[0]
         const newPolygonsLayer = new VectorLayer({
           source: previousPolygonsLayer.getSource(),
-          style: [ polygonStyle ],
+          style: [polygonStyle],
           visible: previousPolygonsLayer.getVisible()
         })
         this[_map].addLayer(newPolygonsLayer)

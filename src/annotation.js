@@ -794,5 +794,5 @@ export {
   _getCommonZCoordinate,
   _getCoordinateDimensionality,
   _getPoint,
-  _getCoordinates,
+  _getCoordinates
 }
