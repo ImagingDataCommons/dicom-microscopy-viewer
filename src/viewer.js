@@ -3209,9 +3209,10 @@ class VolumeImageViewer {
         let cachedBulkAnnotations = getCachedBulkAnnotations(annotationGroupUID)
         if (cachedBulkAnnotations) {
           try {
-            console.debug('use cached bulk annotations')
+            console.info('use cached bulk annotations')
             processBulkAnnotations(cachedBulkAnnotations)
           } catch(error) {
+            console.error('Failed to process cached bulk annotations', error)
             failure(error)
           }
         } else {
@@ -3221,11 +3222,27 @@ class VolumeImageViewer {
             _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
             _fetchMeasurements({ metadataItem, bulkdataItem, client })
           ]
-          Promise.all(promises).then(retrievedBulkdata => {
-            console.debug('retrieve and cache bulk annotations')
+          Promise.allSettled(promises).then(results => {
+            const errors = {
+              1: 'Failed to retrieve point coordiante data of annotation group',
+              2: 'Failed to retrieve point index list of annotation group',
+              3: 'Failed to fetch measurements of annotation group'
+            }
+            const retrievedBulkdata = [[], [], []]
+            results.forEach((result, index) => {
+              if (result.status === 'fulfilled') {
+                retrievedBulkdata[index] = result.value
+              } else {
+                console.error(errors[index])
+              }
+            })
+            console.info('retrieve and cache bulk annotations')
             cacheBulkAnnotations(annotationGroupUID, retrievedBulkdata)
             processBulkAnnotations(retrievedBulkdata)
-          }).catch(error => failure(error))
+          }).catch(error => {
+            console.error('Failed to retrieve and cache bulk annotations', error)
+            failure(error)
+          })
         }
       }
 
