@@ -1,45 +1,45 @@
-import 'ol/ol.css'
-import Collection from 'ol/Collection'
-import Draw, { createBox } from 'ol/interaction/Draw'
-import EVENT from './events'
-import publish from './eventPublisher'
-import Feature from 'ol/Feature'
-import Fill from 'ol/style/Fill'
-import FullScreen from 'ol/control/FullScreen'
-import Icon from 'ol/style/Icon'
-import ImageLayer from 'ol/layer/Image'
-import Map from 'ol/Map'
-import Modify from 'ol/interaction/Modify'
-import MousePosition from 'ol/control/MousePosition'
-import OverviewMap from 'ol/control/OverviewMap'
-import Projection from 'ol/proj/Projection'
-import ScaleLine from 'ol/control/ScaleLine'
-import Select from 'ol/interaction/Select'
-import Snap from 'ol/interaction/Snap'
-import Translate from 'ol/interaction/Translate'
-import PointGeometry from 'ol/geom/Point'
-import Style from 'ol/style/Style'
-import Stroke from 'ol/style/Stroke'
-import Circle from 'ol/style/Circle'
-import Static from 'ol/source/ImageStatic'
-import Overlay from 'ol/Overlay'
-import PointsLayer from 'ol/layer/WebGLPoints'
-import TileLayer from 'ol/layer/WebGLTile'
-import DataTileSource from 'ol/source/DataTile'
-import TileGrid from 'ol/tilegrid/TileGrid'
-import VectorSource from 'ol/source/Vector'
-import VectorLayer from 'ol/layer/Vector'
-import View from 'ol/View'
-import DragPan from 'ol/interaction/DragPan'
-import DragZoom from 'ol/interaction/DragZoom'
-import WebGLHelper from 'ol/webgl/Helper'
-import TileDebug from 'ol/source/TileDebug'
-import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
-import { ZoomSlider, Zoom } from 'ol/control'
-import { getCenter, getHeight, getWidth } from 'ol/extent'
-import { defaults as defaultInteractions } from 'ol/interaction'
-import dcmjs from 'dcmjs'
-import _ from 'lodash'
+import 'ol/ol.css';
+import Collection from 'ol/Collection';
+import Draw, {createBox} from 'ol/interaction/Draw';
+import EVENT from './events';
+import publish from './eventPublisher';
+import Feature from 'ol/Feature';
+import Fill from 'ol/style/Fill';
+import FullScreen from 'ol/control/FullScreen';
+import Icon from 'ol/style/Icon';
+import ImageLayer from 'ol/layer/Image';
+import Map from 'ol/Map';
+import Modify from 'ol/interaction/Modify';
+import MousePosition from 'ol/control/MousePosition';
+import OverviewMap from 'ol/control/OverviewMap';
+import Projection from 'ol/proj/Projection';
+import ScaleLine from 'ol/control/ScaleLine';
+import Select from 'ol/interaction/Select';
+import Snap from 'ol/interaction/Snap';
+import Translate from 'ol/interaction/Translate';
+import PointGeometry from 'ol/geom/Point';
+import Style from 'ol/style/Style';
+import Stroke from 'ol/style/Stroke';
+import Circle from 'ol/style/Circle';
+import Static from 'ol/source/ImageStatic';
+import Overlay from 'ol/Overlay';
+import PointsLayer from 'ol/layer/WebGLPoints';
+import TileLayer from 'ol/layer/WebGLTile';
+import DataTileSource from 'ol/source/DataTile';
+import TileGrid from 'ol/tilegrid/TileGrid';
+import VectorSource from 'ol/source/Vector';
+import VectorLayer from 'ol/layer/Vector';
+import View from 'ol/View';
+import DragPan from 'ol/interaction/DragPan';
+import DragZoom from 'ol/interaction/DragZoom';
+import WebGLHelper from 'ol/webgl/Helper';
+import TileDebug from 'ol/source/TileDebug';
+import {default as VectorEventType} from 'ol/source/VectorEventType'; // eslint-disable-line
+import {ZoomSlider, Zoom} from 'ol/control';
+import {getCenter, getHeight, getWidth} from 'ol/extent';
+import {defaults as defaultInteractions} from 'ol/interaction';
+import dcmjs from 'dcmjs';
+import _ from 'lodash';
 
 import {
   AnnotationGroup,
@@ -48,22 +48,22 @@ import {
   _fetchMeasurements,
   _getCentroid,
   _getCommonZCoordinate,
-  _getCoordinateDimensionality
-} from './annotation.js'
+  _getCoordinateDimensionality,
+} from './annotation.js';
 import {
   ColormapNames,
   createColormap,
   PaletteColorLookupTable,
-  buildPaletteColorLookupTable
-} from './color.js'
+  buildPaletteColorLookupTable,
+} from './color.js';
 import {
   groupMonochromeInstances,
   groupColorInstances,
-  VLWholeSlideMicroscopyImage
-} from './metadata.js'
-import { ParameterMapping, _groupFramesPerMapping } from './mapping.js'
-import { ROI } from './roi.js'
-import { Segment } from './segment.js'
+  VLWholeSlideMicroscopyImage,
+} from './metadata.js';
+import {ParameterMapping, _groupFramesPerMapping} from './mapping.js';
+import {ROI} from './roi.js';
+import {Segment} from './segment.js';
 import {
   areCodedConceptsEqual,
   applyTransform,
@@ -75,8 +75,8 @@ import {
   _getUnitSuffix,
   doContentItemsMatch,
   createWindow,
-  rgb2hex
-} from './utils.js'
+  rgb2hex,
+} from './utils.js';
 import {
   _scoord3dCoordinates2geometryCoordinates,
   _scoord3d2Geometry,
@@ -84,54 +84,54 @@ import {
   _geometry2Scoord3d,
   _geometryCoordinates2scoord3dCoordinates,
   _getFeatureLength,
-  _getFeatureArea
-} from './scoord3dUtils'
-import { OpticalPath } from './opticalPath.js'
+  _getFeatureArea,
+} from './scoord3dUtils';
+import {OpticalPath} from './opticalPath.js';
 import {
   _areImagePyramidsEqual,
   _computeImagePyramid,
   _createTileLoadFunction,
   _fitImagePyramid,
-  _getIccProfiles
-} from './pyramid.js'
+  _getIccProfiles,
+} from './pyramid.js';
 
-import Enums from './enums'
-import _AnnotationManager from './annotations/_AnnotationManager'
-import webWorkerManager from './webWorker/webWorkerManager.js'
+import Enums from './enums';
+import _AnnotationManager from './annotations/_AnnotationManager';
+import webWorkerManager from './webWorker/webWorkerManager.js';
 
-function _getClient (clientMapping, sopClassUID) {
+function _getClient(clientMapping, sopClassUID) {
   if (clientMapping[sopClassUID] == null) {
-    return clientMapping.default
+    return clientMapping.default;
   }
-  return clientMapping[sopClassUID]
+  return clientMapping[sopClassUID];
 }
 
-function _getInteractionBindingCondition (bindings) {
+function _getInteractionBindingCondition(bindings) {
   const BUTTONS = {
     left: 1,
     middle: 4,
-    right: 2
-  }
+    right: 2,
+  };
 
-  const { mouseButtons, modifierKey } = bindings
+  const {mouseButtons, modifierKey} = bindings;
 
   const _mouseButtonCondition = (event) => {
     /** No mouse button condition set. */
     if (!mouseButtons || !mouseButtons.length) {
-      return true
+      return true;
     }
 
     const button = event.pointerEvent
       ? event.pointerEvent.buttons
-      : event.originalEvent.buttons
+      : event.originalEvent.buttons;
 
-    return mouseButtons.some((mb) => BUTTONS[mb] === button)
-  }
+    return mouseButtons.some((mb) => BUTTONS[mb] === button);
+  };
 
   const _modifierKeyCondition = (event) => {
     const pointerEvent = event.pointerEvent
       ? event.pointerEvent
-      : event.originalEvent
+      : event.originalEvent;
 
     if (!modifierKey) {
       /**
@@ -143,16 +143,16 @@ function _getInteractionBindingCondition (bindings) {
         !pointerEvent.metaKey &&
         !pointerEvent.shiftKey &&
         !pointerEvent.ctrlKey
-      )
+      );
     }
 
     switch (modifierKey) {
       case 'alt':
-        return pointerEvent.altKey === true || pointerEvent.metaKey === true
+        return pointerEvent.altKey === true || pointerEvent.metaKey === true;
       case 'shift':
-        return pointerEvent.shiftKey === true
+        return pointerEvent.shiftKey === true;
       case 'ctrl':
-        return pointerEvent.ctrlKey === true
+        return pointerEvent.ctrlKey === true;
       default:
         /** Invalid modifier key set (ignore requirement as if key not pressed). */
         return (
@@ -160,13 +160,13 @@ function _getInteractionBindingCondition (bindings) {
           !pointerEvent.metaKey &&
           !pointerEvent.shiftKey &&
           !pointerEvent.ctrlKey
-        )
+        );
     }
-  }
+  };
 
   return (event) => {
-    return _mouseButtonCondition(event) && _modifierKeyCondition(event)
-  }
+    return _mouseButtonCondition(event) && _modifierKeyCondition(event);
+  };
 }
 
 /**
@@ -203,14 +203,14 @@ function _getInteractionBindingCondition (bindings) {
  *
  * @private
  */
-function _getRotation (metadata) {
+function _getRotation(metadata) {
   // Angle with respect to the reference orientation
   const angle = computeRotation({
-    orientation: metadata.ImageOrientationSlide
-  })
+    orientation: metadata.ImageOrientationSlide,
+  });
   // We want the slide oriented horizontally with the label on the right side
-  const correction = 90 * (Math.PI / 180)
-  return angle + correction
+  const correction = 90 * (Math.PI / 180);
+  return angle + correction;
 }
 
 /**
@@ -227,46 +227,46 @@ function _getRotation (metadata) {
  *
  * @private
  */
-function _getOpenLayersStyle (styleOptions) {
-  const style = new Style()
+function _getOpenLayersStyle(styleOptions) {
+  const style = new Style();
 
   if ('stroke' in styleOptions) {
     const strokeOptions = {
       color: styleOptions.stroke.color,
-      width: styleOptions.stroke.width
-    }
-    const stroke = new Stroke(strokeOptions)
-    style.setStroke(stroke)
+      width: styleOptions.stroke.width,
+    };
+    const stroke = new Stroke(strokeOptions);
+    style.setStroke(stroke);
   }
 
   if ('fill' in styleOptions) {
     const fillOptions = {
-      color: styleOptions.fill.color
-    }
-    const fill = new Fill(fillOptions)
-    style.setFill(fill)
+      color: styleOptions.fill.color,
+    };
+    const fill = new Fill(fillOptions);
+    style.setFill(fill);
   }
 
   if ('image' in styleOptions) {
-    const { image } = styleOptions
+    const {image} = styleOptions;
 
     if (image.circle) {
       const options = {
         radius: image.circle.radius,
         stroke: new Stroke(image.circle.stroke),
-        fill: new Fill(image.circle.fill)
-      }
-      const circle = new Circle(options)
-      style.setImage(circle)
+        fill: new Fill(image.circle.fill),
+      };
+      const circle = new Circle(options);
+      style.setImage(circle);
     }
 
     if (image.icon) {
-      const icon = new Icon(image.icon)
-      style.setImage(icon)
+      const icon = new Icon(image.icon);
+      style.setImage(icon);
     }
   }
 
-  return style
+  return style;
 }
 
 /**
@@ -282,23 +282,23 @@ function _getOpenLayersStyle (styleOptions) {
  *
  * @private
  */
-function _addROIPropertiesToFeature (feature, properties, optSilent) {
-  const { Label, Measurements, Evaluations, Marker } = Enums.InternalProperties
+function _addROIPropertiesToFeature(feature, properties, optSilent) {
+  const {Label, Measurements, Evaluations, Marker} = Enums.InternalProperties;
 
   if (properties[Label]) {
-    feature.set(Label, properties[Label], optSilent)
+    feature.set(Label, properties[Label], optSilent);
   }
 
   if (properties[Measurements]) {
-    feature.set(Measurements, properties[Measurements], optSilent)
+    feature.set(Measurements, properties[Measurements], optSilent);
   }
 
   if (properties[Evaluations]) {
-    feature.set(Evaluations, properties[Evaluations], optSilent)
+    feature.set(Evaluations, properties[Evaluations], optSilent);
   }
 
   if (properties[Marker]) {
-    feature.set(Marker, properties[Marker], optSilent)
+    feature.set(Marker, properties[Marker], optSilent);
   }
 }
 
@@ -314,7 +314,7 @@ function _addROIPropertiesToFeature (feature, properties, optSilent) {
  *
  * @private
  */
-function _wireMeasurementsAndQualitativeEvaluationsEvents (
+function _wireMeasurementsAndQualitativeEvaluationsEvents(
   map,
   feature,
   pyramid,
@@ -323,18 +323,18 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents (
   /**
    * Update feature measurement properties first and then measurements
    */
-  _updateFeatureMeasurements(map, feature, pyramid, affine)
+  _updateFeatureMeasurements(map, feature, pyramid, affine);
   feature.on(Enums.FeatureEvents.CHANGE, (event) => {
-    _updateFeatureMeasurements(map, event.target, pyramid, affine)
-  })
+    _updateFeatureMeasurements(map, event.target, pyramid, affine);
+  });
 
   /**
    * Update feature evaluations
    */
-  _updateFeatureEvaluations(feature)
+  _updateFeatureEvaluations(feature);
   feature.on(Enums.FeatureEvents.PROPERTY_CHANGE, (event) =>
     _updateFeatureEvaluations(event.target)
-  )
+  );
 }
 
 /**
@@ -345,33 +345,33 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents (
  *
  * @private
  */
-function _updateFeatureEvaluations (feature) {
-  const evaluations = feature.get(Enums.InternalProperties.Evaluations) || []
-  const label = feature.get(Enums.InternalProperties.Label)
+function _updateFeatureEvaluations(feature) {
+  const evaluations = feature.get(Enums.InternalProperties.Evaluations) || [];
+  const label = feature.get(Enums.InternalProperties.Label);
 
-  if (!label) return
+  if (!label) return;
 
   const evaluation = new dcmjs.sr.valueTypes.TextContentItem({
     name: new dcmjs.sr.coding.CodedConcept({
       value: '112039',
       meaning: 'Tracking Identifier',
-      schemeDesignator: 'DCM'
+      schemeDesignator: 'DCM',
     }),
     value: label,
-    relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT
-  })
+    relationshipType: Enums.RelationshipTypes.HAS_OBS_CONTEXT,
+  });
 
   const index = evaluations.findIndex((e) =>
     doContentItemsMatch(e, evaluation)
-  )
+  );
 
   if (index > -1) {
-    evaluations[index] = evaluation
+    evaluations[index] = evaluation;
   } else {
-    evaluations.push(evaluation)
+    evaluations.push(evaluation);
   }
 
-  feature.set(Enums.InternalProperties.Evaluations, evaluations)
+  feature.set(Enums.InternalProperties.Evaluations, evaluations);
 }
 
 /**
@@ -384,19 +384,19 @@ function _updateFeatureEvaluations (feature) {
  *
  * @private
  */
-function _updateFeatureMeasurements (map, feature, pyramid, affine) {
+function _updateFeatureMeasurements(map, feature, pyramid, affine) {
   if (
     Enums.Markup.Measurement !== feature.get(Enums.InternalProperties.Markup)
   ) {
-    return
+    return;
   }
 
-  const measurements = feature.get(Enums.InternalProperties.Measurements) || []
-  const area = _getFeatureArea(feature, pyramid, affine)
-  const length = _getFeatureLength(feature, pyramid, affine)
+  const measurements = feature.get(Enums.InternalProperties.Measurements) || [];
+  const area = _getFeatureArea(feature, pyramid, affine);
+  const length = _getFeatureLength(feature, pyramid, affine);
 
   if (area == null && length == null) {
-    return
+    return;
   }
 
   const unitSuffixToMeaningMap = {
@@ -406,61 +406,61 @@ function _updateFeatureMeasurements (map, feature, pyramid, affine) {
     mm2: 'square millimeter',
     m: 'meters',
     m2: 'square meters',
-    km2: 'square kilometers'
-  }
+    km2: 'square kilometers',
+  };
 
-  let measurement
-  const view = map.getView()
-  const unitSuffix = _getUnitSuffix(view)
+  let measurement;
+  const view = map.getView();
+  const unitSuffix = _getUnitSuffix(view);
 
   if (area != null) {
-    const unitCodedConceptValue = `${unitSuffix}2`
-    const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
+    const unitCodedConceptValue = `${unitSuffix}2`;
+    const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix];
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Area',
         value: '42798000',
-        schemeDesignator: 'SCT'
+        schemeDesignator: 'SCT',
       }),
       value: area,
       unit: new dcmjs.sr.coding.CodedConcept({
         value: unitCodedConceptValue,
         meaning: unitCodedConceptMeaning,
-        schemeDesignator: 'SCT'
-      })
-    })
+        schemeDesignator: 'SCT',
+      }),
+    });
   }
 
   if (length != null) {
-    const unitCodedConceptValue = unitSuffix
-    const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
+    const unitCodedConceptValue = unitSuffix;
+    const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix];
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Length',
         value: '410668003',
-        schemeDesignator: 'SCT'
+        schemeDesignator: 'SCT',
       }),
       value: length,
       unit: new dcmjs.sr.coding.CodedConcept({
         value: unitCodedConceptValue,
         meaning: unitCodedConceptMeaning,
-        schemeDesignator: 'SCT'
-      })
-    })
+        schemeDesignator: 'SCT',
+      }),
+    });
   }
 
   if (measurement) {
-    const index = measurements.findIndex((m) => (
+    const index = measurements.findIndex((m) =>
       doContentItemsMatch(m, measurement)
-    ))
+    );
 
     if (index > -1) {
-      measurements[index] = measurement
+      measurements[index] = measurement;
     } else {
-      measurements.push(measurement)
+      measurements.push(measurement);
     }
 
-    feature.set(Enums.InternalProperties.Measurements, measurements)
+    feature.set(Enums.InternalProperties.Measurements, measurements);
   }
 }
 
@@ -477,17 +477,17 @@ function _updateFeatureMeasurements (map, feature, pyramid, affine) {
  *
  * @private
  */
-function _setFeatureStyle (feature, styleOptions) {
+function _setFeatureStyle(feature, styleOptions) {
   if (styleOptions !== undefined) {
-    const style = _getOpenLayersStyle(styleOptions)
-    feature.setStyle(style)
+    const style = _getOpenLayersStyle(styleOptions);
+    feature.setStyle(style);
 
     /**
      * styleOptions is used internally by internal styled components like markers.
      * This allows them to take priority over styling since OpenLayers swaps the styles
      * completely in case of a setStyle happens.
      */
-    feature.set(Enums.InternalProperties.StyleOptions, styleOptions)
+    feature.set(Enums.InternalProperties.StyleOptions, styleOptions);
   }
 }
 
@@ -503,18 +503,18 @@ function _setFeatureStyle (feature, styleOptions) {
  *
  * @private
  */
-function _getColorPaletteStyleForTileLayer ({
+function _getColorPaletteStyleForTileLayer({
   windowCenter,
   windowWidth,
-  colormap
+  colormap,
 }) {
   /*
    * The Palette Color Lookup Table applies to the index values in the range
    * [0, n] that are obtained by scaling stored pixel values between the lower
    * and upper value of interest (VOI) defined by the window center and width.
    */
-  const minIndexValue = 0
-  const maxIndexValue = colormap.length - 1
+  const minIndexValue = 0;
+  const maxIndexValue = colormap.length - 1;
   const indexExpression = [
     'clamp',
     [
@@ -525,47 +525,27 @@ function _getColorPaletteStyleForTileLayer ({
           '+',
           [
             '/',
-            [
-              '-',
-              ['band', 1],
-              [
-                '-',
-                ['var', 'windowCenter'],
-                0.5
-              ]
-            ],
-            [
-              '-',
-              ['var', 'windowWidth'],
-              1
-            ]
+            ['-', ['band', 1], ['-', ['var', 'windowCenter'], 0.5]],
+            ['-', ['var', 'windowWidth'], 1],
           ],
-          0.5
+          0.5,
         ],
-        [
-          '-',
-          maxIndexValue,
-          minIndexValue
-        ]
+        ['-', maxIndexValue, minIndexValue],
       ],
-      minIndexValue
+      minIndexValue,
     ],
     minIndexValue,
-    maxIndexValue
-  ]
+    maxIndexValue,
+  ];
 
-  const expression = [
-    'palette',
-    indexExpression,
-    colormap
-  ]
+  const expression = ['palette', indexExpression, colormap];
 
   const variables = {
     windowCenter,
-    windowWidth
-  }
+    windowWidth,
+  };
 
-  return { color: expression, variables }
+  return {color: expression, variables};
 }
 
 /**
@@ -580,10 +560,10 @@ function _getColorPaletteStyleForTileLayer ({
  *
  * @private
  */
-function _getColorInterpolationStyleForTileLayer ({
+function _getColorInterpolationStyleForTileLayer({
   windowCenter,
   windowWidth,
-  color
+  color,
 }) {
   /*
    * If no Palette Color Lookup Table is available, don't create one
@@ -596,30 +576,26 @@ function _getColorInterpolationStyleForTileLayer ({
       '+',
       [
         '/',
-        [
-          '-',
-          ['band', 1],
-          ['var', 'windowCenter']
-        ],
-        ['var', 'windowWidth']
+        ['-', ['band', 1], ['var', 'windowCenter']],
+        ['var', 'windowWidth'],
       ],
-      0.5
+      0.5,
     ],
     0,
     [0, 0, 0, 1],
     1,
-    ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1]
-  ]
+    ['color', ['var', 'red'], ['var', 'green'], ['var', 'blue'], 1],
+  ];
 
   const variables = {
     red: color[0],
     green: color[1],
     blue: color[2],
     windowCenter,
-    windowWidth
-  }
+    windowWidth,
+  };
 
-  return { color: expression, variables }
+  return {color: expression, variables};
 }
 
 /**
@@ -635,14 +611,14 @@ function _getColorInterpolationStyleForTileLayer ({
  *
  * @private
  */
-function _getColorPaletteStyleForPointLayer ({
+function _getColorPaletteStyleForPointLayer({
   key,
   minValue,
   maxValue,
-  colormap
+  colormap,
 }) {
-  const minIndexValue = 0
-  const maxIndexValue = colormap.length - 1
+  const minIndexValue = 0;
+  const maxIndexValue = colormap.length - 1;
   const indexExpression = [
     'clamp',
     [
@@ -653,64 +629,48 @@ function _getColorPaletteStyleForPointLayer ({
           '/',
           [
             '*',
-            [
-              '-',
-              ['get', key],
-              minValue
-            ],
-            [
-              '-',
-              maxIndexValue,
-              minIndexValue
-            ]
+            ['-', ['get', key], minValue],
+            ['-', maxIndexValue, minIndexValue],
           ],
-          [
-            '-',
-            maxValue,
-            minValue
-          ]
+          ['-', maxValue, minValue],
         ],
-        minIndexValue
-      ]
+        minIndexValue,
+      ],
     ],
     minIndexValue,
-    maxIndexValue
-  ]
+    maxIndexValue,
+  ];
 
-  const expression = [
-    'palette',
-    indexExpression,
-    colormap
-  ]
+  const expression = ['palette', indexExpression, colormap];
 
-  return { color: expression }
+  return {color: expression};
 }
 
-const _affine = Symbol('affine')
-const _affineInverse = Symbol('affineInverse')
-const _annotationManager = Symbol('annotationManager')
-const _annotationGroups = Symbol('annotationGroups')
-const _areIccProfilesFetched = Symbol('areIccProfilesFetched')
-const _clients = Symbol('clients')
-const _controls = Symbol('controls')
-const _drawingLayer = Symbol('drawingLayer')
-const _drawingSource = Symbol('drawingSource')
-const _features = Symbol('features')
-const _imageLayer = Symbol('imageLayer')
-const _interactions = Symbol('interactions')
-const _map = Symbol('map')
-const _mappings = Symbol('mappings')
-const _metadata = Symbol('metadata')
-const _opticalPaths = Symbol('opticalPaths')
-const _options = Symbol('options')
-const _overlays = Symbol('overlays')
-const _overviewMap = Symbol('overviewMap')
-const _projection = Symbol('projection')
-const _pyramid = Symbol('pyramid')
-const _segments = Symbol('segments')
-const _rotation = Symbol('rotation')
-const _tileGrid = Symbol('tileGrid')
-const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
+const _affine = Symbol('affine');
+const _affineInverse = Symbol('affineInverse');
+const _annotationManager = Symbol('annotationManager');
+const _annotationGroups = Symbol('annotationGroups');
+const _areIccProfilesFetched = Symbol('areIccProfilesFetched');
+const _clients = Symbol('clients');
+const _controls = Symbol('controls');
+const _drawingLayer = Symbol('drawingLayer');
+const _drawingSource = Symbol('drawingSource');
+const _features = Symbol('features');
+const _imageLayer = Symbol('imageLayer');
+const _interactions = Symbol('interactions');
+const _map = Symbol('map');
+const _mappings = Symbol('mappings');
+const _metadata = Symbol('metadata');
+const _opticalPaths = Symbol('opticalPaths');
+const _options = Symbol('options');
+const _overlays = Symbol('overlays');
+const _overviewMap = Symbol('overviewMap');
+const _projection = Symbol('projection');
+const _pyramid = Symbol('pyramid');
+const _segments = Symbol('segments');
+const _rotation = Symbol('rotation');
+const _tileGrid = Symbol('tileGrid');
+const _updateOverviewMapSize = Symbol('updateOverviewMapSize');
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -749,146 +709,146 @@ class VolumeImageViewer {
    * @param {number[]} [options.mapViewResolutions] Map's view list of
    * resolutions. If not passed, the tile grid resolution will be used.
    */
-  constructor (options) {
-    this[_options] = options
+  constructor(options) {
+    this[_options] = options;
 
-    this[_clients] = {}
+    this[_clients] = {};
     if (this[_options].client) {
-      this[_clients].default = this[_options].client
+      this[_clients].default = this[_options].client;
     } else {
       if (this[_options].clientMapping == null) {
         throw new Error(
           'Either option "client" or option "clientMapping" must be provided.'
-        )
+        );
       }
       if (!(typeof this[_options].clientMapping === 'object')) {
-        throw new Error('Option "clientMapping" must be an object.')
+        throw new Error('Option "clientMapping" must be an object.');
       }
       if (this[_options].clientMapping.default == null) {
-        throw new Error('Option "clientMapping" must contain "default" key.')
+        throw new Error('Option "clientMapping" must contain "default" key.');
       }
       for (const key in this[_options].clientMapping) {
-        this[_clients][key] = this[_options].clientMapping[key]
+        this[_clients][key] = this[_options].clientMapping[key];
       }
     }
 
     if (this[_options].debug == null) {
-      this[_options].debug = false
+      this[_options].debug = false;
     } else {
-      this[_options].debug = true
+      this[_options].debug = true;
     }
 
     if (this[_options].preload == null) {
-      this[_options].preload = false
+      this[_options].preload = false;
     } else {
-      this[_options].preload = true
+      this[_options].preload = true;
     }
 
     if (this[_options].tilesCacheSize == null) {
-      this[_options].tilesCacheSize = 1000
+      this[_options].tilesCacheSize = 1000;
     }
 
     if (this[_options].controls == null) {
-      this[_options].controls = []
+      this[_options].controls = [];
     }
-    this[_options].controls = new Set(this[_options].controls)
+    this[_options].controls = new Set(this[_options].controls);
 
     if (this[_options].primaryColor == null) {
-      this[_options].primaryColor = [0, 126, 163]
+      this[_options].primaryColor = [0, 126, 163];
     }
     if (this[_options].highlightColor == null) {
-      this[_options].highlightColor = [140, 184, 198]
+      this[_options].highlightColor = [140, 184, 198];
     }
 
     // Collection of Openlayers "TileLayer" instances
-    this[_segments] = {}
-    this[_mappings] = {}
-    this[_annotationGroups] = {}
-    this[_areIccProfilesFetched] = false
+    this[_segments] = {};
+    this[_mappings] = {};
+    this[_annotationGroups] = {};
+    this[_areIccProfilesFetched] = false;
 
     // Collection of Openlayers "Feature" instances
-    this[_features] = new Collection([], { unique: true })
+    this[_features] = new Collection([], {unique: true});
 
     // Add unique identifier to each created "Feature" instance
     this[_features].on('add', (e) => {
       // The ID may have already been set when drawn. However, features could
       // have also been added without a draw event.
       if (e.element.getId() === undefined) {
-        e.element.setId(_generateUID())
+        e.element.setId(_generateUID());
       }
 
-      this[_annotationManager].onAdd(e.element)
-    })
+      this[_annotationManager].onAdd(e.element);
+    });
 
     this[_features].on('remove', (e) => {
-      this[_annotationManager].onRemove(e.element)
-    })
+      this[_annotationManager].onRemove(e.element);
+    });
 
     if (this[_options].metadata.constructor.name !== 'Array') {
-      throw new Error('Input metadata must be an array.')
+      throw new Error('Input metadata must be an array.');
     }
 
     if (this[_options].metadata.length === 0) {
-      throw new Error('Input metadata array is empty.')
+      throw new Error('Input metadata array is empty.');
     }
 
     if (this[_options].metadata.some((item) => typeof item !== 'object')) {
-      throw new Error('Input metadata must be an array of objects.')
+      throw new Error('Input metadata must be an array of objects.');
     }
 
     // We also accept metadata in raw JSON format for backwards compatibility
     if (this[_options].metadata[0].SOPClassUID != null) {
-      this[_metadata] = this[_options].metadata
+      this[_metadata] = this[_options].metadata;
     } else {
-      this[_metadata] = this[_options].metadata.map(instance => {
-        return new VLWholeSlideMicroscopyImage({ metadata: instance })
-      })
+      this[_metadata] = this[_options].metadata.map((instance) => {
+        return new VLWholeSlideMicroscopyImage({metadata: instance});
+      });
     }
 
     // Group color images by opticalPathIdentifier
-    const colorGroups = groupColorInstances(this[_metadata])
-    const colorImageInformation = {}
-    let colorOpticalPathIdentifiers = Object.keys(colorGroups)
+    const colorGroups = groupColorInstances(this[_metadata]);
+    const colorImageInformation = {};
+    let colorOpticalPathIdentifiers = Object.keys(colorGroups);
     if (colorOpticalPathIdentifiers.length > 0) {
-      const id = colorOpticalPathIdentifiers[0]
+      const id = colorOpticalPathIdentifiers[0];
       if (colorOpticalPathIdentifiers.length > 1) {
         console.warn(
           'Volume Image Viewer detected more than one color image, ' +
-          'but only one color image can be loaded and visualized at a time. ' +
-          'Only the first detected color image will be loaded.'
-        )
-        colorOpticalPathIdentifiers = [id]
+            'but only one color image can be loaded and visualized at a time. ' +
+            'Only the first detected color image will be loaded.'
+        );
+        colorOpticalPathIdentifiers = [id];
       }
       colorImageInformation[id] = {
         metadata: colorGroups[id],
-        opticalPath: this[_metadata][0].OpticalPathSequence[0]
-      }
+        opticalPath: this[_metadata][0].OpticalPathSequence[0],
+      };
     }
 
-    const monochromeGroups = groupMonochromeInstances(this[_metadata])
-    const monochromeOpticalPathIdentifiers = Object.keys(monochromeGroups)
-    const monochromeImageInformation = {}
-    monochromeOpticalPathIdentifiers.forEach(id => {
-      const refImage = monochromeGroups[id][0]
-      const opticalPath = refImage.OpticalPathSequence.find(item => {
-        return item.OpticalPathIdentifier === id
-      })
+    const monochromeGroups = groupMonochromeInstances(this[_metadata]);
+    const monochromeOpticalPathIdentifiers = Object.keys(monochromeGroups);
+    const monochromeImageInformation = {};
+    monochromeOpticalPathIdentifiers.forEach((id) => {
+      const refImage = monochromeGroups[id][0];
+      const opticalPath = refImage.OpticalPathSequence.find((item) => {
+        return item.OpticalPathIdentifier === id;
+      });
       monochromeImageInformation[id] = {
         metadata: monochromeGroups[id],
-        opticalPath
-      }
-    })
+        opticalPath,
+      };
+    });
 
-    const numChannels = monochromeOpticalPathIdentifiers.length
-    const numColorImages = colorOpticalPathIdentifiers.length
+    const numChannels = monochromeOpticalPathIdentifiers.length;
+    const numColorImages = colorOpticalPathIdentifiers.length;
     if (numChannels === 0 && numColorImages === 0) {
-      throw new Error('Could not find any channels or color images.')
+      throw new Error('Could not find any channels or color images.');
     }
     if (numChannels > 0 && numColorImages > 0) {
-      throw new Error('Found both channels and color images.')
+      throw new Error('Found both channels and color images.');
     }
     if (numColorImages > 1) {
-      throw new Error('Found more than one color image.')
+      throw new Error('Found more than one color image.');
     }
 
     /*
@@ -904,35 +864,36 @@ class VolumeImageViewer {
      *    perfom registration, which (at least for now) is out of scope.
      */
     if (numChannels > 0) {
-      const opticalPathIdentifier = monochromeOpticalPathIdentifiers[0]
-      const info = monochromeImageInformation[opticalPathIdentifier]
-      this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
+      const opticalPathIdentifier = monochromeOpticalPathIdentifiers[0];
+      const info = monochromeImageInformation[opticalPathIdentifier];
+      this[_pyramid] = _computeImagePyramid({metadata: info.metadata});
     } else {
-      const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
-      const info = colorImageInformation[opticalPathIdentifier]
-      this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
+      const opticalPathIdentifier = colorOpticalPathIdentifiers[0];
+      const info = colorImageInformation[opticalPathIdentifier];
+      this[_pyramid] = _computeImagePyramid({metadata: info.metadata});
     }
 
-    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
-    const origin = metadata.TotalPixelMatrixOriginSequence[0]
-    const orientation = metadata.ImageOrientationSlide
-    const spacing = getPixelSpacing(metadata)
+    const metadata =
+      this[_pyramid].metadata[this[_pyramid].metadata.length - 1];
+    const origin = metadata.TotalPixelMatrixOriginSequence[0];
+    const orientation = metadata.ImageOrientationSlide;
+    const spacing = getPixelSpacing(metadata);
     const offset = [
       Number(origin.XOffsetInSlideCoordinateSystem),
-      Number(origin.YOffsetInSlideCoordinateSystem)
-    ]
+      Number(origin.YOffsetInSlideCoordinateSystem),
+    ];
     this[_affine] = buildTransform({
       offset,
       orientation,
-      spacing
-    })
+      spacing,
+    });
     this[_affineInverse] = buildInverseTransform({
       offset,
       orientation,
-      spacing
-    })
+      spacing,
+    });
 
-    this[_rotation] = _getRotation(this[_pyramid].metadata[0])
+    this[_rotation] = _getRotation(this[_pyramid].metadata[0]);
 
     /*
      * Specify projection to prevent default automatic projection
@@ -950,10 +911,10 @@ class VolumeImageViewer {
          */
         const spacing = getPixelSpacing(
           this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
-        )[0]
-        return pixelRes * spacing / 10 ** 3
-      }
-    })
+        )[0];
+        return (pixelRes * spacing) / 10 ** 3;
+      },
+    });
 
     /*
      * We need to specify the tile grid, since DICOM allows tiles to
@@ -965,13 +926,13 @@ class VolumeImageViewer {
       origins: this[_pyramid].origins,
       resolutions: this[_pyramid].resolutions,
       sizes: this[_pyramid].gridSizes,
-      tileSizes: this[_pyramid].tileSizes
-    })
+      tileSizes: this[_pyramid].tileSizes,
+    });
 
-    let mapViewResolutions = this[_tileGrid].getResolutions()
+    let mapViewResolutions = this[_tileGrid].getResolutions();
 
     if (_.has(this[_options], 'mapViewResolutions')) {
-      mapViewResolutions = this[_options].mapViewResolutions
+      mapViewResolutions = this[_options].mapViewResolutions;
     }
 
     const view = new View({
@@ -982,32 +943,30 @@ class VolumeImageViewer {
       constrainOnlyCenter: false,
       smoothResolutionConstraint: true,
       showFullExtent: true,
-      extent: this[_pyramid].extent
-    })
+      extent: this[_pyramid].extent,
+    });
 
-    const layers = []
-    const overviewLayers = []
-    this[_opticalPaths] = {}
+    const layers = [];
+    const overviewLayers = [];
+    this[_opticalPaths] = {};
     if (numChannels > 0) {
-      const helper = new WebGLHelper()
-      const overviewHelper = new WebGLHelper()
+      const helper = new WebGLHelper();
+      const overviewHelper = new WebGLHelper();
       for (const opticalPathIdentifier in monochromeImageInformation) {
-        const info = monochromeImageInformation[opticalPathIdentifier]
-        const pyramid = _computeImagePyramid({ metadata: info.metadata })
-        console.info(`channel "${opticalPathIdentifier}"`, pyramid)
-        const bitsAllocated = info.metadata[0].BitsAllocated
-        const minStoredValue = 0
-        const maxStoredValue = Math.pow(2, bitsAllocated) - 1
+        const info = monochromeImageInformation[opticalPathIdentifier];
+        const pyramid = _computeImagePyramid({metadata: info.metadata});
+        console.info(`channel "${opticalPathIdentifier}"`, pyramid);
+        const bitsAllocated = info.metadata[0].BitsAllocated;
+        const minStoredValue = 0;
+        const maxStoredValue = Math.pow(2, bitsAllocated) - 1;
 
-        let paletteColorLookupTableUID
-        let paletteColorLookupTable
+        let paletteColorLookupTableUID;
+        let paletteColorLookupTable;
         if (info.opticalPath.PaletteColorLookupTableSequence) {
-          const item = info.opticalPath.PaletteColorLookupTableSequence[0]
-          paletteColorLookupTableUID = (
-            item.PaletteColorLookupTableUID
-              ? item.PaletteColorLookupTableUID
-              : _generateUID()
-          )
+          const item = info.opticalPath.PaletteColorLookupTableSequence[0];
+          paletteColorLookupTableUID = item.PaletteColorLookupTableUID
+            ? item.PaletteColorLookupTableUID
+            : _generateUID();
           /*
            * TODO: If the LUT Data are large, the elements may be bulkdata and
            * then have to be retrieved separately. However, for optical paths
@@ -1024,17 +983,18 @@ class VolumeImageViewer {
             blueData: item.BluePaletteColorLookupTableData,
             redSegmentedData: item.SegmentedRedPaletteColorLookupTableData,
             greenSegmentedData: item.SegmentedGreenPaletteColorLookupTableData,
-            blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData
-          })
+            blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData,
+          });
         }
         const defaultOpticalPathStyle = {
           opacity: 1,
-          limitValues: [minStoredValue, maxStoredValue]
-        }
+          limitValues: [minStoredValue, maxStoredValue],
+        };
         if (paletteColorLookupTable) {
-          defaultOpticalPathStyle.paletteColorLookupTable = paletteColorLookupTable
+          defaultOpticalPathStyle.paletteColorLookupTable =
+            paletteColorLookupTable;
         } else {
-          defaultOpticalPathStyle.color = [255, 255, 255]
+          defaultOpticalPathStyle.color = [255, 255, 255];
         }
 
         const opticalPath = {
@@ -1045,20 +1005,18 @@ class VolumeImageViewer {
             isMonochromatic: true,
             illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
             illuminationWaveLength: info.opticalPath.IlluminationWaveLength,
-            illuminationColor: (
-              info.opticalPath.IlluminationColorCodeSequence
-                ? info.opticalPath.IlluminationColorCodeSequence[0]
-                : undefined
-            ),
+            illuminationColor: info.opticalPath.IlluminationColorCodeSequence
+              ? info.opticalPath.IlluminationColorCodeSequence[0]
+              : undefined,
             studyInstanceUID: info.metadata[0].StudyInstanceUID,
             seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
-            sopInstanceUIDs: pyramid.metadata.map(element => {
-              return element.SOPInstanceUID
+            sopInstanceUIDs: pyramid.metadata.map((element) => {
+              return element.SOPInstanceUID;
             }),
-            paletteColorLookupTableUID
+            paletteColorLookupTableUID,
           }),
           pyramid,
-          style: { ...defaultOpticalPathStyle },
+          style: {...defaultOpticalPathStyle},
           defaultStyle: defaultOpticalPathStyle,
           bitsAllocated,
           minStoredValue,
@@ -1069,20 +1027,20 @@ class VolumeImageViewer {
               this[_clients],
               Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
             ),
-            channel: opticalPathIdentifier
+            channel: opticalPathIdentifier,
           },
-          hasLoader: false
-        }
+          hasLoader: false,
+        };
 
         const areImagePyramidsEqual = _areImagePyramidsEqual(
           opticalPath.pyramid,
           this[_pyramid]
-        )
+        );
         if (!areImagePyramidsEqual) {
           throw new Error(
             `Pyramid of optical path "${opticalPathIdentifier}" ` +
-            'is different from reference pyramid.'
-          )
+              'is different from reference pyramid.'
+          );
         }
 
         const source = new DataTileSource({
@@ -1090,33 +1048,33 @@ class VolumeImageViewer {
           projection: this[_projection],
           wrapX: false,
           transition: 0,
-          bandCount: 1
-        })
+          bandCount: 1,
+        });
         source.on('tileloaderror', (event) => {
           console.error(
             `error loading tile of optical path "${opticalPathIdentifier}"`,
             event
-          )
-        })
+          );
+        });
 
         const [windowCenter, windowWidth] = createWindow(
           opticalPath.style.limitValues[0],
           opticalPath.style.limitValues[1]
-        )
+        );
 
-        let layerStyle
+        let layerStyle;
         if (opticalPath.style.paletteColorLookupTable) {
           layerStyle = _getColorPaletteStyleForTileLayer({
             windowCenter,
             windowWidth,
-            colormap: opticalPath.style.paletteColorLookupTable.data
-          })
+            colormap: opticalPath.style.paletteColorLookupTable.data,
+          });
         } else {
           layerStyle = _getColorInterpolationStyleForTileLayer({
             windowCenter,
             windowWidth,
-            color: opticalPath.style.color
-          })
+            color: opticalPath.style.color,
+          });
         }
 
         opticalPath.layer = new TileLayer({
@@ -1126,21 +1084,21 @@ class VolumeImageViewer {
           style: layerStyle,
           visible: false,
           useInterimTilesOnError: false,
-          cacheSize: this[_options].tilesCacheSize
-        })
-        opticalPath.layer.helper = helper
+          cacheSize: this[_options].tilesCacheSize,
+        });
+        opticalPath.layer.helper = helper;
         opticalPath.layer.on('precompose', (event) => {
-          const gl = event.context
-          gl.enable(gl.BLEND)
-          gl.blendEquation(gl.FUNC_ADD)
-          gl.blendFunc(gl.SRC_COLOR, gl.ONE)
-        })
+          const gl = event.context;
+          gl.enable(gl.BLEND);
+          gl.blendEquation(gl.FUNC_ADD);
+          gl.blendFunc(gl.SRC_COLOR, gl.ONE);
+        });
         opticalPath.layer.on('error', (event) => {
           console.error(
             `error rendering optical path "${opticalPathIdentifier}"`,
             event
-          )
-        })
+          );
+        });
 
         opticalPath.overviewLayer = new TileLayer({
           source,
@@ -1148,26 +1106,26 @@ class VolumeImageViewer {
           preload: 0,
           style: layerStyle,
           visible: false,
-          useInterimTilesOnError: false
-        })
-        opticalPath.overviewLayer.helper = overviewHelper
+          useInterimTilesOnError: false,
+        });
+        opticalPath.overviewLayer.helper = overviewHelper;
         opticalPath.overviewLayer.on('precompose', (event) => {
-          const gl = event.context
-          gl.enable(gl.BLEND)
-          gl.blendEquation(gl.FUNC_ADD)
-          gl.blendFunc(gl.SRC_COLOR, gl.ONE)
-        })
+          const gl = event.context;
+          gl.enable(gl.BLEND);
+          gl.blendEquation(gl.FUNC_ADD);
+          gl.blendFunc(gl.SRC_COLOR, gl.ONE);
+        });
 
-        this[_opticalPaths][opticalPathIdentifier] = opticalPath
+        this[_opticalPaths][opticalPathIdentifier] = opticalPath;
       }
     } else {
-      const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
-      const info = colorImageInformation[opticalPathIdentifier]
-      const pyramid = _computeImagePyramid({ metadata: info.metadata })
+      const opticalPathIdentifier = colorOpticalPathIdentifiers[0];
+      const info = colorImageInformation[opticalPathIdentifier];
+      const pyramid = _computeImagePyramid({metadata: info.metadata});
 
       const defaultOpticalPathStyle = {
-        opacity: 1
-      }
+        opacity: 1,
+      };
 
       const opticalPath = {
         opticalPathIdentifier,
@@ -1178,11 +1136,11 @@ class VolumeImageViewer {
           isMonochromatic: false,
           studyInstanceUID: info.metadata[0].StudyInstanceUID,
           seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
-          sopInstanceUIDs: pyramid.metadata.map(element => {
-            return element.SOPInstanceUID
-          })
+          sopInstanceUIDs: pyramid.metadata.map((element) => {
+            return element.SOPInstanceUID;
+          }),
         }),
-        style: { ...defaultOpticalPathStyle },
+        style: {...defaultOpticalPathStyle},
         defaultStyle: defaultOpticalPathStyle,
         pyramid,
         bitsAllocated: 8,
@@ -1194,50 +1152,50 @@ class VolumeImageViewer {
             this[_clients],
             Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
           ),
-          channel: opticalPathIdentifier
+          channel: opticalPathIdentifier,
         },
-        hasLoader: false
-      }
+        hasLoader: false,
+      };
 
       const source = new DataTileSource({
         tileGrid: this[_tileGrid],
         projection: this[_projection],
         wrapX: false,
         transition: 0,
-        bandCount: 3
-      })
+        bandCount: 3,
+      });
       source.on('tileloaderror', (event) => {
         console.error(
           `error loading tile of optical path "${opticalPathIdentifier}"`,
           event
-        )
-      })
+        );
+      });
 
       opticalPath.layer = new TileLayer({
         source,
         extent: this[_tileGrid].extent,
         preload: this[_options].preload ? 1 : 0,
         useInterimTilesOnError: false,
-        cacheSize: this[_options].tilesCacheSize
-      })
+        cacheSize: this[_options].tilesCacheSize,
+      });
       opticalPath.layer.on('error', (event) => {
         console.error(
           `error rendering optical path "${opticalPathIdentifier}"`,
           event
-        )
-      })
+        );
+      });
 
       opticalPath.overviewLayer = new TileLayer({
         source,
         extent: pyramid.extent,
         preload: 0,
-        useInterimTilesOnError: false
-      })
+        useInterimTilesOnError: false,
+      });
 
-      layers.push(opticalPath.layer)
-      overviewLayers.push(opticalPath.overviewLayer)
+      layers.push(opticalPath.layer);
+      overviewLayers.push(opticalPath.overviewLayer);
 
-      this[_opticalPaths][opticalPathIdentifier] = opticalPath
+      this[_opticalPaths][opticalPathIdentifier] = opticalPath;
     }
 
     if (this[_options].debug) {
@@ -1246,18 +1204,18 @@ class VolumeImageViewer {
         extent: this[_pyramid].extent,
         tileGrid: this[_tileGrid],
         wrapX: false,
-        template: ' '
-      })
+        template: ' ',
+      });
       const tileDebugLayer = new TileLayer({
         source: tileDebugSource,
         extent: this[_pyramid].extent,
-        projection: this[_projection]
-      })
-      layers.push(tileDebugLayer)
+        projection: this[_projection],
+      });
+      layers.push(tileDebugLayer);
     }
 
     if (Math.max(...this[_pyramid].gridSizes[0]) <= 10) {
-      const center = getCenter(this[_projection].getExtent())
+      const center = getCenter(this[_projection].getExtent());
       this[_overviewMap] = new OverviewMap({
         view: new View({
           projection: this[_projection],
@@ -1265,52 +1223,52 @@ class VolumeImageViewer {
           constrainOnlyCenter: true,
           resolutions: [this[_tileGrid].getResolution(0)],
           extent: center.concat(center),
-          showFullExtent: true
+          showFullExtent: true,
         }),
         layers: overviewLayers,
         collapsed: false,
         collapsible: true,
-        rotateWithView: true
-      })
+        rotateWithView: true,
+      });
       this[_updateOverviewMapSize] = () => {
-        const degrees = this[_rotation] / Math.PI * 180
+        const degrees = (this[_rotation] / Math.PI) * 180;
         const isRotated = !(
           Math.abs(degrees - 180) < 0.01 || Math.abs(degrees - 0) < 0.01
-        )
-        const viewport = this[_map].getViewport()
-        const viewportHeight = viewport.clientHeight
-        const viewportWidth = viewport.clientWidth
-        const viewportHeightFraction = 0.45
-        const viewportWidthFraction = 0.25
-        const targetHeight = viewportHeight * viewportHeightFraction
-        const targetWidth = viewportWidth * viewportWidthFraction
+        );
+        const viewport = this[_map].getViewport();
+        const viewportHeight = viewport.clientHeight;
+        const viewportWidth = viewport.clientWidth;
+        const viewportHeightFraction = 0.45;
+        const viewportWidthFraction = 0.25;
+        const targetHeight = viewportHeight * viewportHeightFraction;
+        const targetWidth = viewportWidth * viewportWidthFraction;
 
-        const extent = this[_projection].getExtent()
-        let height
-        let width
-        let resolution
+        const extent = this[_projection].getExtent();
+        let height;
+        let width;
+        let resolution;
         if (isRotated) {
           if (targetWidth > targetHeight) {
-            height = targetHeight
-            width = (height * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / height
+            height = targetHeight;
+            width = (height * getHeight(extent)) / getWidth(extent);
+            resolution = getWidth(extent) / height;
           } else {
-            width = targetWidth
-            height = (width * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / width
+            width = targetWidth;
+            height = (width * getWidth(extent)) / getHeight(extent);
+            resolution = getHeight(extent) / width;
           }
         } else {
           if (targetHeight > targetWidth) {
-            width = targetWidth
-            height = (width * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / width
+            width = targetWidth;
+            height = (width * getHeight(extent)) / getWidth(extent);
+            resolution = getWidth(extent) / width;
           } else {
-            height = targetHeight
-            width = (height * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / height
+            height = targetHeight;
+            width = (height * getWidth(extent)) / getHeight(extent);
+            resolution = getHeight(extent) / height;
           }
         }
-        const center = getCenter(extent)
+        const center = getCenter(extent);
         const overviewView = new View({
           projection: this[_projection],
           rotation: this[_rotation],
@@ -1318,41 +1276,41 @@ class VolumeImageViewer {
           minResolution: resolution,
           maxResolution: resolution,
           extent: center.concat(center),
-          showFullExtent: true
-        })
-        const map = this[_overviewMap].getOverviewMap()
+          showFullExtent: true,
+        });
+        const map = this[_overviewMap].getOverviewMap();
 
-        const overviewElement = this[_overviewMap].element
+        const overviewElement = this[_overviewMap].element;
         const overviewmapElement = Object.values(overviewElement.children).find(
-          c => c.className === 'ol-overviewmap-map'
-        )
+          (c) => c.className === 'ol-overviewmap-map'
+        );
         // TODO: color "ol-overviewmap-map-box" using primary color
-        overviewmapElement.style.width = `${width}px`
-        overviewmapElement.style.height = `${height}px`
-        map.updateSize()
-        map.setView(overviewView)
-        this[_map].removeControl(this[_overviewMap])
-        this[_map].addControl(this[_overviewMap])
-      }
+        overviewmapElement.style.width = `${width}px`;
+        overviewmapElement.style.height = `${height}px`;
+        map.updateSize();
+        map.setView(overviewView);
+        this[_map].removeControl(this[_overviewMap]);
+        this[_map].addControl(this[_overviewMap]);
+      };
     } else {
-      this[_overviewMap] = null
-      this[_updateOverviewMapSize] = () => {}
+      this[_overviewMap] = null;
+      this[_updateOverviewMapSize] = () => {};
     }
 
     this[_drawingSource] = new VectorSource({
       tileGrid: this[_tileGrid],
       projection: this[_projection],
       features: this[_features],
-      wrapX: false
-    })
+      wrapX: false,
+    });
     this[_drawingLayer] = new VectorLayer({
       extent: this[_pyramid].extent,
       source: this[_drawingSource],
       projection: this[_projection],
       updateWhileAnimating: true,
-      updateWhileInteracting: true
-    })
-    layers.push(this[_drawingLayer])
+      updateWhileInteracting: true,
+    });
+    layers.push(this[_drawingLayer]);
 
     this[_map] = new Map({
       layers,
@@ -1367,11 +1325,11 @@ class VolumeImageViewer {
         shiftDragZoom: true,
         dragPan: true,
         pinchRotate: true,
-        pinchZoom: true
-      })
-    })
+        pinchZoom: true,
+      }),
+    });
 
-    view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
+    view.fit(this[_projection].getExtent(), {size: this[_map].getSize()});
 
     /**
      * OpenLayer's map has default active interactions.
@@ -1386,27 +1344,30 @@ class VolumeImageViewer {
       translate: undefined,
       modify: undefined,
       snap: undefined,
-      dragPan: this[_map].getInteractions().getArray().find((i) => {
-        return i instanceof DragPan
-      })
-    }
+      dragPan: this[_map]
+        .getInteractions()
+        .getArray()
+        .find((i) => {
+          return i instanceof DragPan;
+        }),
+    };
 
     this[_controls] = {
       scale: new ScaleLine({
         units: 'metric',
-        className: ''
-      })
-    }
+        className: '',
+      }),
+    };
     if (this[_options].controls.has('fullscreen')) {
-      this[_controls].fullscreen = new FullScreen()
+      this[_controls].fullscreen = new FullScreen();
     }
     if (this[_options].controls.has('zoom')) {
-      this[_controls].zoom = new Zoom()
-      this[_controls].zoomslider = new ZoomSlider()
+      this[_controls].zoom = new Zoom();
+      this[_controls].zoomslider = new ZoomSlider();
     }
     if (this[_options].controls.has('overview')) {
       if (this[_overviewMap]) {
-        this[_controls].overview = this[_overviewMap]
+        this[_controls].overview = this[_overviewMap];
       }
     }
     if (this[_options].controls.has('position')) {
@@ -1417,7 +1378,7 @@ class VolumeImageViewer {
             imageCoordinates,
             this[_pyramid].metadata,
             this[_affine]
-          )
+          );
           /*
            * This assumes that the image is aligned with the X and Y axes
            * of the slide (frame of reference).
@@ -1426,25 +1387,25 @@ class VolumeImageViewer {
            * but the X and Y axes of the slide would no longer align with the
            * vertical and horizontal axes of the viewport, respectively.
            */
-          const x = slideCoordinates[0].toFixed(5)
-          const y = slideCoordinates[1].toFixed(5)
-          return `(${x}, ${y})`
-        }
-      })
+          const x = slideCoordinates[0].toFixed(5);
+          const y = slideCoordinates[1].toFixed(5);
+          return `(${x}, ${y})`;
+        },
+      });
     }
     for (const name in this[_controls]) {
-      console.info(`add control "${name}"`)
-      this[_map].addControl(this[_controls][name])
+      console.info(`add control "${name}"`);
+      this[_map].addControl(this[_controls][name]);
     }
 
     this[_annotationManager] = new _AnnotationManager({
       map: this[_map],
       pyramid: this[_pyramid].metadata,
       affine: this[_affine],
-      drawingSource: this[_drawingSource]
-    })
+      drawingSource: this[_drawingSource],
+    });
 
-    this[_overlays] = {}
+    this[_overlays] = {};
   }
 
   /**
@@ -1474,76 +1435,77 @@ class VolumeImageViewer {
    * @param {number[]} [styleOptions.limitValues] - Upper and lower windowing
    * limits
    */
-  setOpticalPathStyle (opticalPathIdentifier, styleOptions = {}) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  setOpticalPathStyle(opticalPathIdentifier, styleOptions = {}) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath === undefined) {
       throw new Error(
         'Cannot set optical path style. Could not find optical path ' +
-        `"${opticalPathIdentifier}".`
-      )
+          `"${opticalPathIdentifier}".`
+      );
     }
 
     if (Object.entries(styleOptions).length === 0) {
-      return
+      return;
     }
 
     console.info(
       `set style for optical path "${opticalPathIdentifier}"`,
       styleOptions
-    )
+    );
     if (styleOptions.opacity != null) {
-      opticalPath.style.opacity = styleOptions.opacity
-      opticalPath.layer.setOpacity(styleOptions.opacity)
-      opticalPath.overviewLayer.setOpacity(styleOptions.opacity)
+      opticalPath.style.opacity = styleOptions.opacity;
+      opticalPath.layer.setOpacity(styleOptions.opacity);
+      opticalPath.overviewLayer.setOpacity(styleOptions.opacity);
     }
 
     if (opticalPath.opticalPath.isMonochromatic) {
       if (styleOptions.limitValues != null) {
         opticalPath.style.limitValues = [
           Math.max(styleOptions.limitValues[0], opticalPath.minStoredValue),
-          Math.min(styleOptions.limitValues[1], opticalPath.maxStoredValue)
-        ]
+          Math.min(styleOptions.limitValues[1], opticalPath.maxStoredValue),
+        ];
       }
       const [windowCenter, windowWidth] = createWindow(
         opticalPath.style.limitValues[0],
         opticalPath.style.limitValues[1]
-      )
+      );
 
       if (styleOptions.paletteColorLookupTable != null) {
-        opticalPath.style.paletteColorLookupTable = styleOptions.paletteColorLookupTable
+        opticalPath.style.paletteColorLookupTable =
+          styleOptions.paletteColorLookupTable;
         const style = _getColorPaletteStyleForTileLayer({
           windowCenter,
           windowWidth,
-          colormap: styleOptions.paletteColorLookupTable.data
-        })
-        opticalPath.layer.setStyle(style)
-        opticalPath.overviewLayer.setStyle(style)
+          colormap: styleOptions.paletteColorLookupTable.data,
+        });
+        opticalPath.layer.setStyle(style);
+        opticalPath.overviewLayer.setStyle(style);
       } else if (styleOptions.color != null) {
-        opticalPath.style.color = styleOptions.color
+        opticalPath.style.color = styleOptions.color;
         if (opticalPath.style.paletteColorLookupTable) {
           const style = _getColorInterpolationStyleForTileLayer({
             windowCenter,
             windowWidth,
-            color: opticalPath.style.color
-          })
-          opticalPath.style.paletteColorLookupTable = undefined
-          opticalPath.layer.setStyle(style)
-          opticalPath.overviewLayer.setStyle(style)
+            color: opticalPath.style.color,
+          });
+          opticalPath.style.paletteColorLookupTable = undefined;
+          opticalPath.layer.setStyle(style);
+          opticalPath.overviewLayer.setStyle(style);
         } else {
           const styleVariables = {
             windowCenter,
             windowWidth,
             red: opticalPath.style.color[0],
             green: opticalPath.style.color[1],
-            blue: opticalPath.style.color[2]
-          }
-          opticalPath.layer.updateStyleVariables(styleVariables)
-          opticalPath.overviewLayer.updateStyleVariables(styleVariables)
+            blue: opticalPath.style.color[2],
+          };
+          opticalPath.layer.updateStyleVariables(styleVariables);
+          opticalPath.overviewLayer.updateStyleVariables(styleVariables);
         }
       } else {
-        const styleVariables = { windowCenter, windowWidth }
-        opticalPath.layer.updateStyleVariables(styleVariables)
-        opticalPath.overviewLayer.updateStyleVariables(styleVariables)
+        const styleVariables = {windowCenter, windowWidth};
+        opticalPath.layer.updateStyleVariables(styleVariables);
+        opticalPath.overviewLayer.updateStyleVariables(styleVariables);
       }
     }
   }
@@ -1554,12 +1516,12 @@ class VolumeImageViewer {
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @return {boolean} yes/no answer
    */
-  isOpticalPathColorable (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  isOpticalPathColorable(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath == null) {
-      return false
+      return false;
     }
-    return opticalPath.opticalPath.isColorable
+    return opticalPath.opticalPath.isColorable;
   }
 
   /**
@@ -1568,12 +1530,12 @@ class VolumeImageViewer {
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @return {boolean} yes/no answer
    */
-  isOpticalPathMonochromatic (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  isOpticalPathMonochromatic(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath == null) {
-      return false
+      return false;
     }
-    return opticalPath.opticalisMonochromatic
+    return opticalPath.opticalisMonochromatic;
   }
 
   /**
@@ -1582,29 +1544,30 @@ class VolumeImageViewer {
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @return {Object} Default style of optical path
    */
-  getOpticalPathDefaultStyle (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  getOpticalPathDefaultStyle(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath == null) {
       throw new Error(
         'Cannot get default style of optical path. ' +
-        `Could not find optical path "${opticalPathIdentifier}".`
-      )
+          `Could not find optical path "${opticalPathIdentifier}".`
+      );
     }
     if (opticalPath.opticalPath.isMonochromatic) {
       if (opticalPath.defaultStyle.paletteColorLookupTable) {
         return {
-          paletteColorLookupTable: opticalPath.defaultStyle.paletteColorLookupTable,
+          paletteColorLookupTable:
+            opticalPath.defaultStyle.paletteColorLookupTable,
           opacity: opticalPath.defaultStyle.opacity,
-          limitValues: opticalPath.defaultStyle.limitValues
-        }
+          limitValues: opticalPath.defaultStyle.limitValues,
+        };
       }
       return {
         color: opticalPath.defaultStyle.color,
         opacity: opticalPath.defaultStyle.opacity,
-        limitValues: opticalPath.defaultStyle.limitValues
-      }
+        limitValues: opticalPath.defaultStyle.limitValues,
+      };
     }
-    return { opacity: opticalPath.defaultStyle.opacity }
+    return {opacity: opticalPath.defaultStyle.opacity};
   }
 
   /**
@@ -1613,29 +1576,29 @@ class VolumeImageViewer {
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @return {Object} Style of optical path
    */
-  getOpticalPathStyle (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  getOpticalPathStyle(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath == null) {
       throw new Error(
         'Cannot get style of optical path. ' +
-        `Could not find optical path "${opticalPathIdentifier}".`
-      )
+          `Could not find optical path "${opticalPathIdentifier}".`
+      );
     }
     if (opticalPath.opticalPath.isMonochromatic) {
       if (opticalPath.style.paletteColorLookupTable) {
         return {
           paletteColorLookupTable: opticalPath.style.paletteColorLookupTable,
           opacity: opticalPath.style.opacity,
-          limitValues: opticalPath.style.limitValues
-        }
+          limitValues: opticalPath.style.limitValues,
+        };
       }
       return {
         color: opticalPath.style.color,
         opacity: opticalPath.style.opacity,
-        limitValues: opticalPath.style.limitValues
-      }
+        limitValues: opticalPath.style.limitValues,
+      };
     }
-    return { opacity: opticalPath.style.opacity }
+    return {opacity: opticalPath.style.opacity};
   }
 
   /**
@@ -1645,15 +1608,15 @@ class VolumeImageViewer {
    * @returns {metadata.VLWholeSlideMicroscopyImage[]} Slide microscopy image
    * metadata
    */
-  getOpticalPathMetadata (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  getOpticalPathMetadata(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath === undefined) {
       throw new Error(
         'Cannot get image metadata optical path. ' +
-        `Could not find optical path "${opticalPathIdentifier}".`
-      )
+          `Could not find optical path "${opticalPathIdentifier}".`
+      );
     }
-    return opticalPath.pyramid.metadata
+    return opticalPath.pyramid.metadata;
   }
 
   /**
@@ -1661,12 +1624,12 @@ class VolumeImageViewer {
    *
    * @return {opticalPath.OpticalPath[]}
    */
-  getAllOpticalPaths () {
-    const opticalPaths = []
+  getAllOpticalPaths() {
+    const opticalPaths = [];
     for (const opticalPathIdentifier in this[_opticalPaths]) {
-      opticalPaths.push(this[_opticalPaths][opticalPathIdentifier].opticalPath)
+      opticalPaths.push(this[_opticalPaths][opticalPathIdentifier].opticalPath);
     }
-    return opticalPaths.sort(item => (item.OpticalPathIdentifier))
+    return opticalPaths.sort((item) => item.OpticalPathIdentifier);
   }
 
   /**
@@ -1674,28 +1637,25 @@ class VolumeImageViewer {
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    */
-  activateOpticalPath (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  activateOpticalPath(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath === undefined) {
       throw new Error(
         'Cannot activate optical path. Could not find optical path ' +
-        `"${opticalPathIdentifier}".`
-      )
+          `"${opticalPathIdentifier}".`
+      );
     }
     if (!this.isOpticalPathActive(opticalPathIdentifier)) {
       /*
        * Add layer to the bottom of the layer stack to ensure that vector
        * graphics are overlayed ontop of the raster graphics.
        */
-      this[_map].getLayers().insertAt(
-        0,
-        opticalPath.layer
-      )
+      this[_map].getLayers().insertAt(0, opticalPath.layer);
       if (this[_overviewMap]) {
-        this[_overviewMap].getOverviewMap().getLayers().insertAt(
-          0,
-          opticalPath.overviewLayer
-        )
+        this[_overviewMap]
+          .getOverviewMap()
+          .getLayers()
+          .insertAt(0, opticalPath.overviewLayer);
       }
     }
   }
@@ -1705,20 +1665,22 @@ class VolumeImageViewer {
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    */
-  deactivateOpticalPath (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  deactivateOpticalPath(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath === undefined) {
       throw new Error(
         'Cannot deactivate optical path. Could not find optical path ' +
-        `"${opticalPathIdentifier}".`
-      )
+          `"${opticalPathIdentifier}".`
+      );
     }
     if (!this.isOpticalPathActive(opticalPathIdentifier)) {
-      return
+      return;
     }
-    this[_map].removeLayer(opticalPath.layer)
+    this[_map].removeLayer(opticalPath.layer);
     if (this[_overviewMap]) {
-      this[_overviewMap].getOverviewMap().removeLayer(opticalPath.overviewLayer)
+      this[_overviewMap]
+        .getOverviewMap()
+        .removeLayer(opticalPath.overviewLayer);
     }
   }
 
@@ -1728,23 +1690,23 @@ class VolumeImageViewer {
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @return {boolean} active
    */
-  isOpticalPathActive (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  isOpticalPathActive(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath == null) {
-      return false
+      return false;
     }
-    const layers = this[_map].getLayers()
-    const match = layers.getArray().find(layer => {
-      return layer.ol_uid === opticalPath.layer.ol_uid
-    })
+    const layers = this[_map].getLayers();
+    const match = layers.getArray().find((layer) => {
+      return layer.ol_uid === opticalPath.layer.ol_uid;
+    });
     if (this[_overviewMap] != null) {
-      const overviewLayers = this[_overviewMap].getOverviewMap().getLayers()
-      const overviewMatch = overviewLayers.getArray().find(layer => {
-        return layer.ol_uid === opticalPath.overviewLayer.ol_uid
-      })
-      return match != null || overviewMatch != null
+      const overviewLayers = this[_overviewMap].getOverviewMap().getLayers();
+      const overviewMatch = overviewLayers.getArray().find((layer) => {
+        return layer.ol_uid === opticalPath.overviewLayer.ol_uid;
+      });
+      return match != null || overviewMatch != null;
     } else {
-      return match != null
+      return match != null;
     }
   }
 
@@ -1760,38 +1722,38 @@ class VolumeImageViewer {
    * @param {number[]} [styleOptions.limitValues] - Upper and lower windowing
    * limits
    */
-  showOpticalPath (opticalPathIdentifier, styleOptions = {}) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  showOpticalPath(opticalPathIdentifier, styleOptions = {}) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath === undefined) {
       throw new Error(
         'Cannot show optical path. Could not find optical path ' +
-        `"${opticalPathIdentifier}".`
-      )
+          `"${opticalPathIdentifier}".`
+      );
     }
-    console.info(`show optical path ${opticalPathIdentifier}`)
-    this.activateOpticalPath(opticalPathIdentifier)
+    console.info(`show optical path ${opticalPathIdentifier}`);
+    this.activateOpticalPath(opticalPathIdentifier);
 
-    const container = this[_map].getTargetElement()
+    const container = this[_map].getTargetElement();
     if (container && !opticalPath.hasLoader) {
-      const metadata = opticalPath.pyramid.metadata
+      const metadata = opticalPath.pyramid.metadata;
       const client = _getClient(
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
-      )
-      _getIccProfiles(metadata, client).then(profiles => {
+      );
+      _getIccProfiles(metadata, client).then((profiles) => {
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
-          ...opticalPath.loaderParams
-        })
-        const source = opticalPath.layer.getSource()
-        source.setLoader(loader)
-      })
+          ...opticalPath.loaderParams,
+        });
+        const source = opticalPath.layer.getSource();
+        source.setLoader(loader);
+      });
     }
 
-    opticalPath.layer.setVisible(true)
-    opticalPath.overviewLayer.setVisible(true)
-    this.setOpticalPathStyle(opticalPathIdentifier, styleOptions)
+    opticalPath.layer.setVisible(true);
+    opticalPath.overviewLayer.setVisible(true);
+    this.setOpticalPathStyle(opticalPathIdentifier, styleOptions);
   }
 
   /**
@@ -1799,17 +1761,17 @@ class VolumeImageViewer {
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    */
-  hideOpticalPath (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  hideOpticalPath(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath === undefined) {
       throw new Error(
         'Cannot hide optical path. Could not find optical path ' +
-        `"${opticalPathIdentifier}".`
-      )
+          `"${opticalPathIdentifier}".`
+      );
     }
-    console.info(`hide optical path ${opticalPathIdentifier}`)
-    opticalPath.layer.setVisible(false)
-    opticalPath.overviewLayer.setVisible(false)
+    console.info(`hide optical path ${opticalPathIdentifier}`);
+    opticalPath.layer.setVisible(false);
+    opticalPath.overviewLayer.setVisible(false);
   }
 
   /**
@@ -1818,15 +1780,15 @@ class VolumeImageViewer {
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @returns {boolean}
    */
-  isOpticalPathVisible (opticalPathIdentifier) {
-    const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+  isOpticalPathVisible(opticalPathIdentifier) {
+    const opticalPath = this[_opticalPaths][opticalPathIdentifier];
     if (opticalPath === undefined) {
       throw new Error(
         'Cannot show optical path. Could not find optical path ' +
-        `"${opticalPathIdentifier}".`
-      )
+          `"${opticalPathIdentifier}".`
+      );
     }
-    return opticalPath.layer.getVisible()
+    return opticalPath.layer.getVisible();
   }
 
   /**
@@ -1834,9 +1796,9 @@ class VolumeImageViewer {
    *
    * @returns {void}
    */
-  resize () {
-    this[_map].updateSize()
-    this[_updateOverviewMapSize]()
+  resize() {
+    this[_map].updateSize();
+    this[_updateOverviewMapSize]();
   }
 
   /**
@@ -1844,8 +1806,8 @@ class VolumeImageViewer {
    *
    * @type {number[]}
    */
-  get size () {
-    return this[_map].getSize()
+  get size() {
+    return this[_map].getSize();
   }
 
   /**
@@ -1853,25 +1815,25 @@ class VolumeImageViewer {
    *
    * Release allocated memory and clear the viewport.
    */
-  cleanup () {
-    console.info('cleanup')
+  cleanup() {
+    console.info('cleanup');
     const itemsRequiringDisposal = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
       ...Object.values(this[_mappings]),
-      ...Object.values(this[_annotationGroups])
-    ]
-    itemsRequiringDisposal.forEach(item => {
-      item.layer.dispose()
-      this[_map].removeLayer(item.layer)
+      ...Object.values(this[_annotationGroups]),
+    ];
+    itemsRequiringDisposal.forEach((item) => {
+      item.layer.dispose();
+      this[_map].removeLayer(item.layer);
       if (item.overlay) {
-        item.overlay.dispose()
-        this[_map].removeOverlay(item.overlay)
+        item.overlay.dispose();
+        this[_map].removeOverlay(item.overlay);
       }
-      this[_features].clear()
-    })
+      this[_features].clear();
+    });
 
-    webWorkerManager.terminateAllWebWorkers()
+    webWorkerManager.terminateAllWebWorkers();
   }
 
   /**
@@ -1880,61 +1842,61 @@ class VolumeImageViewer {
    * @param {Object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
-  render ({ container }) {
+  render({container}) {
     if (container == null) {
-      console.error('container must be provided for rendering images')
-      return
+      console.error('container must be provided for rendering images');
+      return;
     }
 
     const itemsRequiringDecodersAndTransformers = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
-      ...Object.values(this[_mappings])
-    ]
+      ...Object.values(this[_mappings]),
+    ];
 
     const styleControlElement = (element) => {
-      element.style.backgroundColor = 'rgba(255,255,255,.75)'
-      element.style.color = 'black'
-      element.style.padding = '2px'
-      element.style.margin = '1px'
-    }
+      element.style.backgroundColor = 'rgba(255,255,255,.75)';
+      element.style.color = 'black';
+      element.style.padding = '2px';
+      element.style.margin = '1px';
+    };
 
-    itemsRequiringDecodersAndTransformers.forEach(item => {
-      const metadata = item.pyramid.metadata
+    itemsRequiringDecodersAndTransformers.forEach((item) => {
+      const metadata = item.pyramid.metadata;
       const client = _getClient(
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
-      )
-      _getIccProfiles(metadata, client).then(profiles => {
-        const source = item.layer.getSource()
+      );
+      _getIccProfiles(metadata, client).then((profiles) => {
+        const source = item.layer.getSource();
         if (!source) {
-          return
+          return;
         }
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
-          ...item.loaderParams
-        })
-        source.setLoader(loader)
-        item.hasLoader = true
-        this[_map].setTarget(container)
+          ...item.loaderParams,
+        });
+        source.setLoader(loader);
+        item.hasLoader = true;
+        this[_map].setTarget(container);
 
-        const view = this[_map].getView()
-        const projection = view.getProjection()
-        view.fit(projection.getExtent(), { size: this[_map].getSize() })
-        this[_updateOverviewMapSize]()
+        const view = this[_map].getView();
+        const projection = view.getProjection();
+        view.fit(projection.getExtent(), {size: this[_map].getSize()});
+        this[_updateOverviewMapSize]();
 
         this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
           publish(
             container,
             EVENT.ROI_ADDED,
             this._getROIFromFeature(e.feature, metadata, this[_affine])
-          )
-        })
+          );
+        });
         this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
           if (e.feature !== undefined || e.feature !== null) {
-            const geometry = e.feature.getGeometry()
-            const type = geometry.getType()
+            const geometry = e.feature.getGeometry();
+            const type = geometry.getType();
             /*
              * The first and last point of a polygon must be identical. The
              * last point is an implementation detail and is hidden from the
@@ -1950,17 +1912,17 @@ class VolumeImageViewer {
                * of the inner ring (in our case the inner ring should not be
                * present).
                */
-              const layout = geometry.getLayout()
-              const coordinates = geometry.getCoordinates()
-              const firstPoint = coordinates[0][0]
-              const lastPoint = coordinates[0][coordinates[0].length - 1]
+              const layout = geometry.getLayout();
+              const coordinates = geometry.getCoordinates();
+              const firstPoint = coordinates[0][0];
+              const lastPoint = coordinates[0][coordinates[0].length - 1];
               if (
                 firstPoint[0] !== lastPoint[0] ||
                 firstPoint[1] !== lastPoint[1]
               ) {
-                coordinates[0][coordinates[0].length - 1] = firstPoint
-                geometry.setCoordinates(coordinates, layout)
-                e.feature.setGeometry(geometry)
+                coordinates[0][coordinates[0].length - 1] = firstPoint;
+                geometry.setCoordinates(coordinates, layout);
+                e.feature.setGeometry(geometry);
               }
             }
           }
@@ -1968,78 +1930,78 @@ class VolumeImageViewer {
             container,
             EVENT.ROI_MODIFIED,
             this._getROIFromFeature(e.feature, metadata, this[_affine])
-          )
-        })
+          );
+        });
         this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
           publish(
             container,
             EVENT.ROI_REMOVED,
             this._getROIFromFeature(e.feature, metadata, this[_affine])
-          )
-        })
+          );
+        });
 
         if (this[_controls].overview && this[_overviewMap]) {
           // Style overview element (overriding Openlayers CSS "ol-overviewmap")
-          const overviewElement = this[_controls].overview.element
-          const overviewChildren = overviewElement.children
+          const overviewElement = this[_controls].overview.element;
+          const overviewChildren = overviewElement.children;
           const overviewmapElement = Object.values(overviewChildren).find(
-            c => c.className === 'ol-overviewmap-map'
-          )
+            (c) => c.className === 'ol-overviewmap-map'
+          );
           const buttonElement = Object.values(overviewChildren).find(
-            c => c.type === 'button'
-          )
+            (c) => c.type === 'button'
+          );
           if (buttonElement) {
-            buttonElement.title = 'Overview'
-            buttonElement.style.border = '0.25px solid black'
-            buttonElement.style.backgroundColor = 'white'
-            buttonElement.style.cursor = 'pointer'
-            const spanElement = buttonElement.children[0]
-            spanElement.style.color = 'black'
-            spanElement.style.backgroundColor = 'white'
+            buttonElement.title = 'Overview';
+            buttonElement.style.border = '0.25px solid black';
+            buttonElement.style.backgroundColor = 'white';
+            buttonElement.style.cursor = 'pointer';
+            const spanElement = buttonElement.children[0];
+            spanElement.style.color = 'black';
+            spanElement.style.backgroundColor = 'white';
           }
-          styleControlElement(overviewmapElement)
-          overviewmapElement.style.border = '1px solid black'
-          overviewmapElement.style.color = 'black'
-          this[_updateOverviewMapSize]()
+          styleControlElement(overviewmapElement);
+          overviewmapElement.style.border = '1px solid black';
+          overviewmapElement.style.color = 'black';
+          this[_updateOverviewMapSize]();
         }
-      })
-    })
+      });
+    });
 
     // Style scale element (overriding Openlayers CSS "ol-scale-line")
-    const scaleElement = this[_controls].scale.element
-    scaleElement.style.position = 'absolute'
-    scaleElement.style.right = '.5em'
-    scaleElement.style.bottom = '.5em'
-    scaleElement.style.left = 'auto'
-    scaleElement.style.borderRadius = '4px'
-    styleControlElement(scaleElement)
-    const scaleInnerElement = this[_controls].scale.innerElement_
-    scaleInnerElement.style.color = 'black'
-    scaleInnerElement.style.fontWeight = '600'
-    scaleInnerElement.style.fontSize = '10px'
-    scaleInnerElement.style.textAlign = 'center'
-    scaleInnerElement.style.borderWidth = '1.5px'
-    scaleInnerElement.style.borderStyle = 'solid'
-    scaleInnerElement.style.borderTop = 'none'
-    scaleInnerElement.style.borderRightColor = 'black'
-    scaleInnerElement.style.borderLeftColor = 'black'
-    scaleInnerElement.style.borderBottomColor = 'black'
-    scaleInnerElement.style.margin = '1px'
-    scaleInnerElement.style.willChange = 'contents,width'
+    const scaleElement = this[_controls].scale.element;
+    scaleElement.style.position = 'absolute';
+    scaleElement.style.right = '.5em';
+    scaleElement.style.bottom = '.5em';
+    scaleElement.style.left = 'auto';
+    scaleElement.style.borderRadius = '4px';
+    styleControlElement(scaleElement);
+    const scaleInnerElement = this[_controls].scale.innerElement_;
+    scaleInnerElement.style.color = 'black';
+    scaleInnerElement.style.fontWeight = '600';
+    scaleInnerElement.style.fontSize = '10px';
+    scaleInnerElement.style.textAlign = 'center';
+    scaleInnerElement.style.borderWidth = '1.5px';
+    scaleInnerElement.style.borderStyle = 'solid';
+    scaleInnerElement.style.borderTop = 'none';
+    scaleInnerElement.style.borderRightColor = 'black';
+    scaleInnerElement.style.borderLeftColor = 'black';
+    scaleInnerElement.style.borderBottomColor = 'black';
+    scaleInnerElement.style.margin = '1px';
+    scaleInnerElement.style.willChange = 'contents,width';
 
     // Style position element (overriding Openlayers CSS "ol-mouse-position")
     if (this[_controls].position != null) {
-      const positionElement = this[_controls].position.element
-      positionElement.style.position = 'absolute'
-      positionElement.style.right = '.5em'
-      positionElement.style.top = '.5em'
-      positionElement.style.left = 'auto'
-      positionElement.style.bottom = 'auto'
-      positionElement.style.fontWeight = '600'
-      positionElement.style.fontSize = '10px'
-      positionElement.style.textAlign = 'center'
-      positionElement.style.borderRadius = '4px'
-      styleControlElement(positionElement)
+      const positionElement = this[_controls].position.element;
+      positionElement.style.position = 'absolute';
+      positionElement.style.right = '.5em';
+      positionElement.style.top = '.5em';
+      positionElement.style.left = 'auto';
+      positionElement.style.bottom = 'auto';
+      positionElement.style.fontWeight = '600';
+      positionElement.style.fontSize = '10px';
+      positionElement.style.textAlign = 'center';
+      positionElement.style.borderRadius = '4px';
+      styleControlElement(positionElement);
     }
   }
 
@@ -2048,8 +2010,8 @@ class VolumeImageViewer {
    *
    * @type number
    */
-  get numLevels () {
-    return this[_pyramid].pixelSpacings.length
+  get numLevels() {
+    return this[_pyramid].pixelSpacings.length;
   }
 
   /**
@@ -2057,8 +2019,8 @@ class VolumeImageViewer {
    *
    * @type string
    */
-  get frameOfReferenceUID () {
-    return this[_pyramid].metadata[0].FrameOfReferenceUID
+  get frameOfReferenceUID() {
+    return this[_pyramid].metadata[0].FrameOfReferenceUID;
   }
 
   /**
@@ -2068,8 +2030,8 @@ class VolumeImageViewer {
    * @param {number} options.level - Zoom level.
    * @returns {number[]} Spacing between the centers of two neighboring pixels
    */
-  getPixelSpacing (level) {
-    return this[_pyramid].pixelSpacings[level].slice(0)
+  getPixelSpacing(level) {
+    return this[_pyramid].pixelSpacings[level].slice(0);
   }
 
   /**
@@ -2079,12 +2041,12 @@ class VolumeImageViewer {
    *
    * @type number[]
    */
-  get physicalOffset () {
+  get physicalOffset() {
     const point = applyTransform({
       coordinate: [0, 0],
-      affine: this[_affine]
-    })
-    return [point[0], point[1], 0]
+      affine: this[_affine],
+    });
+    return [point[0], point[1], 0];
   }
 
   /**
@@ -2094,20 +2056,18 @@ class VolumeImageViewer {
    *
    * @type number[]
    */
-  get physicalSize () {
-    const offset = this.physicalOffset
-    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+  get physicalSize() {
+    const offset = this.physicalOffset;
+    const metadata =
+      this[_pyramid].metadata[this[_pyramid].metadata.length - 1];
     const point = applyTransform({
       coordinate: [
         metadata.TotalPixelMatrixColumns,
-        metadata.TotalPixelMatrixRows
+        metadata.TotalPixelMatrixRows,
       ],
-      affine: this[_affine]
-    })
-    return [
-      Math.abs(point[0] - offset[0]),
-      Math.abs(point[1] - offset[1])
-    ]
+      affine: this[_affine],
+    });
+    return [Math.abs(point[0] - offset[0]), Math.abs(point[1] - offset[1])];
   }
 
   /**
@@ -2115,22 +2075,23 @@ class VolumeImageViewer {
    *
    * @type number[][]
    */
-  get boundingBox () {
-    const startPoint = this.physicalOffset
-    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+  get boundingBox() {
+    const startPoint = this.physicalOffset;
+    const metadata =
+      this[_pyramid].metadata[this[_pyramid].metadata.length - 1];
     const endPoint = applyTransform({
       coordinate: [
         metadata.TotalPixelMatrixColumns,
-        metadata.TotalPixelMatrixRows
+        metadata.TotalPixelMatrixRows,
       ],
-      affine: this[_affine]
-    })
+      affine: this[_affine],
+    });
     const offset = [
       Math.min(startPoint[0], endPoint[0]),
-      Math.min(startPoint[1], endPoint[1])
-    ]
-    const size = this.physicalSize
-    return [offset, size]
+      Math.min(startPoint[1], endPoint[1]),
+    ];
+    const size = this.physicalSize;
+    return [offset, size];
   }
 
   /**
@@ -2140,20 +2101,20 @@ class VolumeImageViewer {
    * @param {number} options.level - Zoom level.
    * @param {number[]} options.position - X, Y coordinates in slide coordinate system.
    */
-  navigate ({ level, position }) {
+  navigate({level, position}) {
     if (level > this.numLevels) {
-      throw new Error('Argument "level" exceeds number of resolution levels.')
+      throw new Error('Argument "level" exceeds number of resolution levels.');
     }
-    let coordinates
+    let coordinates;
     if (position != null) {
       coordinates = _scoord3dCoordinates2geometryCoordinates(
         position,
         this[_pyramid],
         this[_affineInverse]
-      )
+      );
     }
-    const view = this[_map].getView()
-    view.animate({ zoom: level, center: coordinates })
+    const view = this[_map].getView();
+    view.animate({zoom: level, center: coordinates});
   }
 
   /**
@@ -2174,70 +2135,70 @@ class VolumeImageViewer {
    * geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
    */
-  activateDrawInteraction (options) {
-    this.deactivateDrawInteraction()
-    console.info('activate "draw" interaction')
+  activateDrawInteraction(options) {
+    this.deactivateDrawInteraction();
+    console.info('activate "draw" interaction');
 
     const geometryOptionsMapping = {
       point: {
         type: 'Point',
-        geometryName: 'Point'
+        geometryName: 'Point',
       },
       circle: {
         type: 'Circle',
-        geometryName: 'Circle'
+        geometryName: 'Circle',
       },
       box: {
         type: 'Circle',
         geometryName: 'Box',
-        geometryFunction: createBox()
+        geometryFunction: createBox(),
       },
       polygon: {
         type: 'Polygon',
         geometryName: 'Polygon',
-        freehand: false
+        freehand: false,
       },
       freehandpolygon: {
         type: 'Polygon',
         geometryName: 'FreeHandPolygon',
-        freehand: true
+        freehand: true,
       },
       line: {
         type: 'LineString',
         geometryName: 'Line',
         freehand: false,
         maxPoints: options.maxPoints,
-        minPoints: options.minPoints
+        minPoints: options.minPoints,
       },
       freehandline: {
         type: 'LineString',
         geometryName: 'FreeHandLine',
-        freehand: true
-      }
-    }
+        freehand: true,
+      },
+    };
 
     if (!('geometryType' in options)) {
-      console.error('geometry type must be specified for drawing interaction')
+      console.error('geometry type must be specified for drawing interaction');
     }
 
     if (!(options.geometryType in geometryOptionsMapping)) {
-      console.error(`unsupported geometry type "${options.geometryType}"`)
+      console.error(`unsupported geometry type "${options.geometryType}"`);
     }
 
-    const internalDrawOptions = { source: this[_drawingSource] }
-    const geometryDrawOptions = geometryOptionsMapping[options.geometryType]
+    const internalDrawOptions = {source: this[_drawingSource]};
+    const geometryDrawOptions = geometryOptionsMapping[options.geometryType];
     const builtInDrawOptions = {
       [Enums.InternalProperties.Marker]:
         options[Enums.InternalProperties.Marker],
       [Enums.InternalProperties.Markup]:
         options[Enums.InternalProperties.Markup],
-      [Enums.InternalProperties.Label]: options[Enums.InternalProperties.Label]
-    }
+      [Enums.InternalProperties.Label]: options[Enums.InternalProperties.Label],
+    };
     const drawOptions = Object.assign(
       internalDrawOptions,
       geometryDrawOptions,
       builtInDrawOptions
-    )
+    );
 
     /**
      * This used to define which mouse buttons will fire the action.
@@ -2250,38 +2211,38 @@ class VolumeImageViewer {
      * },
      */
     if (options.bindings) {
-      drawOptions.condition = _getInteractionBindingCondition(options.bindings)
+      drawOptions.condition = _getInteractionBindingCondition(options.bindings);
     }
 
-    this[_interactions].draw = new Draw(drawOptions)
-    const container = this[_map].getTargetElement()
+    this[_interactions].draw = new Draw(drawOptions);
+    const container = this[_map].getTargetElement();
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_START, (event) => {
-      event.feature.setProperties(builtInDrawOptions, true)
-      event.feature.setId(_generateUID())
+      event.feature.setProperties(builtInDrawOptions, true);
+      event.feature.setId(_generateUID());
 
       /** Set external styles before calling internal annotation hooks */
       _setFeatureStyle(
         event.feature,
         options[Enums.InternalProperties.StyleOptions]
-      )
+      );
 
-      this[_annotationManager].onDrawStart(event)
+      this[_annotationManager].onDrawStart(event);
 
       _wireMeasurementsAndQualitativeEvaluationsEvents(
         this[_map],
         event.feature,
         this[_pyramid].metadata,
         this[_affine]
-      )
-    })
+      );
+    });
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_ABORT, (event) => {
-      this[_annotationManager].onDrawAbort(event)
-    })
+      this[_annotationManager].onDrawAbort(event);
+    });
 
     this[_interactions].draw.on(Enums.InteractionEvents.DRAW_END, (event) => {
-      this[_annotationManager].onDrawEnd(event)
+      this[_annotationManager].onDrawEnd(event);
       publish(
         container,
         EVENT.ROI_DRAWN,
@@ -2290,20 +2251,20 @@ class VolumeImageViewer {
           this[_pyramid].metadata,
           this[_affine]
         )
-      )
-    })
+      );
+    });
 
-    this[_map].addInteraction(this[_interactions].draw)
+    this[_map].addInteraction(this[_interactions].draw);
   }
 
   /**
    * Deactivate draw interaction.
    */
-  deactivateDrawInteraction () {
-    console.info('deactivate "draw" interaction')
+  deactivateDrawInteraction() {
+    console.info('deactivate "draw" interaction');
     if (this[_interactions].draw !== undefined) {
-      this[_map].removeInteraction(this[_interactions].draw)
-      this[_interactions].draw = undefined
+      this[_map].removeInteraction(this[_interactions].draw);
+      this[_interactions].draw = undefined;
     }
   }
 
@@ -2312,8 +2273,8 @@ class VolumeImageViewer {
    *
    * @type boolean
    */
-  get isDrawInteractionActive () {
-    return this[_interactions].draw !== undefined
+  get isDrawInteractionActive() {
+    return this[_interactions].draw !== undefined;
   }
 
   /**
@@ -2321,8 +2282,8 @@ class VolumeImageViewer {
    *
    * @type boolean
    */
-  get isDragPanInteractionActive () {
-    return this[_interactions].dragPan !== undefined
+  get isDragPanInteractionActive() {
+    return this[_interactions].dragPan !== undefined;
   }
 
   /**
@@ -2330,8 +2291,8 @@ class VolumeImageViewer {
    *
    * @type boolean
    */
-  get isDragZoomInteractionActive () {
-    return this[_interactions].dragZoom !== undefined
+  get isDragZoomInteractionActive() {
+    return this[_interactions].dragZoom !== undefined;
   }
 
   /**
@@ -2339,8 +2300,8 @@ class VolumeImageViewer {
    *
    * @type boolean
    */
-  get isTranslateInteractionActive () {
-    return this[_interactions].translate !== undefined
+  get isTranslateInteractionActive() {
+    return this[_interactions].translate !== undefined;
   }
 
   /**
@@ -2348,12 +2309,12 @@ class VolumeImageViewer {
    *
    * @param {Object} options - Translation options.
    */
-  activateTranslateInteraction (options = {}) {
-    this.deactivateTranslateInteraction()
+  activateTranslateInteraction(options = {}) {
+    this.deactivateTranslateInteraction();
 
-    console.info('activate "translate" interaction')
+    console.info('activate "translate" interaction');
 
-    const translateOptions = { layers: [this[_drawingLayer]] }
+    const translateOptions = {layers: [this[_drawingLayer]]};
 
     /**
      * Get conditional mouse bindings
@@ -2362,12 +2323,12 @@ class VolumeImageViewer {
     if (options.bindings) {
       translateOptions.condition = _getInteractionBindingCondition(
         options.bindings
-      )
+      );
     }
 
-    this[_interactions].translate = new Translate(translateOptions)
+    this[_interactions].translate = new Translate(translateOptions);
 
-    this[_map].addInteraction(this[_interactions].translate)
+    this[_map].addInteraction(this[_interactions].translate);
   }
 
   /**
@@ -2380,23 +2341,23 @@ class VolumeImageViewer {
    * @returns {roi.ROI} Region of interest
    * @private
    */
-  _getROIFromFeature (feature, pyramid, affine) {
-    let scoord3d
+  _getROIFromFeature(feature, pyramid, affine) {
+    let scoord3d;
     try {
-      scoord3d = _geometry2Scoord3d(feature, pyramid, affine)
+      scoord3d = _geometry2Scoord3d(feature, pyramid, affine);
     } catch (error) {
-      const uid = feature.getId()
-      this.removeROI(uid)
-      throw error
+      const uid = feature.getId();
+      this.removeROI(uid);
+      throw error;
     }
 
-    const featureProperties = feature.getProperties()
+    const featureProperties = feature.getProperties();
     const properties = {
       measurements: featureProperties.measurements,
-      evaluations: featureProperties.evaluations
-    }
-    const uid = feature.getId()
-    return new ROI({ scoord3d, properties, uid })
+      evaluations: featureProperties.evaluations,
+    };
+    const uid = feature.getId();
+    return new ROI({scoord3d, properties, uid});
   }
 
   /**
@@ -2404,20 +2365,22 @@ class VolumeImageViewer {
    *
    * @returns {void}
    */
-  toggleOverviewMap () {
+  toggleOverviewMap() {
     if (this[_overviewMap]) {
-      const controls = this[_map].getControls()
-      const overview = controls.getArray().find((c) => c === this[_overviewMap])
+      const controls = this[_map].getControls();
+      const overview = controls
+        .getArray()
+        .find((c) => c === this[_overviewMap]);
       if (overview) {
-        this[_map].removeControl(this[_overviewMap])
-        delete this[_controls].overview
+        this[_map].removeControl(this[_overviewMap]);
+        delete this[_controls].overview;
       } else {
-        this[_controls].overview = this[_overviewMap]
-        this[_map].addControl(this[_overviewMap])
-        const map = this[_overviewMap].getOverviewMap()
-        const view = map.getView()
-        const projection = view.getProjection()
-        view.fit(projection.getExtent(), { size: map.getSize() })
+        this[_controls].overview = this[_overviewMap];
+        this[_map].addControl(this[_overviewMap]);
+        const map = this[_overviewMap].getOverviewMap();
+        const view = map.getView();
+        const projection = view.getProjection();
+        view.fit(projection.getExtent(), {size: map.getSize()});
       }
     }
   }
@@ -2427,11 +2390,11 @@ class VolumeImageViewer {
    *
    * @returns {void}
    */
-  deactivateTranslateInteraction () {
-    console.info('deactivate "translate" interaction')
+  deactivateTranslateInteraction() {
+    console.info('deactivate "translate" interaction');
     if (this[_interactions].translate) {
-      this[_map].removeInteraction(this[_interactions].translate)
-      this[_interactions].translate = undefined
+      this[_map].removeInteraction(this[_interactions].translate);
+      this[_interactions].translate = undefined;
     }
   }
 
@@ -2440,12 +2403,12 @@ class VolumeImageViewer {
    *
    * @param {Object} options - Options.
    */
-  activateDragZoomInteraction (options = {}) {
-    this.deactivateDragZoomInteraction()
+  activateDragZoomInteraction(options = {}) {
+    this.deactivateDragZoomInteraction();
 
-    console.info('activate "dragZoom" interaction')
+    console.info('activate "dragZoom" interaction');
 
-    const dragZoomOptions = { layers: [this[_drawingLayer]] }
+    const dragZoomOptions = {layers: [this[_drawingLayer]]};
 
     /**
      * Get conditional mouse bindings
@@ -2454,22 +2417,22 @@ class VolumeImageViewer {
     if (options.bindings) {
       dragZoomOptions.condition = _getInteractionBindingCondition(
         options.bindings
-      )
+      );
     }
 
-    this[_interactions].dragZoom = new DragZoom(dragZoomOptions)
+    this[_interactions].dragZoom = new DragZoom(dragZoomOptions);
 
-    this[_map].addInteraction(this[_interactions].dragZoom)
+    this[_map].addInteraction(this[_interactions].dragZoom);
   }
 
   /**
    * Deactivate drag zoom interaction.
    */
-  deactivateDragZoomInteraction () {
-    console.info('deactivate "dragZoom" interaction')
+  deactivateDragZoomInteraction() {
+    console.info('deactivate "dragZoom" interaction');
     if (this[_interactions].dragZoom) {
-      this[_map].removeInteraction(this[_interactions].dragZoom)
-      this[_interactions].dragZoom = undefined
+      this[_map].removeInteraction(this[_interactions].dragZoom);
+      this[_interactions].dragZoom = undefined;
     }
   }
 
@@ -2478,12 +2441,12 @@ class VolumeImageViewer {
    *
    * @param {Object} options selection options.
    */
-  activateSelectInteraction (options = {}) {
-    this.deactivateSelectInteraction()
+  activateSelectInteraction(options = {}) {
+    this.deactivateSelectInteraction();
 
-    console.info('activate "select" interaction')
+    console.info('activate "select" interaction');
 
-    const selectOptions = { layers: [this[_drawingLayer]] }
+    const selectOptions = {layers: [this[_drawingLayer]]};
 
     /**
      * Get conditional mouse bindings
@@ -2492,12 +2455,12 @@ class VolumeImageViewer {
     if (options.bindings) {
       selectOptions.condition = _getInteractionBindingCondition(
         options.bindings
-      )
+      );
     }
 
-    this[_interactions].select = new Select(selectOptions)
+    this[_interactions].select = new Select(selectOptions);
 
-    const container = this[_map].getTargetElement()
+    const container = this[_map].getTargetElement();
 
     this[_interactions].select.on('select', (e) => {
       publish(
@@ -2508,20 +2471,20 @@ class VolumeImageViewer {
           this[_pyramid].metadata,
           this[_affine]
         )
-      )
-    })
+      );
+    });
 
-    this[_map].addInteraction(this[_interactions].select)
+    this[_map].addInteraction(this[_interactions].select);
   }
 
   /**
    * Deactivate select interaction.
    */
-  deactivateSelectInteraction () {
-    console.info('deactivate "select" interaction')
+  deactivateSelectInteraction() {
+    console.info('deactivate "select" interaction');
     if (this[_interactions].select) {
-      this[_map].removeInteraction(this[_interactions].select)
-      this[_interactions].select = undefined
+      this[_map].removeInteraction(this[_interactions].select);
+      this[_interactions].select = undefined;
     }
   }
 
@@ -2530,14 +2493,14 @@ class VolumeImageViewer {
    *
    * @param {Object} options - Options.
    */
-  activateDragPanInteraction (options = {}) {
-    this.deactivateDragPanInteraction()
+  activateDragPanInteraction(options = {}) {
+    this.deactivateDragPanInteraction();
 
-    console.info('activate "drag pan" interaction')
+    console.info('activate "drag pan" interaction');
 
     const dragPanOptions = {
-      features: this[_features]
-    }
+      features: this[_features],
+    };
 
     /**
      * Get conditional mouse bindings
@@ -2546,22 +2509,22 @@ class VolumeImageViewer {
     if (options.bindings) {
       dragPanOptions.condition = _getInteractionBindingCondition(
         options.bindings
-      )
+      );
     }
 
-    this[_interactions].dragPan = new DragPan(dragPanOptions)
+    this[_interactions].dragPan = new DragPan(dragPanOptions);
 
-    this[_map].addInteraction(this[_interactions].dragPan)
+    this[_map].addInteraction(this[_interactions].dragPan);
   }
 
   /**
    * Deactivate drag pan interaction.
    */
-  deactivateDragPanInteraction () {
-    console.info('deactivate "drag pan" interaction')
+  deactivateDragPanInteraction() {
+    console.info('deactivate "drag pan" interaction');
     if (this[_interactions].dragPan) {
-      this[_map].removeInteraction(this[_interactions].dragPan)
-      this[_interactions].dragPan = undefined
+      this[_map].removeInteraction(this[_interactions].dragPan);
+      this[_interactions].dragPan = undefined;
     }
   }
 
@@ -2570,24 +2533,24 @@ class VolumeImageViewer {
    *
    * @param {Object} options - Snap options.
    */
-  activateSnapInteraction (options = {}) {
-    this.deactivateSnapInteraction()
-    console.info('activate "snap" interaction')
+  activateSnapInteraction(options = {}) {
+    this.deactivateSnapInteraction();
+    console.info('activate "snap" interaction');
     this[_interactions].snap = new Snap({
-      source: this[_drawingSource]
-    })
+      source: this[_drawingSource],
+    });
 
-    this[_map].addInteraction(this[_interactions].snap)
+    this[_map].addInteraction(this[_interactions].snap);
   }
 
   /**
    * Deactivate snap interaction.
    */
-  deactivateSnapInteraction () {
-    console.info('deactivate "snap" interaction')
+  deactivateSnapInteraction() {
+    console.info('deactivate "snap" interaction');
     if (this[_interactions].snap) {
-      this[_map].removeInteraction(this[_interactions].snap)
-      this[_interactions].snap = undefined
+      this[_map].removeInteraction(this[_interactions].snap);
+      this[_interactions].snap = undefined;
     }
   }
 
@@ -2596,8 +2559,8 @@ class VolumeImageViewer {
    *
    * @type boolean
    */
-  get isSelectInteractionActive () {
-    return this[_interactions].select !== undefined
+  get isSelectInteractionActive() {
+    return this[_interactions].select !== undefined;
   }
 
   /**
@@ -2605,15 +2568,15 @@ class VolumeImageViewer {
    *
    * @param {Object} options - Modification options.
    */
-  activateModifyInteraction (options = {}) {
-    this.deactivateModifyInteraction()
+  activateModifyInteraction(options = {}) {
+    this.deactivateModifyInteraction();
 
-    console.info('activate "modify" interaction')
+    console.info('activate "modify" interaction');
 
     const modifyOptions = {
       features: this[_features],
-      insertVertexCondition: (event) => true
-    }
+      insertVertexCondition: (event) => true,
+    };
 
     /**
      * Get conditional mouse bindings
@@ -2622,42 +2585,46 @@ class VolumeImageViewer {
     if (options.bindings) {
       modifyOptions.condition = _getInteractionBindingCondition(
         options.bindings
-      )
+      );
     }
 
-    this[_interactions].modify = new Modify(modifyOptions)
-    const container = this[_map].getTargetElement()
+    this[_interactions].modify = new Modify(modifyOptions);
+    const container = this[_map].getTargetElement();
 
-    this[_interactions].modify.on(Enums.InteractionEvents.MODIFY_END, (event) => {
-      const feature = event.features.item(0)
-      _updateFeatureMeasurements(
-        this[_map], feature,
-        this[_pyramid].metadata,
-        this[_affine]
-      )
-      this[_annotationManager].onUpdate(feature)
-      publish(
-        container,
-        EVENT.ROI_MODIFIED,
-        this._getROIFromFeature(
+    this[_interactions].modify.on(
+      Enums.InteractionEvents.MODIFY_END,
+      (event) => {
+        const feature = event.features.item(0);
+        _updateFeatureMeasurements(
+          this[_map],
           feature,
           this[_pyramid].metadata,
           this[_affine]
-        )
-      )
-    })
+        );
+        this[_annotationManager].onUpdate(feature);
+        publish(
+          container,
+          EVENT.ROI_MODIFIED,
+          this._getROIFromFeature(
+            feature,
+            this[_pyramid].metadata,
+            this[_affine]
+          )
+        );
+      }
+    );
 
-    this[_map].addInteraction(this[_interactions].modify)
+    this[_map].addInteraction(this[_interactions].modify);
   }
 
   /**
    * Deactivate modify interaction.
    */
-  deactivateModifyInteraction () {
-    console.info('deactivate "modify" interaction')
+  deactivateModifyInteraction() {
+    console.info('deactivate "modify" interaction');
     if (this[_interactions].modify) {
-      this[_map].removeInteraction(this[_interactions].modify)
-      this[_interactions].modify = undefined
+      this[_map].removeInteraction(this[_interactions].modify);
+      this[_interactions].modify = undefined;
     }
   }
 
@@ -2666,8 +2633,8 @@ class VolumeImageViewer {
    *
    * @type boolean
    */
-  get isModifyInteractionActive () {
-    return this[_interactions].modify !== undefined
+  get isModifyInteractionActive() {
+    return this[_interactions].modify !== undefined;
   }
 
   /**
@@ -2675,24 +2642,24 @@ class VolumeImageViewer {
    *
    * @returns {roi.ROI[]} Array of regions of interest.
    */
-  getAllROIs () {
-    console.info('get all ROIs')
-    const rois = []
+  getAllROIs() {
+    console.info('get all ROIs');
+    const rois = [];
     this[_features].forEach((item) => {
-      rois.push(this.getROI(item.getId()))
-    })
-    return rois
+      rois.push(this.getROI(item.getId()));
+    });
+    return rois;
   }
 
-  collapseOverviewMap () {
+  collapseOverviewMap() {
     if (this[_overviewMap]) {
-      this[_overviewMap].setCollapsed(true)
+      this[_overviewMap].setCollapsed(true);
     }
   }
 
-  expandOverviewMap () {
+  expandOverviewMap() {
     if (this[_overviewMap]) {
-      this[_overviewMap].setCollapsed(true)
+      this[_overviewMap].setCollapsed(true);
     }
   }
 
@@ -2701,8 +2668,8 @@ class VolumeImageViewer {
    *
    * @return {number}
    */
-  get numberOfROIs () {
-    return this[_features].getLength()
+  get numberOfROIs() {
+    return this[_features].getLength();
   }
 
   /**
@@ -2711,17 +2678,17 @@ class VolumeImageViewer {
    * @param {string} uid - Unique identifier of the region of interest
    * @returns {roi.ROI} Region of interest.
    */
-  getROI (uid) {
-    console.debug(`get ROI ${uid}`)
-    const feature = this[_drawingSource].getFeatureById(uid)
+  getROI(uid) {
+    console.debug(`get ROI ${uid}`);
+    const feature = this[_drawingSource].getFeatureById(uid);
     if (feature == null) {
-      throw new Error(`Could not find a ROI with UID "${uid}".`)
+      throw new Error(`Could not find a ROI with UID "${uid}".`);
     }
     return this._getROIFromFeature(
       feature,
       this[_pyramid].metadata,
       this[_affine]
-    )
+    );
   }
 
   /**
@@ -2730,21 +2697,21 @@ class VolumeImageViewer {
    * @param {string} uid - Unique identifier of the region of interest
    * @param {Object} item - NUM content item representing a measurement
    */
-  addROIMeasurement (uid, item) {
-    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
-    console.info(`add measurement "${meaning}" to ROI ${uid}`)
+  addROIMeasurement(uid, item) {
+    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning;
+    console.info(`add measurement "${meaning}" to ROI ${uid}`);
     this[_features].forEach((feature) => {
-      const id = feature.getId()
+      const id = feature.getId();
       if (id === uid) {
-        const properties = feature.getProperties()
+        const properties = feature.getProperties();
         if (!(Enums.InternalProperties.Measurements in properties)) {
-          properties[Enums.InternalProperties.Measurements] = [item]
+          properties[Enums.InternalProperties.Measurements] = [item];
         } else {
-          properties[Enums.InternalProperties.Measurements].push(item)
+          properties[Enums.InternalProperties.Measurements].push(item);
         }
-        feature.setProperties(properties, true)
+        feature.setProperties(properties, true);
       }
-    })
+    });
   }
 
   /**
@@ -2753,21 +2720,21 @@ class VolumeImageViewer {
    * @param {string} uid - Unique identifier of the region of interest
    * @param {Object} item - CODE content item representing a qualitative evaluation
    */
-  addROIEvaluation (uid, item) {
-    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning
-    console.info(`add qualitative evaluation "${meaning}" to ROI ${uid}`)
+  addROIEvaluation(uid, item) {
+    const meaning = item.ConceptNameCodeSequence[0].CodeMeaning;
+    console.info(`add qualitative evaluation "${meaning}" to ROI ${uid}`);
     this[_features].forEach((feature) => {
-      const id = feature.getId()
+      const id = feature.getId();
       if (id === uid) {
-        const properties = feature.getProperties()
+        const properties = feature.getProperties();
         if (!(Enums.InternalProperties.Evaluations in properties)) {
-          properties[Enums.InternalProperties.Evaluations] = [item]
+          properties[Enums.InternalProperties.Evaluations] = [item];
         } else {
-          properties[Enums.InternalProperties.Evaluations].push(item)
+          properties[Enums.InternalProperties.Evaluations].push(item);
         }
-        feature.setProperties(properties, true)
+        feature.setProperties(properties, true);
       }
-    })
+    });
   }
 
   /**
@@ -2775,14 +2742,14 @@ class VolumeImageViewer {
    *
    * @returns {roi.ROI} Regions of interest.
    */
-  popROI () {
-    console.info('pop ROI')
-    const feature = this[_features].pop()
+  popROI() {
+    console.info('pop ROI');
+    const feature = this[_features].pop();
     return this._getROIFromFeature(
       feature,
       this[_pyramid].metadata,
       this[_affine]
-    )
+    );
   }
 
   /**
@@ -2798,53 +2765,53 @@ class VolumeImageViewer {
    * geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
    */
-  addROI (roi, styleOptions = {}) {
-    console.info(`add ROI "${roi.uid}"`)
+  addROI(roi, styleOptions = {}) {
+    console.info(`add ROI "${roi.uid}"`);
 
     // Avoid insertion of duplicates
-    let exists = false
+    let exists = false;
     for (let i = 0; i < this[_features].getLength(); i++) {
-      const feature = this[_features].item(i)
+      const feature = this[_features].item(i);
       if (feature.getId() === roi.uid) {
-        exists = true
-        break
+        exists = true;
+        break;
       }
     }
     if (exists) {
-      console.warn(`ROI "${roi.uid}" not added because it already exists`)
+      console.warn(`ROI "${roi.uid}" not added because it already exists`);
     }
 
-    const frameOfReferenceUID = this[_pyramid].metadata.FrameOfReferenceUID
+    const frameOfReferenceUID = this[_pyramid].metadata.FrameOfReferenceUID;
     if (roi.frameOfReferenceUID !== frameOfReferenceUID) {
       throw new Error(
         `Frame of Reference UID of ROI ${roi.uid} does not match ` +
-        'Frame of Reference UID of source images.'
-      )
+          'Frame of Reference UID of source images.'
+      );
     }
 
     const geometry = _scoord3d2Geometry(
       roi.scoord3d,
       this[_pyramid].metadata,
       this[_affineInverse]
-    )
-    const featureOptions = { geometry }
+    );
+    const featureOptions = {geometry};
 
-    const feature = new Feature(featureOptions)
-    _addROIPropertiesToFeature(feature, roi.properties, true)
-    feature.setId(roi.uid)
+    const feature = new Feature(featureOptions);
+    _addROIPropertiesToFeature(feature, roi.properties, true);
+    feature.setId(roi.uid);
 
     _wireMeasurementsAndQualitativeEvaluationsEvents(
       this[_map],
       feature,
       this[_pyramid].metadata,
       this[_affine]
-    )
+    );
 
-    this[_features].push(feature)
+    this[_features].push(feature);
 
-    _setFeatureStyle(feature, styleOptions)
-    const isVisible = Object.keys(styleOptions).length !== 0
-    this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
+    _setFeatureStyle(feature, styleOptions);
+    const isVisible = Object.keys(styleOptions).length !== 0;
+    this[_annotationManager].setMarkupVisibility(roi.uid, isVisible);
   }
 
   /**
@@ -2858,15 +2825,15 @@ class VolumeImageViewer {
    * @param {Object} [roi.properties.label] - ROI label
    * @param {Object} [roi.properties.marker] - ROI marker
    */
-  updateROI ({ uid, properties = {} }) {
-    if (!uid) return
-    console.info(`update ROI ${uid}`)
+  updateROI({uid, properties = {}}) {
+    if (!uid) return;
+    console.info(`update ROI ${uid}`);
 
-    const feature = this[_drawingSource].getFeatureById(uid)
+    const feature = this[_drawingSource].getFeatureById(uid);
 
-    _addROIPropertiesToFeature(feature, properties)
+    _addROIPropertiesToFeature(feature, properties);
 
-    this[_annotationManager].onUpdate(feature)
+    this[_annotationManager].onUpdate(feature);
   }
 
   /**
@@ -2876,25 +2843,25 @@ class VolumeImageViewer {
    *
    * @returns {Object} - Style settings
    */
-  getROIStyle (uid) {
+  getROIStyle(uid) {
     const feature = this[_features].getArray().find((feature) => {
-      return feature.getId() === uid
-    })
+      return feature.getId() === uid;
+    });
     if (feature == null) {
-      throw new Error(`Could not find a ROI with UID "${uid}".`)
+      throw new Error(`Could not find a ROI with UID "${uid}".`);
     }
-    const style = feature.getStyle()
-    const stroke = style.getStroke()
-    const fill = style.getFill()
+    const style = feature.getStyle();
+    const stroke = style.getStroke();
+    const fill = style.getFill();
     return {
       stroke: {
         color: stroke.getColor(),
-        width: stroke.getWidth()
+        width: stroke.getWidth(),
       },
       fill: {
-        color: fill.getColor()
-      }
-    }
+        color: fill.getColor(),
+      },
+    };
   }
 
   /**
@@ -2910,15 +2877,15 @@ class VolumeImageViewer {
    * geometry
    * @param {number[]} styleOptions.fill.color - RGBA color of the body
    */
-  setROIStyle (uid, styleOptions = {}) {
+  setROIStyle(uid, styleOptions = {}) {
     this[_features].forEach((feature) => {
-      const id = feature.getId()
+      const id = feature.getId();
       if (id === uid) {
-        _setFeatureStyle(feature, styleOptions)
-        const isVisible = Object.keys(styleOptions).length !== 0
-        this[_annotationManager].setMarkupVisibility(id, isVisible)
+        _setFeatureStyle(feature, styleOptions);
+        const isVisible = Object.keys(styleOptions).length !== 0;
+        this[_annotationManager].setMarkupVisibility(id, isVisible);
       }
-    })
+    });
   }
 
   /**
@@ -2933,25 +2900,24 @@ class VolumeImageViewer {
    * visible
    * @param {string} [options.className] - Class to style the overlay container
    */
-  addViewportOverlay ({ element, coordinates, navigate, className }) {
+  addViewportOverlay({element, coordinates, navigate, className}) {
     const offset = _scoord3dCoordinates2geometryCoordinates(
       coordinates,
       this[_pyramid],
       this[_affineInverse]
-    )
+    );
     const overlay = new Overlay({
       element,
-      className: (
+      className:
         className != null
           ? `ol-overlay-container ol-selectable ${className}`
-          : 'ol-overlay-container ol-selectable'
-      ),
+          : 'ol-overlay-container ol-selectable',
       offset,
       autoPan: navigate != null ? navigate : false,
-      stopEvent: false
-    })
-    this[_overlays][element.id] = overlay
-    this[_map].addOverlay(overlay)
+      stopEvent: false,
+    });
+    this[_overlays][element.id] = overlay;
+    this[_map].addOverlay(overlay);
   }
 
   /**
@@ -2960,12 +2926,12 @@ class VolumeImageViewer {
    * @param {Object} options - Overlay options
    * @param {Object} options.element - The custom overlay HTML element
    */
-  removeViewportOverlay ({ element }) {
-    const id = element.id
+  removeViewportOverlay({element}) {
+    const id = element.id;
     if (id in this[_overlays]) {
-      const overlay = this[_overlays][id]
-      this[_map].removeOverlay(overlay)
-      delete this[_overlays][id]
+      const overlay = this[_overlays][id];
+      this[_map].removeOverlay(overlay);
+      delete this[_overlays][id];
     }
   }
 
@@ -2974,47 +2940,47 @@ class VolumeImageViewer {
    *
    * @param {string} uid - Unique identifier of the region of interest
    */
-  removeROI (uid) {
-    console.info(`remove ROI ${uid}`)
-    const feature = this[_drawingSource].getFeatureById(uid)
+  removeROI(uid) {
+    console.info(`remove ROI ${uid}`);
+    const feature = this[_drawingSource].getFeatureById(uid);
 
     if (feature) {
-      this[_features].remove(feature)
-      this[_annotationManager].onRemove(feature)
-      return
+      this[_features].remove(feature);
+      this[_annotationManager].onRemove(feature);
+      return;
     }
 
     /**
      * If failed to draw/cache feature in drawing source, call onFailure
      * to avoid trash of broken annotations
      */
-    this[_annotationManager].onFailure(uid)
+    this[_annotationManager].onFailure(uid);
   }
 
   /**
    * Remove all annotated regions of interest.
    */
-  removeAllROIs () {
-    console.info('remove all ROIs')
-    this[_features].clear()
+  removeAllROIs() {
+    console.info('remove all ROIs');
+    this[_features].clear();
   }
 
   /**
    * Hide annotated regions of interest.
    */
-  hideROIs () {
-    console.info('hide ROIs')
-    this[_drawingLayer].setVisible(false)
-    this[_annotationManager].setVisible(false)
+  hideROIs() {
+    console.info('hide ROIs');
+    this[_drawingLayer].setVisible(false);
+    this[_annotationManager].setVisible(false);
   }
 
   /**
    * Show annotated regions of interest.
    */
-  showROIs () {
-    console.info('show ROIs')
-    this[_drawingLayer].setVisible(true)
-    this[_annotationManager].setVisible(true)
+  showROIs() {
+    console.info('show ROIs');
+    this[_drawingLayer].setVisible(true);
+    this[_annotationManager].setVisible(true);
   }
 
   /**
@@ -3022,8 +2988,8 @@ class VolumeImageViewer {
    *
    * @return {boolean}
    */
-  get areROIsVisible () {
-    return this[_drawingLayer].getVisible()
+  get areROIsVisible() {
+    return this[_drawingLayer].getVisible();
   }
 
   /**
@@ -3032,143 +2998,142 @@ class VolumeImageViewer {
    * @param {metadata.MicroscopyBulkSimpleAnnotations} metadata - Metadata of a
    * DICOM Microscopy Simple Bulk Annotations instance
    */
-  addAnnotationGroups (metadata) {
-    const refImage = this[_pyramid].metadata[0]
+  addAnnotationGroups(metadata) {
+    const refImage = this[_pyramid].metadata[0];
     if (refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
       throw new Error(
         'Microscopy Bulk Simple Annotation instances must have the same ' +
-        'Frame of Reference UID as the corresponding source images.'
-      )
+          'Frame of Reference UID as the corresponding source images.'
+      );
     }
     console.info(
       'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
-      `of series "${metadata.SeriesInstanceUID}"`
-    )
+        `of series "${metadata.SeriesInstanceUID}"`
+    );
 
     const defaultAnnotationGroupStyle = {
       opacity: 1.0,
-      color: this[_options].primaryColor
-    }
+      color: this[_options].primaryColor,
+    };
 
     const _getROIFromFeature = (feature) => {
       const roi = this._getROIFromFeature(
         feature,
         this[_pyramid].metadata,
         this[_affine]
-      )
-      const annotationGroupUID = feature.get('annotationGroupUID')
+      );
+      const annotationGroupUID = feature.get('annotationGroupUID');
       const annotationGroupMetadata = metadata.AnnotationGroupSequence.find(
-        item => item.AnnotationGroupUID === annotationGroupUID
-      )
+        (item) => item.AnnotationGroupUID === annotationGroupUID
+      );
       if (annotationGroupUID == null || annotationGroupMetadata == null) {
         throw new Error(
           'Could not obtain information of annotation from ' +
-          `annotation group "${annotationGroupUID}".`
-        )
+            `annotation group "${annotationGroupUID}".`
+        );
       }
 
-      if (annotationGroupMetadata.AnnotationPropertyCategoryCodeSequence != null) {
-        const findingCategory = (
-          annotationGroupMetadata.AnnotationPropertyCategoryCodeSequence[0]
-        )
+      if (
+        annotationGroupMetadata.AnnotationPropertyCategoryCodeSequence != null
+      ) {
+        const findingCategory =
+          annotationGroupMetadata.AnnotationPropertyCategoryCodeSequence[0];
         roi.addEvaluation(
           new dcmjs.sr.valueTypes.CodeContentItem({
             name: new dcmjs.sr.coding.CodedConcept({
               value: '276214006',
               meaning: 'Finding category',
-              schemeDesignator: 'SCT'
+              schemeDesignator: 'SCT',
             }),
             value: new dcmjs.sr.coding.CodedConcept({
               value: findingCategory.CodeValue,
               meaning: findingCategory.CodeMeaning,
-              schemeDesignator: findingCategory.CodingSchemeDesignator
+              schemeDesignator: findingCategory.CodingSchemeDesignator,
             }),
             relationshipType:
-              dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
+              dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD,
           })
-        )
+        );
       }
       if (annotationGroupMetadata.AnnotationPropertyTypeCodeSequence != null) {
-        const findingType = (
-          annotationGroupMetadata.AnnotationPropertyTypeCodeSequence[0]
-        )
+        const findingType =
+          annotationGroupMetadata.AnnotationPropertyTypeCodeSequence[0];
         roi.addEvaluation(
           new dcmjs.sr.valueTypes.CodeContentItem({
             name: new dcmjs.sr.coding.CodedConcept({
               value: '121071',
               meaning: 'Finding',
-              schemeDesignator: 'DCM'
+              schemeDesignator: 'DCM',
             }),
             value: new dcmjs.sr.coding.CodedConcept({
               value: findingType.CodeValue,
               meaning: findingType.CodeMeaning,
-              schemeDesignator: findingType.CodingSchemeDesignator
+              schemeDesignator: findingType.CodingSchemeDesignator,
             }),
             relationshipType:
-              dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
+              dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD,
           })
-        )
+        );
       }
 
       if (annotationGroupMetadata.MeasurementsSequence != null) {
         annotationGroupMetadata.MeasurementsSequence.forEach(
           (measurementItem, measurementIndex) => {
-            const key = `measurementValue${measurementIndex.toString()}`
-            const value = feature.get(key)
-            const name = measurementItem.ConceptNameCodeSequence[0]
-            const unit = measurementItem.MeasurementUnitsCodeSequence[0]
+            const key = `measurementValue${measurementIndex.toString()}`;
+            const value = feature.get(key);
+            const name = measurementItem.ConceptNameCodeSequence[0];
+            const unit = measurementItem.MeasurementUnitsCodeSequence[0];
 
             const measurement = new dcmjs.sr.valueTypes.NumContentItem({
               value: Number(value),
               name: new dcmjs.sr.coding.CodedConcept({
                 value: name.CodeValue,
                 meaning: name.CodeMeaning,
-                schemeDesignator: name.CodingSchemeDesignator
+                schemeDesignator: name.CodingSchemeDesignator,
               }),
               unit: new dcmjs.sr.coding.CodedConcept({
                 value: unit.CodeValue,
                 meaning: unit.CodeMeaning,
-                schemeDesignator: unit.CodingSchemeDesignator
+                schemeDesignator: unit.CodingSchemeDesignator,
               }),
-              relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.CONTAINS
-            })
+              relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.CONTAINS,
+            });
             if (measurementItem.ReferencedImageSequence != null) {
-              const ref = measurementItem.ReferencedImageSequence[0]
+              const ref = measurementItem.ReferencedImageSequence[0];
               const image = new dcmjs.sr.valueTypes.ImageContentItem({
                 name: new dcmjs.sr.coding.CodedConcept({
                   value: '121112',
                   meaning: 'Source of Measurement',
-                  schemeDesignator: 'DCM'
+                  schemeDesignator: 'DCM',
                 }),
                 referencedSOPClassUID: ref.ReferencedSOPClassUID,
-                referencedSOPInstanceUID: ref.ReferencedSOPInstanceUID
-              })
+                referencedSOPInstanceUID: ref.ReferencedSOPInstanceUID,
+              });
               if (ref.ReferencedOpticalPathIdentifier != null) {
-                image.ReferencedSOPSequence[0].ReferencedOpticalPathIdentifier = (
-                  ref.ReferencedOpticalPathIdentifier
-                )
+                image.ReferencedSOPSequence[0].ReferencedOpticalPathIdentifier =
+                  ref.ReferencedOpticalPathIdentifier;
               }
-              measurement.ContentSequence = [image]
+              measurement.ContentSequence = [image];
             }
-            roi.addMeasurement(measurement)
+            roi.addMeasurement(measurement);
           }
-        )
+        );
       }
 
-      return roi
-    }
+      return roi;
+    };
 
     // We need to bind those variables to constants for the loader function
     const client = _getClient(
       this[_clients],
       Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
-    )
-    const pyramid = this[_pyramid].metadata
-    const affineInverse = this[_affineInverse]
+    );
+    const pyramid = this[_pyramid].metadata;
+    const affineInverse = this[_affineInverse];
 
     metadata.AnnotationGroupSequence.forEach((item, index) => {
-      const annotationGroupUID = item.AnnotationGroupUID
-      const algorithm = item.AnnotationGroupAlgorithmIdentificationSequence[0]
+      const annotationGroupUID = item.AnnotationGroupUID;
+      const algorithm = item.AnnotationGroupAlgorithmIdentificationSequence[0];
       const annotationGroup = {
         annotationGroup: new AnnotationGroup({
           uid: annotationGroupUID,
@@ -3180,12 +3145,12 @@ class VolumeImageViewer {
           propertyType: item.AnnotationPropertyTypeCodeSequence[0],
           studyInstanceUID: metadata.StudyInstanceUID,
           seriesInstanceUID: metadata.SeriesInstanceUID,
-          sopInstanceUIDs: [metadata.SOPInstanceUID]
+          sopInstanceUIDs: [metadata.SOPInstanceUID],
         }),
-        style: { ...defaultAnnotationGroupStyle },
+        style: {...defaultAnnotationGroupStyle},
         defaultStyle: defaultAnnotationGroupStyle,
-        metadata
-      }
+        metadata,
+      };
 
       if (item.GraphicType === 'POLYLINE') {
         /*
@@ -3194,139 +3159,141 @@ class VolumeImageViewer {
          */
         console.warn(
           `skip annotation group "${annotationGroupUID}" ` +
-          'with Graphic Type POLYLINE'
-        )
-        return
+            'with Graphic Type POLYLINE'
+        );
+        return;
       }
 
       /**
        * In the loader function "this" is bound to the vector source.
        */
-      function loader (extent, resolution, projection, success, failure) {
+      function loader(extent, resolution, projection, success, failure) {
         // TODO: figure out how to use "loader" with bbox or tile "strategy"?
-        const index = annotationGroup.annotationGroup.number - 1
-        const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[index]
+        const index = annotationGroup.annotationGroup.number - 1;
+        const metadataItem =
+          annotationGroup.metadata.AnnotationGroupSequence[index];
         /**
          * Bulkdata may not be available, since it's possible that all information
          * has been included into the metadata by value as InlineBinary. It must
          * only be provided if information has been included by reference as
          * BulkDataURI.
          */
-        const bulkdataReferences = annotationGroup.metadata.bulkdataReferences
-        let bulkdataItem
+        const bulkdataReferences = annotationGroup.metadata.bulkdataReferences;
+        let bulkdataItem;
         if (bulkdataReferences.AnnotationGroupSequence != null) {
-          bulkdataItem = bulkdataReferences.AnnotationGroupSequence[index]
+          bulkdataItem = bulkdataReferences.AnnotationGroupSequence[index];
         }
 
-        const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-        const graphicType = metadataItem.GraphicType
-        const coordinateDimensionality = _getCoordinateDimensionality(
-          metadataItem
-        )
-        const commonZCoordinate = _getCommonZCoordinate(metadataItem)
+        const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations);
+        const graphicType = metadataItem.GraphicType;
+        const coordinateDimensionality =
+          _getCoordinateDimensionality(metadataItem);
+        const commonZCoordinate = _getCommonZCoordinate(metadataItem);
 
-        const features = this.getFeatures()
+        const features = this.getFeatures();
         if (features.length > 0) {
-          success(features)
-          return
+          success(features);
+          return;
         }
 
         // TODO: Only fetch measurements if required.
         const promises = [
-          _fetchGraphicData({ metadataItem, bulkdataItem, client }),
-          _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
-          _fetchMeasurements({ metadataItem, bulkdataItem, client })
-        ]
-        Promise.all(promises).then(retrievedBulkdata => {
-          const graphicData = retrievedBulkdata[0]
-          const graphicIndex = retrievedBulkdata[1]
-          const measurements = retrievedBulkdata[2]
+          _fetchGraphicData({metadataItem, bulkdataItem, client}),
+          _fetchGraphicIndex({metadataItem, bulkdataItem, client}),
+          _fetchMeasurements({metadataItem, bulkdataItem, client}),
+        ];
+        Promise.all(promises)
+          .then((retrievedBulkdata) => {
+            const graphicData = retrievedBulkdata[0];
+            const graphicIndex = retrievedBulkdata[1];
+            const measurements = retrievedBulkdata[2];
 
-          console.log('process annotations')
-          for (let i = 0; i < numberOfAnnotations; i++) {
-            const point = _getCentroid(
-              graphicType,
-              graphicData,
-              graphicIndex,
-              coordinateDimensionality,
-              commonZCoordinate,
-              i,
-              numberOfAnnotations
-            )
-            const coordinates = _scoord3dCoordinates2geometryCoordinates(
-              point,
-              pyramid,
-              affineInverse
-            )
-            const feature = new Feature({
-              geometry: new PointGeometry(coordinates)
-            })
+            console.log('process annotations');
+            for (let i = 0; i < numberOfAnnotations; i++) {
+              const point = _getCentroid(
+                graphicType,
+                graphicData,
+                graphicIndex,
+                coordinateDimensionality,
+                commonZCoordinate,
+                i,
+                numberOfAnnotations
+              );
+              const coordinates = _scoord3dCoordinates2geometryCoordinates(
+                point,
+                pyramid,
+                affineInverse
+              );
+              const feature = new Feature({
+                geometry: new PointGeometry(coordinates),
+              });
 
-            feature.set('annotationGroupUID', annotationGroupUID, true)
+              feature.set('annotationGroupUID', annotationGroupUID, true);
+              measurements.forEach((measurementItem, measurementIndex) => {
+                const key = `measurementValue${measurementIndex.toString()}`;
+                const value = measurementItem.values[i];
+                // Needed for the WebGL renderer
+                feature.set(key, value, true);
+              });
+              const uid = _generateUID({value: `${annotationGroupUID}-${i}`});
+              feature.setId(uid);
+              features.push(feature);
+            }
+
+            console.info(
+              `add n=${features.length} annotations ` +
+                `for annotation group "${annotationGroupUID}"`
+            );
+            this.addFeatures(features);
+            console.info(
+              'compute statistics for measurement values ' +
+                `of annotation group "${annotationGroupUID}"`
+            );
+            const properties = {};
             measurements.forEach((measurementItem, measurementIndex) => {
-              const key = `measurementValue${measurementIndex.toString()}`
-              const value = measurementItem.values[i]
-              // Needed for the WebGL renderer
-              feature.set(key, value, true)
-            })
-            const uid = _generateUID({ value: `${annotationGroupUID}-${i}` })
-            feature.setId(uid)
-            features.push(feature)
-          }
-
-          console.info(
-            `add n=${features.length} annotations ` +
-            `for annotation group "${annotationGroupUID}"`
-          )
-          this.addFeatures(features)
-          console.info(
-            'compute statistics for measurement values ' +
-            `of annotation group "${annotationGroupUID}"`
-          )
-          const properties = {}
-          measurements.forEach((measurementItem, measurementIndex) => {
-            /*
-             * Ideally, we would compute quantiles, but that is an expensive
-             * operation. For now, just compute mininum and maximum.
-             */
-            const min = measurementItem.values.reduce(
-              (a, b) => Math.min(a, b),
-              Infinity
-            )
-            const max = measurementItem.values.reduce(
-              (a, b) => Math.max(a, b),
-              -Infinity
-            )
-            const key = `measurementValue${measurementIndex.toString()}`
-            properties[key] = { min, max }
+              /*
+               * Ideally, we would compute quantiles, but that is an expensive
+               * operation. For now, just compute mininum and maximum.
+               */
+              const min = measurementItem.values.reduce(
+                (a, b) => Math.min(a, b),
+                Infinity
+              );
+              const max = measurementItem.values.reduce(
+                (a, b) => Math.max(a, b),
+                -Infinity
+              );
+              const key = `measurementValue${measurementIndex.toString()}`;
+              properties[key] = {min, max};
+            });
+            this.setProperties(properties, true);
+            success(features);
           })
-          this.setProperties(properties, true)
-          success(features)
-        }).catch(error => {
-          console.error(error)
-          failure()
-        })
+          .catch((error) => {
+            console.error(error);
+            failure();
+          });
       }
 
       const source = new VectorSource({
         loader,
         wrapX: false,
         rotateWithView: true,
-        overlaps: false
-      })
+        overlaps: false,
+      });
       source.on('featuresloadstart', (event) => {
-        const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_STARTED)
-      })
+        const container = this[_map].getTargetElement();
+        publish(container, EVENT.LOADING_STARTED);
+      });
       source.on('featuresloadend', (event) => {
-        const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_ENDED)
-      })
+        const container = this[_map].getTargetElement();
+        publish(container, EVENT.LOADING_ENDED);
+      });
       source.on('featuresloaderror', (event) => {
-        const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_ENDED)
-        publish(container, EVENT.LOADING_ERROR)
-      })
+        const container = this[_map].getTargetElement();
+        publish(container, EVENT.LOADING_ENDED);
+        publish(container, EVENT.LOADING_ERROR);
+      });
 
       /*
        * TODO: Determine optimal sizes based on number of zoom levels and
@@ -3343,53 +3310,53 @@ class VolumeImageViewer {
             1,
             2,
             this[_pyramid].metadata.length,
-            15
+            15,
           ],
           color: annotationGroup.style.color,
-          opacity: annotationGroup.style.opacity
-        }
-      }
+          opacity: annotationGroup.style.opacity,
+        },
+      };
       annotationGroup.layer = new PointsLayer({
         source,
         style,
-        disableHitDetection: false
-      })
-      annotationGroup.layer.setVisible(false)
+        disableHitDetection: false,
+      });
+      annotationGroup.layer.setVisible(false);
 
-      this[_map].addLayer(annotationGroup.layer)
-      this[_annotationGroups][annotationGroupUID] = annotationGroup
-    })
+      this[_map].addLayer(annotationGroup.layer);
+      this[_annotationGroups][annotationGroupUID] = annotationGroup;
+    });
 
-    let selectedAnnotation = null
+    let selectedAnnotation = null;
     this[_map].on('singleclick', (e) => {
       if (e != null) {
         if (selectedAnnotation != null) {
-          selectedAnnotation.set('selected', 0)
-          selectedAnnotation = null
+          selectedAnnotation.set('selected', 0);
+          selectedAnnotation = null;
         }
-        const container = this[_map].getTargetElement()
+        const container = this[_map].getTargetElement();
         this[_map].forEachFeatureAtPixel(
           e.pixel,
           (feature) => {
             if (feature != null) {
-              feature.set('selected', 1)
-              selectedAnnotation = feature
+              feature.set('selected', 1);
+              selectedAnnotation = feature;
               publish(
                 container,
                 EVENT.ROI_SELECTED,
                 _getROIFromFeature(feature)
-              )
-              return true
+              );
+              return true;
             }
-            return false
+            return false;
           },
           {
             hitTolerance: 1,
-            layerFilter: (layer) => (layer instanceof PointsLayer)
+            layerFilter: (layer) => layer instanceof PointsLayer,
           }
-        )
+        );
       }
-    })
+    });
   }
 
   /**
@@ -3398,27 +3365,27 @@ class VolumeImageViewer {
    * @param {string} annotationGroupUID - Unique identifier of an annotation
    * group
    */
-  removeAnnotationGroup (annotationGroupUID) {
+  removeAnnotationGroup(annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
       throw new Error(
         'Cannot remove annotation group. ' +
-        `Could not find annotation group "${annotationGroupUID}".`
-      )
+          `Could not find annotation group "${annotationGroupUID}".`
+      );
     }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.info(`remove annotation group ${annotationGroupUID}`)
-    this[_map].removeLayer(annotationGroup.layer)
-    annotationGroup.layer.dispose()
-    delete this[_annotationGroups][annotationGroupUID]
+    const annotationGroup = this[_annotationGroups][annotationGroupUID];
+    console.info(`remove annotation group ${annotationGroupUID}`);
+    this[_map].removeLayer(annotationGroup.layer);
+    annotationGroup.layer.dispose();
+    delete this[_annotationGroups][annotationGroupUID];
   }
 
   /**
    * Remove all annotation groups.
    */
-  removeAllAnnotationGroups () {
-    Object.keys(this[_annotationGroups]).forEach(annotationGroupUID => {
-      this.removeAnnotationGroup(annotationGroupUID)
-    })
+  removeAllAnnotationGroups() {
+    Object.keys(this[_annotationGroups]).forEach((annotationGroupUID) => {
+      this.removeAnnotationGroup(annotationGroupUID);
+    });
   }
 
   /**
@@ -3431,17 +3398,17 @@ class VolumeImageViewer {
    * @param {number[]} [styleOptions.color] - RGB color triplet
    * @param {Object} [styleOptions.measurement] - Selected measurement
    */
-  showAnnotationGroup (annotationGroupUID, styleOptions = {}) {
+  showAnnotationGroup(annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
       throw new Error(
         'Cannot show annotation group. ' +
-        `Could not find annotation group "${annotationGroupUID}".`
-      )
+          `Could not find annotation group "${annotationGroupUID}".`
+      );
     }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.info(`show annotation group ${annotationGroupUID}`)
-    this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
-    annotationGroup.layer.setVisible(true)
+    const annotationGroup = this[_annotationGroups][annotationGroupUID];
+    console.info(`show annotation group ${annotationGroupUID}`);
+    this.setAnnotationGroupStyle(annotationGroupUID, styleOptions);
+    annotationGroup.layer.setVisible(true);
   }
 
   /**
@@ -3450,16 +3417,16 @@ class VolumeImageViewer {
    * @param {string} annotationGroupUID - Unique identifier of an annotation
    * group
    */
-  hideAnnotationGroup (annotationGroupUID) {
+  hideAnnotationGroup(annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
       throw new Error(
         'Cannot hide annotation group. ' +
-        `Could not find annotation group "${annotationGroupUID}".`
-      )
+          `Could not find annotation group "${annotationGroupUID}".`
+      );
     }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.info(`hide annotation group ${annotationGroupUID}`)
-    annotationGroup.layer.setVisible(false)
+    const annotationGroup = this[_annotationGroups][annotationGroupUID];
+    console.info(`hide annotation group ${annotationGroupUID}`);
+    annotationGroup.layer.setVisible(false);
   }
 
   /**
@@ -3468,15 +3435,15 @@ class VolumeImageViewer {
    * @param {string} annotationGroupUID - Unique identifier of an annotation
    * group
    */
-  isAnnotationGroupVisible (annotationGroupUID) {
+  isAnnotationGroupVisible(annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
       throw new Error(
         'Cannot determine if annotation group is visible. ' +
-        `Could not find annotation group "${annotationGroupUID}".`
-      )
+          `Could not find annotation group "${annotationGroupUID}".`
+      );
     }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    return annotationGroup.layer.getVisible()
+    const annotationGroup = this[_annotationGroups][annotationGroupUID];
+    return annotationGroup.layer.getVisible();
   }
 
   /**
@@ -3490,45 +3457,45 @@ class VolumeImageViewer {
    * @param {Object} [styleOptions.measurement] - Selected measurement for
    * pseudo-coloring of annotations using measurement values
    */
-  setAnnotationGroupStyle (annotationGroupUID, styleOptions = {}) {
+  setAnnotationGroupStyle(annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
       throw new Error(
         'Cannot set style of annotation group. ' +
-        `Could not find annotation group "${annotationGroupUID}".`
-      )
+          `Could not find annotation group "${annotationGroupUID}".`
+      );
     }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    const annotationGroup = this[_annotationGroups][annotationGroupUID];
     console.info(
       `set style for annotation group "${annotationGroupUID}"`,
       styleOptions
-    )
+    );
 
     if (styleOptions.opacity != null) {
-      annotationGroup.style.opacity = styleOptions.opacity
-      annotationGroup.layer.setOpacity(styleOptions.opacity)
+      annotationGroup.style.opacity = styleOptions.opacity;
+      annotationGroup.layer.setOpacity(styleOptions.opacity);
     }
     if (styleOptions.color != null) {
-      annotationGroup.style.color = styleOptions.color
+      annotationGroup.style.color = styleOptions.color;
     }
 
-    const metadata = annotationGroup.metadata
-    const source = annotationGroup.layer.getSource()
-    const groupItem = metadata.AnnotationGroupSequence.find(item => {
-      return item.AnnotationGroupUID === annotationGroupUID
-    })
+    const metadata = annotationGroup.metadata;
+    const source = annotationGroup.layer.getSource();
+    const groupItem = metadata.AnnotationGroupSequence.find((item) => {
+      return item.AnnotationGroupUID === annotationGroupUID;
+    });
     if (groupItem == null) {
       throw new Error(
         'Cannot set style of annotation group. ' +
-        `Could not find metadata of annotation group "${annotationGroupUID}".`
-      )
+          `Could not find metadata of annotation group "${annotationGroupUID}".`
+      );
     }
 
-    const markerType = 'circle'
-    const topLayerIndex = 0
-    const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
-    const baseLayerIndex = this[_pyramid].metadata.length - 1
-    const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
-    const diameter = 5 * 10 ** -3 // micometer
+    const markerType = 'circle';
+    const topLayerIndex = 0;
+    const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex];
+    const baseLayerIndex = this[_pyramid].metadata.length - 1;
+    const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex];
+    const diameter = 5 * 10 ** -3; // micometer
     const markerSize = [
       'interpolate',
       ['exponential', 2],
@@ -3536,55 +3503,60 @@ class VolumeImageViewer {
       1,
       Math.max(diameter / topLayerPixelSpacing[0], 1),
       this[_pyramid].resolutions.length,
-      Math.min(diameter / baseLayerPixelSpacing[0], 50)
-    ]
+      Math.min(diameter / baseLayerPixelSpacing[0], 50),
+    ];
 
-    const name = styleOptions.measurement
+    const name = styleOptions.measurement;
     if (name) {
-      const measurementIndex = groupItem.MeasurementsSequence.findIndex(item => {
-        return areCodedConceptsEqual(name, getContentItemNameCodedConcept(item))
-      })
+      const measurementIndex = groupItem.MeasurementsSequence.findIndex(
+        (item) => {
+          return areCodedConceptsEqual(
+            name,
+            getContentItemNameCodedConcept(item)
+          );
+        }
+      );
       if (measurementIndex == null) {
         throw new Error(
           'Cannot set style of annotation group. ' +
-          `Could not find measurement "${name.CodeMeaning}" ` +
-          `of annotation group "${annotationGroupUID}".`
-        )
+            `Could not find measurement "${name.CodeMeaning}" ` +
+            `of annotation group "${annotationGroupUID}".`
+        );
       }
-      const properties = source.getProperties()
-      const key = `measurementValue${measurementIndex.toString()}`
+      const properties = source.getProperties();
+      const key = `measurementValue${measurementIndex.toString()}`;
 
       if (properties[key]) {
         const style = {
           symbol: {
             symbolType: markerType,
             size: markerSize,
-            opacity: annotationGroup.style.opacity
-          }
-        }
+            opacity: annotationGroup.style.opacity,
+          },
+        };
         const colormap = createColormap({
           name: ColormapNames.VIRIDIS,
-          bins: 50
-        })
+          bins: 50,
+        });
         Object.assign(
           style.symbol,
           _getColorPaletteStyleForPointLayer({
             key,
             minValue: properties[key].min,
             maxValue: properties[key].max,
-            colormap
+            colormap,
           })
-        )
+        );
         const newLayer = new PointsLayer({
           source,
           style,
           disableHitDetection: false,
-          visible: false
-        })
-        this[_map].addLayer(newLayer)
-        this[_map].removeLayer(annotationGroup.layer)
-        annotationGroup.layer.dispose()
-        annotationGroup.layer = newLayer
+          visible: false,
+        });
+        this[_map].addLayer(newLayer);
+        this[_map].removeLayer(annotationGroup.layer);
+        annotationGroup.layer.dispose();
+        annotationGroup.layer = newLayer;
       }
     } else {
       if (styleOptions.color != null) {
@@ -3598,23 +3570,23 @@ class VolumeImageViewer {
               ['get', 'selected'],
               1,
               rgb2hex(this[_options].highlightColor),
-              rgb2hex(annotationGroup.style.color)
+              rgb2hex(annotationGroup.style.color),
             ],
-            opacity: annotationGroup.style.opacity
-          }
-        }
+            opacity: annotationGroup.style.opacity,
+          },
+        };
         const newLayer = new PointsLayer({
           source,
           style,
           disableHitDetection: false,
-          visible: false
-        })
-        this[_map].addLayer(newLayer)
-        this[_map].removeLayer(annotationGroup.layer)
-        const isVisible = annotationGroup.layer.getVisible()
-        annotationGroup.layer.dispose()
-        annotationGroup.layer = newLayer
-        annotationGroup.layer.setVisible(isVisible)
+          visible: false,
+        });
+        this[_map].addLayer(newLayer);
+        this[_map].removeLayer(annotationGroup.layer);
+        const isVisible = annotationGroup.layer.getVisible();
+        annotationGroup.layer.dispose();
+        annotationGroup.layer = newLayer;
+        annotationGroup.layer.setVisible(isVisible);
       }
     }
   }
@@ -3627,18 +3599,18 @@ class VolumeImageViewer {
    *
    * @returns {Object} - Default style settings
    */
-  getAnnotationGroupDefaultStyle (annotationGroupUID) {
+  getAnnotationGroupDefaultStyle(annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
       throw new Error(
         'Cannot get default style of annotation group. ' +
-        `Could not find annotation group "${annotationGroupUID}".`
-      )
+          `Could not find annotation group "${annotationGroupUID}".`
+      );
     }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    const annotationGroup = this[_annotationGroups][annotationGroupUID];
     return {
       opacity: annotationGroup.defaultStyle.opacity,
-      color: annotationGroup.defaultStyle.color
-    }
+      color: annotationGroup.defaultStyle.color,
+    };
   }
 
   /**
@@ -3649,18 +3621,18 @@ class VolumeImageViewer {
    *
    * @returns {Object} - Style settings
    */
-  getAnnotationGroupStyle (annotationGroupUID) {
+  getAnnotationGroupStyle(annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
       throw new Error(
         'Cannot get style of annotation group. ' +
-        `Could not find annotation group "${annotationGroupUID}".`
-      )
+          `Could not find annotation group "${annotationGroupUID}".`
+      );
     }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+    const annotationGroup = this[_annotationGroups][annotationGroupUID];
     return {
       opacity: annotationGroup.style.opacity,
-      color: annotationGroup.style.color
-    }
+      color: annotationGroup.style.color,
+    };
   }
 
   /**
@@ -3668,12 +3640,12 @@ class VolumeImageViewer {
    *
    * @returns {annotation.AnnotationGroup[]}
    */
-  getAllAnnotationGroups () {
-    const groups = []
+  getAllAnnotationGroups() {
+    const groups = [];
     for (const annotationGroupUID in this[_annotationGroups]) {
-      groups.push(this[_annotationGroups][annotationGroupUID].annotationGroup)
+      groups.push(this[_annotationGroups][annotationGroupUID].annotationGroup);
     }
-    return groups
+    return groups;
   }
 
   /**
@@ -3684,15 +3656,15 @@ class VolumeImageViewer {
    * @returns {metadata.MicroscopyBulkSimpleAnnotations} - Metadata of DICOM
    * Microscopy Bulk Simple Annotations instance
    */
-  getAnnotationGroupMetadata (annotationGroupUID) {
+  getAnnotationGroupMetadata(annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
       throw new Error(
         'Cannot get metadata of annotation group. ' +
-        `Could not find annotation group "${annotationGroupUID}".`
-      )
+          `Could not find annotation group "${annotationGroupUID}".`
+      );
     }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    return annotationGroup.metadata
+    const annotationGroup = this[_annotationGroups][annotationGroupUID];
+    return annotationGroup.metadata;
   }
 
   /**
@@ -3700,40 +3672,42 @@ class VolumeImageViewer {
    *
    * @param {metadata.Segmentation[]} metadata - Metadata of one or more DICOM Segmentation instances
    */
-  addSegments (metadata) {
+  addSegments(metadata) {
     if (metadata.length === 0) {
       throw new Error(
         'Metadata of Segmentation instances needs to be provided to ' +
-        'add segments.'
-      )
+          'add segments.'
+      );
     }
-    const refSegmentation = metadata[0]
-    const refImage = this[_pyramid].metadata[0]
-    metadata.forEach(instance => {
+    const refSegmentation = metadata[0];
+    const refImage = this[_pyramid].metadata[0];
+    metadata.forEach((instance) => {
       if (
         instance.TotalPixelMatrixColumns === undefined ||
         instance.TotalPixelMatrixRows === undefined
       ) {
         throw new Error(
           'Segmentation instances must contain attributes ' +
-          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
-        )
+            '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
+        );
       }
       if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
         throw new Error(
           'Segmentation instances must have the same Frame of Reference UID ' +
-          'as the corresponding source images.'
-        )
+            'as the corresponding source images.'
+        );
       }
-      if (refSegmentation.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+      if (
+        refSegmentation.FrameOfReferenceUID !== instance.FrameOfReferenceUID
+      ) {
         throw new Error(
           'Segmentation instances must all have same Frame of Reference UID.'
-        )
+        );
       }
       if (refSegmentation.SeriesInstanceUID !== instance.SeriesInstanceUID) {
         throw new Error(
           'Segmentation instances must all have same Series Instance UID.'
-        )
+        );
       }
       if (
         refSegmentation.SegmentSequence.length !==
@@ -3741,58 +3715,58 @@ class VolumeImageViewer {
       ) {
         throw new Error(
           'Segmentation instances must all contain the same number of items ' +
-          'in the Segment Sequence.'
-        )
+            'in the Segment Sequence.'
+        );
       }
-    })
+    });
     console.info(
       'add segments of Segmentation instances of series ' +
-      `"${refSegmentation.SeriesInstanceUID}"`
-    )
+        `"${refSegmentation.SeriesInstanceUID}"`
+    );
 
-    const pyramid = _computeImagePyramid({ metadata })
+    const pyramid = _computeImagePyramid({metadata});
     const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
       pyramid,
       this[_pyramid]
-    )
+    );
 
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
       origins: fittedPyramid.origins,
       resolutions: fittedPyramid.resolutions,
       sizes: fittedPyramid.gridSizes,
-      tileSizes: fittedPyramid.tileSizes
-    })
+      tileSizes: fittedPyramid.tileSizes,
+    });
 
-    let minStoredValue = 0
-    let maxStoredValue = 255
+    let minStoredValue = 0;
+    let maxStoredValue = 255;
     if (refSegmentation.SegmentationType === 'BINARY') {
-      minStoredValue = 0
-      maxStoredValue = 1
+      minStoredValue = 0;
+      maxStoredValue = 1;
     }
 
     refSegmentation.SegmentSequence.forEach((item, index) => {
-      const segmentNumber = Number(item.SegmentNumber)
-      console.info(`add segment #${segmentNumber}`)
+      const segmentNumber = Number(item.SegmentNumber);
+      console.info(`add segment #${segmentNumber}`);
       let segmentUID = _generateUID({
-        value: refSegmentation.SOPInstanceUID + segmentNumber.toString()
-      })
+        value: refSegmentation.SOPInstanceUID + segmentNumber.toString(),
+      });
       if (item.TrackingUID != null) {
-        segmentUID = item.TrackingUID
+        segmentUID = item.TrackingUID;
       }
 
       const colormap = createColormap({
         name: ColormapNames.VIRIDIS,
-        bins: Math.pow(2, 8)
-      })
+        bins: Math.pow(2, 8),
+      });
 
       const defaultSegmentStyle = {
         opacity: 0.75,
         paletteColorLookupTable: buildPaletteColorLookupTable({
           data: colormap,
-          firstValueMapped: 0
-        })
-      }
+          firstValueMapped: 0,
+        }),
+      };
 
       const segment = {
         segment: new Segment({
@@ -3805,16 +3779,16 @@ class VolumeImageViewer {
           propertyType: item.SegmentedPropertyTypeCodeSequence[0],
           studyInstanceUID: refSegmentation.StudyInstanceUID,
           seriesInstanceUID: refSegmentation.SeriesInstanceUID,
-          sopInstanceUIDs: pyramid.metadata.map(element => {
-            return element.SOPInstanceUID
-          })
+          sopInstanceUIDs: pyramid.metadata.map((element) => {
+            return element.SOPInstanceUID;
+          }),
         }),
         pyramid,
-        style: { ...defaultSegmentStyle },
+        style: {...defaultSegmentStyle},
         defaultStyle: defaultSegmentStyle,
         overlay: new Overlay({
           element: document.createElement('div'),
-          offset: [5 + 5 * index + 2, 5]
+          offset: [5 + 5 * index + 2, 5],
         }),
         minStoredValue,
         maxStoredValue,
@@ -3823,26 +3797,26 @@ class VolumeImageViewer {
         loaderParams: {
           pyramid: fittedPyramid,
           client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
-          channel: segmentNumber
+          channel: segmentNumber,
         },
-        hasLoader: false
-      }
+        hasLoader: false,
+      };
 
       const source = new DataTileSource({
         tileGrid,
         projection: this[_projection],
         wrapX: false,
         bandCount: 1,
-        interpolate: true
-      })
+        interpolate: true,
+      });
       source.on('tileloaderror', (event) => {
-        console.error(`error loading tile of segment "${segmentUID}"`, event)
-      })
+        console.error(`error loading tile of segment "${segmentUID}"`, event);
+      });
 
       const [windowCenter, windowWidth] = createWindow(
         minStoredValue,
         maxStoredValue
-      )
+      );
       segment.layer = new TileLayer({
         source,
         extent: this[_pyramid].extent,
@@ -3853,24 +3827,23 @@ class VolumeImageViewer {
         style: _getColorPaletteStyleForTileLayer({
           windowCenter,
           windowWidth,
-          colormap: segment.style.paletteColorLookupTable.data
+          colormap: segment.style.paletteColorLookupTable.data,
         }),
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
-        minResolution: (
+        minResolution:
           minZoomLevel > 0
             ? this[_pyramid].resolutions[minZoomLevel]
-            : undefined
-        )
-      })
+            : undefined,
+      });
       segment.layer.on('error', (event) => {
-        console.error(`error rendering segment "${segmentUID}"`, event)
-      })
+        console.error(`error rendering segment "${segmentUID}"`, event);
+      });
 
-      this[_map].addLayer(segment.layer)
+      this[_map].addLayer(segment.layer);
 
-      this[_segments][segmentUID] = segment
-    })
+      this[_segments][segmentUID] = segment;
+    });
   }
 
   /**
@@ -3878,26 +3851,26 @@ class VolumeImageViewer {
    *
    * @param {string} segmentUID - Unique tracking identifier of a segment
    */
-  removeSegment (segmentUID) {
+  removeSegment(segmentUID) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         `Cannot remove segment. Could not find segment "${segmentUID}".`
-      )
+      );
     }
-    const segment = this[_segments][segmentUID]
-    this[_map].removeLayer(segment.layer)
-    segment.layer.dispose()
-    this[_map].removeOverlay(segment.overlay)
-    delete this[_segments][segmentUID]
+    const segment = this[_segments][segmentUID];
+    this[_map].removeLayer(segment.layer);
+    segment.layer.dispose();
+    this[_map].removeOverlay(segment.overlay);
+    delete this[_segments][segmentUID];
   }
 
   /**
    * Remove all segments.
    */
-  removeAllSegments () {
-    Object.keys(this[_segments]).forEach(segmentUID => {
-      this.removeSegment(segmentUID)
-    })
+  removeAllSegments() {
+    Object.keys(this[_segments]).forEach((segmentUID) => {
+      this.removeSegment(segmentUID);
+    });
   }
 
   /**
@@ -3907,37 +3880,37 @@ class VolumeImageViewer {
    * @param {Object} [styleOptions]
    * @param {number} [styleOptions.opacity] - Opacity
    */
-  showSegment (segmentUID, styleOptions = {}) {
+  showSegment(segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         `Cannot show segment. Could not find segment "${segmentUID}".`
-      )
+      );
     }
-    const segment = this[_segments][segmentUID]
-    console.info(`show segment ${segmentUID}`)
+    const segment = this[_segments][segmentUID];
+    console.info(`show segment ${segmentUID}`);
 
-    const container = this[_map].getTargetElement()
+    const container = this[_map].getTargetElement();
     if (container && !segment.hasLoader) {
       const loader = _createTileLoadFunction({
         targetElement: container,
         iccProfiles: [],
-        ...segment.loaderParams
-      })
-      const source = segment.layer.getSource()
-      source.setLoader(loader)
+        ...segment.loaderParams,
+      });
+      const source = segment.layer.getSource();
+      source.setLoader(loader);
     }
 
-    const view = this[_map].getView()
-    const currentZoomLevel = view.getZoom()
+    const view = this[_map].getView();
+    const currentZoomLevel = view.getZoom();
     if (
       currentZoomLevel < segment.minZoomLevel ||
       currentZoomLevel > segment.maxZoomLevel
     ) {
-      view.animate({ zoom: segment.minZoomLevel })
+      view.animate({zoom: segment.minZoomLevel});
     }
 
-    segment.layer.setVisible(true)
-    this.setSegmentStyle(segmentUID, styleOptions)
+    segment.layer.setVisible(true);
+    this.setSegmentStyle(segmentUID, styleOptions);
   }
 
   /**
@@ -3945,16 +3918,16 @@ class VolumeImageViewer {
    *
    * @param {string} segmentUID - Unique tracking identifier of a segment
    */
-  hideSegment (segmentUID) {
+  hideSegment(segmentUID) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         `Cannot hide segment. Could not find segment "${segmentUID}".`
-      )
+      );
     }
-    const segment = this[_segments][segmentUID]
-    console.info(`hide segment ${segmentUID}`)
-    segment.layer.setVisible(false)
-    this[_map].removeOverlay(segment.overlay)
+    const segment = this[_segments][segmentUID];
+    console.info(`hide segment ${segmentUID}`);
+    segment.layer.setVisible(false);
+    this[_map].removeOverlay(segment.overlay);
   }
 
   /**
@@ -3963,15 +3936,15 @@ class VolumeImageViewer {
    * @param {string} segmentUID - Unique tracking identifier of a segment
    * @returns {boolean}
    */
-  isSegmentVisible (segmentUID) {
+  isSegmentVisible(segmentUID) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         'Cannot determine if segment is visible. ' +
-        `Could not find segment "${segmentUID}".`
-      )
+          `Could not find segment "${segmentUID}".`
+      );
     }
-    const segment = this[_segments][segmentUID]
-    return segment.layer.getVisible()
+    const segment = this[_segments][segmentUID];
+    return segment.layer.getVisible();
   }
 
   /**
@@ -3981,61 +3954,61 @@ class VolumeImageViewer {
    * @param {Object} styleOptions - Style options
    * @param {number} [styleOptions.opacity] - Opacity
    */
-  setSegmentStyle (segmentUID, styleOptions = {}) {
+  setSegmentStyle(segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         'Cannot set style of segment. ' +
-        `Could not find segment "${segmentUID}".`
-      )
+          `Could not find segment "${segmentUID}".`
+      );
     }
-    const segment = this[_segments][segmentUID]
+    const segment = this[_segments][segmentUID];
 
     if (styleOptions.opacity != null) {
-      segment.style.opacity = styleOptions.opacity
-      segment.layer.setOpacity(styleOptions.opacity)
+      segment.style.opacity = styleOptions.opacity;
+      segment.layer.setOpacity(styleOptions.opacity);
     }
 
-    let title = segment.segment.propertyType.CodeMeaning
-    const padding = Math.round((16 - title.length) / 2)
-    title = title.padStart(title.length + padding)
-    title = title.padEnd(title.length + 2 * padding)
-    const overlayElement = segment.overlay.getElement()
-    overlayElement.innerHTML = title
-    overlayElement.style = {}
-    overlayElement.style.display = 'flex'
-    overlayElement.style.flexDirection = 'column'
-    overlayElement.style.justifyContent = 'center'
-    overlayElement.style.padding = '4px'
-    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
-    overlayElement.style.borderRadius = '4px'
-    overlayElement.style.margin = '1px'
-    overlayElement.style.color = 'black'
-    overlayElement.style.fontWeight = '600'
-    overlayElement.style.fontSize = '12px'
-    overlayElement.style.textAlign = 'center'
+    let title = segment.segment.propertyType.CodeMeaning;
+    const padding = Math.round((16 - title.length) / 2);
+    title = title.padStart(title.length + padding);
+    title = title.padEnd(title.length + 2 * padding);
+    const overlayElement = segment.overlay.getElement();
+    overlayElement.innerHTML = title;
+    overlayElement.style = {};
+    overlayElement.style.display = 'flex';
+    overlayElement.style.flexDirection = 'column';
+    overlayElement.style.justifyContent = 'center';
+    overlayElement.style.padding = '4px';
+    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)';
+    overlayElement.style.borderRadius = '4px';
+    overlayElement.style.margin = '1px';
+    overlayElement.style.color = 'black';
+    overlayElement.style.fontWeight = '600';
+    overlayElement.style.fontSize = '12px';
+    overlayElement.style.textAlign = 'center';
 
-    const canvas = document.createElement('canvas')
-    const context = canvas.getContext('2d')
-    const height = 30
-    const width = 15
-    context.canvas.height = height
-    context.canvas.width = width
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    const height = 30;
+    const width = 15;
+    context.canvas.height = height;
+    context.canvas.width = width;
 
-    const colors = segment.style.paletteColorLookupTable.data
+    const colors = segment.style.paletteColorLookupTable.data;
     for (let j = 0; j < colors.length; j++) {
-      const color = colors[colors.length - j - 1]
-      const r = color[0]
-      const g = color[1]
-      const b = color[2]
-      context.fillStyle = `rgb(${r}, ${g}, ${b})`
-      context.fillRect(0, height / colors.length * j, width, 1)
+      const color = colors[colors.length - j - 1];
+      const r = color[0];
+      const g = color[1];
+      const b = color[2];
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      context.fillRect(0, (height / colors.length) * j, width, 1);
     }
-    overlayElement.appendChild(canvas)
+    overlayElement.appendChild(canvas);
 
-    const parentElement = overlayElement.parentNode
-    parentElement.style.display = 'inline'
+    const parentElement = overlayElement.parentNode;
+    parentElement.style.display = 'inline';
 
-    this[_map].addOverlay(segment.overlay)
+    this[_map].addOverlay(segment.overlay);
   }
 
   /**
@@ -4045,18 +4018,18 @@ class VolumeImageViewer {
    *
    * @returns {Object} Default style settings
    */
-  getSegmentDefaultStyle (segmentUID) {
+  getSegmentDefaultStyle(segmentUID) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         'Cannot get default style of segment. ' +
-        `Could not find segment "${segmentUID}".`
-      )
+          `Could not find segment "${segmentUID}".`
+      );
     }
-    const segment = this[_segments][segmentUID]
+    const segment = this[_segments][segmentUID];
     return {
       opacity: segment.defaultStyle.opacity,
-      paletteColorLookupTable: segment.defaultStyle.paletteColorLookupTable
-    }
+      paletteColorLookupTable: segment.defaultStyle.paletteColorLookupTable,
+    };
   }
 
   /**
@@ -4066,18 +4039,18 @@ class VolumeImageViewer {
    *
    * @returns {Object} Style settings
    */
-  getSegmentStyle (segmentUID) {
+  getSegmentStyle(segmentUID) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         'Cannot get style of segment. ' +
-        `Could not find segment "${segmentUID}".`
-      )
+          `Could not find segment "${segmentUID}".`
+      );
     }
-    const segment = this[_segments][segmentUID]
+    const segment = this[_segments][segmentUID];
     return {
       opacity: segment.style.opacity,
-      paletteColorLookupTable: segment.style.paletteColorLookupTable
-    }
+      paletteColorLookupTable: segment.style.paletteColorLookupTable,
+    };
   }
 
   /**
@@ -4087,15 +4060,15 @@ class VolumeImageViewer {
    *
    * @returns {metadata.Segmentation[]} Metadata of DICOM Segmentation instances
    */
-  getSegmentMetadata (segmentUID) {
+  getSegmentMetadata(segmentUID) {
     if (!(segmentUID in this[_segments])) {
       throw new Error(
         'Cannot get image metadata of segment. ' +
-        `Could not find segment "${segmentUID}".`
-      )
+          `Could not find segment "${segmentUID}".`
+      );
     }
-    const segment = this[_segments][segmentUID]
-    return segment.pyramid.metadata
+    const segment = this[_segments][segmentUID];
+    return segment.pyramid.metadata;
   }
 
   /**
@@ -4103,12 +4076,12 @@ class VolumeImageViewer {
    *
    * @return {segment.Segment[]}
    */
-  getAllSegments () {
-    const segments = []
+  getAllSegments() {
+    const segments = [];
     for (const segmentUID in this[_segments]) {
-      segments.push(this[_segments][segmentUID].segment)
+      segments.push(this[_segments][segmentUID].segment);
     }
-    return segments
+    return segments;
   }
 
   /**
@@ -4116,157 +4089,159 @@ class VolumeImageViewer {
    *
    * @param {metadata.ParametricMap[]} metadata - Metadata of one or more DICOM Parametric Map instances
    */
-  addParameterMappings (metadata) {
+  addParameterMappings(metadata) {
     if (metadata.length === 0) {
       throw new Error(
         'Metadata of Parametric Map instances needs to be provided to ' +
-        'add mappings.'
-      )
+          'add mappings.'
+      );
     }
 
-    const refImage = this[_pyramid].metadata[0]
-    const refParametricMap = metadata[0]
+    const refImage = this[_pyramid].metadata[0];
+    const refParametricMap = metadata[0];
     if (refParametricMap.ContentLabel !== 'HEATMAP') {
       console.warn(
         'skip mappings because value of "Content Label" attribute of ' +
-        'Parametric Map instances is not "HEATMAP"'
-      )
-      return
+          'Parametric Map instances is not "HEATMAP"'
+      );
+      return;
     }
 
-    metadata.forEach(instance => {
+    metadata.forEach((instance) => {
       if (
         instance.TotalPixelMatrixColumns === undefined ||
         instance.TotalPixelMatrixRows === undefined
       ) {
         throw new Error(
           'Parametric Map instances must contain attributes ' +
-          '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
-        )
+            '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
+        );
       }
       if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
         throw new Error(
           'Parametric Map instances must have the same Frame of Reference UID ' +
-          'as the corresponding source images.'
-        )
+            'as the corresponding source images.'
+        );
       }
-      if (refParametricMap.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
+      if (
+        refParametricMap.FrameOfReferenceUID !== instance.FrameOfReferenceUID
+      ) {
         throw new Error(
           'Parametric Map instances must all have same Frame of Reference UID.'
-        )
+        );
       }
       if (refParametricMap.SeriesInstanceUID !== instance.SeriesInstanceUID) {
         throw new Error(
           'Parametric Map instances must all have same Series Instance UID.'
-        )
+        );
       }
-    })
+    });
     console.info(
       'add mappings of Parametric Map instances of series ' +
-      `"${refParametricMap.SeriesInstanceUID}"`
-    )
+        `"${refParametricMap.SeriesInstanceUID}"`
+    );
 
-    const pyramid = _computeImagePyramid({ metadata })
+    const pyramid = _computeImagePyramid({metadata});
     const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
       pyramid,
       this[_pyramid]
-    )
+    );
 
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
       origins: fittedPyramid.origins,
       resolutions: fittedPyramid.resolutions,
       sizes: fittedPyramid.gridSizes,
-      tileSizes: fittedPyramid.tileSizes
-    })
+      tileSizes: fittedPyramid.tileSizes,
+    });
 
-    const refInstance = pyramid.metadata[0]
+    const refInstance = pyramid.metadata[0];
 
-    const sharedFuncGroup = refInstance.SharedFunctionalGroupsSequence[0]
-    const frameVOILUT = sharedFuncGroup.FrameVOILUTSequence[0]
+    const sharedFuncGroup = refInstance.SharedFunctionalGroupsSequence[0];
+    const frameVOILUT = sharedFuncGroup.FrameVOILUTSequence[0];
     if (frameVOILUT === undefined) {
       throw new Error(
         'The Parametric Map image does not specify a shared frame ' +
-        'Value of Interest (VOI) lookup table (LUT).'
-      )
+          'Value of Interest (VOI) lookup table (LUT).'
+      );
     }
-    const windowCenter = frameVOILUT.WindowCenter
-    const windowWidth = frameVOILUT.WindowWidth
+    const windowCenter = frameVOILUT.WindowCenter;
+    const windowWidth = frameVOILUT.WindowWidth;
 
-    const { mappingNumberToDescriptions } = _groupFramesPerMapping(refInstance)
+    const {mappingNumberToDescriptions} = _groupFramesPerMapping(refInstance);
 
-    let index = 0
+    let index = 0;
     for (const mappingNumber in mappingNumberToDescriptions) {
-      const mappingDescriptions = mappingNumberToDescriptions[mappingNumber]
-      const refItem = mappingDescriptions[0]
-      const mappingLabel = refItem.LUTLabel
-      const mappingExplanation = refItem.LUTExplanation
+      const mappingDescriptions = mappingNumberToDescriptions[mappingNumber];
+      const refItem = mappingDescriptions[0];
+      const mappingLabel = refItem.LUTLabel;
+      const mappingExplanation = refItem.LUTExplanation;
       let mappingUID = _generateUID({
-        value: refInstance.SOPInstanceUID + mappingLabel
-      })
+        value: refInstance.SOPInstanceUID + mappingLabel,
+      });
       if (refItem.TrackingUID != null) {
-        mappingUID = refItem.TrackingUID
+        mappingUID = refItem.TrackingUID;
       }
 
-      const range = [NaN, NaN]
+      const range = [NaN, NaN];
       mappingDescriptions.forEach((item, i) => {
         if (item.TrackingUID != null) {
           if (item.TrackingUID !== mappingUID) {
             throw new Error(
               `Item #${i + 1} of Real World Value Mapping Sequence ` +
-              `of frame #${index + 1} has unexpected Tracking UID. ` +
-              'All items must have the same unique identifier value.'
-            )
+                `of frame #${index + 1} has unexpected Tracking UID. ` +
+                'All items must have the same unique identifier value.'
+            );
           }
         }
-        let firstValueMapped = item.RealWorldValueFirstValueMapped
-        let lastValueMapped = item.RealWorldValueLastValueMapped
+        let firstValueMapped = item.RealWorldValueFirstValueMapped;
+        let lastValueMapped = item.RealWorldValueLastValueMapped;
         if (firstValueMapped === undefined && lastValueMapped === undefined) {
-          firstValueMapped = item.DoubleFloatRealWorldValueFirstValueMapped
-          lastValueMapped = item.DoubleFloatRealWorldValueLastValueMapped
+          firstValueMapped = item.DoubleFloatRealWorldValueFirstValueMapped;
+          lastValueMapped = item.DoubleFloatRealWorldValueLastValueMapped;
         }
-        const intercept = item.RealWorldValueIntercept
-        const slope = item.RealWorldValueSlope
-        const lowerBound = firstValueMapped * slope + intercept
-        const upperBound = lastValueMapped * slope + intercept
+        const intercept = item.RealWorldValueIntercept;
+        const slope = item.RealWorldValueSlope;
+        const lowerBound = firstValueMapped * slope + intercept;
+        const upperBound = lastValueMapped * slope + intercept;
         if (i === 0) {
-          range[0] = lowerBound
-          range[1] = upperBound
+          range[0] = lowerBound;
+          range[1] = upperBound;
         } else {
-          range[0] = Math.min(range[0], lowerBound)
-          range[1] = Math.max(range[1], upperBound)
+          range[0] = Math.min(range[0], lowerBound);
+          range[1] = Math.max(range[1], upperBound);
         }
-      })
+      });
 
       // TODO: include real world values in legend
       if (isNaN(range[0]) || isNaN(range[1])) {
-        throw new Error('Could not determine range of real world values.')
+        throw new Error('Could not determine range of real world values.');
       }
 
-      let colormap
-      const isFloatPixelData = refInstance.BitsAllocated > 16
-      let minStoredValue = 0
-      let maxStoredValue = Math.pow(2, refInstance.BitsAllocated) - 1
+      let colormap;
+      const isFloatPixelData = refInstance.BitsAllocated > 16;
+      let minStoredValue = 0;
+      let maxStoredValue = Math.pow(2, refInstance.BitsAllocated) - 1;
       if (isFloatPixelData) {
-        minStoredValue = -(Math.pow(2, refInstance.BitsAllocated) - 1) / 2
-        maxStoredValue = (Math.pow(2, refInstance.BitsAllocated) - 1) / 2
+        minStoredValue = -(Math.pow(2, refInstance.BitsAllocated) - 1) / 2;
+        maxStoredValue = (Math.pow(2, refInstance.BitsAllocated) - 1) / 2;
       }
       if (refInstance.PixelPresentation === 'MONOCHROME') {
         colormap = createColormap({
           name: ColormapNames.MAGMA,
-          bins: Math.pow(2, 8)
-        })
+          bins: Math.pow(2, 8),
+        });
       } else {
         if (range[0] < 0 && range[1] > 0) {
           colormap = createColormap({
             name: ColormapNames.BLUE_RED,
-            bins: Math.pow(2, 8)
-          })
+            bins: Math.pow(2, 8),
+          });
         } else {
           colormap = createColormap({
             name: ColormapNames.HOT,
-            bins: Math.pow(2, 8)
-          })
+            bins: Math.pow(2, 8),
+          });
         }
       }
 
@@ -4274,13 +4249,13 @@ class VolumeImageViewer {
         opacity: 1.0,
         limitValues: [
           Math.ceil(windowCenter - windowWidth / 2),
-          Math.floor(windowCenter + windowWidth / 2)
+          Math.floor(windowCenter + windowWidth / 2),
         ],
         paletteColorLookupTable: buildPaletteColorLookupTable({
           data: colormap,
-          firstValueMapped: 0
-        })
-      }
+          firstValueMapped: 0,
+        }),
+      };
 
       const mapping = {
         mapping: new ParameterMapping({
@@ -4290,16 +4265,16 @@ class VolumeImageViewer {
           description: mappingExplanation,
           studyInstanceUID: refInstance.StudyInstanceUID,
           seriesInstanceUID: refInstance.SeriesInstanceUID,
-          sopInstanceUIDs: pyramid.metadata.map(element => {
-            return element.SOPInstanceUID
-          })
+          sopInstanceUIDs: pyramid.metadata.map((element) => {
+            return element.SOPInstanceUID;
+          }),
         }),
         pyramid,
         overlay: new Overlay({
           element: document.createElement('div'),
-          offset: [5 + 100 * index + 2, 5]
+          offset: [5 + 100 * index + 2, 5],
         }),
-        style: { ...defaultMappingStyle },
+        style: {...defaultMappingStyle},
         defaultStyle: defaultMappingStyle,
         minStoredValue,
         maxStoredValue,
@@ -4308,21 +4283,21 @@ class VolumeImageViewer {
         loaderParams: {
           pyramid: fittedPyramid,
           client: _getClient(this[_clients], Enums.SOPClassUIDs.PARAMETRIC_MAP),
-          channel: mappingNumber
+          channel: mappingNumber,
         },
-        hasLoader: false
-      }
+        hasLoader: false,
+      };
 
       const source = new DataTileSource({
         tileGrid,
         projection: this[_projection],
         wrapX: false,
         bandCount: 1,
-        interpolate: true
-      })
+        interpolate: true,
+      });
       source.on('tileloaderror', (event) => {
-        console.error(`error loading tile of mapping "${mappingUID}"`, event)
-      })
+        console.error(`error loading tile of mapping "${mappingUID}"`, event);
+      });
 
       mapping.layer = new TileLayer({
         source,
@@ -4335,17 +4310,17 @@ class VolumeImageViewer {
         style: _getColorPaletteStyleForTileLayer({
           windowCenter,
           windowWidth,
-          colormap: mapping.style.paletteColorLookupTable.data
-        })
-      })
+          colormap: mapping.style.paletteColorLookupTable.data,
+        }),
+      });
       mapping.layer.on('error', (event) => {
-        console.error(`error rendering mapping "${mappingUID}"`, event)
-      })
-      this[_map].addLayer(mapping.layer)
+        console.error(`error rendering mapping "${mappingUID}"`, event);
+      });
+      this[_map].addLayer(mapping.layer);
 
-      this[_mappings][mappingUID] = mapping
+      this[_mappings][mappingUID] = mapping;
 
-      index += 1
+      index += 1;
     }
   }
 
@@ -4354,26 +4329,26 @@ class VolumeImageViewer {
    *
    * @param {string} mappingUID - Unique tracking identifier of a mapping
    */
-  removeParameterMapping (mappingUID) {
+  removeParameterMapping(mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         `Cannot remove mapping. Could not find mapping "${mappingUID}".`
-      )
+      );
     }
-    const mapping = this[_mappings][mappingUID]
-    this[_map].removeLayer(mapping.layer)
-    mapping.layer.dispose()
-    this[_map].removeOverlay(mapping.overlay)
-    delete this[_mappings][mappingUID]
+    const mapping = this[_mappings][mappingUID];
+    this[_map].removeLayer(mapping.layer);
+    mapping.layer.dispose();
+    this[_map].removeOverlay(mapping.overlay);
+    delete this[_mappings][mappingUID];
   }
 
   /**
    * Remove all parameter mappings.
    */
-  removeAllParameterMappings () {
-    Object.keys(this[_mappings]).forEach(mappingUID => {
-      this.removeParameterMapping(mappingUID)
-    })
+  removeAllParameterMappings() {
+    Object.keys(this[_mappings]).forEach((mappingUID) => {
+      this.removeParameterMapping(mappingUID);
+    });
   }
 
   /**
@@ -4384,37 +4359,37 @@ class VolumeImageViewer {
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.limitValues] - Upper and lower windowing
    */
-  showParameterMapping (mappingUID, styleOptions = {}) {
+  showParameterMapping(mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         `Cannot show mapping. Could not find mapping "${mappingUID}".`
-      )
+      );
     }
-    const mapping = this[_mappings][mappingUID]
-    console.info(`show mapping ${mappingUID}`)
+    const mapping = this[_mappings][mappingUID];
+    console.info(`show mapping ${mappingUID}`);
 
-    const container = this[_map].getTargetElement()
+    const container = this[_map].getTargetElement();
     if (container && !mapping.hasLoader) {
       const loader = _createTileLoadFunction({
         targetElement: container,
         iccProfiles: [],
-        ...mapping.loaderParams
-      })
-      const source = mapping.layer.getSource()
-      source.setLoader(loader)
+        ...mapping.loaderParams,
+      });
+      const source = mapping.layer.getSource();
+      source.setLoader(loader);
     }
 
-    const view = this[_map].getView()
-    const currentZoomLevel = view.getZoom()
+    const view = this[_map].getView();
+    const currentZoomLevel = view.getZoom();
     if (
       currentZoomLevel < mapping.minZoomLevel ||
       currentZoomLevel > mapping.maxZoomLevel
     ) {
-      view.animate({ zoom: mapping.minZoomLevel })
+      view.animate({zoom: mapping.minZoomLevel});
     }
 
-    mapping.layer.setVisible(true)
-    this.setParameterMappingStyle(mappingUID, styleOptions)
+    mapping.layer.setVisible(true);
+    this.setParameterMappingStyle(mappingUID, styleOptions);
   }
 
   /**
@@ -4422,16 +4397,16 @@ class VolumeImageViewer {
    *
    * @param {string} mappingUID - Unique tracking identifier of a mapping
    */
-  hideParameterMapping (mappingUID) {
+  hideParameterMapping(mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         `Cannot hide mapping. Could not find mapping "${mappingUID}".`
-      )
+      );
     }
-    const mapping = this[_mappings][mappingUID]
-    console.info(`hide mapping ${mappingUID}`)
-    mapping.layer.setVisible(false)
-    this[_map].removeOverlay(mapping.overlay)
+    const mapping = this[_mappings][mappingUID];
+    console.info(`hide mapping ${mappingUID}`);
+    mapping.layer.setVisible(false);
+    this[_map].removeOverlay(mapping.overlay);
   }
 
   /**
@@ -4440,15 +4415,15 @@ class VolumeImageViewer {
    * @param {string} mappingUID - Unique tracking identifier of a mapping
    * @returns {boolean}
    */
-  isParameterMappingVisible (mappingUID) {
+  isParameterMappingVisible(mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot determine if mapping is visible. ' +
-        `Could not find mapping "${mappingUID}".`
-      )
+          `Could not find mapping "${mappingUID}".`
+      );
     }
-    const mapping = this[_mappings][mappingUID]
-    return mapping.layer.getVisible()
+    const mapping = this[_mappings][mappingUID];
+    return mapping.layer.getVisible();
   }
 
   /**
@@ -4459,76 +4434,76 @@ class VolumeImageViewer {
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.limitValues] - Upper and lower windowing
    */
-  setParameterMappingStyle (mappingUID, styleOptions = {}) {
+  setParameterMappingStyle(mappingUID, styleOptions = {}) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot set style of mapping. ' +
-        `Could not find mapping "${mappingUID}".`
-      )
+          `Could not find mapping "${mappingUID}".`
+      );
     }
-    const mapping = this[_mappings][mappingUID]
+    const mapping = this[_mappings][mappingUID];
 
     if (styleOptions.opacity != null) {
-      mapping.style.opacity = styleOptions.opacity
-      mapping.layer.setOpacity(styleOptions.opacity)
+      mapping.style.opacity = styleOptions.opacity;
+      mapping.layer.setOpacity(styleOptions.opacity);
     }
 
-    const styleVariables = {}
+    const styleVariables = {};
     if (styleOptions.limitValues != null) {
       mapping.style.limitValues = [
         Math.max(styleOptions.limitValues[0], mapping.minStoredValue),
-        Math.min(styleOptions.limitValues[1], mapping.maxStoredValue)
-      ]
+        Math.min(styleOptions.limitValues[1], mapping.maxStoredValue),
+      ];
       const [windowCenter, windowWidth] = createWindow(
         mapping.style.limitValues[0],
         mapping.style.limitValues[1]
-      )
-      styleVariables.windowCenter = windowCenter
-      styleVariables.windowWidth = windowWidth
-      mapping.layer.updateStyleVariables(styleVariables)
+      );
+      styleVariables.windowCenter = windowCenter;
+      styleVariables.windowWidth = windowWidth;
+      mapping.layer.updateStyleVariables(styleVariables);
     }
 
-    let title = mapping.mapping.label
-    const padding = Math.round((16 - title.length) / 2)
-    title = title.padStart(title.length + padding)
-    title = title.padEnd(title.length + 2 * padding)
-    const overlayElement = mapping.overlay.getElement()
-    overlayElement.innerHTML = title
-    overlayElement.style = {}
-    overlayElement.style.display = 'flex'
-    overlayElement.style.flexDirection = 'column'
-    overlayElement.style.justifyContent = 'center'
-    overlayElement.style.padding = '4px'
-    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
-    overlayElement.style.borderRadius = '4px'
-    overlayElement.style.margin = '1px'
-    overlayElement.style.color = 'black'
-    overlayElement.style.fontWeight = '600'
-    overlayElement.style.fontSize = '12px'
-    overlayElement.style.textAlign = 'center'
+    let title = mapping.mapping.label;
+    const padding = Math.round((16 - title.length) / 2);
+    title = title.padStart(title.length + padding);
+    title = title.padEnd(title.length + 2 * padding);
+    const overlayElement = mapping.overlay.getElement();
+    overlayElement.innerHTML = title;
+    overlayElement.style = {};
+    overlayElement.style.display = 'flex';
+    overlayElement.style.flexDirection = 'column';
+    overlayElement.style.justifyContent = 'center';
+    overlayElement.style.padding = '4px';
+    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)';
+    overlayElement.style.borderRadius = '4px';
+    overlayElement.style.margin = '1px';
+    overlayElement.style.color = 'black';
+    overlayElement.style.fontWeight = '600';
+    overlayElement.style.fontSize = '12px';
+    overlayElement.style.textAlign = 'center';
 
-    const canvas = document.createElement('canvas')
-    const context = canvas.getContext('2d')
-    const height = 30
-    const width = 15
-    context.canvas.height = height
-    context.canvas.width = width
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    const height = 30;
+    const width = 15;
+    context.canvas.height = height;
+    context.canvas.width = width;
 
-    const colors = mapping.style.paletteColorLookupTable.data
+    const colors = mapping.style.paletteColorLookupTable.data;
     for (let j = 0; j < colors.length; j++) {
-      const color = colors[colors.length - j - 1]
-      const r = color[0]
-      const g = color[1]
-      const b = color[2]
-      context.fillStyle = `rgb(${r}, ${g}, ${b})`
-      context.fillRect(0, height / colors.length * j, width, 1)
+      const color = colors[colors.length - j - 1];
+      const r = color[0];
+      const g = color[1];
+      const b = color[2];
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      context.fillRect(0, (height / colors.length) * j, width, 1);
     }
-    overlayElement.appendChild(canvas)
+    overlayElement.appendChild(canvas);
 
-    const parentElement = overlayElement.parentNode
-    parentElement.style.display = 'inline'
+    const parentElement = overlayElement.parentNode;
+    parentElement.style.display = 'inline';
 
-    this[_map].addOverlay(mapping.overlay)
+    this[_map].addOverlay(mapping.overlay);
   }
 
   /**
@@ -4537,19 +4512,19 @@ class VolumeImageViewer {
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @returns {Object} Default style Options
    */
-  getParameterMappingDefaultStyle (mappingUID) {
+  getParameterMappingDefaultStyle(mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot get default style of mapping. ' +
-        `Could not find mapping "${mappingUID}".`
-      )
+          `Could not find mapping "${mappingUID}".`
+      );
     }
-    const mapping = this[_mappings][mappingUID]
+    const mapping = this[_mappings][mappingUID];
     return {
       opacity: mapping.defaultStyle.opacity,
       limitValues: mapping.defaultStyle.limitValues,
-      paletteColorLookupTable: mapping.defaultStyle.paletteColorLookupTable
-    }
+      paletteColorLookupTable: mapping.defaultStyle.paletteColorLookupTable,
+    };
   }
 
   /**
@@ -4558,19 +4533,19 @@ class VolumeImageViewer {
    * @param {string} mappingUID - Unique tracking identifier of mapping
    * @returns {Object} Style Options
    */
-  getParameterMappingStyle (mappingUID) {
+  getParameterMappingStyle(mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot get style of mapping. ' +
-        `Could not find mapping "${mappingUID}".`
-      )
+          `Could not find mapping "${mappingUID}".`
+      );
     }
-    const mapping = this[_mappings][mappingUID]
+    const mapping = this[_mappings][mappingUID];
     return {
       opacity: mapping.style.opacity,
       limitValues: mapping.style.limitValues,
-      paletteColorLookupTable: mapping.style.paletteColorLookupTable
-    }
+      paletteColorLookupTable: mapping.style.paletteColorLookupTable,
+    };
   }
 
   /**
@@ -4581,15 +4556,15 @@ class VolumeImageViewer {
    * @returns {metadata.ParametricMap[]} Metadata of DICOM Parametric Map
    * instances
    */
-  getParameterMappingMetadata (mappingUID) {
+  getParameterMappingMetadata(mappingUID) {
     if (!(mappingUID in this[_mappings])) {
       throw new Error(
         'Cannot get image metadata of mapping. ' +
-        `Could not find mapping "${mappingUID}".`
-      )
+          `Could not find mapping "${mappingUID}".`
+      );
     }
-    const mapping = this[_mappings][mappingUID]
-    return mapping.pyramid.metadata
+    const mapping = this[_mappings][mappingUID];
+    return mapping.pyramid.metadata;
   }
 
   /**
@@ -4597,12 +4572,20 @@ class VolumeImageViewer {
    *
    * @return {mapping.ParameterMapping[]}
    */
-  getAllParameterMappings () {
-    const mappings = []
+  getAllParameterMappings() {
+    const mappings = [];
     for (const mappingUID in this[_mappings]) {
-      mappings.push(this[_mappings][mappingUID].mapping)
+      mappings.push(this[_mappings][mappingUID].mapping);
     }
-    return mappings
+    return mappings;
+  }
+  /**
+   * create strctured display
+   *
+   * @returns {void}
+   */
+  structuredDisplay() {
+    console.log('structured display');
   }
 }
 
@@ -4628,57 +4611,57 @@ class _NonVolumeImageViewer {
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile
    * should be included for correction of image colors.
    */
-  constructor (options) {
+  constructor(options) {
     // We also accept metadata in raw JSON format for backwards compatibility
     if (options.metadata.SOPClassUID != null) {
-      this[_metadata] = options.metadata
+      this[_metadata] = options.metadata;
     } else {
-      this[_metadata] = options.metadata.map(instance => {
-        return new VLWholeSlideMicroscopyImage({ metadata: instance })
-      })
+      this[_metadata] = options.metadata.map((instance) => {
+        return new VLWholeSlideMicroscopyImage({metadata: instance});
+      });
     }
 
-    const imageFlavor = this[_metadata].ImageType[2]
+    const imageFlavor = this[_metadata].ImageType[2];
     if (imageFlavor === 'VOLUME') {
-      throw new Error('Viewer cannot render images of type VOLUME.')
+      throw new Error('Viewer cannot render images of type VOLUME.');
     }
 
-    const resizeFactor = options.resizeFactor ? options.resizeFactor : 1
-    const height = this[_metadata].TotalPixelMatrixRows * resizeFactor
-    const width = this[_metadata].TotalPixelMatrixColumns * resizeFactor
+    const resizeFactor = options.resizeFactor ? options.resizeFactor : 1;
+    const height = this[_metadata].TotalPixelMatrixRows * resizeFactor;
+    const width = this[_metadata].TotalPixelMatrixColumns * resizeFactor;
     const extent = [
       0, // min X
       -(height + 1), // min Y
       width, // max X
-      -1 // max Y
-    ]
+      -1, // max Y
+    ];
 
     const imageLoadFunction = (image, src) => {
-      console.info(`load ${imageFlavor} image`)
-      const mediaType = 'image/png'
-      const queryParams = {}
+      console.info(`load ${imageFlavor} image`);
+      const mediaType = 'image/png';
+      const queryParams = {};
       if (resizeFactor !== 1) {
-        queryParams.viewport = [width, height].join(',')
+        queryParams.viewport = [width, height].join(',');
       }
       // We make this optional because ICC Profiles can be large and
       // their inclusion can result in significant overhead.
       if (options.includeIccProfile) {
-        queryParams.iccprofile = 'yes'
+        queryParams.iccprofile = 'yes';
       }
       const retrieveOptions = {
         studyInstanceUID: this[_metadata].StudyInstanceUID,
         seriesInstanceUID: this[_metadata].SeriesInstanceUID,
         sopInstanceUID: this[_metadata].SOPInstanceUID,
-        mediaTypes: [{ mediaType }],
-        queryParams
-      }
-      options.client.retrieveInstanceRendered(retrieveOptions).then(
-        (thumbnail) => {
-          const blob = new Blob([thumbnail], { type: mediaType })// eslint-disable-line
-          image.getImage().src = window.URL.createObjectURL(blob)
-        }
-      )
-    }
+        mediaTypes: [{mediaType}],
+        queryParams,
+      };
+      options.client
+        .retrieveInstanceRendered(retrieveOptions)
+        .then((thumbnail) => {
+          const blob = new Blob([thumbnail], {type: mediaType}); // eslint-disable-line
+          image.getImage().src = window.URL.createObjectURL(blob);
+        });
+    };
 
     const projection = new Projection({
       code: 'DICOM',
@@ -4689,26 +4672,26 @@ class _NonVolumeImageViewer {
          * DICOM Pixel Spacing has millimeter unit while the projection has
          * meter unit.
          */
-        const mmSpacing = getPixelSpacing(this[_metadata])[0]
-        const spacing = mmSpacing / resizeFactor / 10 ** 3
-        return pixelRes * spacing
-      }
-    })
+        const mmSpacing = getPixelSpacing(this[_metadata])[0];
+        const spacing = mmSpacing / resizeFactor / 10 ** 3;
+        return pixelRes * spacing;
+      },
+    });
 
     const source = new Static({
       imageExtent: extent,
       projection,
       imageLoadFunction,
-      url: '' // will be set by imageLoadFunction()
-    })
+      url: '', // will be set by imageLoadFunction()
+    });
 
-    this[_imageLayer] = new ImageLayer({ source })
+    this[_imageLayer] = new ImageLayer({source});
 
     // The default rotation is 'horizontal' with the slide label on the right
-    let rotation = _getRotation(this[_metadata])
+    let rotation = _getRotation(this[_metadata]);
     if (options.orientation === 'vertical') {
       // Rotate counterclockwise by 90 degrees to have slide label at the top
-      rotation -= 90 * (Math.PI / 180)
+      rotation -= 90 * (Math.PI / 180);
     }
 
     const view = new View({
@@ -4718,18 +4701,18 @@ class _NonVolumeImageViewer {
       extent,
       smoothExtentConstraint: true,
       smoothResolutionConstraint: true,
-      showFullExtent: true
-    })
+      showFullExtent: true,
+    });
 
     // Creates the map with the defined layers and view and renders it.
     this[_map] = new Map({
       layers: [this[_imageLayer]],
       view,
       controls: [],
-      keyboardEventTarget: document
-    })
+      keyboardEventTarget: document,
+    });
 
-    view.fit(projection.getExtent(), { size: this[_map].getSize() })
+    view.fit(projection.getExtent(), {size: this[_map].getSize()});
   }
 
   /**
@@ -4737,7 +4720,7 @@ class _NonVolumeImageViewer {
    *
    * Release allocated memory and clear the viewport.
    */
-  cleanup () {}
+  cleanup() {}
 
   /**
    * Render the image in the specified viewport container.
@@ -4745,20 +4728,20 @@ class _NonVolumeImageViewer {
    * @param {Object} options - Rendering options.
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
-  render ({ container }) {
+  render({container}) {
     if (container == null) {
-      console.error('container must be provided for rendering images')
-      return
+      console.error('container must be provided for rendering images');
+      return;
     }
 
-    this[_map].setTarget(container)
-    const view = this[_map].getView()
-    const projection = view.getProjection()
-    view.fit(projection.getExtent(), { size: this[_map].getSize() })
+    this[_map].setTarget(container);
+    const view = this[_map].getView();
+    const projection = view.getProjection();
+    view.fit(projection.getExtent(), {size: this[_map].getSize()});
 
     this[_map].getInteractions().forEach((interaction) => {
-      this[_map].removeInteraction(interaction)
-    })
+      this[_map].removeInteraction(interaction);
+    });
   }
 
   /**
@@ -4766,8 +4749,8 @@ class _NonVolumeImageViewer {
    *
    * @type {VLWholeSlideMicroscopyImage}
    */
-  get imageMetadata () {
-    return this[_metadata]
+  get imageMetadata() {
+    return this[_metadata];
   }
 
   /**
@@ -4775,8 +4758,8 @@ class _NonVolumeImageViewer {
    *
    * @type string
    */
-  get frameOfReferenceUID () {
-    return this[_metadata].FrameOfReferenceUID
+  get frameOfReferenceUID() {
+    return this[_metadata].FrameOfReferenceUID;
   }
 
   /**
@@ -4784,10 +4767,10 @@ class _NonVolumeImageViewer {
    *
    * @returns {void}
    */
-  resize () {
-    this[_map].updateSize()
+  resize() {
+    this[_map].updateSize();
     if (this[_overviewMap]) {
-      this[_overviewMap].getOverviewMap().updateSize()
+      this[_overviewMap].getOverviewMap().updateSize();
     }
   }
 
@@ -4796,8 +4779,8 @@ class _NonVolumeImageViewer {
    *
    * @type number[]
    */
-  get size () {
-    return this[_map].getSize()
+  get size() {
+    return this[_map].getSize();
   }
 }
 
@@ -4822,11 +4805,11 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile
    * should be included for correction of image colors.
    */
-  constructor (options) {
+  constructor(options) {
     if (options.orientation === undefined) {
-      options.orientation = 'horizontal'
+      options.orientation = 'horizontal';
     }
-    super(options)
+    super(options);
   }
 }
 
@@ -4850,12 +4833,12 @@ class LabelImageViewer extends _NonVolumeImageViewer {
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile
    * should be included for correction of image colors
    */
-  constructor (options) {
+  constructor(options) {
     if (options.orientation === undefined) {
-      options.orientation = 'vertical'
+      options.orientation = 'vertical';
     }
-    super(options)
+    super(options);
   }
 }
 
-export { LabelImageViewer, OverviewImageViewer, VolumeImageViewer }
+export {LabelImageViewer, OverviewImageViewer, VolumeImageViewer};
