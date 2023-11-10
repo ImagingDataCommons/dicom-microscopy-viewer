@@ -1,12 +1,12 @@
 /*eslint-disable*/
 // an object of task handlers
-const taskHandlers = {}
+const taskHandlers = {};
 
 // Flag to ensure web worker is only initialized once
-let isInitialized = false
+let isInitialized = false;
 
 // the configuration object passed in when the web worker manager is initialized
-let config
+let config;
 
 /**
  * Initialization function that loads additional web workers and initializes them
@@ -19,95 +19,95 @@ let config
  *
  * @private
  */
-function initialize (data) {
+function initialize(data) {
   // prevent initialization from happening more than once
   if (isInitialized) {
-    return
+    return;
   }
 
   // save the config data
-  config = data.config
+  config = data.config;
 
   // Additional web worker tasks can self-register by calling self.registerTaskHandler
-  self.registerTaskHandler = registerTaskHandler
+  self.registerTaskHandler = registerTaskHandler;
 
   // load any additional web worker tasks
   if (data.config.webWorkerTaskPaths) {
     for (let i = 0; i < data.config.webWorkerTaskPaths.length; i++) {
-      self.importScripts(data.config.webWorkerTaskPaths[i])
+      self.importScripts(data.config.webWorkerTaskPaths[i]);
     }
   }
 
   // tell main ui thread that we have completed initialization
   self.postMessage({
-    taskType: 'initialize',
-    status: 'success',
+    taskType: "initialize",
+    status: "success",
     result: {},
-    workerIndex: data.workerIndex
-  })
+    workerIndex: data.workerIndex,
+  });
 
-  isInitialized = true
+  isInitialized = true;
 }
 
 /**
  * Function exposed to web worker tasks to register themselves
  * @param taskHandler
- * 
+ *
  * @private
  */
-export function registerTaskHandler (taskHandler) {
+export function registerTaskHandler(taskHandler) {
   if (taskHandlers[taskHandler.taskType]) {
     console.info(
       'attempt to register duplicate task handler "',
       taskHandler.taskType,
-      '"'
-    )
+      '"',
+    );
 
-    return false
+    return false;
   }
-  taskHandlers[taskHandler.taskType] = taskHandler
+  taskHandlers[taskHandler.taskType] = taskHandler;
   if (isInitialized) {
-    taskHandler.initialize(config.taskConfiguration)
+    taskHandler.initialize(config.taskConfiguration);
   }
 }
 
 /**
  * Function to load a new web worker task with updated configuration
  * @param data
- * 
+ *
  * @private
  */
-function loadWebWorkerTask (data) {
-  config = data.config
-  self.importScripts(data.sourcePath)
+function loadWebWorkerTask(data) {
+  config = data.config;
+  self.importScripts(data.sourcePath);
 }
 
 /**
  * Web worker message handler - dispatches messages to the registered task handlers
  * @param msg
- * 
+ *
  * @private
  */
 self.onmessage = function (msg) {
   if (!msg.data.taskType) {
-    console.info(msg.data)
-    return
+    console.info(msg.data);
+    return;
   }
 
   console.info(
-    `run task "${msg.data.taskType}" on web worker #${msg.data.workerIndex}`
-  )
+    `run task "${msg.data.taskType}" on web worker #${msg.data.workerIndex}`,
+  );
 
   // handle initialize message
-  if (msg.data.taskType === 'initialize') {
-    initialize(msg.data)
-    return
+  if (msg.data.taskType === "initialize") {
+    initialize(msg.data);
+    return;
   }
 
   // handle loadWebWorkerTask message
-  if (msg.data.taskType === 'loadWebWorkerTask') {
-    loadWebWorkerTask(msg.data)
-    return
+  if (msg.data.taskType === "loadWebWorkerTask") {
+    loadWebWorkerTask(msg.data);
+    return;
   }
 
   // dispatch the message if there is a handler registered for it
@@ -119,34 +119,34 @@ self.onmessage = function (msg) {
           self.postMessage(
             {
               taskType: msg.data.taskType,
-              status: 'success',
+              status: "success",
               result,
-              workerIndex: msg.data.workerIndex
+              workerIndex: msg.data.workerIndex,
             },
-            transferList
-          )
-        }
-      )
+            transferList,
+          );
+        },
+      );
     } catch (error) {
-      console.error(`task "${msg.data.taskType}" failed: ${error.message}`)
+      console.error(`task "${msg.data.taskType}" failed: ${error.message}`);
       self.postMessage({
         taskType: msg.data.taskType,
-        status: 'failed',
+        status: "failed",
         result: error.message,
-        workerIndex: msg.data.workerIndex
-      })
+        workerIndex: msg.data.workerIndex,
+      });
     }
 
-    return
+    return;
   }
 
   // not task handler registered - send a failure message back to ui thread
-  console.warn('no task handler for ', msg.data.taskType, taskHandler)
+  console.warn("no task handler for ", msg.data.taskType, taskHandler);
 
   self.postMessage({
     taskType: msg.data.taskType,
-    status: 'failed - no task handler registered',
-    workerIndex: msg.data.workerIndex
-  })
-}
+    status: "failed - no task handler registered",
+    workerIndex: msg.data.workerIndex,
+  });
+};
 /* eslint-enable */

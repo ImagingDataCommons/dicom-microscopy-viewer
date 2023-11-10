@@ -8,26 +8,27 @@
  * @private
  */
 const publish = (el, type, payload = null) => {
-  let event
+  let event;
 
   const detail = {
     payload,
-    time: new Date()
-  }
+    time: new Date(),
+  };
 
   // This check is needed to polyfill CustomEvent on IE11-
-  if (typeof window.CustomEvent === 'function') {
-    event = new CustomEvent(type, {// eslint-disable-line
+  if (typeof window.CustomEvent === "function") {
+    event = new CustomEvent(type, {
+      // eslint-disable-line
       detail,
       bubbles: true,
-      cancelable: true
-    })
+      cancelable: true,
+    });
   } else {
-    event = document.createEvent('CustomEvent')
-    event.initCustomEvent(type, true, true, detail)
+    event = document.createEvent("CustomEvent");
+    event.initCustomEvent(type, true, true, detail);
   }
 
-  return el.dispatchEvent(event)
-}
+  return el.dispatchEvent(event);
+};
 
-export default publish
+export default publish;

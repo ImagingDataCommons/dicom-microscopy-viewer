@@ -1,11 +1,15 @@
-import * as dwc from 'dicomweb-client'
+import * as dwc from "dicomweb-client";
 
-import { _decodeAndTransformFrame } from './decode.js'
-import EVENT from './events'
-import publish from './eventPublisher'
-import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
-import { getPixelSpacing } from './scoord3dUtils'
-import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from './utils.js'
+import { _decodeAndTransformFrame } from "./decode.js";
+import EVENT from "./events";
+import publish from "./eventPublisher";
+import { getFrameMapping, VLWholeSlideMicroscopyImage } from "./metadata.js";
+import { getPixelSpacing } from "./scoord3dUtils";
+import {
+  are1DArraysAlmostEqual,
+  are2DArraysAlmostEqual,
+  _fetchBulkdata,
+} from "./utils.js";
 
 /**
  * Get Image ICC profiles.
@@ -18,30 +22,25 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
  *
  * @private
  */
-async function _getIccProfiles (metadata, client) {
-  const profiles = []
+async function _getIccProfiles(metadata, client) {
+  const profiles = [];
   for (let i = 0; i < metadata.length; i++) {
-    const image = metadata[i]
+    const image = metadata[i];
     if (image.SamplesPerPixel === 3) {
       if (image.bulkdataReferences.OpticalPathSequence == null) {
         console.warn(
-          `no ICC Profile was not found for image "${image.SOPInstanceUID}"`
-        )
-        continue
+          `no ICC Profile was not found for image "${image.SOPInstanceUID}"`,
+        );
+        continue;
       }
       const bulkdata = await _fetchBulkdata({
         client,
-        reference: (
-          image
-            .bulkdataReferences
-            .OpticalPathSequence[0]
-            .ICCProfile
-        )
-      })
-      profiles.push(bulkdata)
+        reference: image.bulkdataReferences.OpticalPathSequence[0].ICCProfile,
+      });
+      profiles.push(bulkdata);
     }
   }
-  return profiles
+  return profiles;
 }
 
 /**
@@ -52,190 +51,187 @@ async function _getIccProfiles (metadata, client) {
  *
  * @private
  */
-function _computeImagePyramid ({ metadata }) {
+function _computeImagePyramid({ metadata }) {
   if (metadata.length === 0) {
     throw new Error(
-      'No image metadata was provided to computate image pyramid structure.'
-    )
+      "No image metadata was provided to computate image pyramid structure.",
+    );
   }
 
   // Sort instances and optionally concatenation parts if present.
   metadata.sort((a, b) => {
-    const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns
+    const sizeDiff = a.TotalPixelMatrixColumns - b.TotalPixelMatrixColumns;
     if (sizeDiff === 0) {
       if (a.ConcatenationFrameOffsetNumber !== undefined) {
-        return a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber
+        return (
+          a.ConcatenationFrameOffsetNumber - b.ConcatenationFrameOffsetNumber
+        );
       }
-      return sizeDiff
+      return sizeDiff;
     }
-    return sizeDiff
-  })
+    return sizeDiff;
+  });
 
-  const pyramidMetadata = []
-  const pyramidFrameMappings = []
-  let pyramidNumberOfChannels
+  const pyramidMetadata = [];
+  const pyramidFrameMappings = [];
+  let pyramidNumberOfChannels;
   for (let i = 0; i < metadata.length; i++) {
     if (metadata[0].FrameOfReferenceUID !== metadata[i].FrameOfReferenceUID) {
       throw new Error(
-        'Images of pyramid must all have the same Frame of Reference UID.'
-      )
+        "Images of pyramid must all have the same Frame of Reference UID.",
+      );
     }
     if (metadata[0].ContainerIdentifier !== metadata[i].ContainerIdentifier) {
       throw new Error(
-        'Images of pyramid must all have the same Container Identifier.'
-      )
+        "Images of pyramid must all have the same Container Identifier.",
+      );
     }
 
-    const numberOfFrames = Number(metadata[i].NumberOfFrames || 1)
-    const cols = metadata[i].TotalPixelMatrixColumns || metadata[i].Columns
-    const rows = metadata[i].TotalPixelMatrixRows || metadata[i].Rows
+    const numberOfFrames = Number(metadata[i].NumberOfFrames || 1);
+    const cols = metadata[i].TotalPixelMatrixColumns || metadata[i].Columns;
+    const rows = metadata[i].TotalPixelMatrixRows || metadata[i].Rows;
 
-    const { frameMapping, numberOfChannels } = getFrameMapping(metadata[i])
+    const { frameMapping, numberOfChannels } = getFrameMapping(metadata[i]);
     if (i > 0) {
       if (pyramidNumberOfChannels !== numberOfChannels) {
         throw new Error(
-          'Images of pyramid must all have the same number of channels ' +
-          '(optical paths, segments, mappings, etc.)'
-        )
+          "Images of pyramid must all have the same number of channels " +
+            "(optical paths, segments, mappings, etc.)",
+        );
       }
     } else {
-      pyramidNumberOfChannels = numberOfChannels
+      pyramidNumberOfChannels = numberOfChannels;
     }
 
     /*
      * Instances may be broken down into multiple concatentation parts.
      * Therefore, we have to re-assemble instance metadata.
-    */
-    let alreadyExists = false
-    let index = null
+     */
+    let alreadyExists = false;
+    let index = null;
     for (let j = 0; j < pyramidMetadata.length; j++) {
-      const c = (
+      const c =
         pyramidMetadata[j].TotalPixelMatrixColumns ||
-        pyramidMetadata[j].Columns
-      )
-      const r = (
-        pyramidMetadata[j].TotalPixelMatrixRows ||
-        pyramidMetadata[j].Rows
-      )
+        pyramidMetadata[j].Columns;
+      const r =
+        pyramidMetadata[j].TotalPixelMatrixRows || pyramidMetadata[j].Rows;
       if (r === rows && c === cols) {
-        alreadyExists = true
-        index = j
+        alreadyExists = true;
+        index = j;
       }
     }
     if (alreadyExists) {
-      Object.assign(pyramidFrameMappings[index], frameMapping)
+      Object.assign(pyramidFrameMappings[index], frameMapping);
       /*
        * Create a new SOP Instance with metadata updated from current
        * concatentation part.
        */
-      const rawMetadata = pyramidMetadata[index].json
-      rawMetadata['00280008'].Value[0] += numberOfFrames
-      if ('PerFrameFunctionalGroupsSequence' in metadata[index]) {
-        rawMetadata['52009230'].Value.push(
-          ...metadata[i].PerFrameFunctionalGroupsSequence
-        )
+      const rawMetadata = pyramidMetadata[index].json;
+      rawMetadata["00280008"].Value[0] += numberOfFrames;
+      if ("PerFrameFunctionalGroupsSequence" in metadata[index]) {
+        rawMetadata["52009230"].Value.push(
+          ...metadata[i].PerFrameFunctionalGroupsSequence,
+        );
       }
-      if (!('SOPInstanceUIDOfConcatenationSource' in metadata[i])) {
+      if (!("SOPInstanceUIDOfConcatenationSource" in metadata[i])) {
         throw new Error(
-          'Multiple image instances for the same channel and ' +
-          'focal plane have identical dimensions, but the instances ' +
-          'are not part of a concatenation either. ' +
-          'The image metadata is probably incorrect.'
-        )
+          "Multiple image instances for the same channel and " +
+            "focal plane have identical dimensions, but the instances " +
+            "are not part of a concatenation either. " +
+            "The image metadata is probably incorrect.",
+        );
       }
-      const sopInstanceUID = metadata[i].SOPInstanceUIDOfConcatenationSource
-      rawMetadata['00080018'].Value[0] = sopInstanceUID
-      delete rawMetadata['00200242'] // SOPInstanceUIDOfConcatenationSource
-      delete rawMetadata['00209161'] // ConcatentationUID
-      delete rawMetadata['00209162'] // InConcatenationNumber
-      delete rawMetadata['00209228'] // ConcatenationFrameOffsetNumber
+      const sopInstanceUID = metadata[i].SOPInstanceUIDOfConcatenationSource;
+      rawMetadata["00080018"].Value[0] = sopInstanceUID;
+      delete rawMetadata["00200242"]; // SOPInstanceUIDOfConcatenationSource
+      delete rawMetadata["00209161"]; // ConcatentationUID
+      delete rawMetadata["00209162"]; // InConcatenationNumber
+      delete rawMetadata["00209228"]; // ConcatenationFrameOffsetNumber
       pyramidMetadata[index] = new VLWholeSlideMicroscopyImage({
-        metadata: rawMetadata
-      })
+        metadata: rawMetadata,
+      });
     } else {
-      pyramidMetadata.push(metadata[i])
-      pyramidFrameMappings.push(frameMapping)
+      pyramidMetadata.push(metadata[i]);
+      pyramidFrameMappings.push(frameMapping);
     }
   }
 
-  const nLevels = pyramidMetadata.length
+  const nLevels = pyramidMetadata.length;
   if (nLevels === 0) {
-    console.error('empty pyramid - no levels found')
+    console.error("empty pyramid - no levels found");
   }
-  const pyramidBaseMetadata = pyramidMetadata[nLevels - 1]
+  const pyramidBaseMetadata = pyramidMetadata[nLevels - 1];
 
   /*
    * Collect relevant information from DICOM metadata for each pyramid
    * level to construct the Openlayers map.
    */
-  const pyramidTileSizes = []
-  const pyramidGridSizes = []
-  const pyramidResolutions = []
-  const pyramidOrigins = []
-  const pyramidPixelSpacings = []
-  const pyramidImageSizes = []
-  const pyramidPhysicalSizes = []
-  const offset = [0, -1]
-  const baseTotalPixelMatrixColumns = pyramidBaseMetadata.TotalPixelMatrixColumns
-  const baseTotalPixelMatrixRows = pyramidBaseMetadata.TotalPixelMatrixRows
-  for (let j = (nLevels - 1); j >= 0; j--) {
-    const columns = pyramidMetadata[j].Columns
-    const rows = pyramidMetadata[j].Rows
-    const totalPixelMatrixColumns = pyramidMetadata[j].TotalPixelMatrixColumns
-    const totalPixelMatrixRows = pyramidMetadata[j].TotalPixelMatrixRows
-    const pixelSpacing = getPixelSpacing(pyramidMetadata[j])
-    const nColumns = Math.ceil(totalPixelMatrixColumns / columns)
-    const nRows = Math.ceil(totalPixelMatrixRows / rows)
-    pyramidTileSizes.push([
-      columns,
-      rows
-    ])
-    pyramidGridSizes.push([
-      nColumns,
-      nRows
-    ])
-    pyramidPixelSpacings.push(pixelSpacing)
+  const pyramidTileSizes = [];
+  const pyramidGridSizes = [];
+  const pyramidResolutions = [];
+  const pyramidOrigins = [];
+  const pyramidPixelSpacings = [];
+  const pyramidImageSizes = [];
+  const pyramidPhysicalSizes = [];
+  const offset = [0, -1];
+  const baseTotalPixelMatrixColumns =
+    pyramidBaseMetadata.TotalPixelMatrixColumns;
+  const baseTotalPixelMatrixRows = pyramidBaseMetadata.TotalPixelMatrixRows;
+  for (let j = nLevels - 1; j >= 0; j--) {
+    const columns = pyramidMetadata[j].Columns;
+    const rows = pyramidMetadata[j].Rows;
+    const totalPixelMatrixColumns = pyramidMetadata[j].TotalPixelMatrixColumns;
+    const totalPixelMatrixRows = pyramidMetadata[j].TotalPixelMatrixRows;
+    const pixelSpacing = getPixelSpacing(pyramidMetadata[j]);
+    const nColumns = Math.ceil(totalPixelMatrixColumns / columns);
+    const nRows = Math.ceil(totalPixelMatrixRows / rows);
+    pyramidTileSizes.push([columns, rows]);
+    pyramidGridSizes.push([nColumns, nRows]);
+    pyramidPixelSpacings.push(pixelSpacing);
 
-    pyramidImageSizes.push([
-      totalPixelMatrixColumns,
-      totalPixelMatrixRows
-    ])
+    pyramidImageSizes.push([totalPixelMatrixColumns, totalPixelMatrixRows]);
     pyramidPhysicalSizes.push([
       (totalPixelMatrixColumns * pixelSpacing[1]).toFixed(4),
-      (totalPixelMatrixRows * pixelSpacing[0]).toFixed(4)
-    ])
+      (totalPixelMatrixRows * pixelSpacing[0]).toFixed(4),
+    ]);
     /*
-    * Compute the resolution at each pyramid level, since the zoom
-    * factor may not be the same between adjacent pyramid levels.
-    */
+     * Compute the resolution at each pyramid level, since the zoom
+     * factor may not be the same between adjacent pyramid levels.
+     */
     const zoomFactor = Math.round(
-      baseTotalPixelMatrixColumns / totalPixelMatrixColumns
-    )
-    pyramidResolutions.push(zoomFactor)
+      baseTotalPixelMatrixColumns / totalPixelMatrixColumns,
+    );
+    pyramidResolutions.push(zoomFactor);
 
-    pyramidOrigins.push(offset)
+    pyramidOrigins.push(offset);
   }
-  pyramidResolutions.reverse()
-  pyramidTileSizes.reverse()
-  pyramidGridSizes.reverse()
-  pyramidOrigins.reverse()
-  pyramidPixelSpacings.reverse()
-  pyramidImageSizes.reverse()
-  pyramidPhysicalSizes.reverse()
+  pyramidResolutions.reverse();
+  pyramidTileSizes.reverse();
+  pyramidGridSizes.reverse();
+  pyramidOrigins.reverse();
+  pyramidPixelSpacings.reverse();
+  pyramidImageSizes.reverse();
+  pyramidPhysicalSizes.reverse();
 
   const uniquePhysicalSizes = [
-    ...new Set(pyramidPhysicalSizes.map(v => v.toString()))
-  ].map(v => v.split(','))
+    ...new Set(pyramidPhysicalSizes.map((v) => v.toString())),
+  ].map((v) => v.split(","));
   if (uniquePhysicalSizes.length > 1) {
     console.warn(
-      'images of the image pyramid have different sizes: ',
-      '\nsize [mm]: ', pyramidPhysicalSizes,
-      '\npixel spacing [mm]: ', pyramidPixelSpacings,
-      '\nsize [pixels]: ', pyramidImageSizes,
-      '\ntile size [pixels]: ', pyramidTileSizes,
-      '\ntile grid size [tiles]: ', pyramidGridSizes,
-      '\nresolution [factors]: ', pyramidResolutions
-    )
+      "images of the image pyramid have different sizes: ",
+      "\nsize [mm]: ",
+      pyramidPhysicalSizes,
+      "\npixel spacing [mm]: ",
+      pyramidPixelSpacings,
+      "\nsize [pixels]: ",
+      pyramidImageSizes,
+      "\ntile size [pixels]: ",
+      pyramidTileSizes,
+      "\ntile grid size [tiles]: ",
+      pyramidGridSizes,
+      "\nresolution [factors]: ",
+      pyramidResolutions,
+    );
   }
 
   /**
@@ -251,8 +247,8 @@ function _computeImagePyramid ({ metadata }) {
     0, // min X
     -(baseTotalPixelMatrixRows + 1), // min Y
     baseTotalPixelMatrixColumns, // max X
-    -1 // max Y
-  ]
+    -1, // max Y
+  ];
 
   return {
     extent,
@@ -263,166 +259,170 @@ function _computeImagePyramid ({ metadata }) {
     pixelSpacings: pyramidPixelSpacings,
     metadata: pyramidMetadata,
     frameMappings: pyramidFrameMappings,
-    numberOfChannels: pyramidNumberOfChannels
-  }
+    numberOfChannels: pyramidNumberOfChannels,
+  };
 }
 
-function _areImagePyramidsEqual (pyramid, refPyramid) {
+function _areImagePyramidsEqual(pyramid, refPyramid) {
   // Check that all the channels have the same pyramid parameters
   if (!are1DArraysAlmostEqual(pyramid.extent, refPyramid.extent)) {
     console.warn(
-      'pyramid has different extent as reference pyramid: ',
+      "pyramid has different extent as reference pyramid: ",
       pyramid.extent,
-      refPyramid.extent
-    )
-    return false
+      refPyramid.extent,
+    );
+    return false;
   }
   if (!are2DArraysAlmostEqual(pyramid.origins, refPyramid.origins)) {
     console.warn(
-      'pyramid has different origins as reference pyramid: ',
+      "pyramid has different origins as reference pyramid: ",
       pyramid.origins,
-      refPyramid.origins
-    )
-    return false
+      refPyramid.origins,
+    );
+    return false;
   }
   if (!are1DArraysAlmostEqual(pyramid.resolutions, refPyramid.resolutions)) {
     console.warn(
-      'pyramid has different resolutions as reference pyramid: ',
+      "pyramid has different resolutions as reference pyramid: ",
       pyramid.resolutions,
-      refPyramid.resolutions
-    )
-    return false
+      refPyramid.resolutions,
+    );
+    return false;
   }
   if (!are2DArraysAlmostEqual(pyramid.gridSizes, refPyramid.gridSizes)) {
     console.warn(
-      'pyramid has different grid sizes as reference pyramid: ',
+      "pyramid has different grid sizes as reference pyramid: ",
       pyramid.gridSizes,
-      refPyramid.gridSizes
-    )
-    return false
+      refPyramid.gridSizes,
+    );
+    return false;
   }
   if (!are2DArraysAlmostEqual(pyramid.tileSizes, refPyramid.tileSizes)) {
     console.warn(
-      'pyramid has different tile sizes as reference pyramid: ',
+      "pyramid has different tile sizes as reference pyramid: ",
       pyramid.tileSizes,
-      refPyramid.tileSizes
-    )
-    return false
+      refPyramid.tileSizes,
+    );
+    return false;
   }
-  if (!are2DArraysAlmostEqual(pyramid.pixelSpacings, refPyramid.pixelSpacings)) {
+  if (
+    !are2DArraysAlmostEqual(pyramid.pixelSpacings, refPyramid.pixelSpacings)
+  ) {
     console.warn(
-      'pyramid has different pixel spacings as reference pyramid: ',
+      "pyramid has different pixel spacings as reference pyramid: ",
       pyramid.pixelSpacings,
-      refPyramid.pixelSpacings
-    )
-    return false
+      refPyramid.pixelSpacings,
+    );
+    return false;
   }
-  return true
+  return true;
 }
 
-function _createEmptyTile ({
+function _createEmptyTile({
   columns,
   rows,
   samplesPerPixel,
   bitsAllocated,
-  photometricInterpretation
+  photometricInterpretation,
 }) {
-  let pixelArray
+  let pixelArray;
   if (bitsAllocated <= 8) {
-    pixelArray = new Uint8Array(columns * rows * samplesPerPixel)
+    pixelArray = new Uint8Array(columns * rows * samplesPerPixel);
   } else {
-    pixelArray = new Float32Array(columns * rows * samplesPerPixel)
+    pixelArray = new Float32Array(columns * rows * samplesPerPixel);
   }
 
   // Fill white in case of color and black in case of monochrome.
-  let fillValue = Math.pow(2, bitsAllocated) - 1
-  if (photometricInterpretation === 'MONOCHROME2') {
+  let fillValue = Math.pow(2, bitsAllocated) - 1;
+  if (photometricInterpretation === "MONOCHROME2") {
     if (bitsAllocated <= 16) {
-      fillValue = 0
+      fillValue = 0;
     } else {
       // Float pixel data
-      fillValue = -(Math.pow(2, bitsAllocated) - 1) / 2
+      fillValue = -(Math.pow(2, bitsAllocated) - 1) / 2;
     }
   }
   for (let i = 0; i < pixelArray.length; i++) {
-    pixelArray[i] = fillValue
+    pixelArray[i] = fillValue;
   }
-  return pixelArray
+  return pixelArray;
 }
 
-function _createTileLoadFunction ({
+function _createTileLoadFunction({
   pyramid,
   client,
   channel,
   iccProfiles,
-  targetElement
+  targetElement,
 }) {
   return async (z, y, x) => {
-    let index = (x + 1) + '-' + (y + 1)
-    index += `-${channel}`
+    let index = x + 1 + "-" + (y + 1);
+    index += `-${channel}`;
 
     if (pyramid.metadata[z] === undefined) {
       throw new Error(
         `Could not load tile for channel "${channel}" ` +
-        `at position (${x + 1}, ${y + 1}) at zoom level ${z} ` +
-        ` because level ${z} does not exist.`
-      )
+          `at position (${x + 1}, ${y + 1}) at zoom level ${z} ` +
+          ` because level ${z} does not exist.`,
+      );
     }
 
-    const studyInstanceUID = pyramid.metadata[z].StudyInstanceUID
-    const seriesInstanceUID = pyramid.metadata[z].SeriesInstanceUID
-    const path = pyramid.frameMappings[z][index]
-    let src
+    const studyInstanceUID = pyramid.metadata[z].StudyInstanceUID;
+    const seriesInstanceUID = pyramid.metadata[z].SeriesInstanceUID;
+    const path = pyramid.frameMappings[z][index];
+    let src;
     if (path != null) {
-      src = ''
+      src = "";
       if (client.wadoURL !== undefined) {
-        src += client.wadoURL
+        src += client.wadoURL;
       }
-      src += (
-        '/studies/' + studyInstanceUID +
-        '/series/' + seriesInstanceUID +
-        '/instances/' + path
-      )
+      src +=
+        "/studies/" +
+        studyInstanceUID +
+        "/series/" +
+        seriesInstanceUID +
+        "/instances/" +
+        path;
     }
 
-    const refImage = pyramid.metadata[z]
-    const columns = refImage.Columns
-    const rows = refImage.Rows
-    const bitsAllocated = refImage.BitsAllocated
-    const pixelRepresentation = refImage.PixelRepresentation
-    const samplesPerPixel = refImage.SamplesPerPixel
-    const photometricInterpretation = refImage.PhotometricInterpretation
-    const sopClassUID = refImage.SOPClassUID
+    const refImage = pyramid.metadata[z];
+    const columns = refImage.Columns;
+    const rows = refImage.Rows;
+    const bitsAllocated = refImage.BitsAllocated;
+    const pixelRepresentation = refImage.PixelRepresentation;
+    const samplesPerPixel = refImage.SamplesPerPixel;
+    const photometricInterpretation = refImage.PhotometricInterpretation;
+    const sopClassUID = refImage.SOPClassUID;
 
     if (src != null) {
-      const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src)
-      const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
+      const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src);
+      const frameNumbers = dwc.utils.getFrameNumbersFromUri(src);
 
       if (samplesPerPixel === 1) {
         console.info(
           `retrieve frame ${frameNumbers} of monochrome image ` +
-          `for channel "${channel}" at tile position (${x + 1}, ${y + 1}) ` +
-          `at zoom level ${z}`
-        )
+            `for channel "${channel}" at tile position (${x + 1}, ${y + 1}) ` +
+            `at zoom level ${z}`,
+        );
       } else {
         console.info(
           `retrieve frame ${frameNumbers} of color image ` +
-          `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`
-        )
+            `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`,
+        );
       }
 
-      const jpegMediaType = 'image/jpeg'
-      const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-      const jlsMediaType = 'image/jls'
-      const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
-      const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
-      const jp2MediaType = 'image/jp2'
-      const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90'
-      const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91'
-      const jpxMediaType = 'image/jpx'
-      const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
-      const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
-      const octetStreamMediaType = 'application/octet-stream'
+      const jpegMediaType = "image/jpeg";
+      const jpegTransferSyntaxUID = "1.2.840.10008.1.2.4.50";
+      const jlsMediaType = "image/jls";
+      const jlsTransferSyntaxUIDlossless = "1.2.840.10008.1.2.4.80";
+      const jlsTransferSyntaxUID = "1.2.840.10008.1.2.4.81";
+      const jp2MediaType = "image/jp2";
+      const jp2TransferSyntaxUIDlossless = "1.2.840.10008.1.2.4.90";
+      const jp2TransferSyntaxUID = "1.2.840.10008.1.2.4.91";
+      const jpxMediaType = "image/jpx";
+      const jpxTransferSyntaxUIDlossless = "1.2.840.10008.1.2.4.92";
+      const jpxTransferSyntaxUID = "1.2.840.10008.1.2.4.93";
+      const octetStreamMediaType = "application/octet-stream";
       /*
        * Use of the "*" transfer syntax is a hack to work around standard
        * compliance issues of the Google Cloud Healthcare API.
@@ -431,44 +431,46 @@ function _createTileLoadFunction ({
        * rely on the media type specified by the "Content-Type" header in the
        * response message, but will need to determine it from the payload.
        */
-      const octetStreamTransferSyntaxUID = '*'
+      const octetStreamTransferSyntaxUID = "*";
 
-      const mediaTypes = []
-      mediaTypes.push(...[
-        {
-          mediaType: jlsMediaType,
-          transferSyntaxUID: jlsTransferSyntaxUIDlossless
-        },
-        {
-          mediaType: jlsMediaType,
-          transferSyntaxUID: jlsTransferSyntaxUID
-        },
-        {
-          mediaType: jp2MediaType,
-          transferSyntaxUID: jp2TransferSyntaxUIDlossless
-        },
-        {
-          mediaType: jp2MediaType,
-          transferSyntaxUID: jp2TransferSyntaxUID
-        },
-        {
-          mediaType: jpxMediaType,
-          transferSyntaxUID: jpxTransferSyntaxUIDlossless
-        },
-        {
-          mediaType: jpxMediaType,
-          transferSyntaxUID: jpxTransferSyntaxUID
-        },
-        {
-          mediaType: octetStreamMediaType,
-          transferSyntaxUID: octetStreamTransferSyntaxUID
-        }
-      ])
+      const mediaTypes = [];
+      mediaTypes.push(
+        ...[
+          {
+            mediaType: jlsMediaType,
+            transferSyntaxUID: jlsTransferSyntaxUIDlossless,
+          },
+          {
+            mediaType: jlsMediaType,
+            transferSyntaxUID: jlsTransferSyntaxUID,
+          },
+          {
+            mediaType: jp2MediaType,
+            transferSyntaxUID: jp2TransferSyntaxUIDlossless,
+          },
+          {
+            mediaType: jp2MediaType,
+            transferSyntaxUID: jp2TransferSyntaxUID,
+          },
+          {
+            mediaType: jpxMediaType,
+            transferSyntaxUID: jpxTransferSyntaxUIDlossless,
+          },
+          {
+            mediaType: jpxMediaType,
+            transferSyntaxUID: jpxTransferSyntaxUID,
+          },
+          {
+            mediaType: octetStreamMediaType,
+            transferSyntaxUID: octetStreamTransferSyntaxUID,
+          },
+        ],
+      );
       if (bitsAllocated <= 8) {
         mediaTypes.push({
           mediaType: jpegMediaType,
-          transferSyntaxUID: jpegTransferSyntaxUID
-        })
+          transferSyntaxUID: jpegTransferSyntaxUID,
+        });
       }
 
       const frameInfo = {
@@ -477,19 +479,20 @@ function _createTileLoadFunction ({
         sopInstanceUID,
         sopClassUID,
         frameNumber: frameNumbers[0],
-        channelIdentifier: String(channel)
-      }
-      publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
+        channelIdentifier: String(channel),
+      };
+      publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo);
 
       const retrieveOptions = {
         studyInstanceUID,
         seriesInstanceUID,
         sopInstanceUID,
         frameNumbers,
-        mediaTypes
-      }
-      return client.retrieveInstanceFrames(retrieveOptions).then(
-        (rawFrames) => {
+        mediaTypes,
+      };
+      return client
+        .retrieveInstanceFrames(retrieveOptions)
+        .then((rawFrames) => {
           return _decodeAndTransformFrame({
             frame: rawFrames[0],
             frameNumber: frameNumbers[0],
@@ -500,86 +503,81 @@ function _createTileLoadFunction ({
             samplesPerPixel,
             sopInstanceUID,
             metadata: pyramid.metadata,
-            iccProfiles
-          }).then(pixelArray => {
+            iccProfiles,
+          }).then((pixelArray) => {
             if (pixelArray.constructor === Float64Array) {
               // TODO: handle Float64Array using LUT
               throw new Error(
-                'Double Float Pixel Data is not (yet) supported.'
-              )
+                "Double Float Pixel Data is not (yet) supported.",
+              );
             }
-            publish(
-              targetElement,
-              EVENT.FRAME_LOADING_ENDED,
-              { pixelArray, ...frameInfo }
-            )
+            publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
+              pixelArray,
+              ...frameInfo,
+            });
             if (samplesPerPixel === 3 && bitsAllocated === 8) {
               // Rendering of color images requires unsigned 8-bit integers
-              return pixelArray
+              return pixelArray;
             }
             // Rendering of grayscale images requires floating point values
             return new Float32Array(
               pixelArray,
               pixelArray.byteOffset,
-              pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT
-            )
-          })
-        }
-      ).catch(
-        (error) => {
-          publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
-          publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo)
+              pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT,
+            );
+          });
+        })
+        .catch((error) => {
+          publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo);
+          publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo);
           return Promise.reject(
             new Error(
               `Failed to load frames ${frameNumbers} ` +
-              `of SOP instance "${sopInstanceUID}" ` +
-              `for channel "${channel}" ` +
-              `at tile position (${x + 1}, ${y + 1}) ` +
-              `at zoom level ${z}: `,
-              error
-            )
-          )
-        }
-      )
+                `of SOP instance "${sopInstanceUID}" ` +
+                `for channel "${channel}" ` +
+                `at tile position (${x + 1}, ${y + 1}) ` +
+                `at zoom level ${z}: `,
+              error,
+            ),
+          );
+        });
     } else {
       console.warn(
         `could not load tile "${index}" at level ${z}, ` +
-        'this tile does not exist'
-      )
+          "this tile does not exist",
+      );
       return _createEmptyTile({
         columns,
         rows,
         samplesPerPixel,
         bitsAllocated,
-        photometricInterpretation
-      })
+        photometricInterpretation,
+      });
     }
-  }
+  };
 }
 
-function _fitImagePyramid (pyramid, refPyramid) {
-  const matchingLevelIndices = []
+function _fitImagePyramid(pyramid, refPyramid) {
+  const matchingLevelIndices = [];
   for (let i = 0; i < refPyramid.metadata.length; i++) {
     for (let j = 0; j < pyramid.metadata.length; j++) {
       const doOriginsMatch = are1DArraysAlmostEqual(
         refPyramid.origins[i],
-        pyramid.origins[j]
-      )
+        pyramid.origins[j],
+      );
       const doPixelSpacingsMatch = are1DArraysAlmostEqual(
         refPyramid.pixelSpacings[i],
-        pyramid.pixelSpacings[j]
-      )
+        pyramid.pixelSpacings[j],
+      );
       if (doOriginsMatch && doPixelSpacingsMatch) {
-        matchingLevelIndices.push([i, j])
+        matchingLevelIndices.push([i, j]);
       }
     }
   }
 
   if (matchingLevelIndices.length === 0) {
-    console.error(pyramid, refPyramid)
-    throw new Error(
-      'Image pyramid cannot be fit to reference image pyramid.'
-    )
+    console.error(pyramid, refPyramid);
+    throw new Error("Image pyramid cannot be fit to reference image pyramid.");
   }
 
   // Fit the pyramid levels to the reference image pyramid
@@ -591,42 +589,42 @@ function _fitImagePyramid (pyramid, refPyramid) {
     tileSizes: [],
     pixelSpacings: [],
     metadata: [],
-    frameMappings: []
-  }
+    frameMappings: [],
+  };
   for (let i = 0; i < refPyramid.metadata.length; i++) {
-    const index = matchingLevelIndices.find(element => element[0] === i)
+    const index = matchingLevelIndices.find((element) => element[0] === i);
     if (index) {
-      const j = index[1]
-      fittedPyramid.origins.push([...pyramid.origins[j]])
-      fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
-      fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
-      fittedPyramid.resolutions.push(Number(refPyramid.resolutions[i]))
-      fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
-      fittedPyramid.metadata.push(pyramid.metadata[j])
-      fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+      const j = index[1];
+      fittedPyramid.origins.push([...pyramid.origins[j]]);
+      fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]]);
+      fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]]);
+      fittedPyramid.resolutions.push(Number(refPyramid.resolutions[i]));
+      fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]]);
+      fittedPyramid.metadata.push(pyramid.metadata[j]);
+      fittedPyramid.frameMappings.push(pyramid.frameMappings[j]);
     }
   }
 
-  let minZoom = 0
+  let minZoom = 0;
   for (let i = 0; i < refPyramid.resolutions.length; i++) {
     for (let j = 0; j < fittedPyramid.resolutions.length; j++) {
       if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
-        minZoom = i
-        break
+        minZoom = i;
+        break;
       }
     }
   }
-  let maxZoom = refPyramid.resolutions.length - 1
-  for (let i = (refPyramid.resolutions.length - 1); i >= minZoom; i--) {
-    for (let j = (fittedPyramid.resolutions.length - 1); j >= 0; j--) {
+  let maxZoom = refPyramid.resolutions.length - 1;
+  for (let i = refPyramid.resolutions.length - 1; i >= minZoom; i--) {
+    for (let j = fittedPyramid.resolutions.length - 1; j >= 0; j--) {
       if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
-        maxZoom = i
-        break
+        maxZoom = i;
+        break;
       }
     }
   }
 
-  return [fittedPyramid, minZoom, maxZoom]
+  return [fittedPyramid, minZoom, maxZoom];
 }
 
 export {
@@ -634,5 +632,5 @@ export {
   _computeImagePyramid,
   _createTileLoadFunction,
   _fitImagePyramid,
-  _getIccProfiles
-}
+  _getIccProfiles,
+};

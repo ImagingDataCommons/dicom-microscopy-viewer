@@ -1,6 +1,6 @@
-import dicomiccFactory from 'dicomicc/dist/dicomiccwasm.js'
-import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm'
-import Transformer from './transformerAbstract.js'
+import dicomiccFactory from "dicomicc/dist/dicomiccwasm.js";
+import dicomiccWASM from "dicomicc/dist/dicomiccwasm.wasm";
+import Transformer from "./transformerAbstract.js";
 
 export default class ColorTransformer extends Transformer {
   /**
@@ -10,60 +10,60 @@ export default class ColorTransformer extends Transformer {
    * image
    * @param {Array<TypedArray>} - ICC profiles of each image
    */
-  constructor (metadata, iccProfiles) {
-    super()
+  constructor(metadata, iccProfiles) {
+    super();
     if (metadata.length !== iccProfiles.length) {
       throw new Error(
         'Argument "metadata" and "iccProfiles" must have same length: ' +
-        `${metadata.length} versus ${iccProfiles.length}`
-      )
+          `${metadata.length} versus ${iccProfiles.length}`,
+      );
     }
-    this.metadata = metadata
-    this.iccProfiles = iccProfiles
-    this.codec = null
-    this.transformers = {}
+    this.metadata = metadata;
+    this.iccProfiles = iccProfiles;
+    this.codec = null;
+    this.transformers = {};
   }
 
-  _initialize () {
+  _initialize() {
     if (this.codec) {
-      return Promise.resolve()
+      return Promise.resolve();
     }
 
     const dicomicc = dicomiccFactory({
       locateFile: (f) => {
-        if (f.endsWith('.wasm')) {
-          return dicomiccWASM
+        if (f.endsWith(".wasm")) {
+          return dicomiccWASM;
         }
-        return f
-      }
-    })
+        return f;
+      },
+    });
 
     return new Promise((resolve, reject) => {
       dicomicc.then((instance) => {
-        this.codec = instance
+        this.codec = instance;
 
         for (let index = 0; index < this.metadata.length; index++) {
-          const columns = this.metadata[index].Columns
-          const rows = this.metadata[index].Rows
-          const bitsPerSample = this.metadata[index].BitsAllocated
-          const samplesPerPixel = this.metadata[index].SamplesPerPixel
-          const planarConfiguration = this.metadata[index].PlanarConfiguration
-          const sopInstanceUID = this.metadata[index].SOPInstanceUID
-          const profile = this.iccProfiles[index]
+          const columns = this.metadata[index].Columns;
+          const rows = this.metadata[index].Rows;
+          const bitsPerSample = this.metadata[index].BitsAllocated;
+          const samplesPerPixel = this.metadata[index].SamplesPerPixel;
+          const planarConfiguration = this.metadata[index].PlanarConfiguration;
+          const sopInstanceUID = this.metadata[index].SOPInstanceUID;
+          const profile = this.iccProfiles[index];
           this.transformers[sopInstanceUID] = new this.codec.ColorManager(
             {
               columns,
               rows,
               bitsPerSample,
               samplesPerPixel,
-              planarConfiguration
+              planarConfiguration,
             },
-            profile
-          )
+            profile,
+          );
         }
-        resolve(this.transformers)
-      }, reject)
-    })
+        resolve(this.transformers);
+      }, reject);
+    });
   }
 
   /**
@@ -77,27 +77,27 @@ export default class ColorTransformer extends Transformer {
    *
    * @returns {Promise<Buffer>} transformed buffer
    */
-  async transform (sopInstanceUID, decodedFrame) {
+  async transform(sopInstanceUID, decodedFrame) {
     if (this.codec == null) {
-      await this._initialize()
+      await this._initialize();
     }
 
-    let transformedFrame
+    let transformedFrame;
     if (sopInstanceUID in this.transformers) {
-      const transformer = this.transformers[sopInstanceUID]
+      const transformer = this.transformers[sopInstanceUID];
       if (transformer) {
-        transformedFrame = transformer.transform(decodedFrame)
+        transformedFrame = transformer.transform(decodedFrame);
       } else {
         transformedFrame = new Promise(function (resolve) {
-          resolve(decodedFrame)
-        })
+          resolve(decodedFrame);
+        });
       }
     } else {
       transformedFrame = new Promise(function (resolve) {
-        resolve(decodedFrame)
-      })
+        resolve(decodedFrame);
+      });
     }
 
-    return transformedFrame
+    return transformedFrame;
   }
 }

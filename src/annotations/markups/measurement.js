@@ -1,9 +1,6 @@
-import Enums from '../../enums'
-import { _getUnitSuffix } from '../../utils'
-import {
-  _getFeatureArea,
-  _getFeatureLength
-} from '../../scoord3dUtils.js'
+import Enums from "../../enums";
+import { _getUnitSuffix } from "../../utils";
+import { _getFeatureArea, _getFeatureLength } from "../../scoord3dUtils.js";
 
 /**
  * Format measure output.
@@ -16,13 +13,13 @@ import {
  * @private
  */
 export const _format = (feature, units, pyramid, affine) => {
-  const area = _getFeatureArea(feature, pyramid, affine)
-  const length = _getFeatureLength(feature, pyramid, affine)
-  const value = length || area || 0
+  const area = _getFeatureArea(feature, pyramid, affine);
+  const length = _getFeatureLength(feature, pyramid, affine);
+  const value = length || area || 0;
   return length
     ? `${value.toFixed(2)} ${units}`
-    : `${value.toFixed(2)} ${units}²`
-}
+    : `${value.toFixed(2)} ${units}²`;
+};
 
 /**
  * Checks if feature has measurement markup properties.
@@ -34,7 +31,7 @@ export const _format = (feature, units, pyramid, affine) => {
  * @private
  */
 const _isMeasurement = (feature) =>
-  Enums.Markup.Measurement === feature.get(Enums.InternalProperties.Markup)
+  Enums.Markup.Measurement === feature.get(Enums.InternalProperties.Markup);
 
 /**
  * Measurement markup definition.
@@ -51,37 +48,37 @@ const MeasurementMarkup = ({ map, pyramid, affine, markupManager }) => {
   return {
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
-        const view = map.getView()
-        const unitSuffix = _getUnitSuffix(view)
+        const view = map.getView();
+        const unitSuffix = _getUnitSuffix(view);
         markupManager.create({
           feature,
-          value: _format(feature, unitSuffix, pyramid, affine)
-        })
+          value: _format(feature, unitSuffix, pyramid, affine),
+        });
       }
     },
     onFailure: (uid) => {
       if (uid) {
-        markupManager.remove(uid)
+        markupManager.remove(uid);
       }
     },
     onRemove: (feature) => {
-      const featureId = feature.getId()
-      markupManager.remove(featureId)
+      const featureId = feature.getId();
+      markupManager.remove(featureId);
     },
     onDrawStart: ({ feature }) => {
       if (_isMeasurement(feature)) {
-        const view = map.getView()
-        const unitSuffix = _getUnitSuffix(view)
+        const view = map.getView();
+        const unitSuffix = _getUnitSuffix(view);
         markupManager.create({
           feature,
-          value: _format(feature, unitSuffix, pyramid, affine)
-        })
+          value: _format(feature, unitSuffix, pyramid, affine),
+        });
       }
     },
     onUpdate: (feature) => {},
     onDrawEnd: ({ feature }) => {},
-    onDrawAbort: ({ feature }) => {}
-  }
-}
+    onDrawAbort: ({ feature }) => {},
+  };
+};
 
-export default MeasurementMarkup
+export default MeasurementMarkup;

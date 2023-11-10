@@ -1,12 +1,12 @@
-import EVENTS from './events.js'
-import { AnnotationGroup } from './annotation.js'
-import { ParameterMapping } from './mapping.js'
+import EVENTS from "./events.js";
+import { AnnotationGroup } from "./annotation.js";
+import { ParameterMapping } from "./mapping.js";
 import {
   ColormapNames,
   createColormap,
   PaletteColorLookupTable,
-  buildPaletteColorLookupTable
-} from './color.js'
+  buildPaletteColorLookupTable,
+} from "./color.js";
 import {
   Comprehensive3DSR,
   MicroscopyBulkSimpleAnnotations,
@@ -15,17 +15,17 @@ import {
   VLWholeSlideMicroscopyImage,
   formatMetadata,
   groupMonochromeInstances,
-  groupColorInstances
-} from './metadata.js'
-import { ROI } from './roi.js'
+  groupColorInstances,
+} from "./metadata.js";
+import { ROI } from "./roi.js";
 import {
   Point,
   Multipoint,
   Polyline,
   Polygon,
   Ellipsoid,
-  Ellipse
-} from './scoord3d.js'
+  Ellipse,
+} from "./scoord3d.js";
 import {
   applyInverseTransform,
   applyTransform,
@@ -33,19 +33,15 @@ import {
   buildTransform,
   computeRotation,
   mapSlideCoordToPixelCoord,
-  mapPixelCoordToSlideCoord
-} from './utils.js'
+  mapPixelCoordToSlideCoord,
+} from "./utils.js";
 import {
   LabelImageViewer,
   OverviewImageViewer,
-  VolumeImageViewer
-} from './viewer.js'
-import {
-  OpticalPath
-} from './opticalPath.js'
-import {
-  Segment
-} from './segment.js'
+  VolumeImageViewer,
+} from "./viewer.js";
+import { OpticalPath } from "./opticalPath.js";
+import { Segment } from "./segment.js";
 
 /**
  * Namespace for annotations of DICOM Micrsocopy Bulk Simple Annotations
@@ -54,8 +50,8 @@ import {
  * @namespace annotation
  */
 const annotation = {
-  AnnotationGroup
-}
+  AnnotationGroup,
+};
 
 /**
  * Namespace for the viewer.
@@ -64,8 +60,8 @@ const annotation = {
  * @deprecated use the viewer namespace instead
  */
 const api = {
-  VLWholeSlideMicroscopyImageViewer: VolumeImageViewer
-}
+  VLWholeSlideMicroscopyImageViewer: VolumeImageViewer,
+};
 
 /**
  * Namespace for the viewer.
@@ -75,8 +71,8 @@ const api = {
 const viewer = {
   LabelImageViewer,
   OverviewImageViewer,
-  VolumeImageViewer
-}
+  VolumeImageViewer,
+};
 
 /**
  * Namespace for parameter mappings of DICOM Parametric Map instances.
@@ -84,8 +80,8 @@ const viewer = {
  * @namespace mapping
  */
 const mapping = {
-  ParameterMapping
-}
+  ParameterMapping,
+};
 
 /**
  * Namespace for working with DICOM Metadata.
@@ -100,8 +96,8 @@ const metadata = {
   ParametricMap,
   Segmentation,
   VLWholeSlideMicroscopyImage,
-  Comprehensive3DSR
-}
+  Comprehensive3DSR,
+};
 
 /**
  * Namespace for color.
@@ -112,8 +108,8 @@ const color = {
   ColormapNames,
   createColormap,
   PaletteColorLookupTable,
-  buildPaletteColorLookupTable
-}
+  buildPaletteColorLookupTable,
+};
 
 /**
  * Namespace for optical paths.
@@ -121,8 +117,8 @@ const color = {
  * @namespace opticalPath
  */
 const opticalPath = {
-  OpticalPath
-}
+  OpticalPath,
+};
 
 /**
  * Namespace for 3-dimensional spatial coordinates (SCOORD3D).
@@ -135,8 +131,8 @@ const scoord3d = {
   Polyline,
   Polygon,
   Ellipsoid,
-  Ellipse
-}
+  Ellipse,
+};
 
 /**
  * Namespace for regions of interest (ROIs).
@@ -144,8 +140,8 @@ const scoord3d = {
  * @namespace roi
  */
 const roi = {
-  ROI
-}
+  ROI,
+};
 
 /**
  * Namespace for segments of DICOM Segmentation instances.
@@ -153,8 +149,8 @@ const roi = {
  * @namespace segment
  */
 const segment = {
-  Segment
-}
+  Segment,
+};
 
 /**
  * Namespace for viewer events.
@@ -162,8 +158,8 @@ const segment = {
  * @namespace events
  */
 const events = {
-  EVENTS
-}
+  EVENTS,
+};
 
 /**
  * Namespace for various utilities.
@@ -177,8 +173,8 @@ const utils = {
   buildTransform,
   computeRotation,
   mapSlideCoordToPixelCoord,
-  mapPixelCoordToSlideCoord
-}
+  mapPixelCoordToSlideCoord,
+};
 
 export {
   annotation,
@@ -192,5 +188,5 @@ export {
   scoord3d,
   segment,
   utils,
-  viewer
-}
+  viewer,
+};

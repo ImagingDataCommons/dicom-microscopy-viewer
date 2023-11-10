@@ -1,4 +1,4 @@
-const _attrs = Symbol('attrs')
+const _attrs = Symbol("attrs");
 
 /**
  * A segment.
@@ -27,7 +27,7 @@ class Segment {
    * @param {string|undefined} options.paletteColorLookupTableUID - Palette
    * Color Lookup Table UID
    */
-  constructor ({
+  constructor({
     uid,
     number,
     label,
@@ -38,63 +38,63 @@ class Segment {
     studyInstanceUID,
     seriesInstanceUID,
     sopInstanceUIDs,
-    paletteColorLookupTableUID
+    paletteColorLookupTableUID,
   }) {
-    this[_attrs] = {}
+    this[_attrs] = {};
     if (uid === undefined) {
-      throw new Error('Unique Tracking Identifier is required.')
+      throw new Error("Unique Tracking Identifier is required.");
     } else {
-      this[_attrs].uid = uid
+      this[_attrs].uid = uid;
     }
 
     if (number === undefined) {
-      throw new Error('Segment Number is required.')
+      throw new Error("Segment Number is required.");
     }
-    this[_attrs].number = number
+    this[_attrs].number = number;
 
     if (label === undefined) {
-      throw new Error('Segment Label is required.')
+      throw new Error("Segment Label is required.");
     }
-    this[_attrs].label = label
+    this[_attrs].label = label;
 
     if (propertyCategory === undefined) {
-      throw new Error('Segmented Property Category Code is required.')
+      throw new Error("Segmented Property Category Code is required.");
     }
-    this[_attrs].propertyCategory = propertyCategory
+    this[_attrs].propertyCategory = propertyCategory;
 
     if (propertyType === undefined) {
-      throw new Error('Segmented Property Type Code is required.')
+      throw new Error("Segmented Property Type Code is required.");
     }
-    this[_attrs].propertyType = propertyType
+    this[_attrs].propertyType = propertyType;
 
     if (algorithmName === undefined) {
-      throw new Error('Segment Algorithm Name is required.')
+      throw new Error("Segment Algorithm Name is required.");
     }
-    this[_attrs].algorithmType = algorithmType
+    this[_attrs].algorithmType = algorithmType;
 
     if (algorithmType === undefined) {
-      throw new Error('Segment Algorithm Type is required.')
+      throw new Error("Segment Algorithm Type is required.");
     }
-    this[_attrs].algorithmName = algorithmName
+    this[_attrs].algorithmName = algorithmName;
 
     if (studyInstanceUID === undefined) {
-      throw new Error('Study Instance UID is required.')
+      throw new Error("Study Instance UID is required.");
     }
-    this[_attrs].studyInstanceUID = studyInstanceUID
+    this[_attrs].studyInstanceUID = studyInstanceUID;
 
     if (seriesInstanceUID === undefined) {
-      throw new Error('Series Instance UID is required.')
+      throw new Error("Series Instance UID is required.");
     }
-    this[_attrs].seriesInstanceUID = seriesInstanceUID
+    this[_attrs].seriesInstanceUID = seriesInstanceUID;
 
     if (sopInstanceUIDs === undefined) {
-      throw new Error('SOP Instance UIDs are required.')
+      throw new Error("SOP Instance UIDs are required.");
     }
-    this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+    this[_attrs].sopInstanceUIDs = sopInstanceUIDs;
 
-    this[_attrs].paletteColorLookupTableUID = paletteColorLookupTableUID
+    this[_attrs].paletteColorLookupTableUID = paletteColorLookupTableUID;
 
-    Object.freeze(this)
+    Object.freeze(this);
   }
 
   /**
@@ -102,8 +102,8 @@ class Segment {
    *
    * @type string
    */
-  get uid () {
-    return this[_attrs].uid
+  get uid() {
+    return this[_attrs].uid;
   }
 
   /**
@@ -111,8 +111,8 @@ class Segment {
    *
    * @type number
    */
-  get number () {
-    return this[_attrs].number
+  get number() {
+    return this[_attrs].number;
   }
 
   /**
@@ -120,8 +120,8 @@ class Segment {
    *
    * @type string
    */
-  get label () {
-    return this[_attrs].label
+  get label() {
+    return this[_attrs].label;
   }
 
   /**
@@ -129,8 +129,8 @@ class Segment {
    *
    * @type string
    */
-  get algorithmName () {
-    return this[_attrs].algorithmName
+  get algorithmName() {
+    return this[_attrs].algorithmName;
   }
 
   /**
@@ -138,8 +138,8 @@ class Segment {
    *
    * @type object
    */
-  get algorithmType () {
-    return this[_attrs].algorithmType
+  get algorithmType() {
+    return this[_attrs].algorithmType;
   }
 
   /**
@@ -147,8 +147,8 @@ class Segment {
    *
    * @type object
    */
-  get propertyCategory () {
-    return this[_attrs].propertyCategory
+  get propertyCategory() {
+    return this[_attrs].propertyCategory;
   }
 
   /**
@@ -156,8 +156,8 @@ class Segment {
    *
    * @type object
    */
-  get propertyType () {
-    return this[_attrs].propertyType
+  get propertyType() {
+    return this[_attrs].propertyType;
   }
 
   /**
@@ -165,8 +165,8 @@ class Segment {
    *
    * @type string
    */
-  get studyInstanceUID () {
-    return this[_attrs].studyInstanceUID
+  get studyInstanceUID() {
+    return this[_attrs].studyInstanceUID;
   }
 
   /**
@@ -174,8 +174,8 @@ class Segment {
    *
    * @type string
    */
-  get seriesInstanceUID () {
-    return this[_attrs].seriesInstanceUID
+  get seriesInstanceUID() {
+    return this[_attrs].seriesInstanceUID;
   }
 
   /**
@@ -183,8 +183,8 @@ class Segment {
    *
    * @type string[]
    */
-  get sopInstanceUIDs () {
-    return this[_attrs].sopInstanceUIDs
+  get sopInstanceUIDs() {
+    return this[_attrs].sopInstanceUIDs;
   }
 
   /**
@@ -192,9 +192,9 @@ class Segment {
    *
    * @type string
    */
-  get paletteColorLookupTableUID () {
-    return this[_attrs].paletteColorLookupTableUID
+  get paletteColorLookupTableUID() {
+    return this[_attrs].paletteColorLookupTableUID;
   }
 }
 
-export { Segment }
+export { Segment };

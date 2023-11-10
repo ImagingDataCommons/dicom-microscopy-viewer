@@ -1,7 +1,7 @@
 export const stroke = {
-  color: '#3399CC'
-}
+  color: "#3399CC",
+};
 
 export default {
-  stroke
-}
+  stroke,
+};
