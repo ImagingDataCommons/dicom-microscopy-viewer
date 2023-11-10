@@ -40,8 +40,8 @@ function initialize(data) {
 
   // tell main ui thread that we have completed initialization
   self.postMessage({
-    taskType: "initialize",
-    status: "success",
+    taskType: 'initialize',
+    status: 'success',
     result: {},
     workerIndex: data.workerIndex,
   });
@@ -60,7 +60,7 @@ export function registerTaskHandler(taskHandler) {
     console.info(
       'attempt to register duplicate task handler "',
       taskHandler.taskType,
-      '"',
+      '"'
     );
 
     return false;
@@ -95,17 +95,17 @@ self.onmessage = function (msg) {
   }
 
   console.info(
-    `run task "${msg.data.taskType}" on web worker #${msg.data.workerIndex}`,
+    `run task "${msg.data.taskType}" on web worker #${msg.data.workerIndex}`
   );
 
   // handle initialize message
-  if (msg.data.taskType === "initialize") {
+  if (msg.data.taskType === 'initialize') {
     initialize(msg.data);
     return;
   }
 
   // handle loadWebWorkerTask message
-  if (msg.data.taskType === "loadWebWorkerTask") {
+  if (msg.data.taskType === 'loadWebWorkerTask') {
     loadWebWorkerTask(msg.data);
     return;
   }
@@ -119,19 +119,19 @@ self.onmessage = function (msg) {
           self.postMessage(
             {
               taskType: msg.data.taskType,
-              status: "success",
+              status: 'success',
               result,
               workerIndex: msg.data.workerIndex,
             },
-            transferList,
+            transferList
           );
-        },
+        }
       );
     } catch (error) {
       console.error(`task "${msg.data.taskType}" failed: ${error.message}`);
       self.postMessage({
         taskType: msg.data.taskType,
-        status: "failed",
+        status: 'failed',
         result: error.message,
         workerIndex: msg.data.workerIndex,
       });
@@ -141,11 +141,11 @@ self.onmessage = function (msg) {
   }
 
   // not task handler registered - send a failure message back to ui thread
-  console.warn("no task handler for ", msg.data.taskType, taskHandler);
+  console.warn('no task handler for ', msg.data.taskType, taskHandler);
 
   self.postMessage({
     taskType: msg.data.taskType,
-    status: "failed - no task handler registered",
+    status: 'failed - no task handler registered',
     workerIndex: msg.data.workerIndex,
   });
 };

@@ -1,5 +1,5 @@
-import webWorkerManager from "./webWorker/webWorkerManager.js";
-import dcmjs from "dcmjs";
+import webWorkerManager from './webWorker/webWorkerManager.js';
+import dcmjs from 'dcmjs';
 
 function _processDecodeAndTransformTask(
   frame,
@@ -10,13 +10,13 @@ function _processDecodeAndTransformTask(
   samplesPerPixel,
   sopInstanceUID,
   metadata,
-  iccProfiles,
+  iccProfiles
 ) {
   const priority = undefined;
   const transferList = undefined;
 
   return webWorkerManager.addTask(
-    "decodeAndTransformTask",
+    'decodeAndTransformTask',
     {
       frame,
       bitsAllocated,
@@ -29,7 +29,7 @@ function _processDecodeAndTransformTask(
       iccProfiles,
     },
     priority,
-    transferList,
+    transferList
   ).promise;
 }
 
@@ -53,7 +53,7 @@ async function _decodeAndTransformFrame({
     samplesPerPixel,
     sopInstanceUID,
     metadata,
-    iccProfiles,
+    iccProfiles
   );
 
   const signed = pixelRepresentation === 1;
@@ -75,13 +75,13 @@ async function _decodeAndTransformFrame({
         pixelArray = new Int16Array(
           byteArray.buffer,
           byteArray.byteOffset,
-          byteArray.byteLength / 2,
+          byteArray.byteLength / 2
         );
       } else {
         pixelArray = new Uint16Array(
           byteArray.buffer,
           byteArray.byteOffset,
-          byteArray.byteLength / 2,
+          byteArray.byteLength / 2
         );
       }
       break;
@@ -89,21 +89,21 @@ async function _decodeAndTransformFrame({
       pixelArray = new Float32Array(
         byteArray.buffer,
         byteArray.byteOffset,
-        byteArray.byteLength / 4,
+        byteArray.byteLength / 4
       );
       break;
     case 64:
       pixelArray = new Float64Array(
         byteArray.buffer,
         byteArray.byteOffset,
-        byteArray.byteLength / 8,
+        byteArray.byteLength / 8
       );
       break;
     default:
       throw new Error(
-        "The pixel bit depth " +
+        'The pixel bit depth ' +
           bitsAllocated +
-          " is not supported by the decoder.",
+          ' is not supported by the decoder.'
       );
   }
   return pixelArray;

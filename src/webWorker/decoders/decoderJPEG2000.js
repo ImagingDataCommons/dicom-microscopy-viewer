@@ -1,6 +1,6 @@
-import openJpegFactory from "@cornerstonejs/codec-openjpeg/decodewasmjs";
-import openjpegWasm from "@cornerstonejs/codec-openjpeg/decodewasm";
-import Decoder from "./decoderAbstract.js";
+import openJpegFactory from '@cornerstonejs/codec-openjpeg/decodewasmjs';
+import openjpegWasm from '@cornerstonejs/codec-openjpeg/decodewasm';
+import Decoder from './decoderAbstract.js';
 
 export default class JPEG2000Decoder extends Decoder {
   _initialize() {
@@ -10,7 +10,7 @@ export default class JPEG2000Decoder extends Decoder {
 
     const openJpegModule = openJpegFactory({
       locateFile: (f) => {
-        if (f.endsWith(".wasm")) {
+        if (f.endsWith('.wasm')) {
           return openjpegWasm;
         }
         return f;

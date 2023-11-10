@@ -1,6 +1,6 @@
-import Enums from "../../enums";
-import { _getUnitSuffix } from "../../utils";
-import { _getFeatureArea, _getFeatureLength } from "../../scoord3dUtils.js";
+import Enums from '../../enums';
+import { _getUnitSuffix } from '../../utils';
+import { _getFeatureArea, _getFeatureLength } from '../../scoord3dUtils.js';
 
 /**
  * Format measure output.

@@ -1,4 +1,4 @@
-const _attrs = Symbol("_attrs");
+const _attrs = Symbol('_attrs');
 
 /**
  * An Optical Path.
@@ -58,36 +58,36 @@ class OpticalPath {
   }) {
     this[_attrs] = {};
     if (identifier == null) {
-      throw new Error("Identifier must be provided for optical path.");
+      throw new Error('Identifier must be provided for optical path.');
     }
     this[_attrs].identifier = identifier;
     this[_attrs].description = description;
 
     if (illuminationType == null) {
-      throw new Error("Illumination type must be specified for optical path.");
+      throw new Error('Illumination type must be specified for optical path.');
     }
     this[_attrs].illuminationType = illuminationType;
 
     this[_attrs].illuminationWaveLength = illuminationWaveLength;
 
     if (studyInstanceUID == null) {
-      throw new Error("Study Instance UID must be provided for optical path.");
+      throw new Error('Study Instance UID must be provided for optical path.');
     }
     this[_attrs].studyInstanceUID = studyInstanceUID;
 
     if (seriesInstanceUID == null) {
-      throw new Error("Series Instance UID must be provided for optical path.");
+      throw new Error('Series Instance UID must be provided for optical path.');
     }
     this[_attrs].seriesInstanceUID = seriesInstanceUID;
 
     if (sopInstanceUIDs == null) {
-      throw new Error("SOP Instance UIDs must be provided for optical path.");
+      throw new Error('SOP Instance UIDs must be provided for optical path.');
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs;
 
     if (isMonochromatic == null) {
       throw new Error(
-        "Whether optical path is monochromatic must be specified.",
+        'Whether optical path is monochromatic must be specified.'
       );
     }
     this[_attrs].isMonochromatic = isMonochromatic;

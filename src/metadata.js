@@ -1,9 +1,9 @@
-import { tagToKeyword } from "./dictionary";
-import { SOPClassUIDs } from "./enums";
-import { _groupFramesPerMapping } from "./mapping";
+import { tagToKeyword } from './dictionary';
+import { SOPClassUIDs } from './enums';
+import { _groupFramesPerMapping } from './mapping';
 
-const _metadata = Symbol("metadata");
-const _bulkdataReferences = Symbol("bulkdataReferences");
+const _metadata = Symbol('metadata');
+const _bulkdataReferences = Symbol('bulkdataReferences');
 
 function _base64ToUint8Array(value) {
   const blob = window.atob(value);
@@ -119,7 +119,7 @@ function getFrameMapping(metadata) {
    */
   const numberOfFocalPlanes = Number(metadata.NumberOfFocalPlanes || 1);
   if (numberOfFocalPlanes > 1) {
-    throw new Error("Images with multiple focal planes are not yet supported.");
+    throw new Error('Images with multiple focal planes are not yet supported.');
   }
 
   const { mappingNumberToFrameNumbers, frameNumberToMappingNumber } =
@@ -138,7 +138,7 @@ function getFrameMapping(metadata) {
     numberOfMappings = Number(Object.keys(mappingNumberToFrameNumbers).length);
     numberOfChannels = numberOfMappings;
   } else {
-    throw new Error("Could not determine the number of image channels.");
+    throw new Error('Could not determine the number of image channels.');
   }
 
   const tileColumns = Math.ceil(totalPixelMatrixColumns / columns);
@@ -149,8 +149,8 @@ function getFrameMapping(metadata) {
    * edition of the standard. Older datasets are equivalent to "TILED_SPARSE".
    */
   const dimensionOrganizationType =
-    metadata.DimensionOrganizationType || "TILED_SPARSE";
-  if (dimensionOrganizationType === "TILED_FULL") {
+    metadata.DimensionOrganizationType || 'TILED_SPARSE';
+  if (dimensionOrganizationType === 'TILED_FULL') {
     let number = 1;
     // Forth, along "channels"
     for (let i = 0; i < numberOfChannels; i++) {
@@ -177,7 +177,7 @@ function getFrameMapping(metadata) {
               channelIdentifier = String(frameNumberToMappingNumber[number]);
             } else {
               throw new Error(
-                `Could not determine channel of frame #${number}.`,
+                `Could not determine channel of frame #${number}.`
               );
             }
             const key = `${r + 1}-${c + 1}-${channelIdentifier}`;
@@ -204,35 +204,35 @@ function getFrameMapping(metadata) {
         try {
           channelIdentifier = String(
             sharedFuncGroups[0].OpticalPathIdentificationSequence[0]
-              .OpticalPathIdentifier,
+              .OpticalPathIdentifier
           );
         } catch {
           channelIdentifier = String(
             perframeFuncGroups[j].OpticalPathIdentificationSequence[0]
-              .OpticalPathIdentifier,
+              .OpticalPathIdentifier
           );
         }
       } else if (numberOfOpticalPaths > 1) {
         channelIdentifier = String(
           perframeFuncGroups[j].OpticalPathIdentificationSequence[0]
-            .OpticalPathIdentifier,
+            .OpticalPathIdentifier
         );
       } else if (numberOfSegments === 1) {
         try {
           channelIdentifier = String(
             sharedFuncGroups[0].SegmentIdentificationSequence[0]
-              .ReferencedSegmentNumber,
+              .ReferencedSegmentNumber
           );
         } catch {
           channelIdentifier = String(
             perframeFuncGroups[j].SegmentIdentificationSequence[0]
-              .ReferencedSegmentNumber,
+              .ReferencedSegmentNumber
           );
         }
       } else if (numberOfSegments > 1) {
         channelIdentifier = String(
           perframeFuncGroups[j].SegmentIdentificationSequence[0]
-            .ReferencedSegmentNumber,
+            .ReferencedSegmentNumber
         );
       } else if (numberOfMappings > 0) {
         channelIdentifier = String(frameNumberToMappingNumber[number]);
@@ -271,11 +271,11 @@ function formatMetadata(metadata) {
     Object.keys(elements).forEach((tag) => {
       const keyword = tagToKeyword[tag];
       const vr = elements[tag].vr;
-      if ("BulkDataURI" in elements[tag]) {
+      if ('BulkDataURI' in elements[tag]) {
         bulkdataReferences[keyword] = elements[tag];
-      } else if ("Value" in elements[tag]) {
+      } else if ('Value' in elements[tag]) {
         const value = elements[tag].Value;
-        if (vr === "SQ") {
+        if (vr === 'SQ') {
           dataset[keyword] = [];
           const mappings = [];
           value.forEach((item) => {
@@ -289,34 +289,34 @@ function formatMetadata(metadata) {
         } else {
           // Handle value multiplicity.
           if (value.length === 1) {
-            if (vr === "DS" || vr === "IS") {
+            if (vr === 'DS' || vr === 'IS') {
               dataset[keyword] = Number(value[0]);
             } else {
               dataset[keyword] = value[0];
             }
           } else {
-            if (vr === "DS" || vr === "IS") {
+            if (vr === 'DS' || vr === 'IS') {
               dataset[keyword] = value.map((v) => Number(v));
             } else {
               dataset[keyword] = value;
             }
           }
         }
-      } else if ("InlineBinary" in elements[tag]) {
+      } else if ('InlineBinary' in elements[tag]) {
         const value = elements[tag].InlineBinary;
-        if (vr === "OB") {
+        if (vr === 'OB') {
           dataset[keyword] = _base64ToUint8Array(value);
-        } else if (vr === "OW") {
+        } else if (vr === 'OW') {
           dataset[keyword] = _base64ToUint16Array(value);
-        } else if (vr === "OL") {
+        } else if (vr === 'OL') {
           dataset[keyword] = _base64ToUint32Array(value);
-        } else if (vr === "OF") {
+        } else if (vr === 'OF') {
           dataset[keyword] = _base64ToFloat32Array(value);
-        } else if (vr === "OD") {
+        } else if (vr === 'OD') {
           dataset[keyword] = _base64ToFloat64Array(value);
         }
       } else {
-        if (vr === "SQ") {
+        if (vr === 'SQ') {
           dataset[keyword] = [];
         } else {
           dataset[keyword] = null;
@@ -332,9 +332,9 @@ function formatMetadata(metadata) {
   // which case the "NumberOfFrames" attribute is optional. We include it for
   // consistency.
   if (dataset === undefined) {
-    throw new Error("Could not format metadata: ", metadata);
+    throw new Error('Could not format metadata: ', metadata);
   }
-  if (!("NumberOfFrames" in dataset) && dataset.Modality === "SM") {
+  if (!('NumberOfFrames' in dataset) && dataset.Modality === 'SM') {
     dataset.NumberOfFrames = 1;
   }
 
@@ -355,8 +355,8 @@ function groupMonochromeInstances(images) {
   images.forEach((img) => {
     if (
       img.SamplesPerPixel === 1 &&
-      img.PhotometricInterpretation === "MONOCHROME2" &&
-      (img.ImageType[2] === "VOLUME" || img.ImageType[2] === "THUMBNAIL")
+      img.PhotometricInterpretation === 'MONOCHROME2' &&
+      (img.ImageType[2] === 'VOLUME' || img.ImageType[2] === 'THUMBNAIL')
     ) {
       img.OpticalPathSequence.forEach((opticalPathItem, opticalPathIndex) => {
         const id = opticalPathItem.OpticalPathIdentifier;
@@ -385,9 +385,9 @@ function groupColorInstances(images) {
   images.forEach((img) => {
     if (
       img.SamplesPerPixel !== 1 &&
-      (img.ImageType[2] === "THUMBNAIL" || img.ImageType[2] === "VOLUME") &&
-      (img.PhotometricInterpretation === "RGB" ||
-        img.PhotometricInterpretation.includes("YBR"))
+      (img.ImageType[2] === 'THUMBNAIL' || img.ImageType[2] === 'VOLUME') &&
+      (img.PhotometricInterpretation === 'RGB' ||
+        img.PhotometricInterpretation.includes('YBR'))
     ) {
       const id = img.OpticalPathSequence[0].OpticalPathIdentifier;
       if (id in channels) {
@@ -415,7 +415,7 @@ class SOPClass {
   constructor({ metadata }) {
     if (metadata == null) {
       throw new Error(
-        "Cannot construct SOP Instance because no metadata was provided.",
+        'Cannot construct SOP Instance because no metadata was provided.'
       );
     }
     const { dataset, bulkdataReferences } = formatMetadata(metadata);
@@ -462,8 +462,8 @@ class VLWholeSlideMicroscopyImage extends SOPClass {
     super({ metadata });
     if (this.SOPClassUID !== SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE) {
       throw new Error(
-        "Cannot construct VL Whole Slide Microscopy Image instance " +
-          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
+        'Cannot construct VL Whole Slide Microscopy Image instance ' +
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`
       );
     }
   }
@@ -485,8 +485,8 @@ class Comprehensive3DSR extends SOPClass {
     super({ metadata });
     if (this.SOPClassUID !== SOPClassUIDs.COMPREHENSIVE_3D_SR) {
       throw new Error(
-        "Cannot construct Comprehensive 3D SR instance " +
-          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
+        'Cannot construct Comprehensive 3D SR instance ' +
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`
       );
     }
   }
@@ -508,8 +508,8 @@ class MicroscopyBulkSimpleAnnotations extends SOPClass {
     super({ metadata });
     if (this.SOPClassUID !== SOPClassUIDs.MICROSCOPY_BULK_SIMPLE_ANNOTATIONS) {
       throw new Error(
-        "Cannot construct Microscopy Bulk Simple Annotations instance " +
-          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
+        'Cannot construct Microscopy Bulk Simple Annotations instance ' +
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`
       );
     }
   }
@@ -531,8 +531,8 @@ class ParametricMap extends SOPClass {
     super({ metadata });
     if (this.SOPClassUID !== SOPClassUIDs.PARAMETRIC_MAP) {
       throw new Error(
-        "Cannot construct Parametric Map instance " +
-          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
+        'Cannot construct Parametric Map instance ' +
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`
       );
     }
   }
@@ -554,8 +554,8 @@ class Segmentation extends SOPClass {
     super({ metadata });
     if (this.SOPClassUID !== SOPClassUIDs.SEGMENTATION) {
       throw new Error(
-        "Cannot construct Segmentation instance " +
-          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
+        'Cannot construct Segmentation instance ' +
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`
       );
     }
   }

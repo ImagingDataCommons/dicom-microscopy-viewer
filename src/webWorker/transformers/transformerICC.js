@@ -1,6 +1,6 @@
-import dicomiccFactory from "dicomicc/dist/dicomiccwasm.js";
-import dicomiccWASM from "dicomicc/dist/dicomiccwasm.wasm";
-import Transformer from "./transformerAbstract.js";
+import dicomiccFactory from 'dicomicc/dist/dicomiccwasm.js';
+import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm';
+import Transformer from './transformerAbstract.js';
 
 export default class ColorTransformer extends Transformer {
   /**
@@ -15,7 +15,7 @@ export default class ColorTransformer extends Transformer {
     if (metadata.length !== iccProfiles.length) {
       throw new Error(
         'Argument "metadata" and "iccProfiles" must have same length: ' +
-          `${metadata.length} versus ${iccProfiles.length}`,
+          `${metadata.length} versus ${iccProfiles.length}`
       );
     }
     this.metadata = metadata;
@@ -31,7 +31,7 @@ export default class ColorTransformer extends Transformer {
 
     const dicomicc = dicomiccFactory({
       locateFile: (f) => {
-        if (f.endsWith(".wasm")) {
+        if (f.endsWith('.wasm')) {
           return dicomiccWASM;
         }
         return f;
@@ -58,7 +58,7 @@ export default class ColorTransformer extends Transformer {
               samplesPerPixel,
               planarConfiguration,
             },
-            profile,
+            profile
           );
         }
         resolve(this.transformers);

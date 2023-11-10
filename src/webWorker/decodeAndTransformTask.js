@@ -1,8 +1,8 @@
-import JPEG2000Decoder from "./decoders/decoderJPEG2000.js";
-import JPEGLSDecoder from "./decoders/decoderJPEGLS.js";
-import JPEGDecoder from "./decoders/decoderJPEGBaseline8Bit.js";
-import ColorTransformer from "./transformers/transformerICC.js";
-import imageType from "image-type";
+import JPEG2000Decoder from './decoders/decoderJPEG2000.js';
+import JPEGLSDecoder from './decoders/decoderJPEGLS.js';
+import JPEGDecoder from './decoders/decoderJPEGBaseline8Bit.js';
+import ColorTransformer from './transformers/transformerICC.js';
+import imageType from 'image-type';
 
 const decoderJPEG2000 = new JPEG2000Decoder();
 const decoderJPEGLS = new JPEGLSDecoder();
@@ -91,7 +91,7 @@ async function _checkImageTypeAndDecode({
   const imageTypeObject = imageType(byteArray);
 
   const toHex = function (value) {
-    return value.toString(16).padStart(2, "0").toUpperCase();
+    return value.toString(16).padStart(2, '0').toUpperCase();
   };
 
   let mediaType;
@@ -102,20 +102,20 @@ async function _checkImageTypeAndDecode({
      * (EOI) marker "FFD9".
      */
     if (
-      toHex(byteArray[byteArray.length - 3]) === "FF" &&
-      toHex(byteArray[byteArray.length - 2]) === "D9" &&
-      toHex(byteArray[byteArray.length - 1]) === "00"
+      toHex(byteArray[byteArray.length - 3]) === 'FF' &&
+      toHex(byteArray[byteArray.length - 2]) === 'D9' &&
+      toHex(byteArray[byteArray.length - 1]) === '00'
     ) {
-      mediaType = "image/jp2";
+      mediaType = 'image/jp2';
       byteArray = new Uint8Array(byteArray.buffer, 0, byteArray.length - 1);
     } else {
       if (
-        toHex(byteArray[byteArray.length - 2]) === "FF" &&
-        toHex(byteArray[byteArray.length - 1]) === "D9"
+        toHex(byteArray[byteArray.length - 2]) === 'FF' &&
+        toHex(byteArray[byteArray.length - 1]) === 'D9'
       ) {
-        mediaType = "image/jp2";
+        mediaType = 'image/jp2';
       } else {
-        mediaType = "application/octet-stream";
+        mediaType = 'application/octet-stream';
       }
     }
   } else {
@@ -124,24 +124,24 @@ async function _checkImageTypeAndDecode({
      * both contain the JPEG Start of Image (SOI) marker and share the first
      * three bytes.
      */
-    if (toHex(byteArray[3]) === "F7" || toHex(byteArray[3]) === "E8") {
-      mediaType = "image/jls";
+    if (toHex(byteArray[3]) === 'F7' || toHex(byteArray[3]) === 'E8') {
+      mediaType = 'image/jls';
     } else {
       const supportedImageMediaTypes = new Set([
-        "image/jpeg",
-        "image/jls",
-        "image/jp2",
-        "image/jpx",
+        'image/jpeg',
+        'image/jls',
+        'image/jp2',
+        'image/jpx',
       ]);
       if (supportedImageMediaTypes.has(imageTypeObject.mime)) {
         mediaType = imageTypeObject.mime;
       } else {
-        mediaType = "application/octet-stream";
+        mediaType = 'application/octet-stream';
       }
     }
   }
 
-  if (mediaType === "application/octet-stream") {
+  if (mediaType === 'application/octet-stream') {
     console.debug(`decode uncompressed frame with media type "${mediaType}"`);
     return byteArray;
   }
@@ -151,29 +151,29 @@ async function _checkImageTypeAndDecode({
   const { frameBuffer, frameInfo } = await _decode(mediaType, byteArray);
   if (frameInfo.bitsPerSample !== bitsAllocated) {
     throw new Error(
-      "Frame does not have expected Bits Allocated: " +
-        `${frameInfo.bitsPerSample} instead of ${bitsAllocated}.`,
+      'Frame does not have expected Bits Allocated: ' +
+        `${frameInfo.bitsPerSample} instead of ${bitsAllocated}.`
     );
   }
 
   if (frameInfo.height !== rows) {
     throw new Error(
-      "Frame does not have expected Rows: " +
-        `${frameInfo.height} instead of ${rows}.`,
+      'Frame does not have expected Rows: ' +
+        `${frameInfo.height} instead of ${rows}.`
     );
   }
 
   if (frameInfo.width !== columns) {
     throw new Error(
-      "Frame does not have expected Columns: " +
-        `${frameInfo.width} instead of ${columns}.`,
+      'Frame does not have expected Columns: ' +
+        `${frameInfo.width} instead of ${columns}.`
     );
   }
 
   if (frameInfo.componentCount !== samplesPerPixel) {
     throw new Error(
-      "Frame does not have expected Samples Per Pixel: " +
-        `${frameInfo.componentCount} instead of ${samplesPerPixel}.`,
+      'Frame does not have expected Samples Per Pixel: ' +
+        `${frameInfo.componentCount} instead of ${samplesPerPixel}.`
     );
   }
 
@@ -181,8 +181,8 @@ async function _checkImageTypeAndDecode({
     const isSigned = pixelRepresentation === 1;
     if (frameInfo.isSigned !== isSigned) {
       throw new Error(
-        "Frame does not have expected Pixel Representation: " +
-          `"${frameInfo.isSigned}" instead of "${isSigned}".`,
+        'Frame does not have expected Pixel Representation: ' +
+          `"${frameInfo.isSigned}" instead of "${isSigned}".`
       );
     }
   }
@@ -190,8 +190,8 @@ async function _checkImageTypeAndDecode({
   const length = columns * rows * samplesPerPixel * (bitsAllocated / 8);
   if (length !== frameBuffer.length) {
     throw new Error(
-      "Frame value does not have expected length: " +
-        `${frameBuffer.length} instead of ${length}.`,
+      'Frame value does not have expected length: ' +
+        `${frameBuffer.length} instead of ${length}.`
     );
   }
 
@@ -207,16 +207,16 @@ async function _checkImageTypeAndDecode({
  * @private
  */
 async function _decode(mediaType, byteArray) {
-  if (mediaType === "image/jpeg") {
+  if (mediaType === 'image/jpeg') {
     return await decoderJPEG.decode(byteArray);
-  } else if (mediaType === "image/jp2" || mediaType === "image/jpx") {
+  } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
     return await decoderJPEG2000.decode(byteArray);
-  } else if (mediaType === "image/jls") {
+  } else if (mediaType === 'image/jls') {
     return await decoderJPEGLS.decode(byteArray);
   }
 }
 
 export default {
-  taskType: "decodeAndTransformTask",
+  taskType: 'decodeAndTransformTask',
   _handler,
 };

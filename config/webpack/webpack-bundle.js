@@ -1,33 +1,33 @@
-const path = require("path");
-const webpack = require("webpack");
+const path = require('path');
+const webpack = require('webpack');
 const rootPath = process.cwd();
-const context = path.join(rootPath, "src");
-const outputPath = path.join(rootPath, "dist");
-const TerserPlugin = require("terser-webpack-plugin");
+const context = path.join(rootPath, 'src');
+const outputPath = path.join(rootPath, 'dist');
+const TerserPlugin = require('terser-webpack-plugin');
 
 // The big difference between this and the dynamic-import version is that
 // the dynamic import version does not bundle the WASM modules into the WebWorker file
 module.exports = {
-  mode: "production",
+  mode: 'production',
   context,
   stats: {
     children: true,
   },
   entry: {
-    dicomMicroscopyViewer: "./dicom-microscopy-viewer.js",
+    dicomMicroscopyViewer: './dicom-microscopy-viewer.js',
   },
-  target: "web",
+  target: 'web',
   output: {
     library: {
-      name: "dicomMicroscopyViewer",
-      type: "umd",
+      name: 'dicomMicroscopyViewer',
+      type: 'umd',
       umdNamedDefine: true,
     },
-    globalObject: "this",
+    globalObject: 'this',
     path: outputPath,
-    filename: "[name].bundle.min.js",
+    filename: '[name].bundle.min.js',
   },
-  devtool: "source-map",
+  devtool: 'source-map',
   resolve: {
     fallback: {
       fs: false,
@@ -39,21 +39,21 @@ module.exports = {
     rules: [
       {
         test: /\.css$/,
-        use: "css-loader",
+        use: 'css-loader',
       },
       {
         test: /\.wasm/,
-        type: "asset/inline",
+        type: 'asset/inline',
       },
       {
         test: /\.worker\.js$/,
         use: [
           {
-            loader: "worker-loader",
-            options: { inline: "fallback" },
+            loader: 'worker-loader',
+            options: { inline: 'fallback' },
           },
           {
-            loader: "babel-loader",
+            loader: 'babel-loader',
           },
         ],
       },
@@ -61,7 +61,7 @@ module.exports = {
         test: /\.js$/,
         exclude: [/(node_modules)/, /(codecs)/, /(dicomicc)/],
         use: {
-          loader: "babel-loader",
+          loader: 'babel-loader',
         },
       },
     ],

@@ -1,36 +1,36 @@
 PR.registerLangHandler(
   PR.createSimpleLexer(
-    [["pln", /^[\t\n\f\r ]+/, null, " \t\r\n"]],
+    [['pln', /^[\t\n\f\r ]+/, null, ' \t\r\n']],
     [
-      ["str", /^"(?:[^\n\f\r"\\]|\\(?:\r\n?|\n|\f)|\\[\S\s])*"/, null],
-      ["str", /^'(?:[^\n\f\r'\\]|\\(?:\r\n?|\n|\f)|\\[\S\s])*'/, null],
-      ["lang-css-str", /^url\(([^"')]*)\)/i],
+      ['str', /^"(?:[^\n\f\r"\\]|\\(?:\r\n?|\n|\f)|\\[\S\s])*"/, null],
+      ['str', /^'(?:[^\n\f\r'\\]|\\(?:\r\n?|\n|\f)|\\[\S\s])*'/, null],
+      ['lang-css-str', /^url\(([^"')]*)\)/i],
       [
-        "kwd",
+        'kwd',
         /^(?:url|rgb|!important|@import|@page|@media|@charset|inherit)(?=[^\w-]|$)/i,
         null,
       ],
       [
-        "lang-css-kw",
+        'lang-css-kw',
         /^(-?(?:[_a-z]|\\[\da-f]+ ?)(?:[\w-]|\\\\[\da-f]+ ?)*)\s*:/i,
       ],
-      ["com", /^\/\*[^*]*\*+(?:[^*/][^*]*\*+)*\//],
-      ["com", /^(?:<\!--|--\>)/],
-      ["lit", /^(?:\d+|\d*\.\d+)(?:%|[a-z]+)?/i],
-      ["lit", /^#[\da-f]{3,6}/i],
-      ["pln", /^-?(?:[_a-z]|\\[\da-f]+ ?)(?:[\w-]|\\\\[\da-f]+ ?)*/i],
-      ["pun", /^[^\s\w"']+/],
-    ],
+      ['com', /^\/\*[^*]*\*+(?:[^*/][^*]*\*+)*\//],
+      ['com', /^(?:<\!--|--\>)/],
+      ['lit', /^(?:\d+|\d*\.\d+)(?:%|[a-z]+)?/i],
+      ['lit', /^#[\da-f]{3,6}/i],
+      ['pln', /^-?(?:[_a-z]|\\[\da-f]+ ?)(?:[\w-]|\\\\[\da-f]+ ?)*/i],
+      ['pun', /^[^\s\w"']+/],
+    ]
   ),
-  ["css"],
+  ['css']
 );
 PR.registerLangHandler(
   PR.createSimpleLexer(
     [],
-    [["kwd", /^-?(?:[_a-z]|\\[\da-f]+ ?)(?:[\w-]|\\\\[\da-f]+ ?)*/i]],
+    [['kwd', /^-?(?:[_a-z]|\\[\da-f]+ ?)(?:[\w-]|\\\\[\da-f]+ ?)*/i]]
   ),
-  ["css-kw"],
+  ['css-kw']
 );
-PR.registerLangHandler(PR.createSimpleLexer([], [["str", /^[^"')]+/]]), [
-  "css-str",
+PR.registerLangHandler(PR.createSimpleLexer([], [['str', /^[^"')]+/]]), [
+  'css-str',
 ]);

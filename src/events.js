@@ -1,4 +1,4 @@
-const PROJECT_NAME = "dicommicroscopyviewer";
+const PROJECT_NAME = 'dicommicroscopyviewer';
 
 /**
  *  Enumerates custom events for dicom-microscopy-viewer. Events are captured,

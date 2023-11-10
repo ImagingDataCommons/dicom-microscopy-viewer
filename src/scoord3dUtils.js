@@ -1,11 +1,11 @@
-import Enums from "./enums";
-import { Point, Polyline, Polygon, Ellipse } from "./scoord3d.js";
-import CircleGeometry from "ol/geom/Circle";
-import PolygonGeometry, { fromCircle } from "ol/geom/Polygon";
-import PointGeometry from "ol/geom/Point";
-import LineStringGeometry from "ol/geom/LineString";
+import Enums from './enums';
+import { Point, Polyline, Polygon, Ellipse } from './scoord3d.js';
+import CircleGeometry from 'ol/geom/Circle';
+import PolygonGeometry, { fromCircle } from 'ol/geom/Polygon';
+import PointGeometry from 'ol/geom/Point';
+import LineStringGeometry from 'ol/geom/LineString';
 
-import { applyInverseTransform, applyTransform } from "./utils.js";
+import { applyInverseTransform, applyTransform } from './utils.js';
 
 /**
  * Converts a vector graphic from an OpenLayers Feature Geometry into a DICOM SCOORD3D
@@ -21,15 +21,15 @@ function _geometry2Scoord3d(feature, pyramid, affine) {
   const geometry = feature.getGeometry();
   const frameOfReferenceUID = pyramid[pyramid.length - 1].FrameOfReferenceUID;
   const type = geometry.getType();
-  if (type === "Point") {
+  if (type === 'Point') {
     let coordinates = geometry.getCoordinates();
     coordinates = _geometryCoordinates2scoord3dCoordinates(
       coordinates,
       pyramid,
-      affine,
+      affine
     );
     return new Point({ coordinates, frameOfReferenceUID });
-  } else if (type === "Polygon") {
+  } else if (type === 'Polygon') {
     /*
      * The first linear ring of the array defines the outer-boundary (surface).
      * Each subsequent linear ring defines a hole in the surface.
@@ -38,12 +38,12 @@ function _geometry2Scoord3d(feature, pyramid, affine) {
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine);
     });
     return new Polygon({ coordinates, frameOfReferenceUID });
-  } else if (type === "LineString") {
+  } else if (type === 'LineString') {
     const coordinates = geometry.getCoordinates().map((c) => {
       return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine);
     });
     return new Polyline({ coordinates, frameOfReferenceUID });
-  } else if (type === "Circle") {
+  } else if (type === 'Circle') {
     const center = geometry.getCenter();
     const radius = geometry.getRadius();
     // Endpoints of major and  minor axis of the ellipse.
@@ -77,24 +77,24 @@ function _scoord3d2Geometry(scoord3d, pyramid, affine) {
   const type = scoord3d.graphicType;
   const data = scoord3d.graphicData;
 
-  if (type === "POINT") {
+  if (type === 'POINT') {
     const coordinates = _scoord3dCoordinates2geometryCoordinates(
       data,
       pyramid,
-      affine,
+      affine
     );
     return new PointGeometry(coordinates);
-  } else if (type === "POLYLINE") {
+  } else if (type === 'POLYLINE') {
     const coordinates = data.map((d) => {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid, affine);
     });
     return new LineStringGeometry(coordinates);
-  } else if (type === "POLYGON") {
+  } else if (type === 'POLYGON') {
     const coordinates = data.map((d) => {
       return _scoord3dCoordinates2geometryCoordinates(d, pyramid, affine);
     });
     return new PolygonGeometry([coordinates]);
-  } else if (type === "ELLIPSE") {
+  } else if (type === 'ELLIPSE') {
     // TODO: ensure that the ellipse represents a circle, i.e. that
     // major and minor axis form a right angle and have the same length
     const majorAxisCoordinates = data.slice(0, 2);
@@ -122,7 +122,7 @@ function _scoord3d2Geometry(scoord3d, pyramid, affine) {
 
     // flat coordinates in combination with opt_layout and no opt_radius are also accepted
     // and internally it calculates the Radius
-    return new CircleGeometry(coordinates, null, "XY");
+    return new CircleGeometry(coordinates, null, 'XY');
   } else {
     console.error(`unsupported graphic type "${type}"`);
   }
@@ -174,7 +174,7 @@ function getPixelSpacing(metadata) {
 function _geometryCoordinates2scoord3dCoordinates(
   coordinates,
   pyramid,
-  affine,
+  affine
 ) {
   let transform = false;
   if (!Array.isArray(coordinates[0])) {
@@ -204,7 +204,7 @@ function _geometryCoordinates2scoord3dCoordinates(
 function _scoord3dCoordinates2geometryCoordinates(
   coordinates,
   pyramid,
-  affine,
+  affine
 ) {
   let transform = false;
   if (!Array.isArray(coordinates[0])) {
@@ -228,7 +228,7 @@ function _scoord3dCoordinates2geometryCoordinates(
   }
   if (outOfFrame) {
     console.warn(
-      "found coordinates outside slide coordinate system 25 x 76 mm",
+      'found coordinates outside slide coordinate system 25 x 76 mm'
     );
   }
   return coordinates;
@@ -272,11 +272,11 @@ function _getFeatureLength(feature, pyramid, affine) {
   const geometry = feature.getGeometry();
   const type = geometry.getType();
 
-  if (type === "LineString") {
+  if (type === 'LineString') {
     const coordinates = geometry.getCoordinates();
     if (coordinates && coordinates.length) {
       const scoord3dCoordinates = coordinates.map((c) =>
-        _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine),
+        _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
       );
       let length = 0;
       for (let i = 0; i < scoord3dCoordinates.length - 1; i++) {
@@ -290,7 +290,7 @@ function _getFeatureLength(feature, pyramid, affine) {
       }
       return length;
     } else {
-      throw new Error("ROI does not have any coordinates.");
+      throw new Error('ROI does not have any coordinates.');
     }
   }
 }
@@ -308,12 +308,12 @@ function _getFeatureArea(feature, pyramid, affine) {
   let geometry = feature.getGeometry();
   let type = geometry.getType();
 
-  if (type === "Circle") {
+  if (type === 'Circle') {
     geometry = fromCircle(geometry);
     type = geometry.getType();
   }
 
-  if (type === "Polygon") {
+  if (type === 'Polygon') {
     const coordinates = geometry.getCoordinates();
     if (coordinates && coordinates.length) {
       const scoord3dCoordinates = geometry.getCoordinates()[0].map((c) => {

@@ -1,4 +1,4 @@
-const _ = require("lodash");
+const _ = require('lodash');
 
 // Merge two objects
 // Instead of merging array objects index by index (n-th source
@@ -12,7 +12,7 @@ module.exports = function (object, source) {
       if (objValue && srcValue && _.isArray(objValue) && _.isArray(srcValue)) {
         return _.concat(objValue, srcValue);
       }
-    },
+    }
   );
 
   return merged;

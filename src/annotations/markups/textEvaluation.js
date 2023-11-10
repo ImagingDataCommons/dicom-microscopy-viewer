@@ -1,9 +1,9 @@
-import Fill from "ol/style/Fill";
-import Stroke from "ol/style/Stroke";
-import Style from "ol/style/Style";
-import Circle from "ol/style/Circle";
+import Fill from 'ol/style/Fill';
+import Stroke from 'ol/style/Stroke';
+import Style from 'ol/style/Style';
+import Circle from 'ol/style/Circle';
 
-import Enums from "../../enums";
+import Enums from '../../enums';
 
 /**
  * Format free text output.
@@ -15,7 +15,7 @@ import Enums from "../../enums";
  * @private
  */
 export const _format = (feature) =>
-  feature.get(Enums.InternalProperties.Label) || "";
+  feature.get(Enums.InternalProperties.Label) || '';
 
 /**
  * Builds the text evaluation style.
@@ -34,10 +34,10 @@ const _applyStyle = (feature) => {
   const style = new Style({
     image: new Circle({
       fill: new Fill({
-        color: "rgba(255,255,255,0.0)",
+        color: 'rgba(255,255,255,0.0)',
       }),
       stroke: new Stroke({
-        color: "rgba(255,255,255,0.0)",
+        color: 'rgba(255,255,255,0.0)',
         width: 0,
       }),
       radius: 5,
@@ -111,7 +111,7 @@ const TextEvaluationMarkup = ({ markupManager }) => {
             if (property === Enums.InternalProperties.StyleOptions) {
               _applyStyle(feature);
             }
-          },
+          }
         );
       }
     },

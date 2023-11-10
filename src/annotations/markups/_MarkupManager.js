@@ -1,20 +1,20 @@
-import Circle from "ol/geom/Circle";
-import DragPan from "ol/interaction/DragPan";
-import LineString from "ol/geom/LineString";
-import Overlay from "ol/Overlay";
-import VectorLayer from "ol/layer/Vector";
-import "ol/ol.css";
-import VectorSource from "ol/source/Vector";
-import Style from "ol/style/Style";
-import Stroke from "ol/style/Stroke";
-import Collection from "ol/Collection";
-import Feature from "ol/Feature";
-import { fromCircle } from "ol/geom/Polygon";
+import Circle from 'ol/geom/Circle';
+import DragPan from 'ol/interaction/DragPan';
+import LineString from 'ol/geom/LineString';
+import Overlay from 'ol/Overlay';
+import VectorLayer from 'ol/layer/Vector';
+import 'ol/ol.css';
+import VectorSource from 'ol/source/Vector';
+import Style from 'ol/style/Style';
+import Stroke from 'ol/style/Stroke';
+import Collection from 'ol/Collection';
+import Feature from 'ol/Feature';
+import { fromCircle } from 'ol/geom/Polygon';
 
-import Enums from "../../enums";
-import { _getUnitSuffix } from "../../utils";
-import { coordinateWithOffset } from "../../scoord3dUtils";
-import defaultStyles from "../styles";
+import Enums from '../../enums';
+import { _getUnitSuffix } from '../../utils';
+import { coordinateWithOffset } from '../../scoord3dUtils';
+import defaultStyles from '../styles';
 
 /**
  * Build a new LineString instance with the shortest
@@ -89,7 +89,7 @@ class _MarkupManager {
     this._links = new Collection([], { unique: true });
 
     const defaultColor = defaultStyles.stroke.color;
-    this._styleTag = document.createElement("style");
+    this._styleTag = document.createElement('style');
     this._styleTag.innerHTML = this._getTooltipStyles(defaultColor);
 
     this._linksVector = new VectorLayer({
@@ -166,7 +166,7 @@ class _MarkupManager {
 
     if (this._listeners.get(id)) {
       this._listeners.delete(id);
-      console.debug("deleting feature listener");
+      console.debug('deleting feature listener');
     }
 
     return id;
@@ -211,15 +211,15 @@ class _MarkupManager {
    * @param {array} offset Markup offset
    * @return {object} The markup object
    */
-  create({ feature, value = "", isLinkable = true, isDraggable = true }) {
+  create({ feature, value = '', isLinkable = true, isDraggable = true }) {
     const id = feature.getId();
     if (!id) {
-      console.warn("Failed to create markup, feature id not found");
+      console.warn('Failed to create markup, feature id not found');
       return;
     }
 
     if (this.has(id)) {
-      console.warn("Markup for feature already exists", id);
+      console.warn('Markup for feature already exists', id);
       /** Wire events again so they are not lost (closure of this function) */
       this._drawLink(feature);
       this._wireInternalEvents(feature);
@@ -228,17 +228,17 @@ class _MarkupManager {
 
     const markup = { id, isLinkable, isDraggable };
 
-    const element = document.createElement("div");
-    element.id = markup.isDraggable ? Enums.InternalProperties.Markup : "";
-    element.className = "ol-tooltip ol-tooltip-measure";
+    const element = document.createElement('div');
+    element.id = markup.isDraggable ? Enums.InternalProperties.Markup : '';
+    element.className = 'ol-tooltip ol-tooltip-measure';
     element.innerText = value;
 
     const spacedCoordinate = coordinateWithOffset(feature);
 
     markup.element = element;
     markup.overlay = new Overlay({
-      className: "markup-container",
-      positioning: "center-center",
+      className: 'markup-container',
+      positioning: 'center-center',
       stopEvent: false,
       dragging: false,
       position: spacedCoordinate,
@@ -264,7 +264,7 @@ class _MarkupManager {
     const id = feature.getId();
     const markup = this.get(id);
     const listener = feature.on(Enums.FeatureEvents.CHANGE, (event) => {
-      console.debug("feature changed", id);
+      console.debug('feature changed', id);
       if (this.has(id)) {
         const view = this._map.getView();
         const unitSuffix = _getUnitSuffix(view);
@@ -273,7 +273,7 @@ class _MarkupManager {
           event.target,
           unitSuffix,
           this._pyramid,
-          this._affine,
+          this._affine
         );
         const geometry = event.target.getGeometry();
         this.update({
@@ -293,21 +293,21 @@ class _MarkupManager {
     feature.on(
       Enums.FeatureEvents.PROPERTY_CHANGE,
       ({ key: property, target: feature }) => {
-        console.debug("feature property changed");
+        console.debug('feature property changed');
         if (property === Enums.InternalProperties.StyleOptions) {
           this._styleTooltip(feature);
         }
-      },
+      }
     );
 
     /** Update markup style on feature geometry change */
     feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-      console.debug("feature geometry changed");
+      console.debug('feature geometry changed');
       this._styleTooltip(feature);
     });
 
     let dragPan;
-    const dragProperty = "dragging";
+    const dragProperty = 'dragging';
     this._map.getInteractions().forEach((interaction) => {
       if (interaction instanceof DragPan) {
         dragPan = interaction;
@@ -411,7 +411,7 @@ class _MarkupManager {
    */
   _isValidFeature(feature) {
     return Object.values(Enums.Markup).includes(
-      feature.get(Enums.InternalProperties.Markup),
+      feature.get(Enums.InternalProperties.Markup)
     );
   }
 
@@ -427,13 +427,13 @@ class _MarkupManager {
     const id = feature.getId();
 
     if (!id) {
-      console.warn("Failed attempt to update markup, feature with empty id");
+      console.warn('Failed attempt to update markup, feature with empty id');
       return;
     }
 
     const markup = this.get(id);
     if (!markup) {
-      console.warn("No markup found for given feature");
+      console.warn('No markup found for given feature');
       return;
     }
 
@@ -459,7 +459,7 @@ class _MarkupManager {
       const featureId = feature.getId();
       const markup = this.get(featureId);
       if (markup) {
-        markup.element.className = "ol-tooltip ol-tooltip-static";
+        markup.element.className = 'ol-tooltip ol-tooltip-static';
         this._markups.set(featureId, markup);
       }
     }
@@ -475,7 +475,7 @@ class _MarkupManager {
       const featureId = feature.getId();
       const markup = this.get(featureId);
       if (markup) {
-        markup.element.className = "ol-tooltip ol-tooltip-static";
+        markup.element.className = 'ol-tooltip ol-tooltip-static';
         this._markups.set(featureId, markup);
       }
     }
@@ -490,7 +490,7 @@ class _MarkupManager {
   _getFormatter(feature) {
     const markup = feature.get(Enums.InternalProperties.Markup);
     const formatter = this._formatters[markup];
-    if (!formatter) return () => "";
+    if (!formatter) return () => '';
     return formatter;
   }
 
@@ -507,7 +507,7 @@ class _MarkupManager {
 
     const line = _getShortestLineBetweenOverlayAndFeature(
       feature,
-      markup.overlay,
+      markup.overlay
     );
 
     const updated = this._links.getArray().some((feature) => {
@@ -519,7 +519,7 @@ class _MarkupManager {
     });
 
     if (!updated) {
-      const feature = new Feature({ geometry: line, name: "Line" });
+      const feature = new Feature({ geometry: line, name: 'Line' });
       feature.setId(markup.id);
       feature.setStyle(
         new Style({
@@ -528,7 +528,7 @@ class _MarkupManager {
             lineDash: [0.3, 7],
             width: 3,
           }),
-        }),
+        })
       );
       this._links.push(feature);
     }

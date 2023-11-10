@@ -1,26 +1,26 @@
-import dcmjs from "dcmjs";
+import dcmjs from 'dcmjs';
 
-import _MarkupManager from "./markups/_MarkupManager";
+import _MarkupManager from './markups/_MarkupManager';
 
 /** Enums */
-import Enums from "../enums";
+import Enums from '../enums';
 
 /** Markers */
-import ArrowMarker, { _format as arrowFormat } from "./markers/arrow";
+import ArrowMarker, { _format as arrowFormat } from './markers/arrow';
 
 /** Markups */
 import MeasurementMarkup, {
   _format as measurementFormat,
-} from "./markups/measurement";
+} from './markups/measurement';
 import TextEvaluationMarkup, {
   _format as textFormat,
-} from "./markups/textEvaluation";
+} from './markups/textEvaluation';
 
 /** Utils */
 import {
   areCodedConceptsEqual,
   getContentItemNameCodedConcept,
-} from "../utils";
+} from '../utils';
 
 const { Marker, Markup } = Enums;
 
@@ -67,26 +67,26 @@ class _AnnotationManager {
         // eslint-disable-line
         const SUPPORTED_MEASUREMENTS_CODED_CONCEPTS = [
           new dcmjs.sr.coding.CodedConcept({
-            meaning: "Area",
-            value: "42798000",
-            schemeDesignator: "SCT",
+            meaning: 'Area',
+            value: '42798000',
+            schemeDesignator: 'SCT',
           }),
           new dcmjs.sr.coding.CodedConcept({
-            meaning: "Length",
-            value: "410668003",
-            schemeDesignator: "SCT",
+            meaning: 'Length',
+            value: '410668003',
+            schemeDesignator: 'SCT',
           }),
         ];
         const measurementCodedConcept =
           getContentItemNameCodedConcept(measurement);
         if (
           SUPPORTED_MEASUREMENTS_CODED_CONCEPTS.some((codedConcept) =>
-            areCodedConceptsEqual(measurementCodedConcept, codedConcept),
+            areCodedConceptsEqual(measurementCodedConcept, codedConcept)
           )
         ) {
           feature.set(
             Enums.InternalProperties.Markup,
-            Enums.Markup.Measurement,
+            Enums.Markup.Measurement
           );
         }
       });
@@ -97,21 +97,21 @@ class _AnnotationManager {
         // eslint-disable-line
         const SUPPORTED_EVALUATIONS_CODED_CONCEPTS = [
           new dcmjs.sr.coding.CodedConcept({
-            value: "112039",
-            meaning: "Tracking Identifier",
-            schemeDesignator: "DCM",
+            value: '112039',
+            meaning: 'Tracking Identifier',
+            schemeDesignator: 'DCM',
           }),
         ];
         const evaluationCodedConcept =
           getContentItemNameCodedConcept(evaluation);
         if (
           SUPPORTED_EVALUATIONS_CODED_CONCEPTS.some((codedConcept) =>
-            areCodedConceptsEqual(codedConcept, evaluationCodedConcept),
+            areCodedConceptsEqual(codedConcept, evaluationCodedConcept)
           )
         ) {
           feature.set(
             Enums.InternalProperties.Markup,
-            Enums.Markup.TextEvaluation,
+            Enums.Markup.TextEvaluation
           );
         }
       });

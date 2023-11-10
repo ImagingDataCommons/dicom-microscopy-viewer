@@ -1,8 +1,8 @@
-import colormap from "colormap";
+import colormap from 'colormap';
 
-import { _generateUID, rescale } from "./utils.js";
+import { _generateUID, rescale } from './utils.js';
 
-const _attrs = Symbol("attrs");
+const _attrs = Symbol('attrs');
 
 /**
  * Enumerated values for color map names.
@@ -10,14 +10,14 @@ const _attrs = Symbol("attrs");
  * @memberof color
  */
 const ColormapNames = {
-  VIRIDIS: "VIRIDIS",
-  INFERNO: "INFERNO",
-  MAGMA: "MAGMA",
-  GRAY: "GRAY",
-  BLUE_RED: "BLUE_RED",
-  PHASE: "PHASE",
-  PORTLAND: "PORTLAND",
-  HOT: "HOT",
+  VIRIDIS: 'VIRIDIS',
+  INFERNO: 'INFERNO',
+  MAGMA: 'MAGMA',
+  GRAY: 'GRAY',
+  BLUE_RED: 'BLUE_RED',
+  PHASE: 'PHASE',
+  PORTLAND: 'PORTLAND',
+  HOT: 'HOT',
 };
 Object.freeze(ColormapNames);
 
@@ -34,14 +34,14 @@ Object.freeze(ColormapNames);
  */
 function createColormap({ name, bins }) {
   const lut = {
-    INFERNO: ["inferno", false],
-    MAGMA: ["magma", false],
-    VIRIDIS: ["viridis", false],
-    GRAY: ["greys", false],
-    BLUE_RED: ["RdBu", false],
-    PHASE: ["phase", true],
-    PORTLAND: ["portland", false],
-    HOT: ["HOT", false],
+    INFERNO: ['inferno', false],
+    MAGMA: ['magma', false],
+    VIRIDIS: ['viridis', false],
+    GRAY: ['greys', false],
+    BLUE_RED: ['RdBu', false],
+    PHASE: ['phase', true],
+    PORTLAND: ['portland', false],
+    HOT: ['HOT', false],
   };
   const params = lut[name];
   if (params === undefined) {
@@ -53,7 +53,7 @@ function createColormap({ name, bins }) {
   const colors = colormap({
     colormap: internalName,
     nshades: bins,
-    format: "rgb",
+    format: 'rgb',
   });
   if (reverse) {
     return colors.reverse();
@@ -75,13 +75,13 @@ function createColormap({ name, bins }) {
 function buildPaletteColorLookupTable({ data, firstValueMapped }) {
   if (data == null) {
     throw new Error(
-      'Argument "data" is required for building Palette Color Lookup Table.',
+      'Argument "data" is required for building Palette Color Lookup Table.'
     );
   }
   if (firstValueMapped == null) {
     throw new Error(
       'Argument "firstValueMapped" is required for building ' +
-        "Palette Color Lookup Table.",
+        'Palette Color Lookup Table.'
     );
   }
 
@@ -152,8 +152,8 @@ class PaletteColorLookupTable {
     ]);
     if (firstDescriptorValues.size !== 1) {
       throw new Error(
-        "First value of Red, Green, and Blue Palette Color Lookup Table " +
-          "Descriptor must be the same.",
+        'First value of Red, Green, and Blue Palette Color Lookup Table ' +
+          'Descriptor must be the same.'
       );
     }
     const n = [...firstDescriptorValues][0];
@@ -171,8 +171,8 @@ class PaletteColorLookupTable {
     ]);
     if (secondDescriptorValues.size !== 1) {
       throw new Error(
-        "Second value of Red, Green, and Blue Palette Color Lookup Table " +
-          "Descriptor must be the same.",
+        'Second value of Red, Green, and Blue Palette Color Lookup Table ' +
+          'Descriptor must be the same.'
       );
     }
     this[_attrs].firstValueMapped = [...secondDescriptorValues][0];
@@ -185,34 +185,34 @@ class PaletteColorLookupTable {
     ]);
     if (thirdDescriptorValues.size !== 1) {
       throw new Error(
-        "Third value of Red, Green, and Blue Palette Color Lookup Table " +
-          "Descriptor must be the same.",
+        'Third value of Red, Green, and Blue Palette Color Lookup Table ' +
+          'Descriptor must be the same.'
       );
     }
     this[_attrs].bitsPerEntry = [...thirdDescriptorValues][0];
     if ([8, 16].indexOf(this[_attrs].bitsPerEntry) < 0) {
       throw new Error(
-        "Third value of Red, Green, and Blue Palette Color Lookup Table " +
-          "Descriptor must be either " +
-          "8 or 16.",
+        'Third value of Red, Green, and Blue Palette Color Lookup Table ' +
+          'Descriptor must be either ' +
+          '8 or 16.'
       );
     }
 
     if (redSegmentedData != null && redData != null) {
       throw new Error(
-        "Either Segmented Red Palette Color Lookup Data or Red Palette " +
-          "Color Lookup Data should be provided, but not both.",
+        'Either Segmented Red Palette Color Lookup Data or Red Palette ' +
+          'Color Lookup Data should be provided, but not both.'
       );
     } else if (redSegmentedData == null && redData == null) {
       throw new Error(
-        "Either Segmented Red Palette Color Lookup Data or Red Palette " +
-          "Color Lookup Data must be provided.",
+        'Either Segmented Red Palette Color Lookup Data or Red Palette ' +
+          'Color Lookup Data must be provided.'
       );
     }
     if (redData) {
       if (redData.length !== this[_attrs].numberOfEntries) {
         throw new Error(
-          "Red Palette Color Lookup Table Data has wrong number of entries.",
+          'Red Palette Color Lookup Table Data has wrong number of entries.'
         );
       }
     }
@@ -221,19 +221,19 @@ class PaletteColorLookupTable {
 
     if (greenSegmentedData != null && greenData != null) {
       throw new Error(
-        "Either Segmented Green Palette Color Lookup Data or Green Palette " +
-          "Color Lookup Data should be provided, but not both.",
+        'Either Segmented Green Palette Color Lookup Data or Green Palette ' +
+          'Color Lookup Data should be provided, but not both.'
       );
     } else if (greenSegmentedData == null && greenData == null) {
       throw new Error(
-        "Either Segmented Green Palette Color Lookup Data or Green " +
-          "Palette Color Lookup Data must be provided.",
+        'Either Segmented Green Palette Color Lookup Data or Green ' +
+          'Palette Color Lookup Data must be provided.'
       );
     }
     if (greenData) {
       if (greenData.length !== this[_attrs].numberOfEntries) {
         throw new Error(
-          "Green Palette Color Lookup Table Data has wrong number of entries.",
+          'Green Palette Color Lookup Table Data has wrong number of entries.'
         );
       }
     }
@@ -242,19 +242,19 @@ class PaletteColorLookupTable {
 
     if (blueSegmentedData != null && blueData != null) {
       throw new Error(
-        "Either Segmented Blue Palette Color Lookup Data or Blue Palette " +
-          "Color Lookup Data must be provided, but not both.",
+        'Either Segmented Blue Palette Color Lookup Data or Blue Palette ' +
+          'Color Lookup Data must be provided, but not both.'
       );
     } else if (blueSegmentedData != null && blueData != null) {
       throw new Error(
-        "Either Segmented Blue Palette Color Lookup Data or Blue Palette " +
-          "Color Lookup Data must be provided.",
+        'Either Segmented Blue Palette Color Lookup Data or Blue Palette ' +
+          'Color Lookup Data must be provided.'
       );
     }
     if (blueData) {
       if (blueData.length !== this[_attrs].numberOfEntries) {
         throw new Error(
-          "Blue Palette Color Lookup Table Data has wrong number of entries.",
+          'Blue Palette Color Lookup Table Data has wrong number of entries.'
         );
       }
     }
@@ -300,13 +300,13 @@ class PaletteColorLookupTable {
       } else if (opcode === 2) {
         // TODO
         throw new Error(
-          "Indirect segment type is not yet supported for " +
-            "Segmented Palette Color Lookup Table.",
+          'Indirect segment type is not yet supported for ' +
+            'Segmented Palette Color Lookup Table.'
         );
       } else {
         throw new Error(
-          "Encountered unexpected segment type is not yet supported for " +
-            "Segmented Palette Color Lookup Table.",
+          'Encountered unexpected segment type is not yet supported for ' +
+            'Segmented Palette Color Lookup Table.'
         );
       }
     }
@@ -336,21 +336,21 @@ class PaletteColorLookupTable {
         : this._expandSegmentedLUTData(
             this[_attrs].redSegmentedData,
             this[_attrs].numberOfEntries,
-            this[_attrs].bitsPerEntry,
+            this[_attrs].bitsPerEntry
           );
       const greenLUT = this[_attrs].greenData
         ? new this[_attrs].DataType(this[_attrs].greenData)
         : this._expandSegmentedLUTData(
             this[_attrs].greenSegmentedData,
             this[_attrs].numberOfEntries,
-            this[_attrs].bitsPerEntry,
+            this[_attrs].bitsPerEntry
           );
       const blueLUT = this[_attrs].blueData
         ? new this[_attrs].DataType(this[_attrs].blueData)
         : this._expandSegmentedLUTData(
             this[_attrs].blueSegmentedData,
             this[_attrs].numberOfEntries,
-            this[_attrs].bitsPerEntry,
+            this[_attrs].bitsPerEntry
           );
       const uniqueNumberOfEntries = new Set([
         redLUT.length,
@@ -359,8 +359,8 @@ class PaletteColorLookupTable {
       ]);
       if (uniqueNumberOfEntries.size > 1) {
         throw new Error(
-          "Red, Green, and Blue Palette Color Lookup Tables " +
-            "must have the same size.",
+          'Red, Green, and Blue Palette Color Lookup Tables ' +
+            'must have the same size.'
         );
       }
 

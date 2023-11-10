@@ -1,4 +1,4 @@
-const _attrs = Symbol("attrs");
+const _attrs = Symbol('attrs');
 
 /**
  * Transformation of a range of stored values into real world values in a
@@ -28,36 +28,36 @@ class Transformation {
     slope,
   }) {
     if (label === undefined) {
-      throw new Error("LUT Label is required.");
+      throw new Error('LUT Label is required.');
     }
     this[_attrs].label = label;
 
     if (firstValueMapped === undefined) {
-      throw new Error("Real World Value First Value Mapped is required.");
+      throw new Error('Real World Value First Value Mapped is required.');
     }
     this[_attrs].firstValueMapped = firstValueMapped;
     if (lastValueMapped === undefined) {
-      throw new Error("Real World Value Last Value Mapped is required.");
+      throw new Error('Real World Value Last Value Mapped is required.');
     }
     this[_attrs].lastValueMapped = lastValueMapped;
 
     if ((intercept === undefined || slope === undefined) && lut === undefined) {
       throw new Error(
-        "Either LUT Data or Real World Value Slope and " +
-          "Real World Value Intercept must be provided.",
+        'Either LUT Data or Real World Value Slope and ' +
+          'Real World Value Intercept must be provided.'
       );
     }
     if (slope === undefined) {
-      throw new Error("Real World Value Slope is required.");
+      throw new Error('Real World Value Slope is required.');
     }
     this[_attrs].slope = slope;
     if (intercept === undefined) {
-      throw new Error("Real World Value Intercept is required.");
+      throw new Error('Real World Value Intercept is required.');
     }
     this[_attrs].intercept = intercept;
 
     if (lut === undefined) {
-      throw new Error("LUT Data is required.");
+      throw new Error('LUT Data is required.');
     }
     this[_attrs].lut = lut;
   }
@@ -99,38 +99,38 @@ class ParameterMapping {
   }) {
     this[_attrs] = {};
     if (uid === undefined) {
-      throw new Error("Unique Tracking Identifier is required.");
+      throw new Error('Unique Tracking Identifier is required.');
     } else {
       this[_attrs].uid = uid;
     }
 
     if (number === undefined) {
-      throw new Error("Parameter Number is required.");
+      throw new Error('Parameter Number is required.');
     }
     this[_attrs].number = number;
 
     if (label === undefined) {
-      throw new Error("Parameter Label is required.");
+      throw new Error('Parameter Label is required.');
     }
     this[_attrs].label = label;
 
     if (description === undefined) {
-      throw new Error("Parameter Description is required.");
+      throw new Error('Parameter Description is required.');
     }
     this[_attrs].description = description;
 
     if (studyInstanceUID === undefined) {
-      throw new Error("Study Instance UID is required.");
+      throw new Error('Study Instance UID is required.');
     }
     this[_attrs].studyInstanceUID = studyInstanceUID;
 
     if (seriesInstanceUID === undefined) {
-      throw new Error("Series Instance UID is required.");
+      throw new Error('Series Instance UID is required.');
     }
     this[_attrs].seriesInstanceUID = seriesInstanceUID;
 
     if (sopInstanceUIDs === undefined) {
-      throw new Error("SOP Instance UIDs are required.");
+      throw new Error('SOP Instance UIDs are required.');
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs;
 
@@ -217,9 +217,9 @@ function _groupFramesPerMapping(metadata) {
   const sharedItem = metadata.SharedFunctionalGroupsSequence[0];
   if (sharedItem.RealWorldValueMappingSequence !== undefined) {
     const labels = sharedItem.RealWorldValueMappingSequence.map(
-      (item) => item.LUTLabel,
+      (item) => item.LUTLabel
     );
-    const key = labels.join("-");
+    const key = labels.join('-');
     const numFrames = Number(metadata.NumberOfFrames);
     mappings[key] = {
       frameNumbers: [...Array(numFrames).keys()].map((index) => index + 1),
@@ -231,9 +231,9 @@ function _groupFramesPerMapping(metadata) {
       metadata.PerFrameFunctionalGroupsSequence.forEach((frameItem, i) => {
         if (frameItem.RealWorldValueMappingSequence !== undefined) {
           const labels = frameItem.RealWorldValueMappingSequence.map(
-            (item) => item.LUTLabel,
+            (item) => item.LUTLabel
           );
-          const key = labels.join("-");
+          const key = labels.join('-');
           if (key in mappings) {
             mappings[key].frameNumbers.push(i + 1);
           } else {

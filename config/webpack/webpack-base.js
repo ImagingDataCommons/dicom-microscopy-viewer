@@ -1,30 +1,30 @@
-const path = require("path");
-const webpack = require("webpack");
+const path = require('path');
+const webpack = require('webpack');
 const rootPath = process.cwd();
-const context = path.join(rootPath, "src");
-const outputPath = path.join(rootPath, "dist");
+const context = path.join(rootPath, 'src');
+const outputPath = path.join(rootPath, 'dist');
 
 module.exports = {
-  mode: "development",
+  mode: 'development',
   context,
   stats: {
     children: true,
   },
   entry: {
-    dicomMicroscopyViewer: "./dicom-microscopy-viewer.js",
+    dicomMicroscopyViewer: './dicom-microscopy-viewer.js',
   },
-  target: "web",
+  target: 'web',
   output: {
     library: {
-      name: "[name]",
-      type: "umd",
+      name: '[name]',
+      type: 'umd',
       umdNamedDefine: true,
     },
-    globalObject: "this",
+    globalObject: 'this',
     path: outputPath,
-    publicPath: "auto",
+    publicPath: 'auto',
   },
-  devtool: "source-map",
+  devtool: 'source-map',
   resolve: {
     fallback: {
       fs: false,
@@ -36,17 +36,17 @@ module.exports = {
     rules: [
       {
         test: /\.css$/,
-        use: "css-loader",
+        use: 'css-loader',
       },
       {
         test: /\.wasm/,
-        type: "asset/resource",
+        type: 'asset/resource',
       },
       {
         test: /\.worker\.js$/,
         use: [
           {
-            loader: "worker-loader",
+            loader: 'worker-loader',
           },
         ],
       },
@@ -54,7 +54,7 @@ module.exports = {
         test: /\.js$/,
         exclude: [/(node_modules)/, /(codecs)/, /(dicomicc)/],
         use: {
-          loader: "babel-loader",
+          loader: 'babel-loader',
         },
       },
     ],

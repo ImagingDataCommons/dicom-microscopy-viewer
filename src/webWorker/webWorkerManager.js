@@ -1,5 +1,5 @@
 // eslint-disable-next-line
-import DataLoader from "./index.worker.js";
+import DataLoader from './index.worker.js';
 
 // the taskId to assign to the next task added via addTask()
 let nextTaskId = 0;
@@ -41,9 +41,9 @@ function startTaskOnWebWorker() {
 
   // look for a web worker that is ready
   for (let i = 0; i < webWorkers.length; i++) {
-    if (webWorkers[i].status === "ready") {
+    if (webWorkers[i].status === 'ready') {
       // mark it as busy so tasks are not assigned to it
-      webWorkers[i].status = "busy";
+      webWorkers[i].status = 'busy';
 
       // get the highest priority task
       const task = tasks.shift();
@@ -64,7 +64,7 @@ function startTaskOnWebWorker() {
           workerIndex: i,
           data: task.data,
         },
-        task.transferList,
+        task.transferList
       );
       statistics.numTasksExecuting++;
 
@@ -83,20 +83,20 @@ function startTaskOnWebWorker() {
  * @param msg
  */
 function handleMessageFromWorker(msg) {
-  if (msg.data.taskType === "initialize") {
-    webWorkers[msg.data.workerIndex].status = "ready";
+  if (msg.data.taskType === 'initialize') {
+    webWorkers[msg.data.workerIndex].status = 'ready';
     startTaskOnWebWorker();
   } else {
     const start = webWorkers[msg.data.workerIndex].task.start;
 
-    const action = msg.data.status === "success" ? "resolve" : "reject";
+    const action = msg.data.status === 'success' ? 'resolve' : 'reject';
 
     webWorkers[msg.data.workerIndex].task.deferred[action](msg.data.result);
 
     webWorkers[msg.data.workerIndex].task = undefined;
 
     statistics.numTasksExecuting--;
-    webWorkers[msg.data.workerIndex].status = "ready";
+    webWorkers[msg.data.workerIndex].status = 'ready';
     statistics.numTasksCompleted++;
 
     const end = new Date().getTime();
@@ -120,11 +120,11 @@ function spawnWebWorker() {
   // spawn the webworker
   webWorkers.push({
     worker,
-    status: "initializing",
+    status: 'initializing',
   });
-  worker.addEventListener("message", handleMessageFromWorker);
+  worker.addEventListener('message', handleMessageFromWorker);
   worker.postMessage({
-    taskType: "initialize",
+    taskType: 'initialize',
     workerIndex: webWorkers.length - 1,
     config,
   });
@@ -173,14 +173,14 @@ function loadWebWorkerTask(sourcePath, taskConfig) {
   if (taskConfig) {
     config.taskConfiguration = Object.assign(
       config.taskConfiguration,
-      taskConfig,
+      taskConfig
     );
   }
 
   // tell each spawned web worker to load this task
   for (let i = 0; i < webWorkers.length; i++) {
     webWorkers[i].worker.postMessage({
-      taskType: "loadWebWorkerTask",
+      taskType: 'loadWebWorkerTask',
       workerIndex: webWorkers.length - 1,
       sourcePath,
       config,
@@ -226,7 +226,7 @@ function addTask(taskType, data, priority = 0, transferList) {
   tasks.splice(i, 0, {
     taskId,
     taskType,
-    status: "ready",
+    status: 'ready',
     added: new Date().getTime(),
     data,
     deferred,

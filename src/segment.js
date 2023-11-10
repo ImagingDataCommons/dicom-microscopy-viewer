@@ -1,4 +1,4 @@
-const _attrs = Symbol("attrs");
+const _attrs = Symbol('attrs');
 
 /**
  * A segment.
@@ -42,53 +42,53 @@ class Segment {
   }) {
     this[_attrs] = {};
     if (uid === undefined) {
-      throw new Error("Unique Tracking Identifier is required.");
+      throw new Error('Unique Tracking Identifier is required.');
     } else {
       this[_attrs].uid = uid;
     }
 
     if (number === undefined) {
-      throw new Error("Segment Number is required.");
+      throw new Error('Segment Number is required.');
     }
     this[_attrs].number = number;
 
     if (label === undefined) {
-      throw new Error("Segment Label is required.");
+      throw new Error('Segment Label is required.');
     }
     this[_attrs].label = label;
 
     if (propertyCategory === undefined) {
-      throw new Error("Segmented Property Category Code is required.");
+      throw new Error('Segmented Property Category Code is required.');
     }
     this[_attrs].propertyCategory = propertyCategory;
 
     if (propertyType === undefined) {
-      throw new Error("Segmented Property Type Code is required.");
+      throw new Error('Segmented Property Type Code is required.');
     }
     this[_attrs].propertyType = propertyType;
 
     if (algorithmName === undefined) {
-      throw new Error("Segment Algorithm Name is required.");
+      throw new Error('Segment Algorithm Name is required.');
     }
     this[_attrs].algorithmType = algorithmType;
 
     if (algorithmType === undefined) {
-      throw new Error("Segment Algorithm Type is required.");
+      throw new Error('Segment Algorithm Type is required.');
     }
     this[_attrs].algorithmName = algorithmName;
 
     if (studyInstanceUID === undefined) {
-      throw new Error("Study Instance UID is required.");
+      throw new Error('Study Instance UID is required.');
     }
     this[_attrs].studyInstanceUID = studyInstanceUID;
 
     if (seriesInstanceUID === undefined) {
-      throw new Error("Series Instance UID is required.");
+      throw new Error('Series Instance UID is required.');
     }
     this[_attrs].seriesInstanceUID = seriesInstanceUID;
 
     if (sopInstanceUIDs === undefined) {
-      throw new Error("SOP Instance UIDs are required.");
+      throw new Error('SOP Instance UIDs are required.');
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs;
 

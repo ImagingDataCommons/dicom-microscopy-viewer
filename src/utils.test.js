@@ -1,4 +1,4 @@
-const utils = require("./utils");
+const utils = require('./utils');
 
 const computeRotationParams = [
   {
@@ -235,27 +235,27 @@ const mapSlideCoordToPixelCoordParams = [
   },
 ];
 
-describe("utils.computeRotation", () => {
+describe('utils.computeRotation', () => {
   computeRotationParams.forEach((params) => {
-    it("should compute correct rotation angle", () => {
+    it('should compute correct rotation angle', () => {
       const output = utils.computeRotation(params.inputs);
       expect(output).toEqual(params.expectedOutput);
     });
   });
 });
 
-describe("utils.mapPixelCoordToSlideCoord", () => {
+describe('utils.mapPixelCoordToSlideCoord', () => {
   mapPixelCoordToSlideCoordParams.forEach((params) => {
-    it("should map pixel point to slide point", () => {
+    it('should map pixel point to slide point', () => {
       const output = utils.mapPixelCoordToSlideCoord(params.inputs);
       expect(output).toEqual(params.expectedOutput);
     });
   });
 });
 
-describe("utils.mapSlideCoordToPixelCoord", () => {
+describe('utils.mapSlideCoordToPixelCoord', () => {
   mapSlideCoordToPixelCoordParams.forEach((params) => {
-    it("should map slide point to pixel point", () => {
+    it('should map slide point to pixel point', () => {
       const output = utils.mapSlideCoordToPixelCoord(params.inputs);
       expect(output).toEqual(params.expectedOutput);
     });

@@ -1,8 +1,8 @@
-import { _generateUID } from "./utils.js";
+import { _generateUID } from './utils.js';
 
-const _coordinates = Symbol("coordinates");
-const _frameOfReferenceUID = Symbol("frameOfReferenceUID");
-const _fiducialUID = Symbol("fiducialUID");
+const _coordinates = Symbol('coordinates');
+const _frameOfReferenceUID = Symbol('frameOfReferenceUID');
+const _fiducialUID = Symbol('fiducialUID');
 
 /**
  * 3D spatial coordinates.
@@ -22,19 +22,19 @@ class Scoord3D {
   constructor(options) {
     if (
       !(
-        typeof options.frameOfReferenceUID === "string" ||
+        typeof options.frameOfReferenceUID === 'string' ||
         options.frameOfReferenceUID instanceof String
       )
     ) {
       throw new Error(
-        'Argument "frameOfReferenceUID" of Scoord3D must be a string.',
+        'Argument "frameOfReferenceUID" of Scoord3D must be a string.'
       );
     }
     this[_frameOfReferenceUID] = options.frameOfReferenceUID;
     options.fiducialUID = options.fiducialUID || _generateUID();
     if (
       !(
-        typeof options.fiducialUID === "string" ||
+        typeof options.fiducialUID === 'string' ||
         options.fiducialUID instanceof String
       )
     ) {
@@ -104,11 +104,11 @@ class Point extends Scoord3D {
     }
     if (options.coordinates.length !== 3) {
       throw new Error(
-        'Argument "coordinates" of Point must be an array of length 3.',
+        'Argument "coordinates" of Point must be an array of length 3.'
       );
     }
     if (options.coordinates.some((c) => c < 0)) {
-      console.warn("coordinates of Point are negative numbers");
+      console.warn('coordinates of Point are negative numbers');
     }
     super({
       coordinates: options.coordinates,
@@ -127,7 +127,7 @@ class Point extends Scoord3D {
   }
 
   get graphicType() {
-    return "POINT";
+    return 'POINT';
   }
 }
 
@@ -153,11 +153,11 @@ class Multipoint extends Scoord3D {
     if (options.coordinates.find((c) => c.length !== 3) !== undefined) {
       throw new Error(
         'Argument "coordinates" of Multipoint must be an array of ' +
-          "(x, y, z) triplets.",
+          '(x, y, z) triplets.'
       );
     }
     if (options.coordinates.find((c) => c.some((item) => item < 0))) {
-      console.warn("coordinates of Multipoint contain negative numbers");
+      console.warn('coordinates of Multipoint contain negative numbers');
     }
     super({
       coordinates: options.coordinates,
@@ -168,7 +168,7 @@ class Multipoint extends Scoord3D {
   }
 
   get graphicType() {
-    return "MULTIPOINT";
+    return 'MULTIPOINT';
   }
 }
 
@@ -194,11 +194,11 @@ class Polyline extends Scoord3D {
     if (options.coordinates.find((c) => c.length !== 3) !== undefined) {
       throw new Error(
         'Argument "coordinates" of Polyline must be an array of ' +
-          "(x, y, z) triplets.",
+          '(x, y, z) triplets.'
       );
     }
     if (options.coordinates.find((c) => c.some((item) => item < 0))) {
-      console.warn("coordinates of Polyline contain negative numbers");
+      console.warn('coordinates of Polyline contain negative numbers');
     }
     super({
       coordinates: options.coordinates,
@@ -209,7 +209,7 @@ class Polyline extends Scoord3D {
   }
 
   get graphicType() {
-    return "POLYLINE";
+    return 'POLYLINE';
   }
 }
 
@@ -236,11 +236,11 @@ class Polygon extends Scoord3D {
     if (options.coordinates.find((c) => c.length !== 3) !== undefined) {
       throw new Error(
         'Argument "coordinates" of Polygon must be an array of ' +
-          "(x, y, z) triplets.",
+          '(x, y, z) triplets.'
       );
     }
     if (options.coordinates.find((c) => c.some((item) => item < 0))) {
-      console.warn("coordinates of Polygon contain negative numbers");
+      console.warn('coordinates of Polygon contain negative numbers');
     }
     const n = options.coordinates.length;
     if (
@@ -248,7 +248,7 @@ class Polygon extends Scoord3D {
       options.coordinates[0][1] !== options.coordinates[n - 1][1] ||
       options.coordinates[0][2] !== options.coordinates[n - 1][2]
     ) {
-      throw new Error("First and last coordinate of Polygon must be the same.");
+      throw new Error('First and last coordinate of Polygon must be the same.');
     }
     super({
       coordinates: options.coordinates,
@@ -259,7 +259,7 @@ class Polygon extends Scoord3D {
   }
 
   get graphicType() {
-    return "POLYGON";
+    return 'POLYGON';
   }
 }
 
@@ -287,17 +287,17 @@ class Ellipsoid extends Scoord3D {
     }
     if (options.coordinates.length !== 6) {
       throw new Error(
-        'Argument "coordinates" of Ellipsoid must be an array of length 6.',
+        'Argument "coordinates" of Ellipsoid must be an array of length 6.'
       );
     }
     if (options.coordinates.find((c) => c.length !== 3) !== undefined) {
       throw new Error(
         'Argument "coordinates" of Ellipsoid must be an array of ' +
-          "(x, y, z) triplets.",
+          '(x, y, z) triplets.'
       );
     }
     if (options.coordinates.find((c) => c.some((item) => item < 0))) {
-      console.warn("coordinates of Ellipsoid contain negative numbers");
+      console.warn('coordinates of Ellipsoid contain negative numbers');
     }
     super({
       coordinates: options.coordinates,
@@ -308,7 +308,7 @@ class Ellipsoid extends Scoord3D {
   }
 
   get graphicType() {
-    return "ELLIPSOID";
+    return 'ELLIPSOID';
   }
 }
 
@@ -335,17 +335,17 @@ class Ellipse extends Scoord3D {
     }
     if (options.coordinates.length !== 4) {
       throw new Error(
-        'Argument "coordinates" of Ellipse must be an array of length 4.',
+        'Argument "coordinates" of Ellipse must be an array of length 4.'
       );
     }
     if (options.coordinates.find((c) => c.length !== 3) !== undefined) {
       throw new Error(
         'Argument "coordinates" of Ellipse must be an array of ' +
-          "(x, y, z) triplets.",
+          '(x, y, z) triplets.'
       );
     }
     if (options.coordinates.find((c) => c.some((item) => item < 0))) {
-      console.warn("coordinates of Ellipse contain negative numbers");
+      console.warn('coordinates of Ellipse contain negative numbers');
     }
     const firstAxis = [
       options.coordinates[0][0] - options.coordinates[1][0],
@@ -356,17 +356,17 @@ class Ellipse extends Scoord3D {
       options.coordinates[2][1] - options.coordinates[3][1],
     ];
     const firstAxisNorm = Math.sqrt(
-      Math.pow(firstAxis[0], 2) + Math.pow(firstAxis[1], 2),
+      Math.pow(firstAxis[0], 2) + Math.pow(firstAxis[1], 2)
     );
     const secondAxisNorm = Math.sqrt(
-      Math.pow(secondAxis[0], 2) + Math.pow(secondAxis[1], 2),
+      Math.pow(secondAxis[0], 2) + Math.pow(secondAxis[1], 2)
     );
     const dotProduct =
       firstAxis[0] * secondAxis[0] + firstAxis[1] * secondAxis[1];
     const angle = Math.acos(dotProduct / (firstAxisNorm * secondAxisNorm));
     const degrees = (angle * 180) / Math.PI;
     if (degrees !== 90) {
-      throw new Error("Two axis of Ellipse must have right angle");
+      throw new Error('Two axis of Ellipse must have right angle');
     }
     let coordinates = options.coordinates;
     if (firstAxisNorm < secondAxisNorm) {
@@ -386,7 +386,7 @@ class Ellipse extends Scoord3D {
   }
 
   get graphicType() {
-    return "ELLIPSE";
+    return 'ELLIPSE';
   }
 }
 

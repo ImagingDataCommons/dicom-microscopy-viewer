@@ -16,7 +16,7 @@ const publish = (el, type, payload = null) => {
   };
 
   // This check is needed to polyfill CustomEvent on IE11-
-  if (typeof window.CustomEvent === "function") {
+  if (typeof window.CustomEvent === 'function') {
     event = new CustomEvent(type, {
       // eslint-disable-line
       detail,
@@ -24,7 +24,7 @@ const publish = (el, type, payload = null) => {
       cancelable: true,
     });
   } else {
-    event = document.createEvent("CustomEvent");
+    event = document.createEvent('CustomEvent');
     event.initCustomEvent(type, true, true, detail);
   }
 
