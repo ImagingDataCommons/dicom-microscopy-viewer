@@ -178,6 +178,7 @@ class _AnnotationManager {
   }
 
   onDrawAbort (event) {
+    console.log("event=", event);
     this[Marker.Arrow].onDrawAbort(event)
     this[Markup.Measurement].onDrawAbort(event)
     this[Markup.TextEvaluation].onDrawAbort(event)

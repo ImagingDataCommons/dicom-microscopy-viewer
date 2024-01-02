@@ -17,6 +17,7 @@ const prodConfig = {
     filename: '[name].min.js'
   },
   optimization: {
+    minimize: false,
     minimizer: [
       new TerserPlugin({
         parallel: true

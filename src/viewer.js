@@ -686,7 +686,7 @@ function _getColorPaletteStyleForPointLayer ({
   return { color: expression }
 }
 
-const _affine = Symbol('affine')
+const _affine = Symbol.for('affine')
 const _affineInverse = Symbol('affineInverse')
 const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
@@ -697,15 +697,15 @@ const _drawingLayer = Symbol('drawingLayer')
 const _drawingSource = Symbol('drawingSource')
 const _features = Symbol('features')
 const _imageLayer = Symbol('imageLayer')
-const _interactions = Symbol('interactions')
-const _map = Symbol('map')
-const _mappings = Symbol('mappings')
+const _interactions = Symbol.for('interactions')
+const _map = Symbol.for('map')
+const _mappings = Symbol.for('mappings')
 const _metadata = Symbol('metadata')
 const _opticalPaths = Symbol('opticalPaths')
 const _options = Symbol('options')
 const _overlays = Symbol('overlays')
 const _overviewMap = Symbol('overviewMap')
-const _projection = Symbol('projection')
+const _projection = Symbol.for('projection')
 const _pyramid = Symbol('pyramid')
 const _segments = Symbol('segments')
 const _rotation = Symbol('rotation')
@@ -791,6 +791,7 @@ class VolumeImageViewer {
     if (this[_options].controls == null) {
       this[_options].controls = []
     }
+    console.log("Setting controls to", this[_options].controls);
     this[_options].controls = new Set(this[_options].controls)
 
     if (this[_options].primaryColor == null) {
@@ -2249,6 +2250,7 @@ class VolumeImageViewer {
      *   modifierKey: 'ctrl' // The modifier
      * },
      */
+    console.log("bindings are", options.bindings);
     if (options.bindings) {
       drawOptions.condition = _getInteractionBindingCondition(options.bindings)
     }
@@ -2558,7 +2560,6 @@ class VolumeImageViewer {
    * Deactivate drag pan interaction.
    */
   deactivateDragPanInteraction () {
-    console.info('deactivate "drag pan" interaction')
     if (this[_interactions].dragPan) {
       this[_map].removeInteraction(this[_interactions].dragPan)
       this[_interactions].dragPan = undefined

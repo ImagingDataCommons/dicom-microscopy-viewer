@@ -311,6 +311,7 @@ class _MarkupManager {
       }
     })
 
+    console.log("adding mouse down listener");
     markup.element.addEventListener(Enums.HTMLElementEvents.MOUSE_DOWN, () => {
       const markup = this.get(id)
       if (markup) {

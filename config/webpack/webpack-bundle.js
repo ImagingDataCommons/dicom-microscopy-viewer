@@ -71,6 +71,7 @@ module.exports = {
     asyncWebAssembly: true
   },
   optimization: {
+    minimize: false,
     minimizer: [
       new TerserPlugin({
         parallel: true
