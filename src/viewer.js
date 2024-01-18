@@ -2470,6 +2470,16 @@ class VolumeImageViewer {
     }
 
     this[_interactions].dragZoom = new DragZoom(dragZoomOptions)
+    const container = this[_map].getTargetElement()
+    const onZoomMap = () => {
+      publish(
+        container,
+        'resolutionChange',
+      )
+    };
+
+    this[_map].getView().on('change:resolution', onZoomMap);
+
 
     this[_map].addInteraction(this[_interactions].dragZoom)
   }
@@ -4740,6 +4750,46 @@ class VolumeImageViewer {
     }
     return mappings
   }
+
+
+  translateCoordinates = (coordiante) => {
+    const slideCoordinates = _geometryCoordinates2scoord3dCoordinates(
+      coordiante,
+      this[_pyramid].metadata,
+      this[_affine]
+    )
+    /*
+     * This assumes that the image is aligned with the X and Y axes
+     * of the slide (frame of reference).
+     * If one would ever change the orientation (rotation), this may
+     * need to be changed accordingly. The values would not become wrong,
+     * but the X and Y axes of the slide would no longer align with the
+     * vertical and horizontal axes of the viewport, respectively.
+     */
+    const x = slideCoordinates[0].toFixed(5)
+    const y = slideCoordinates[1].toFixed(5)
+    return [x, y]
+  }
+
+    /**
+   * Get Viewport dimensions.
+   */
+    getCurrentZoomCenter () {
+      let view = this[_map].getView();
+      // Get the current zoom level
+      let zoom = view.getZoom();
+      // Get the current center
+      let center = view.getCenter();
+      const centerCords = this.translateCoordinates(center);
+      console.log(view, zoom, center, centerCords, 'getCurrentZoomCenter')
+      return centerCords;
+    }
+
+    getCurrentZoomLevel () {
+      const view = this[_map].getView();
+      const currentZoomLevel = view.getZoom();
+      return currentZoomLevel;
+    }
 }
 
 /**
