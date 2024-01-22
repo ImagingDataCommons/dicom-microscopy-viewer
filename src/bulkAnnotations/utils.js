@@ -78,7 +78,7 @@ export const getPolygonFeature = ({
   }
 
   const polygonCoordinates = []
-  const roof = annotationLength
+  const roof = annotationLength // sumit - Removed Offset because we are not considering z coordinate
   for (let j = offset; j < roof; j++) {
     const coordinate = _getCoordinates(graphicData, j === (offset + annotationLength - 1) ? offset : j, commonZCoordinate)
     const renderableCoordinate = _scoord3dCoordinates2geometryCoordinates(
