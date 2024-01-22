@@ -756,325 +756,450 @@ class VolumeImageViewer {
    * resolutions. If not passed, the tile grid resolution will be used.
    */
   constructor (options) {
-    this[_options] = options
-    this[_retrievedBulkdata] = {}
-    this[_annotationOptions] = {}
-
-    this[_clients] = {}
-    if (this[_options].client) {
-      this[_clients].default = this[_options].client
-    } else {
-      if (this[_options].clientMapping == null) {
-        throw new Error(
-          'Either option "client" or option "clientMapping" must be provided.'
-        )
-      }
-      if (!(typeof this[_options].clientMapping === 'object')) {
-        throw new Error('Option "clientMapping" must be an object.')
-      }
-      if (this[_options].clientMapping.default == null) {
-        throw new Error('Option "clientMapping" must contain "default" key.')
-      }
-      for (const key in this[_options].clientMapping) {
-        this[_clients][key] = this[_options].clientMapping[key]
-      }
-    }
-
-    if (this[_options].annotationOptions) {
-      this[_annotationOptions] = this[_options].annotationOptions
-    }
-
-    if (this[_options].debug == null) {
-      this[_options].debug = false
-    } else {
-      this[_options].debug = true
-    }
-
-    if (this[_options].preload == null) {
-      this[_options].preload = false
-    } else {
-      this[_options].preload = true
-    }
-
-    if (this[_options].tilesCacheSize == null) {
-      this[_options].tilesCacheSize = 1000
-    }
-
-    if (this[_options].controls == null) {
-      this[_options].controls = []
-    }
-    this[_options].controls = new Set(this[_options].controls)
-
-    if (this[_options].primaryColor == null) {
-      this[_options].primaryColor = [0, 126, 163]
-    }
-    if (this[_options].highlightColor == null) {
-      this[_options].highlightColor = [140, 184, 198]
-    }
-
-    // Collection of Openlayers "TileLayer" instances
-    this[_segments] = {}
-    this[_mappings] = {}
-    this[_annotationGroups] = {}
-    this[_areIccProfilesFetched] = false
-
-    // Collection of Openlayers "Feature" instances
-    this[_features] = new Collection([], { unique: true })
-
-    // Add unique identifier to each created "Feature" instance
-    this[_features].on('add', (e) => {
-      // The ID may have already been set when drawn. However, features could
-      // have also been added without a draw event.
-      if (e.element.getId() === undefined) {
-        e.element.setId(_generateUID())
-      }
-
-      this[_annotationManager].onAdd(e.element)
-    })
-
-    this[_features].on('remove', (e) => {
-      this[_annotationManager].onRemove(e.element)
-    })
-
-    if (this[_options].metadata.constructor.name !== 'Array') {
-      throw new Error('Input metadata must be an array.')
-    }
-
-    if (this[_options].metadata.length === 0) {
-      throw new Error('Input metadata array is empty.')
-    }
-
-    if (this[_options].metadata.some((item) => typeof item !== 'object')) {
-      throw new Error('Input metadata must be an array of objects.')
-    }
-
-    // We also accept metadata in raw JSON format for backwards compatibility
-    if (this[_options].metadata[0].SOPClassUID != null) {
-      this[_metadata] = this[_options].metadata
-    } else {
-      this[_metadata] = this[_options].metadata.map(instance => {
-        return new VLWholeSlideMicroscopyImage({ metadata: instance })
-      })
-    }
-
-    // Group color images by opticalPathIdentifier
-    const colorGroups = groupColorInstances(this[_metadata])
-    const colorImageInformation = {}
-    let colorOpticalPathIdentifiers = Object.keys(colorGroups)
-    if (colorOpticalPathIdentifiers.length > 0) {
-      const id = colorOpticalPathIdentifiers[0]
-      if (colorOpticalPathIdentifiers.length > 1) {
-        console.warn(
-          'Volume Image Viewer detected more than one color image, ' +
-          'but only one color image can be loaded and visualized at a time. ' +
-          'Only the first detected color image will be loaded.'
-        )
-        colorOpticalPathIdentifiers = [id]
-      }
-      colorImageInformation[id] = {
-        metadata: colorGroups[id],
-        opticalPath: this[_metadata][0].OpticalPathSequence[0]
-      }
-    }
-
-    const monochromeGroups = groupMonochromeInstances(this[_metadata])
-    const monochromeOpticalPathIdentifiers = Object.keys(monochromeGroups)
-    const monochromeImageInformation = {}
-    monochromeOpticalPathIdentifiers.forEach(id => {
-      const refImage = monochromeGroups[id][0]
-      const opticalPath = refImage.OpticalPathSequence.find(item => {
-        return item.OpticalPathIdentifier === id
-      })
-      monochromeImageInformation[id] = {
-        metadata: monochromeGroups[id],
-        opticalPath
-      }
-    })
-
-    const numChannels = monochromeOpticalPathIdentifiers.length
-    const numColorImages = colorOpticalPathIdentifiers.length
-    if (numChannels === 0 && numColorImages === 0) {
-      throw new Error('Could not find any channels or color images.')
-    }
-    if (numChannels > 0 && numColorImages > 0) {
-      throw new Error('Found both channels and color images.')
-    }
-    if (numColorImages > 1) {
-      throw new Error('Found more than one color image.')
-    }
-
-    /*
-     * For blending we have to make some assumptions
-     * 1) all channels should have the same origins, resolutions, grid sizes,
-     *    tile sizes and pixel spacings (i.e. same TileGrid).
-     *    These are arrays with number of element equal the number of pyramid
-     *    levels. All channels shall have the same number of levels.
-     * 2) given (1), we calculcate the tileGrid, projection and rotation objects
-     *    using the metadata of the first channel and subsequently apply them to
-     *    all the other channels.
-     * 3) If the parameters in (1) are different, it means that we would have to
-     *    perfom registration, which (at least for now) is out of scope.
-     */
-    if (numChannels > 0) {
-      const opticalPathIdentifier = monochromeOpticalPathIdentifiers[0]
-      const info = monochromeImageInformation[opticalPathIdentifier]
-      this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
-    } else {
-      const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
-      const info = colorImageInformation[opticalPathIdentifier]
-      this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
-    }
-
-    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
-    const origin = metadata.TotalPixelMatrixOriginSequence[0]
-    const orientation = metadata.ImageOrientationSlide
-    const spacing = getPixelSpacing(metadata)
-    const offset = [
-      Number(origin.XOffsetInSlideCoordinateSystem),
-      Number(origin.YOffsetInSlideCoordinateSystem)
-    ]
-    this[_affine] = buildTransform({
-      offset,
-      orientation,
-      spacing
-    })
-    this[_affineInverse] = buildInverseTransform({
-      offset,
-      orientation,
-      spacing
-    })
-
-    this[_rotation] = _getRotation(this[_pyramid].metadata[0])
-
-    /*
-     * Specify projection to prevent default automatic projection
-     * with the default Mercator projection.
-     */
-    this[_projection] = new Projection({
-      code: 'DICOM',
-      units: 'm',
-      global: true,
-      extent: this[_pyramid].extent,
-      getPointResolution: (pixelRes, point) => {
-        /*
-         * DICOM Pixel Spacing has millimeter unit while the projection has
-         * meter unit.
-         */
-        const spacing = getPixelSpacing(
-          this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
-        )[0]
-        return pixelRes * spacing / 10 ** 3
-      }
-    })
-
-    /*
-     * We need to specify the tile grid, since DICOM allows tiles to
-     * have different sizes at each resolution level and a different zoom
-     * factor between individual levels.
-     */
-    this[_tileGrid] = new TileGrid({
-      extent: this[_pyramid].extent,
-      origins: this[_pyramid].origins,
-      resolutions: this[_pyramid].resolutions,
-      sizes: this[_pyramid].gridSizes,
-      tileSizes: this[_pyramid].tileSizes
-    })
-
-    let mapViewResolutions = this[_tileGrid].getResolutions()
-
-    if (has(this[_options], 'mapViewResolutions')) {
-      mapViewResolutions = this[_options].mapViewResolutions
-    }
-
-    const view = new View({
-      center: getCenter(this[_pyramid].extent),
-      projection: this[_projection],
-      resolutions: mapViewResolutions,
-      rotation: this[_rotation],
-      constrainOnlyCenter: false,
-      smoothResolutionConstraint: true,
-      showFullExtent: true,
-      extent: this[_pyramid].extent
-    })
-
-    const layers = []
-    const overviewLayers = []
-    this[_opticalPaths] = {}
-    if (numChannels > 0) {
-      const helper = new WebGLHelper()
-      const overviewHelper = new WebGLHelper()
-      for (const opticalPathIdentifier in monochromeImageInformation) {
-        const info = monochromeImageInformation[opticalPathIdentifier]
-        const pyramid = _computeImagePyramid({ metadata: info.metadata })
-        console.info(`channel "${opticalPathIdentifier}"`, pyramid)
-        const bitsAllocated = info.metadata[0].BitsAllocated
-        const minStoredValue = 0
-        const maxStoredValue = Math.pow(2, bitsAllocated) - 1
-
-        let paletteColorLookupTableUID
-        let paletteColorLookupTable
-        if (info.opticalPath.PaletteColorLookupTableSequence) {
-          const item = info.opticalPath.PaletteColorLookupTableSequence[0]
-          paletteColorLookupTableUID = (
-            item.PaletteColorLookupTableUID
-              ? item.PaletteColorLookupTableUID
-              : _generateUID()
+      this[_options] = options
+      this[_retrievedBulkdata] = {}
+      this[_annotationOptions] = {}
+  
+      this[_clients] = {}
+      if (this[_options].client) {
+        this[_clients].default = this[_options].client
+      } else {
+        if (this[_options].clientMapping == null) {
+          throw new Error(
+            'Either option "client" or option "clientMapping" must be provided.'
           )
+        }
+        if (!(typeof this[_options].clientMapping === 'object')) {
+          throw new Error('Option "clientMapping" must be an object.')
+        }
+        if (this[_options].clientMapping.default == null) {
+          throw new Error('Option "clientMapping" must contain "default" key.')
+        }
+        for (const key in this[_options].clientMapping) {
+          this[_clients][key] = this[_options].clientMapping[key]
+        }
+      }
+  
+      if (this[_options].annotationOptions) {
+        this[_annotationOptions] = this[_options].annotationOptions
+      }
+  
+      if (this[_options].debug == null) {
+        this[_options].debug = false
+      } else {
+        this[_options].debug = true
+      }
+  
+      if (this[_options].preload == null) {
+        this[_options].preload = false
+      } else {
+        this[_options].preload = true
+      }
+  
+      if (this[_options].tilesCacheSize == null) {
+        this[_options].tilesCacheSize = 1000
+      }
+  
+      if (this[_options].controls == null) {
+        this[_options].controls = []
+      }
+      this[_options].controls = new Set(this[_options].controls)
+  
+      if (this[_options].primaryColor == null) {
+        this[_options].primaryColor = [0, 126, 163]
+      }
+      if (this[_options].highlightColor == null) {
+        this[_options].highlightColor = [140, 184, 198]
+      }
+  
+      // Collection of Openlayers "TileLayer" instances
+      this[_segments] = {}
+      this[_mappings] = {}
+      this[_annotationGroups] = {}
+      this[_areIccProfilesFetched] = false
+  
+      // Collection of Openlayers "Feature" instances
+      this[_features] = new Collection([], { unique: true })
+  
+      // Add unique identifier to each created "Feature" instance
+      this[_features].on('add', (e) => {
+        // The ID may have already been set when drawn. However, features could
+        // have also been added without a draw event.
+        if (e.element.getId() === undefined) {
+          e.element.setId(_generateUID())
+        }
+  
+        this[_annotationManager].onAdd(e.element)
+      })
+  
+      this[_features].on('remove', (e) => {
+        this[_annotationManager].onRemove(e.element)
+      })
+  
+      if (this[_options].metadata.constructor.name !== 'Array') {
+        throw new Error('Input metadata must be an array.')
+      }
+  
+      if (this[_options].metadata.length === 0) {
+        throw new Error('Input metadata array is empty.')
+      }
+  
+      if (this[_options].metadata.some((item) => typeof item !== 'object')) {
+        throw new Error('Input metadata must be an array of objects.')
+      }
+  
+      // We also accept metadata in raw JSON format for backwards compatibility
+      if (this[_options].metadata[0].SOPClassUID != null) {
+        this[_metadata] = this[_options].metadata
+      } else {
+        this[_metadata] = this[_options].metadata.map(instance => {
+          return new VLWholeSlideMicroscopyImage({ metadata: instance })
+        })
+      }
+  
+      // Group color images by opticalPathIdentifier
+      const colorGroups = groupColorInstances(this[_metadata])
+      const colorImageInformation = {}
+      let colorOpticalPathIdentifiers = Object.keys(colorGroups)
+      if (colorOpticalPathIdentifiers.length > 0) {
+        const id = colorOpticalPathIdentifiers[0]
+        if (colorOpticalPathIdentifiers.length > 1) {
+          console.warn(
+            'Volume Image Viewer detected more than one color image, ' +
+            'but only one color image can be loaded and visualized at a time. ' +
+            'Only the first detected color image will be loaded.'
+          )
+          colorOpticalPathIdentifiers = [id]
+        }
+        colorImageInformation[id] = {
+          metadata: colorGroups[id],
+          opticalPath: this[_metadata][0].OpticalPathSequence[0]
+        }
+      }
+  
+      const monochromeGroups = groupMonochromeInstances(this[_metadata])
+      const monochromeOpticalPathIdentifiers = Object.keys(monochromeGroups)
+      const monochromeImageInformation = {}
+      monochromeOpticalPathIdentifiers.forEach(id => {
+        const refImage = monochromeGroups[id][0]
+        const opticalPath = refImage.OpticalPathSequence.find(item => {
+          return item.OpticalPathIdentifier === id
+        })
+        monochromeImageInformation[id] = {
+          metadata: monochromeGroups[id],
+          opticalPath
+        }
+      })
+  
+      const numChannels = monochromeOpticalPathIdentifiers.length
+      const numColorImages = colorOpticalPathIdentifiers.length
+      if (numChannels === 0 && numColorImages === 0) {
+        throw new Error('Could not find any channels or color images.')
+      }
+      if (numChannels > 0 && numColorImages > 0) {
+        throw new Error('Found both channels and color images.')
+      }
+      if (numColorImages > 1) {
+        throw new Error('Found more than one color image.')
+      }
+  
+      /*
+       * For blending we have to make some assumptions
+       * 1) all channels should have the same origins, resolutions, grid sizes,
+       *    tile sizes and pixel spacings (i.e. same TileGrid).
+       *    These are arrays with number of element equal the number of pyramid
+       *    levels. All channels shall have the same number of levels.
+       * 2) given (1), we calculcate the tileGrid, projection and rotation objects
+       *    using the metadata of the first channel and subsequently apply them to
+       *    all the other channels.
+       * 3) If the parameters in (1) are different, it means that we would have to
+       *    perfom registration, which (at least for now) is out of scope.
+       */
+      if (numChannels > 0) {
+        const opticalPathIdentifier = monochromeOpticalPathIdentifiers[0]
+        const info = monochromeImageInformation[opticalPathIdentifier]
+        this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
+      } else {
+        const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
+        const info = colorImageInformation[opticalPathIdentifier]
+        this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
+      }
+  
+      const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+      const origin = metadata.TotalPixelMatrixOriginSequence[0]
+      const orientation = metadata.ImageOrientationSlide
+      const spacing = getPixelSpacing(metadata)
+      const offset = [
+        Number(origin.XOffsetInSlideCoordinateSystem),
+        Number(origin.YOffsetInSlideCoordinateSystem)
+      ]
+      this[_affine] = buildTransform({
+        offset,
+        orientation,
+        spacing
+      })
+      this[_affineInverse] = buildInverseTransform({
+        offset,
+        orientation,
+        spacing
+      })
+  
+      this[_rotation] = _getRotation(this[_pyramid].metadata[0])
+  
+      /*
+       * Specify projection to prevent default automatic projection
+       * with the default Mercator projection.
+       */
+      this[_projection] = new Projection({
+        code: 'DICOM',
+        units: 'm',
+        global: true,
+        extent: this[_pyramid].extent,
+        getPointResolution: (pixelRes, point) => {
           /*
-           * TODO: If the LUT Data are large, the elements may be bulkdata and
-           * then have to be retrieved separately. However, for optical paths
-           * they are typically communicated as Segmented LUT Data and thus
-           * relatively small.
+           * DICOM Pixel Spacing has millimeter unit while the projection has
+           * meter unit.
            */
-          paletteColorLookupTable = new PaletteColorLookupTable({
-            uid: item.PaletteColorLookupTableUID,
-            redDescriptor: item.RedPaletteColorLookupTableDescriptor,
-            greenDescriptor: item.GreenPaletteColorLookupTableDescriptor,
-            blueDescriptor: item.BluePaletteColorLookupTableDescriptor,
-            redData: item.RedPaletteColorLookupTableData,
-            greenData: item.GreenPaletteColorLookupTableData,
-            blueData: item.BluePaletteColorLookupTableData,
-            redSegmentedData: item.SegmentedRedPaletteColorLookupTableData,
-            greenSegmentedData: item.SegmentedGreenPaletteColorLookupTableData,
-            blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData
+          const spacing = getPixelSpacing(
+            this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+          )[0]
+          return pixelRes * spacing / 10 ** 3
+        }
+      })
+  
+      /*
+       * We need to specify the tile grid, since DICOM allows tiles to
+       * have different sizes at each resolution level and a different zoom
+       * factor between individual levels.
+       */
+      this[_tileGrid] = new TileGrid({
+        extent: this[_pyramid].extent,
+        origins: this[_pyramid].origins,
+        resolutions: this[_pyramid].resolutions,
+        sizes: this[_pyramid].gridSizes,
+        tileSizes: this[_pyramid].tileSizes
+      })
+  
+      let mapViewResolutions = this[_tileGrid].getResolutions()
+  
+      if (has(this[_options], 'mapViewResolutions')) {
+        mapViewResolutions = this[_options].mapViewResolutions
+      }
+  
+      const view = new View({
+        center: getCenter(this[_pyramid].extent),
+        projection: this[_projection],
+        resolutions: mapViewResolutions,
+        rotation: this[_rotation],
+        constrainOnlyCenter: false,
+        smoothResolutionConstraint: true,
+        showFullExtent: true,
+        extent: this[_pyramid].extent
+      })
+  
+      const layers = []
+      const overviewLayers = []
+      this[_opticalPaths] = {}
+      if (numChannels > 0) {
+        const helper = new WebGLHelper()
+        const overviewHelper = new WebGLHelper()
+        for (const opticalPathIdentifier in monochromeImageInformation) {
+          const info = monochromeImageInformation[opticalPathIdentifier]
+          const pyramid = _computeImagePyramid({ metadata: info.metadata })
+          console.info(`channel "${opticalPathIdentifier}"`, pyramid)
+          const bitsAllocated = info.metadata[0].BitsAllocated
+          const minStoredValue = 0
+          const maxStoredValue = Math.pow(2, bitsAllocated) - 1
+  
+          let paletteColorLookupTableUID
+          let paletteColorLookupTable
+          if (info.opticalPath.PaletteColorLookupTableSequence) {
+            const item = info.opticalPath.PaletteColorLookupTableSequence[0]
+            paletteColorLookupTableUID = (
+              item.PaletteColorLookupTableUID
+                ? item.PaletteColorLookupTableUID
+                : _generateUID()
+            )
+            /*
+             * TODO: If the LUT Data are large, the elements may be bulkdata and
+             * then have to be retrieved separately. However, for optical paths
+             * they are typically communicated as Segmented LUT Data and thus
+             * relatively small.
+             */
+            paletteColorLookupTable = new PaletteColorLookupTable({
+              uid: item.PaletteColorLookupTableUID,
+              redDescriptor: item.RedPaletteColorLookupTableDescriptor,
+              greenDescriptor: item.GreenPaletteColorLookupTableDescriptor,
+              blueDescriptor: item.BluePaletteColorLookupTableDescriptor,
+              redData: item.RedPaletteColorLookupTableData,
+              greenData: item.GreenPaletteColorLookupTableData,
+              blueData: item.BluePaletteColorLookupTableData,
+              redSegmentedData: item.SegmentedRedPaletteColorLookupTableData,
+              greenSegmentedData: item.SegmentedGreenPaletteColorLookupTableData,
+              blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData
+            })
+          }
+          const defaultOpticalPathStyle = {
+            opacity: 1,
+            limitValues: [minStoredValue, maxStoredValue]
+          }
+          if (paletteColorLookupTable) {
+            defaultOpticalPathStyle.paletteColorLookupTable = paletteColorLookupTable
+          } else {
+            defaultOpticalPathStyle.color = [255, 255, 255]
+          }
+  
+          const opticalPath = {
+            opticalPathIdentifier,
+            opticalPath: new OpticalPath({
+              identifier: opticalPathIdentifier,
+              description: info.opticalPath.OpticalPathDescription,
+              isMonochromatic: true,
+              illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
+              illuminationWaveLength: info.opticalPath.IlluminationWaveLength,
+              illuminationColor: (
+                info.opticalPath.IlluminationColorCodeSequence
+                  ? info.opticalPath.IlluminationColorCodeSequence[0]
+                  : undefined
+              ),
+              studyInstanceUID: info.metadata[0].StudyInstanceUID,
+              seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
+              sopInstanceUIDs: pyramid.metadata.map(element => {
+                return element.SOPInstanceUID
+              }),
+              paletteColorLookupTableUID
+            }),
+            pyramid,
+            style: { ...defaultOpticalPathStyle },
+            defaultStyle: defaultOpticalPathStyle,
+            bitsAllocated,
+            minStoredValue,
+            maxStoredValue,
+            loaderParams: {
+              pyramid,
+              client: _getClient(
+                this[_clients],
+                Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
+              ),
+              channel: opticalPathIdentifier
+            },
+            hasLoader: false
+          }
+  
+          const areImagePyramidsEqual = _areImagePyramidsEqual(
+            opticalPath.pyramid,
+            this[_pyramid]
+          )
+          if (!areImagePyramidsEqual) {
+            throw new Error(
+              `Pyramid of optical path "${opticalPathIdentifier}" ` +
+              'is different from reference pyramid.'
+            )
+          }
+  
+          const source = new DataTileSource({
+            tileGrid: this[_tileGrid],
+            projection: this[_projection],
+            wrapX: false,
+            transition: 0,
+            bandCount: 1
           })
+          source.on('tileloaderror', (event) => {
+            console.error(
+              `error loading tile of optical path "${opticalPathIdentifier}"`,
+              event
+            )
+          })
+  
+          const [windowCenter, windowWidth] = createWindow(
+            opticalPath.style.limitValues[0],
+            opticalPath.style.limitValues[1]
+          )
+  
+          let layerStyle
+          if (opticalPath.style.paletteColorLookupTable) {
+            layerStyle = _getColorPaletteStyleForTileLayer({
+              windowCenter,
+              windowWidth,
+              colormap: opticalPath.style.paletteColorLookupTable.data
+            })
+          } else {
+            layerStyle = _getColorInterpolationStyleForTileLayer({
+              windowCenter,
+              windowWidth,
+              color: opticalPath.style.color
+            })
+          }
+  
+          opticalPath.layer = new TileLayer({
+            source,
+            extent: pyramid.extent,
+            preload: this[_options].preload ? 1 : 0,
+            style: layerStyle,
+            visible: false,
+            useInterimTilesOnError: false,
+            cacheSize: this[_options].tilesCacheSize
+          })
+          opticalPath.layer.helper = helper
+          opticalPath.layer.on('precompose', (event) => {
+            const gl = event.context
+            gl.enable(gl.BLEND)
+            gl.blendEquation(gl.FUNC_ADD)
+            gl.blendFunc(gl.SRC_COLOR, gl.ONE)
+          })
+          opticalPath.layer.on('error', (event) => {
+            console.error(
+              `error rendering optical path "${opticalPathIdentifier}"`,
+              event
+            )
+          })
+  
+          opticalPath.overviewLayer = new TileLayer({
+            source,
+            extent: pyramid.extent,
+            preload: 0,
+            style: layerStyle,
+            visible: false,
+            useInterimTilesOnError: false
+          })
+          opticalPath.overviewLayer.helper = overviewHelper
+          opticalPath.overviewLayer.on('precompose', (event) => {
+            const gl = event.context
+            gl.enable(gl.BLEND)
+            gl.blendEquation(gl.FUNC_ADD)
+            gl.blendFunc(gl.SRC_COLOR, gl.ONE)
+          })
+  
+          this[_opticalPaths][opticalPathIdentifier] = opticalPath
         }
+      } else {
+        const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
+        const info = colorImageInformation[opticalPathIdentifier]
+        const pyramid = _computeImagePyramid({ metadata: info.metadata })
+  
         const defaultOpticalPathStyle = {
-          opacity: 1,
-          limitValues: [minStoredValue, maxStoredValue]
+          opacity: 1
         }
-        if (paletteColorLookupTable) {
-          defaultOpticalPathStyle.paletteColorLookupTable = paletteColorLookupTable
-        } else {
-          defaultOpticalPathStyle.color = [255, 255, 255]
-        }
-
+  
         const opticalPath = {
           opticalPathIdentifier,
           opticalPath: new OpticalPath({
             identifier: opticalPathIdentifier,
             description: info.opticalPath.OpticalPathDescription,
-            isMonochromatic: true,
             illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
-            illuminationWaveLength: info.opticalPath.IlluminationWaveLength,
-            illuminationColor: (
-              info.opticalPath.IlluminationColorCodeSequence
-                ? info.opticalPath.IlluminationColorCodeSequence[0]
-                : undefined
-            ),
+            isMonochromatic: false,
             studyInstanceUID: info.metadata[0].StudyInstanceUID,
             seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
             sopInstanceUIDs: pyramid.metadata.map(element => {
               return element.SOPInstanceUID
-            }),
-            paletteColorLookupTableUID
+            })
           }),
-          pyramid,
           style: { ...defaultOpticalPathStyle },
           defaultStyle: defaultOpticalPathStyle,
-          bitsAllocated,
-          minStoredValue,
-          maxStoredValue,
+          pyramid,
+          bitsAllocated: 8,
+          minStoredValue: 0,
+          maxStoredValue: 255,
           loaderParams: {
             pyramid,
             client: _getClient(
@@ -1085,24 +1210,13 @@ class VolumeImageViewer {
           },
           hasLoader: false
         }
-
-        const areImagePyramidsEqual = _areImagePyramidsEqual(
-          opticalPath.pyramid,
-          this[_pyramid]
-        )
-        if (!areImagePyramidsEqual) {
-          throw new Error(
-            `Pyramid of optical path "${opticalPathIdentifier}" ` +
-            'is different from reference pyramid.'
-          )
-        }
-
+  
         const source = new DataTileSource({
           tileGrid: this[_tileGrid],
           projection: this[_projection],
           wrapX: false,
           transition: 0,
-          bandCount: 1
+          bandCount: 3
         })
         source.on('tileloaderror', (event) => {
           console.error(
@@ -1110,42 +1224,13 @@ class VolumeImageViewer {
             event
           )
         })
-
-        const [windowCenter, windowWidth] = createWindow(
-          opticalPath.style.limitValues[0],
-          opticalPath.style.limitValues[1]
-        )
-
-        let layerStyle
-        if (opticalPath.style.paletteColorLookupTable) {
-          layerStyle = _getColorPaletteStyleForTileLayer({
-            windowCenter,
-            windowWidth,
-            colormap: opticalPath.style.paletteColorLookupTable.data
-          })
-        } else {
-          layerStyle = _getColorInterpolationStyleForTileLayer({
-            windowCenter,
-            windowWidth,
-            color: opticalPath.style.color
-          })
-        }
-
+  
         opticalPath.layer = new TileLayer({
           source,
-          extent: pyramid.extent,
+          extent: this[_tileGrid].extent,
           preload: this[_options].preload ? 1 : 0,
-          style: layerStyle,
-          visible: false,
           useInterimTilesOnError: false,
           cacheSize: this[_options].tilesCacheSize
-        })
-        opticalPath.layer.helper = helper
-        opticalPath.layer.on('precompose', (event) => {
-          const gl = event.context
-          gl.enable(gl.BLEND)
-          gl.blendEquation(gl.FUNC_ADD)
-          gl.blendFunc(gl.SRC_COLOR, gl.ONE)
         })
         opticalPath.layer.on('error', (event) => {
           console.error(
@@ -1153,310 +1238,225 @@ class VolumeImageViewer {
             event
           )
         })
-
+  
         opticalPath.overviewLayer = new TileLayer({
           source,
           extent: pyramid.extent,
           preload: 0,
-          style: layerStyle,
-          visible: false,
           useInterimTilesOnError: false
         })
-        opticalPath.overviewLayer.helper = overviewHelper
-        opticalPath.overviewLayer.on('precompose', (event) => {
-          const gl = event.context
-          gl.enable(gl.BLEND)
-          gl.blendEquation(gl.FUNC_ADD)
-          gl.blendFunc(gl.SRC_COLOR, gl.ONE)
-        })
-
+  
+        layers.push(opticalPath.layer)
+        overviewLayers.push(opticalPath.overviewLayer)
+  
         this[_opticalPaths][opticalPathIdentifier] = opticalPath
       }
-    } else {
-      const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
-      const info = colorImageInformation[opticalPathIdentifier]
-      const pyramid = _computeImagePyramid({ metadata: info.metadata })
-
-      const defaultOpticalPathStyle = {
-        opacity: 1
-      }
-
-      const opticalPath = {
-        opticalPathIdentifier,
-        opticalPath: new OpticalPath({
-          identifier: opticalPathIdentifier,
-          description: info.opticalPath.OpticalPathDescription,
-          illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
-          isMonochromatic: false,
-          studyInstanceUID: info.metadata[0].StudyInstanceUID,
-          seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
-          sopInstanceUIDs: pyramid.metadata.map(element => {
-            return element.SOPInstanceUID
-          })
-        }),
-        style: { ...defaultOpticalPathStyle },
-        defaultStyle: defaultOpticalPathStyle,
-        pyramid,
-        bitsAllocated: 8,
-        minStoredValue: 0,
-        maxStoredValue: 255,
-        loaderParams: {
-          pyramid,
-          client: _getClient(
-            this[_clients],
-            Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
-          ),
-          channel: opticalPathIdentifier
-        },
-        hasLoader: false
-      }
-
-      const source = new DataTileSource({
-        tileGrid: this[_tileGrid],
-        projection: this[_projection],
-        wrapX: false,
-        transition: 0,
-        bandCount: 3
-      })
-      source.on('tileloaderror', (event) => {
-        console.error(
-          `error loading tile of optical path "${opticalPathIdentifier}"`,
-          event
-        )
-      })
-
-      opticalPath.layer = new TileLayer({
-        source,
-        extent: this[_tileGrid].extent,
-        preload: this[_options].preload ? 1 : 0,
-        useInterimTilesOnError: false,
-        cacheSize: this[_options].tilesCacheSize
-      })
-      opticalPath.layer.on('error', (event) => {
-        console.error(
-          `error rendering optical path "${opticalPathIdentifier}"`,
-          event
-        )
-      })
-
-      opticalPath.overviewLayer = new TileLayer({
-        source,
-        extent: pyramid.extent,
-        preload: 0,
-        useInterimTilesOnError: false
-      })
-
-      layers.push(opticalPath.layer)
-      overviewLayers.push(opticalPath.overviewLayer)
-
-      this[_opticalPaths][opticalPathIdentifier] = opticalPath
-    }
-
-    if (this[_options].debug) {
-      const tileDebugSource = new TileDebug({
-        projection: this[_projection],
-        extent: this[_pyramid].extent,
-        tileGrid: this[_tileGrid],
-        wrapX: false,
-        template: ' '
-      })
-      const tileDebugLayer = new TileLayer({
-        source: tileDebugSource,
-        extent: this[_pyramid].extent,
-        projection: this[_projection]
-      })
-      layers.push(tileDebugLayer)
-    }
-
-    if (Math.max(...this[_pyramid].gridSizes[0]) <= 10) {
-      const center = getCenter(this[_projection].getExtent())
-      this[_overviewMap] = new OverviewMap({
-        view: new View({
+  
+      if (this[_options].debug) {
+        const tileDebugSource = new TileDebug({
           projection: this[_projection],
-          rotation: this[_rotation],
-          constrainOnlyCenter: true,
-          resolutions: [this[_tileGrid].getResolution(0)],
-          extent: center.concat(center),
-          showFullExtent: true
-        }),
-        layers: overviewLayers,
-        collapsed: true,
-        collapsible: true,
-        rotateWithView: true
-      })
-      this[_updateOverviewMapSize] = () => {
-        const degrees = this[_rotation] / Math.PI * 180
-        const isRotated = !(
-          Math.abs(degrees - 180) < 0.01 || Math.abs(degrees - 0) < 0.01
-        )
-        const viewport = this[_map].getViewport()
-        const viewportHeight = viewport.clientHeight
-        const viewportWidth = viewport.clientWidth
-        const viewportHeightFraction = 0.45
-        const viewportWidthFraction = 0.25
-        const targetHeight = viewportHeight * viewportHeightFraction
-        const targetWidth = viewportWidth * viewportWidthFraction
-
-        const extent = this[_projection].getExtent()
-        let height
-        let width
-        let resolution
-        if (isRotated) {
-          if (targetWidth > targetHeight) {
-            height = targetHeight
-            width = (height * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / height
-          } else {
-            width = targetWidth
-            height = (width * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / width
-          }
-        } else {
-          if (targetHeight > targetWidth) {
-            width = targetWidth
-            height = (width * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / width
-          } else {
-            height = targetHeight
-            width = (height * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / height
-          }
-        }
-        const center = getCenter(extent)
-        const overviewView = new View({
-          projection: this[_projection],
-          rotation: this[_rotation],
-          constrainOnlyCenter: true,
-          minResolution: resolution,
-          maxResolution: resolution,
-          extent: center.concat(center),
-          showFullExtent: true
+          extent: this[_pyramid].extent,
+          tileGrid: this[_tileGrid],
+          wrapX: false,
+          template: ' '
         })
-        const map = this[_overviewMap].getOverviewMap()
-
-        const overviewElement = this[_overviewMap].element
-        const overviewmapElement = Object.values(overviewElement.children).find(
-          c => c.className === 'ol-overviewmap-map'
-        )
-        // TODO: color "ol-overviewmap-map-box" using primary color
-        overviewmapElement.style.width = `${width}px`
-        overviewmapElement.style.height = `${height}px`
-        map.updateSize()
-        map.setView(overviewView)
-        this[_map].removeControl(this[_overviewMap])
-        this[_map].addControl(this[_overviewMap])
+        const tileDebugLayer = new TileLayer({
+          source: tileDebugSource,
+          extent: this[_pyramid].extent,
+          projection: this[_projection]
+        })
+        layers.push(tileDebugLayer)
       }
-    } else {
-      this[_overviewMap] = null
-      this[_updateOverviewMapSize] = () => {}
-    }
-
-    this[_drawingSource] = new VectorSource({
-      tileGrid: this[_tileGrid],
-      projection: this[_projection],
-      features: this[_features],
-      wrapX: false
-    })
-    this[_drawingLayer] = new VectorLayer({
-      extent: this[_pyramid].extent,
-      source: this[_drawingSource],
-      projection: this[_projection],
-      updateWhileAnimating: true,
-      updateWhileInteracting: true
-    })
-    layers.push(this[_drawingLayer])
-
-    this[_map] = new Map({
-      layers,
-      view,
-      controls: [],
-      keyboardEventTarget: document,
-      interactions: defaultInteractions({
-        altShiftDragRotate: true,
-        doubleClickZoom: false,
-        mouseWheelZoom: true,
-        keyboard: false,
-        shiftDragZoom: true,
-        dragPan: true,
-        pinchRotate: true,
-        pinchZoom: true
-      })
-    })
-
-    view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
-
-    /**
-     * OpenLayer's map has default active interactions.
-     * We need to reuse them here to avoid duplications.
-     * Enabling or disabling interactions could cause side effects on
-     * OverviewMap since it also uses the same interactions in the map
-     * @private
-     */
-    this[_interactions] = {
-      draw: undefined,
-      select: undefined,
-      translate: undefined,
-      modify: undefined,
-      snap: undefined,
-      dragPan: this[_map].getInteractions().getArray().find((i) => {
-        return i instanceof DragPan
-      })
-    }
-
-    this[_controls] = {
-      scale: new ScaleLine({
-        units: 'metric',
-        className: ''
-      })
-    }
-    if (this[_options].controls.has('fullscreen')) {
-      this[_controls].fullscreen = new FullScreen()
-    }
-    if (this[_options].controls.has('zoom')) {
-      this[_controls].zoom = new Zoom()
-      this[_controls].zoomslider = new ZoomSlider()
-    }
-    if (this[_options].controls.has('overview')) {
-      if (this[_overviewMap]) {
-        this[_controls].overview = this[_overviewMap]
-      }
-    }
-    if (this[_options].controls.has('position')) {
-      this[_controls].position = new MousePosition({
-        projection: this[_projection],
-        coordinateFormat: (imageCoordinates) => {
-          const slideCoordinates = _geometryCoordinates2scoord3dCoordinates(
-            imageCoordinates,
-            this[_pyramid].metadata,
-            this[_affine]
+  
+      if (Math.max(...this[_pyramid].gridSizes[0]) <= 10) {
+        const center = getCenter(this[_projection].getExtent())
+        this[_overviewMap] = new OverviewMap({
+          view: new View({
+            projection: this[_projection],
+            rotation: this[_rotation],
+            constrainOnlyCenter: true,
+            resolutions: [this[_tileGrid].getResolution(0)],
+            extent: center.concat(center),
+            showFullExtent: true
+          }),
+          layers: overviewLayers,
+          collapsed: true,
+          collapsible: true,
+          rotateWithView: true
+        })
+        this[_updateOverviewMapSize] = () => {
+          const degrees = this[_rotation] / Math.PI * 180
+          const isRotated = !(
+            Math.abs(degrees - 180) < 0.01 || Math.abs(degrees - 0) < 0.01
           )
-          /*
-           * This assumes that the image is aligned with the X and Y axes
-           * of the slide (frame of reference).
-           * If one would ever change the orientation (rotation), this may
-           * need to be changed accordingly. The values would not become wrong,
-           * but the X and Y axes of the slide would no longer align with the
-           * vertical and horizontal axes of the viewport, respectively.
-           */
-          const x = slideCoordinates[0].toFixed(5)
-          const y = slideCoordinates[1].toFixed(5)
-          return `(${x}, ${y})`
+          const viewport = this[_map].getViewport()
+          const viewportHeight = viewport.clientHeight
+          const viewportWidth = viewport.clientWidth
+          const viewportHeightFraction = 0.45
+          const viewportWidthFraction = 0.25
+          const targetHeight = viewportHeight * viewportHeightFraction
+          const targetWidth = viewportWidth * viewportWidthFraction
+  
+          const extent = this[_projection].getExtent()
+          let height
+          let width
+          let resolution
+          if (isRotated) {
+            if (targetWidth > targetHeight) {
+              height = targetHeight
+              width = (height * getHeight(extent)) / getWidth(extent)
+              resolution = getWidth(extent) / height
+            } else {
+              width = targetWidth
+              height = (width * getWidth(extent)) / getHeight(extent)
+              resolution = getHeight(extent) / width
+            }
+          } else {
+            if (targetHeight > targetWidth) {
+              width = targetWidth
+              height = (width * getHeight(extent)) / getWidth(extent)
+              resolution = getWidth(extent) / width
+            } else {
+              height = targetHeight
+              width = (height * getWidth(extent)) / getHeight(extent)
+              resolution = getHeight(extent) / height
+            }
+          }
+          const center = getCenter(extent)
+          const overviewView = new View({
+            projection: this[_projection],
+            rotation: this[_rotation],
+            constrainOnlyCenter: true,
+            minResolution: resolution,
+            maxResolution: resolution,
+            extent: center.concat(center),
+            showFullExtent: true
+          })
+          const map = this[_overviewMap].getOverviewMap()
+  
+          const overviewElement = this[_overviewMap].element
+          const overviewmapElement = Object.values(overviewElement.children).find(
+            c => c.className === 'ol-overviewmap-map'
+          )
+          // TODO: color "ol-overviewmap-map-box" using primary color
+          overviewmapElement.style.width = `${width}px`
+          overviewmapElement.style.height = `${height}px`
+          map.updateSize()
+          map.setView(overviewView)
+          this[_map].removeControl(this[_overviewMap])
+          this[_map].addControl(this[_overviewMap])
         }
+      } else {
+        this[_overviewMap] = null
+        this[_updateOverviewMapSize] = () => {}
+      }
+  
+      this[_drawingSource] = new VectorSource({
+        tileGrid: this[_tileGrid],
+        projection: this[_projection],
+        features: this[_features],
+        wrapX: false
       })
-    }
-    for (const name in this[_controls]) {
-      console.info(`add control "${name}"`)
-      this[_map].addControl(this[_controls][name])
-    }
-
-    this[_annotationManager] = new _AnnotationManager({
-      map: this[_map],
-      pyramid: this[_pyramid].metadata,
-      affine: this[_affine],
-      drawingSource: this[_drawingSource]
-    })
-
-    this[_overlays] = {}
+      this[_drawingLayer] = new VectorLayer({
+        extent: this[_pyramid].extent,
+        source: this[_drawingSource],
+        projection: this[_projection],
+        updateWhileAnimating: true,
+        updateWhileInteracting: true
+      })
+      layers.push(this[_drawingLayer])
+  
+      this[_map] = new Map({
+        layers,
+        view,
+        controls: [],
+        keyboardEventTarget: document,
+        interactions: defaultInteractions({
+          altShiftDragRotate: true,
+          doubleClickZoom: false,
+          mouseWheelZoom: true,
+          keyboard: false,
+          shiftDragZoom: true,
+          dragPan: true,
+          pinchRotate: true,
+          pinchZoom: true
+        })
+      })
+  
+      view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
+  
+      /**
+       * OpenLayer's map has default active interactions.
+       * We need to reuse them here to avoid duplications.
+       * Enabling or disabling interactions could cause side effects on
+       * OverviewMap since it also uses the same interactions in the map
+       * @private
+       */
+      this[_interactions] = {
+        draw: undefined,
+        select: undefined,
+        translate: undefined,
+        modify: undefined,
+        snap: undefined,
+        dragPan: this[_map].getInteractions().getArray().find((i) => {
+          return i instanceof DragPan
+        })
+      }
+  
+      this[_controls] = {
+        scale: new ScaleLine({
+          units: 'metric',
+          className: ''
+        })
+      }
+      if (this[_options].controls.has('fullscreen')) {
+        this[_controls].fullscreen = new FullScreen()
+      }
+      if (this[_options].controls.has('zoom')) {
+        this[_controls].zoom = new Zoom()
+        this[_controls].zoomslider = new ZoomSlider()
+      }
+      if (this[_options].controls.has('overview')) {
+        if (this[_overviewMap]) {
+          this[_controls].overview = this[_overviewMap]
+        }
+      }
+      if (this[_options].controls.has('position')) {
+        this[_controls].position = new MousePosition({
+          projection: this[_projection],
+          coordinateFormat: (imageCoordinates) => {
+            const slideCoordinates = _geometryCoordinates2scoord3dCoordinates(
+              imageCoordinates,
+              this[_pyramid].metadata,
+              this[_affine]
+            )
+            /*
+             * This assumes that the image is aligned with the X and Y axes
+             * of the slide (frame of reference).
+             * If one would ever change the orientation (rotation), this may
+             * need to be changed accordingly. The values would not become wrong,
+             * but the X and Y axes of the slide would no longer align with the
+             * vertical and horizontal axes of the viewport, respectively.
+             */
+            const x = slideCoordinates[0].toFixed(5)
+            const y = slideCoordinates[1].toFixed(5)
+            return `(${x}, ${y})`
+          }
+        })
+      }
+      for (const name in this[_controls]) {
+        console.info(`add control "${name}"`)
+        this[_map].addControl(this[_controls][name])
+      }
+  
+      this[_annotationManager] = new _AnnotationManager({
+        map: this[_map],
+        pyramid: this[_pyramid].metadata,
+        affine: this[_affine],
+        drawingSource: this[_drawingSource]
+      })
+  
+      this[_overlays] = {}
   }
 
   /**
@@ -2989,6 +2989,21 @@ class VolumeImageViewer {
       this[_map].removeOverlay(overlay)
       delete this[_overlays][id]
     }
+  }
+
+/** Sumit - Sigtuple
+   * Add overlay for overviewmap 
+   *
+   * @param {object} options - Unique identifier of the region of interest
+   */
+  addOverviewViewportOverlay(options){
+    const ovmap = this[_overviewMap].getOverviewMap();
+    this.boxOverlay_ = new Overlay({
+      position: options.position,
+      positioning: options.positioning,
+      element: options.element,
+    });
+    ovmap.addOverlay(this.boxOverlay_);
   }
 
   /**
