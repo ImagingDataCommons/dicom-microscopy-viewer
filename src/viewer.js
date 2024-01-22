@@ -2571,7 +2571,18 @@ class VolumeImageViewer {
       )
     }
 
+    const container = this[_map].getTargetElement()
+
     this[_interactions].dragPan = new DragPan(dragPanOptions)
+
+    const onDragMap = () => {
+      console.log('dragged map');
+        publish(
+          container,
+          'pan',
+        )
+    };
+    this[_map].on('pointerdrag', onDragMap);
 
     this[_map].addInteraction(this[_interactions].dragPan)
   }
@@ -4789,6 +4800,43 @@ class VolumeImageViewer {
       const view = this[_map].getView();
       const currentZoomLevel = view.getZoom();
       return currentZoomLevel;
+    }
+
+    getViewerResolution () {
+      const resolution = this[_tileGrid].getResolution(0);
+      return resolution;
+    }
+
+    addVectorLayer (layer) {
+      console.log(layer, 'addVectorLayer')
+      this[_map].addLayer(layer);
+      const currentLayer = this[_map].getLayers()
+      console.log(currentLayer, 'addVectorLayer')
+    }
+
+    addCircleVector () {
+        var view = this[_map].getView();
+        var projection = view.getProjection();
+        var resolutionAtEquator = view.getResolution();
+        var center = this[_map].getView().getCenter();
+        var pointResolution = projection.getPointResolution(resolutionAtEquator, center);
+        var resolutionFactor = resolutionAtEquator/pointResolution;
+        var radius = (radius / ol.proj.METERS_PER_UNIT.m) * resolutionFactor;
+
+
+        var circle = new ol.geom.Circle(center, radius);
+        var circleFeature = new ol.Feature(circle);
+
+        // Source and vector layer
+        var vectorSource = new ol.source.Vector({
+            projection: 'EPSG:4326'
+        });
+        vectorSource.addFeature(circleFeature);
+        var vectorLayer = new ol.layer.Vector({
+            source: vectorSource
+        });
+
+        map.addLayer(vectorLayer);
     }
 }
 
