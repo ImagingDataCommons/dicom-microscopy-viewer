@@ -1280,7 +1280,7 @@ class VolumeImageViewer {
           showFullExtent: true
         }),
         layers: overviewLayers,
-        collapsed: false,
+        collapsed: true,
         collapsible: true,
         rotateWithView: true
       })
@@ -1874,7 +1874,7 @@ class VolumeImageViewer {
       ...Object.values(this[_annotationGroups])
     ]
     itemsRequiringDisposal.forEach(item => {
-      item.layer.dispose()
+      item.layer?.dispose()
       this[_map].removeLayer(item.layer)
       if (item.overlay) {
         item.overlay.dispose()
