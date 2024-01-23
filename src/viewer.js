@@ -21,6 +21,7 @@ import Style from 'ol/style/Style'
 import Stroke from 'ol/style/Stroke'
 import Circle from 'ol/style/Circle'
 import Static from 'ol/source/ImageStatic'
+import Cluster from 'ol/source/Cluster'
 import Overlay from 'ol/Overlay'
 import PointsLayer from 'ol/layer/WebGLPoints'
 import TileLayer from 'ol/layer/WebGLTile'
@@ -35,7 +36,7 @@ import WebGLHelper from 'ol/webgl/Helper'
 import TileDebug from 'ol/source/TileDebug'
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
-import { getCenter, getHeight, getWidth } from 'ol/extent'
+import { getCenter, createEmpty, extend, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
 import { has, debounce } from 'lodash'
@@ -101,6 +102,7 @@ import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 import getExtendedROI from './bulkAnnotations/getExtendedROI'
+import { clusterCircleStyle, getClusterStyleFunc, clickFeature, clickResolution } from './clusterStyles.js'
 
 function _getClient (clientMapping, sopClassUID) {
   if (clientMapping[sopClassUID] == null) {
@@ -3346,15 +3348,26 @@ class VolumeImageViewer {
         })
       })
 
+      const clusterSource = new Cluster({
+        distance: 100,
+        minDistance: 0,
+        source: pointsSource,
+      })
+
       annotationGroup.layers = []
+
       annotationGroup.layers[0] = new VectorLayer({
         source: polygonsSource,
         style: [polygonStyle]
       })
-      annotationGroup.layers[1] = new PointsLayer({
-        source: pointsSource,
-        style: pointStyle,
-        disableHitDetection: true
+      // annotationGroup.layers[1] = new PointsLayer({
+      //   source: pointsSource,
+      //   style: pointStyle,
+      //   disableHitDetection: true
+      // })
+      annotationGroup.layers[1] = new VectorLayer({
+        source: clusterSource,
+        style: getClusterStyleFunc(annotationGroup.style, clusterSource),
       })
 
       const initActiveLayer = () => {
@@ -3391,10 +3404,40 @@ class VolumeImageViewer {
         }
       })
 
-      annotationGroup.layers.forEach(layer => {
-        layer.setVisible(false)
-        this[_map].addLayer(layer)
+      /** Zoom clusters */  
+      this[_map].on("click", (event) => {
+        annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
+          if (features.length > 0) {
+            const clusterMembers = features[0].get("features")
+            if (clusterMembers.length > 1) {
+              /** Calculate the extent of the cluster members */
+              const extent = createEmpty()
+              clusterMembers.forEach((feature) =>
+                extend(extent, feature.getGeometry().getExtent())
+              )
+              const view = map.getView()
+              const resolution = map.getView().getResolution()
+              if (
+                view.getZoom() === view.getMaxZoom() ||
+                (getWidth(extent) < resolution && getHeight(extent) < resolution)
+              ) {
+                /** Show an expanded view of the cluster members */
+                clickFeature = features[0]
+                clickResolution = resolution
+                clusterCircles.setStyle(clusterCircleStyle)
+              } else {
+                /** Zoom to the extent of the cluster members */
+                view.fit(extent, { duration: 500, padding: [50, 50, 50, 50] })
+              }
+            }
+          }
+        })
       })
+
+      annotationGroup.layers[0].setVisible(false)
+      annotationGroup.layers[1].setVisible(false)
+      this[_map].addLayer(annotationGroup.layers[0])
+      this[_map].addLayer(annotationGroup.layers[1])
 
       this[_annotationGroups][annotationGroupUID] = annotationGroup
     })
@@ -3671,11 +3714,16 @@ class VolumeImageViewer {
 
         /** Update points layer */
         const previousLayer = annotationGroup.layers[1]
-        const newLayer = new PointsLayer({
+        // const newLayer = new PointsLayer({
+        //   source: previousLayer.getSource(),
+        //   style: pointStyle,
+        //   disableHitDetection: false,
+        //   visible: previousLayer.getVisible()
+        // })
+        const newLayer = new VectorLayer({
+          style: getClusterStyleFunc(annotationGroup.style, previousLayer.getSource()),
+          visible: previousLayer.getVisible(),
           source: previousLayer.getSource(),
-          style: pointStyle,
-          disableHitDetection: false,
-          visible: previousLayer.getVisible()
         })
         this[_map].addLayer(newLayer)
         this[_map].removeLayer(previousLayer)
@@ -3741,11 +3789,16 @@ class VolumeImageViewer {
 
         /** Update points layer */
         const previousLayer = annotationGroup.layers[1]
-        const newLayer = new PointsLayer({
+        // const newLayer = new PointsLayer({
+        //   source: previousLayer.getSource(),
+        //   style: pointStyle,
+        //   disableHitDetection: false,
+        //   visible: previousLayer.getVisible()
+        // })
+        const newLayer = new VectorLayer({
+          style: getClusterStyleFunc(annotationGroup.style, previousLayer.getSource()),
+          visible: previousLayer.getVisible(),
           source: previousLayer.getSource(),
-          style: pointStyle,
-          disableHitDetection: false,
-          visible: previousLayer.getVisible()
         })
         this[_map].addLayer(newLayer)
         this[_map].removeLayer(previousLayer)
