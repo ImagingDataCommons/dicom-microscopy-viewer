@@ -133,7 +133,7 @@ export function getClusterStyleFunc({ color, opacity }, clusterSource) {
         extend(extent, originalFeatures[j].getGeometry().getExtent());
       }
       maxFeatureCount = Math.max(maxFeatureCount, jj);
-      radius = (0.25 * (getWidth(extent) + getHeight(extent))) / resolution;
+      radius = (0.15 * (getWidth(extent) + getHeight(extent))) / resolution;
       feature.set('radius', radius);
     }
   };

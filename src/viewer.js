@@ -3105,6 +3105,11 @@ class VolumeImageViewer {
         metadata
       }
 
+      if (item.GraphicType !== 'POLYGON') {
+        console.warn(`${item.GraphicType} not supported!`)
+        return
+      }
+
       if (item.GraphicType === 'POLYLINE') {
         /*
          * We represent graphics as polygons in low zoom levels
@@ -3315,39 +3320,6 @@ class VolumeImageViewer {
       }, 500)
       view.on('change:center', debouncedUpdate)
 
-      /*
-       * TODO: Determine optimal sizes based on number of zoom levels and
-       * number of objects, and zoom factor between levels.
-       * Use style variable(s) that can subsequently be updated.
-       */
-      const pointStyle = {
-        symbol: {
-          symbolType: 'circle',
-          size: [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            1,
-            2,
-            this[_pyramid].metadata.length,
-            15
-          ],
-          color: annotationGroup.style.color,
-          opacity: annotationGroup.style.opacity
-        }
-      }
-
-      const polygonStyle = new Style({
-        stroke: new Stroke({
-          color: `rgba(${annotationGroup.style.color[0]}, ${annotationGroup.style.color[1]}, ${annotationGroup.style.color[2]}, ${annotationGroup.style.opacity})`,
-          width: 1,
-          opacity: annotationGroup.style.opacity
-        }),
-        fill: new Fill({
-          color: 'rgba(0, 0, 255, 0)'
-        })
-      })
-
       const clusterSource = new Cluster({
         distance: 100,
         minDistance: 0,
@@ -3358,11 +3330,11 @@ class VolumeImageViewer {
 
       annotationGroup.layers[0] = new VectorLayer({
         source: polygonsSource,
-        style: [polygonStyle]
+        style: [this.getGraphicTypeLayerStyle(annotationGroup)]
       })
       // annotationGroup.layers[1] = new PointsLayer({
       //   source: pointsSource,
-      //   style: pointStyle,
+      //   style: this.getGraphicTypeLayerStyle(annotationGroup),
       //   disableHitDetection: true
       // })
       annotationGroup.layers[1] = new VectorLayer({
@@ -3478,6 +3450,52 @@ class VolumeImageViewer {
         )
       }
     })
+  }
+
+  getGraphicTypeLayerStyle(annotationGroup) {
+    const { style } = annotationGroup
+    const color = `rgba(${style.color[0]}, ${style.color[1]}, ${style.color[2]}, ${style.opacity})`
+  
+    const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
+    const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
+    const graphicType = metadataItem.GraphicType
+  
+    if (graphicType === 'POINT') {
+      /*
+       * TODO: Determine optimal sizes based on number of zoom levels and
+       * number of objects, and zoom factor between levels.
+       * Use style variable(s) that can subsequently be updated.
+       */
+      return {
+        symbol: {
+          symbolType: 'circle',
+          size: [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            1,
+            2,
+            this[_pyramid].metadata.length,
+            15
+          ],
+          color: style.color,
+          opacity: style.opacity
+        }
+      }
+    }
+  
+    if (graphicType === 'POLYGON') {
+      return new Style({
+        stroke: new Stroke({
+          color,
+          width: 1,
+          opacity: style.opacity
+        }),
+        fill: new Fill({ color: 'rgba(0, 0, 255, 0)' })
+      })
+    }
+  
+    return () => {}
   }
 
   /**
@@ -3689,22 +3707,11 @@ class VolumeImageViewer {
           })
         )
 
-        const polygonStyle = new Style({
-          stroke: new Stroke({
-            color: `rgba(${annotationGroup.style.color[0]}, ${annotationGroup.style.color[1]}, ${annotationGroup.style.color[2]}, ${annotationGroup.style.opacity})`,
-            width: 1,
-            opacity: annotationGroup.style.opacity
-          }),
-          fill: new Fill({
-            color: 'rgba(0, 0, 255, 0)'
-          })
-        })
-
         /** Update polygons layer */
         const previousPolygonsLayer = annotationGroup.layers[0]
         const newPolygonsLayer = new VectorLayer({
           source: previousPolygonsLayer.getSource(),
-          style: [polygonStyle],
+          style: [this.getGraphicTypeLayerStyle(annotationGroup)],
           visible: previousPolygonsLayer.getVisible()
         })
         this[_map].addLayer(newPolygonsLayer)
@@ -3716,7 +3723,7 @@ class VolumeImageViewer {
         const previousLayer = annotationGroup.layers[1]
         // const newLayer = new PointsLayer({
         //   source: previousLayer.getSource(),
-        //   style: pointStyle,
+        //   style: this.getGraphicTypeLayerStyle(annotationGroup),
         //   disableHitDetection: false,
         //   visible: previousLayer.getVisible()
         // })
@@ -3747,39 +3754,12 @@ class VolumeImageViewer {
         //     opacity: annotationGroup.style.opacity
         //   }
         // }
-        const pointStyle = {
-          symbol: {
-            symbolType: 'circle',
-            size: [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              1,
-              2,
-              this[_pyramid].metadata.length,
-              15
-            ],
-            color: annotationGroup.style.color,
-            opacity: annotationGroup.style.opacity
-          }
-        }
-
-        const polygonStyle = new Style({
-          stroke: new Stroke({
-            color: `rgba(${annotationGroup.style.color[0]}, ${annotationGroup.style.color[1]}, ${annotationGroup.style.color[2]}, ${annotationGroup.style.opacity})`,
-            width: 1,
-            opacity: annotationGroup.style.opacity
-          }),
-          fill: new Fill({
-            color: 'rgba(0, 0, 255, 0)'
-          })
-        })
 
         /** Update polygons layer */
         const previousPolygonsLayer = annotationGroup.layers[0]
         const newPolygonsLayer = new VectorLayer({
           source: previousPolygonsLayer.getSource(),
-          style: [polygonStyle],
+          style: [this.getGraphicTypeLayerStyle(annotationGroup)],
           visible: previousPolygonsLayer.getVisible()
         })
         this[_map].addLayer(newPolygonsLayer)
@@ -3791,7 +3771,7 @@ class VolumeImageViewer {
         const previousLayer = annotationGroup.layers[1]
         // const newLayer = new PointsLayer({
         //   source: previousLayer.getSource(),
-        //   style: pointStyle,
+        //   style: this.getGraphicTypeLayerStyle(annotationGroup),
         //   disableHitDetection: false,
         //   visible: previousLayer.getVisible()
         // })
