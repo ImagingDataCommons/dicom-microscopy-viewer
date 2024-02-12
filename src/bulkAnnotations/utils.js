@@ -3,7 +3,7 @@ import PolygonGeometry from 'ol/geom/Polygon'
 import Feature from 'ol/Feature'
 import { getTopLeft, getBottomRight } from 'ol/extent'
 
-import { _getCoordinates } from '../annotation'
+import { _getCoordinates, _getPoint } from '../annotation'
 import {
   _scoord3dCoordinates2geometryCoordinates,
   _geometryCoordinates2scoord3dCoordinates
@@ -114,8 +114,20 @@ export const getPointFeature = ({
   coordinateDimensionality,
   annotationGroupUID
 }) => {
-  const offset = graphicIndex[annotationIndex] - 1
-  const coordinate = _getCoordinates(graphicData, offset, commonZCoordinate)
+  let coordinate;
+  if (graphicIndex) {
+    const offset = graphicIndex[annotationIndex] - 1
+    coordinate = _getCoordinates(graphicData, offset, commonZCoordinate)
+  } else {
+    coordinate = _getPoint(  
+      graphicData,
+      graphicIndex,
+      coordinateDimensionality,
+      commonZCoordinate,
+      annotationIndex,
+      numberOfAnnotations
+    )
+  }
   const renderableCoordinate = _scoord3dCoordinates2geometryCoordinates(
     coordinate,
     pyramid,
@@ -153,7 +165,7 @@ export const getFeaturesFromBulkAnnotations = ({
     annotationIndex < numberOfAnnotations;
     annotationIndex++
   ) {
-    if (isHighResolution) {
+    if (isHighResolution && graphicType === 'POLYGON') {
       const offset = graphicIndex[annotationIndex] - 1
       const firstCoordinate = _getCoordinates(
         graphicData,

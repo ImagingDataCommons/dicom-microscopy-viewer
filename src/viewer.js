@@ -3105,8 +3105,8 @@ class VolumeImageViewer {
         metadata
       }
 
-      if (item.GraphicType !== 'POLYGON') {
-        console.warn(`${item.GraphicType} not supported!`)
+      if (this[_annotationGroups][annotationGroupUID]) {
+        console.info('annotation group already added', annotationGroupUID)
         return
       }
 
@@ -3155,7 +3155,7 @@ class VolumeImageViewer {
       /** Required if all points are in the same Z plane. */
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)
 
-      let areBulkAnnotationsProcessed = false
+      let areAnnotationsLoaded = false
       const cacheBulkAnnotations = (id, data) => (this[_retrievedBulkdata][id] = data)
       const getCachedBulkAnnotations = (id) => (this[_retrievedBulkdata][id])
 
@@ -3163,8 +3163,8 @@ class VolumeImageViewer {
         console.info('load bulk annotations layer')
 
         const processBulkAnnotations = (retrievedBulkdata) => {
-          console.info('process bulk annotations')
-          areBulkAnnotationsProcessed = true
+          console.info('process bulk annotations', retrievedBulkdata)
+          areAnnotationsLoaded = true
 
           const [graphicData, graphicIndex, measurements] = retrievedBulkdata
 
@@ -3284,6 +3284,11 @@ class VolumeImageViewer {
         rotateWithView: true,
         overlaps: false
       })
+      const clustersSource = new Cluster({
+        distance: 100,
+        minDistance: 0,
+        source: pointsSource,
+      })
       const onFeaturesLoadStart = () => {
         const container = this[_map].getTargetElement()
         publish(container, EVENT.LOADING_STARTED)
@@ -3303,12 +3308,19 @@ class VolumeImageViewer {
       polygonsSource.on('featuresloadstart', onFeaturesLoadStart)
       polygonsSource.on('featuresloadend', onFeaturesLoadEnd)
       polygonsSource.on('featuresloaderror', onFeaturesLoadError)
+      clustersSource.on('featuresloadstart', onFeaturesLoadStart)
+      clustersSource.on('featuresloadend', onFeaturesLoadEnd)
+      clustersSource.on('featuresloaderror', onFeaturesLoadError)
 
+      /** 
+       * Reload annotations when panning. 
+       * The annotations will be drawn inside the viewport area for better performance.
+       */
       const onLayerLoadSuccess = () => {}
       const onLayerLoadFailure = (error) => { console.error(error) }
       const debouncedUpdate = debounce(() => {
-        const isVisible = annotationGroup.activeLayer.getVisible()
-        if (isVisible && areBulkAnnotationsProcessed && isHighResolution()) {
+        const isVisible = annotationGroup.activeLayer().getVisible()
+        if (isVisible && graphicType !== 'POINT' && areAnnotationsLoaded && isHighResolution()) {
           console.info('load high resolution bulk annotations')
           bulkAnnotationsLoader.call(
             polygonsSource,
@@ -3320,100 +3332,100 @@ class VolumeImageViewer {
       }, 500)
       view.on('change:center', debouncedUpdate)
 
-      const clusterSource = new Cluster({
-        distance: 100,
-        minDistance: 0,
-        source: pointsSource,
+      const highResLayer =
+        graphicType === "POINT"
+          ? new PointsLayer({
+              source: pointsSource,
+              style: this.getGraphicTypeLayerStyle(
+                annotationGroup,
+                pointsSource
+              ),
+              disableHitDetection: true,
+            })
+          : new VectorLayer({
+              source: polygonsSource,
+              style: this.getGraphicTypeLayerStyle(
+                annotationGroup,
+                polygonsSource
+              ),
+            })
+      const lowResLayer = new VectorLayer({
+        source: clustersSource,
+        style: getClusterStyleFunc(annotationGroup.style, clustersSource),
       })
 
       annotationGroup.layers = []
-
-      annotationGroup.layers[0] = new VectorLayer({
-        source: polygonsSource,
-        style: [this.getGraphicTypeLayerStyle(annotationGroup)]
-      })
-      // annotationGroup.layers[1] = new PointsLayer({
-      //   source: pointsSource,
-      //   style: this.getGraphicTypeLayerStyle(annotationGroup),
-      //   disableHitDetection: true
-      // })
-      annotationGroup.layers[1] = new VectorLayer({
-        source: clusterSource,
-        style: getClusterStyleFunc(annotationGroup.style, clusterSource),
-      })
-
-      const initActiveLayer = () => {
-        const polygonsLayer = annotationGroup.layers[0]
-        const pointsLayer = annotationGroup.layers[1]
-        annotationGroup.activeLayer = isHighResolution()
-          ? polygonsLayer
-          : pointsLayer
-      }
-      initActiveLayer()
+      annotationGroup.layers[0] = highResLayer
+      annotationGroup.layers[1] = lowResLayer
+      annotationGroup.activeLayer = () =>
+        isHighResolution() || graphicType === "POINT"
+          ? annotationGroup.layers[0]
+          : annotationGroup.layers[1]
 
       /** Updating layers when zoom changes */
-      this[_map].on('moveend', () => {
-        if (areBulkAnnotationsProcessed) {
-          const polygonsLayer = annotationGroup.layers[0]
-          const pointsLayer = annotationGroup.layers[1]
-          if (isHighResolution()) {
-            const isVisible = annotationGroup.activeLayer.getVisible()
-            if (isVisible) {
-              polygonsLayer.setVisible(true)
-              pointsLayer.setVisible(false)
-            }
-            annotationGroup.activeLayer = polygonsLayer
-          } else {
-            const isVisible = annotationGroup.activeLayer.getVisible()
-            if (isVisible) {
-              polygonsLayer.setVisible(false)
-              pointsLayer.setVisible(true)
-            }
-            annotationGroup.activeLayer = pointsLayer
-          }
-        } else {
-          initActiveLayer()
-        }
-      })
-
-      /** Zoom clusters */  
-      this[_map].on("click", (event) => {
-        annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
-          if (features.length > 0) {
-            const clusterMembers = features[0].get("features")
-            if (clusterMembers.length > 1) {
-              /** Calculate the extent of the cluster members */
-              const extent = createEmpty()
-              clusterMembers.forEach((feature) =>
-                extend(extent, feature.getGeometry().getExtent())
-              )
-              const view = map.getView()
-              const resolution = map.getView().getResolution()
-              if (
-                view.getZoom() === view.getMaxZoom() ||
-                (getWidth(extent) < resolution && getHeight(extent) < resolution)
-              ) {
-                /** Show an expanded view of the cluster members */
-                clickFeature = features[0]
-                clickResolution = resolution
-                clusterCircles.setStyle(clusterCircleStyle)
-              } else {
-                /** Zoom to the extent of the cluster members */
-                view.fit(extent, { duration: 500, padding: [50, 50, 50, 50] })
-              }
+      if (graphicType !== "POINT") {
+        this[_map].on('moveend', () => {
+          if (areAnnotationsLoaded) {
+            if (isHighResolution()) {
+              annotationGroup.layers[0].setVisible(true)
+              annotationGroup.layers[1].setVisible(false)
+            } else {
+              annotationGroup.layers[0].setVisible(false)
+              annotationGroup.layers[1].setVisible(true)
             }
           }
         })
-      })
+      }
+
+      /** 
+       * Zoom in inside clusters (low res layer) when clicking on them.
+       */  
+      if (graphicType !== "POINT") {
+        this[_map].on('click', (event) => {
+          annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
+            if (features.length > 0) {
+              const clusterMembers = features[0].get('features')
+              if (clusterMembers.length > 1) {
+                /** Calculate the extent of the cluster members */
+                const extent = createEmpty()
+                clusterMembers.forEach((feature) =>
+                  extend(extent, feature.getGeometry().getExtent())
+                )
+                const view = map.getView()
+                const resolution = map.getView().getResolution()
+                if (
+                  view.getZoom() === view.getMaxZoom() ||
+                  (getWidth(extent) < resolution && getHeight(extent) < resolution)
+                ) {
+                  /** Show an expanded view of the cluster members */
+                  clickFeature = features[0]
+                  clickResolution = resolution
+                  clusterCircles.setStyle(clusterCircleStyle)
+                } else {
+                  /** Zoom to the extent of the cluster members */
+                  view.fit(extent, { duration: 500, padding: [50, 50, 50, 50] })
+                }
+              }
+            }
+          })
+        })
+      }
 
       annotationGroup.layers[0].setVisible(false)
-      annotationGroup.layers[1].setVisible(false)
       this[_map].addLayer(annotationGroup.layers[0])
-      this[_map].addLayer(annotationGroup.layers[1])
+
+      if (graphicType !== 'POINT') {
+        annotationGroup.layers[1].setVisible(false)
+        this[_map].addLayer(annotationGroup.layers[1])
+      }
 
       this[_annotationGroups][annotationGroupUID] = annotationGroup
     })
 
+    /**
+     * Select an annotation when clicked. 
+     * Opens a dialog with ROI information.
+     */
     let selectedAnnotation = null
     this[_map].on('singleclick', (e) => {
       if (e != null) {
@@ -3452,6 +3464,11 @@ class VolumeImageViewer {
     })
   }
 
+  /**
+   * Returns the layer style for a given annotation group based on its graphic type.
+   * @param {Object} annotationGroup - The annotation group object.
+   * @returns {Object|Function} - The layer style object or an empty function.
+   */
   getGraphicTypeLayerStyle(annotationGroup) {
     const { style } = annotationGroup
     const color = `rgba(${style.color[0]}, ${style.color[1]}, ${style.color[2]}, ${style.opacity})`
@@ -3552,7 +3569,7 @@ class VolumeImageViewer {
     console.info(`show annotation group ${annotationGroupUID}`)
     this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
 
-    annotationGroup.activeLayer.setVisible(true)
+    annotationGroup.activeLayer().setVisible(true)
   }
 
   /**
@@ -3571,7 +3588,7 @@ class VolumeImageViewer {
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`hide annotation group ${annotationGroupUID}`)
 
-    annotationGroup.activeLayer.setVisible(false)
+    annotationGroup.activeLayer().setVisible(false)
   }
 
   /**
@@ -3589,7 +3606,7 @@ class VolumeImageViewer {
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
 
-    return annotationGroup.activeLayer.getVisible()
+    return annotationGroup.activeLayer().getVisible()
   }
 
   /**
@@ -3625,6 +3642,10 @@ class VolumeImageViewer {
     if (styleOptions.color != null) {
       annotationGroup.style.color = styleOptions.color
     }
+
+    const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
+    const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
+    const graphicType = metadataItem.GraphicType
 
     const metadata = annotationGroup.metadata
     const source = annotationGroup.layers[1].getSource()
@@ -3707,35 +3728,46 @@ class VolumeImageViewer {
           })
         )
 
-        /** Update polygons layer */
-        const previousPolygonsLayer = annotationGroup.layers[0]
-        const newPolygonsLayer = new VectorLayer({
-          source: previousPolygonsLayer.getSource(),
-          style: [this.getGraphicTypeLayerStyle(annotationGroup)],
-          visible: previousPolygonsLayer.getVisible()
-        })
-        this[_map].addLayer(newPolygonsLayer)
-        this[_map].removeLayer(previousPolygonsLayer)
-        previousPolygonsLayer.dispose()
-        annotationGroup.layers[0] = newPolygonsLayer
+        const previousHighResLayer = annotationGroup.layers[0]
+        const newHighResLayer =
+          graphicType === "POINT"
+            ? new PointsLayer({
+                source: previousHighResLayer.getSource(),
+                style: this.getGraphicTypeLayerStyle(
+                  annotationGroup,
+                  previousHighResLayer.getSource()
+                ),
+                disableHitDetection: true,
+                visible: previousHighResLayer.getVisible(),
+              })
+            : new VectorLayer({
+                source: previousHighResLayer.getSource(),
+                visible: previousHighResLayer.getVisible(),
+                style: this.getGraphicTypeLayerStyle(
+                  annotationGroup,
+                  previousHighResLayer.getSource()
+                ),
+              })
+        this[_map].addLayer(newHighResLayer)
+        this[_map].removeLayer(previousHighResLayer)
+        previousHighResLayer.dispose()
+        annotationGroup.layers[0] = newHighResLayer
 
-        /** Update points layer */
-        const previousLayer = annotationGroup.layers[1]
-        // const newLayer = new PointsLayer({
-        //   source: previousLayer.getSource(),
-        //   style: this.getGraphicTypeLayerStyle(annotationGroup),
-        //   disableHitDetection: false,
-        //   visible: previousLayer.getVisible()
-        // })
-        const newLayer = new VectorLayer({
-          style: getClusterStyleFunc(annotationGroup.style, previousLayer.getSource()),
-          visible: previousLayer.getVisible(),
-          source: previousLayer.getSource(),
-        })
-        this[_map].addLayer(newLayer)
-        this[_map].removeLayer(previousLayer)
-        previousLayer.dispose()
-        annotationGroup.layers[1] = newLayer
+        if (graphicType !== "POINT") {
+          const previousLowResLayer = annotationGroup.layers[1]
+          const newLowResLayer = new VectorLayer({
+            source: previousLowResLayer.getSource(),
+            visible: previousLowResLayer.getVisible(),
+            style: getClusterStyleFunc(
+              annotationGroup.style,
+              previousLowResLayer.getSource()
+            ),
+          })
+          this[_map].addLayer(newLowResLayer)
+          this[_map].removeLayer(previousLowResLayer)
+          previousLowResLayer.dispose()
+          annotationGroup.layers[1] = newLowResLayer
+        }
       }
     } else {
       if (styleOptions.color != null) {
@@ -3755,35 +3787,46 @@ class VolumeImageViewer {
         //   }
         // }
 
-        /** Update polygons layer */
-        const previousPolygonsLayer = annotationGroup.layers[0]
-        const newPolygonsLayer = new VectorLayer({
-          source: previousPolygonsLayer.getSource(),
-          style: [this.getGraphicTypeLayerStyle(annotationGroup)],
-          visible: previousPolygonsLayer.getVisible()
-        })
-        this[_map].addLayer(newPolygonsLayer)
-        this[_map].removeLayer(previousPolygonsLayer)
-        previousPolygonsLayer.dispose()
-        annotationGroup.layers[0] = newPolygonsLayer
+        const previousHighResLayer = annotationGroup.layers[0]
+        const newHighResLayer =
+          graphicType === "POINT"
+            ? new PointsLayer({
+                source: previousHighResLayer.getSource(),
+                style: this.getGraphicTypeLayerStyle(
+                  annotationGroup,
+                  previousHighResLayer.getSource()
+                ),
+                disableHitDetection: true,
+                visible: previousHighResLayer.getVisible(),
+              })
+          : new VectorLayer({
+                source: previousHighResLayer.getSource(),
+                visible: previousHighResLayer.getVisible(),
+                style: this.getGraphicTypeLayerStyle(
+                  annotationGroup,
+                  previousHighResLayer.getSource()
+                ),
+              })
+        this[_map].addLayer(newHighResLayer)
+        this[_map].removeLayer(previousHighResLayer)
+        previousHighResLayer.dispose()
+        annotationGroup.layers[0] = newHighResLayer
 
-        /** Update points layer */
-        const previousLayer = annotationGroup.layers[1]
-        // const newLayer = new PointsLayer({
-        //   source: previousLayer.getSource(),
-        //   style: this.getGraphicTypeLayerStyle(annotationGroup),
-        //   disableHitDetection: false,
-        //   visible: previousLayer.getVisible()
-        // })
-        const newLayer = new VectorLayer({
-          style: getClusterStyleFunc(annotationGroup.style, previousLayer.getSource()),
-          visible: previousLayer.getVisible(),
-          source: previousLayer.getSource(),
-        })
-        this[_map].addLayer(newLayer)
-        this[_map].removeLayer(previousLayer)
-        previousLayer.dispose()
-        annotationGroup.layers[1] = newLayer
+        if (graphicType !== "POINT") {
+          const previousLowResLayer = annotationGroup.layers[1]
+          const newLowResLayer = new VectorLayer({
+            source: previousLowResLayer.getSource(),
+            visible: previousLowResLayer.getVisible(),
+            style: getClusterStyleFunc(
+              annotationGroup.style,
+              previousLowResLayer.getSource()
+            ),
+          })
+          this[_map].addLayer(newLowResLayer)
+          this[_map].removeLayer(previousLowResLayer)
+          previousLowResLayer.dispose()
+          annotationGroup.layers[1] = newLowResLayer
+        }
       }
     }
   }
