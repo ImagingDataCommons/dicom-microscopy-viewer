@@ -509,13 +509,10 @@ async function _fetchMeasurement ({
  * @private
  */
 function _getCoordinateDimensionality (metadataItem) {
-  if (metadataItem.CommonZCoordinateValue == null) {
-    if (metadataItem.AnnotationCoordinateType === '2D') {
-      return 2
-    }
-    return 3
+  if (metadataItem.CommonZCoordinateValue == null || metadataItem.AnnotationCoordinateType === '2D') {
+    return 2
   }
-  return 2
+  return 3
 }
 
 /**

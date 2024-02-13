@@ -95,7 +95,9 @@ import {
 import {
   getPointFeature,
   getPolygonFeature,
-  getFeaturesFromBulkAnnotations
+  getFeaturesFromBulkAnnotations,
+  get2DPointFeature,
+  get2DPolygonFeature
 } from './bulkAnnotations/utils'
 
 import Enums from './enums'
@@ -3048,12 +3050,12 @@ class VolumeImageViewer {
    */
   addAnnotationGroups (metadata) {
     const refImage = this[_pyramid].metadata[0]
-    if (refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
-      throw new Error(
-        'Microscopy Bulk Simple Annotation instances must have the same ' +
-        'Frame of Reference UID as the corresponding source images.'
-      )
-    }
+    // if (refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
+    //   throw new Error(
+    //     'Microscopy Bulk Simple Annotation instances must have the same ' +
+    //     'Frame of Reference UID as the corresponding source images.'
+    //   )
+    // }
     console.info(
       'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
       `of series "${metadata.SeriesInstanceUID}"`
@@ -3266,10 +3268,12 @@ class VolumeImageViewer {
        * In the loader function "this" is bound to the vector source.
        */
       function pointsLoader (extent, resolution, projection, success, failure) {
-        bulkAnnotationsLoader.call(this, getPointFeature, success, failure)
+        const featureFunc = coordinateDimensionality === 3 ? getPointFeature : get2DPointFeature
+        bulkAnnotationsLoader.call(this, featureFunc, success, failure)
       }
       function polygonsLoader (extent, resolution, projection, success, failure) {
-        bulkAnnotationsLoader.call(this, getPolygonFeature, success, failure)
+        const featureFunc = coordinateDimensionality === 3 ? getPolygonFeature : get2DPolygonFeature
+        bulkAnnotationsLoader.call(this, featureFunc, success, failure)
       }
 
       const pointsSource = new VectorSource({
@@ -3324,7 +3328,7 @@ class VolumeImageViewer {
           console.info('load high resolution bulk annotations')
           bulkAnnotationsLoader.call(
             polygonsSource,
-            getPolygonFeature,
+            coordinateDimensionality === 3 ? getPolygonFeature : get2DPolygonFeature,
             onLayerLoadSuccess,
             onLayerLoadFailure
           )
