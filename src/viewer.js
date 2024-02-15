@@ -4822,6 +4822,17 @@ class VolumeImageViewer {
       return resolution;
     }
 
+    getCurrentCenterCords () {
+      let view = this[_map].getView();
+      // Get the current zoom level
+      let zoom = view.getZoom();
+      // Get the current center
+      let center = view.getCenter();
+      const centerCords = this.translateCoordinates(center);
+      console.log(view, zoom, center, centerCords, 'getCurrentZoomCenter')
+      return center;
+    }
+
     addVectorLayer (layer) {
       console.log(layer, 'addVectorLayer')
       this[_map].addLayer(layer);
@@ -4829,30 +4840,50 @@ class VolumeImageViewer {
       console.log(currentLayer, 'addVectorLayer')
     }
 
-    addCircleVector () {
-        var view = this[_map].getView();
-        var projection = view.getProjection();
-        var resolutionAtEquator = view.getResolution();
-        var center = this[_map].getView().getCenter();
-        var pointResolution = projection.getPointResolution(resolutionAtEquator, center);
-        var resolutionFactor = resolutionAtEquator/pointResolution;
-        var radius = (radius / ol.proj.METERS_PER_UNIT.m) * resolutionFactor;
 
+    activateMeasurmentInteraction ({measureType}) {
+      const modifyStyle = new Style({
+        image: new CircleStyle({
+          radius: 5,
+          stroke: new Stroke({
+            color: 'rgba(0, 0, 0, 0.7)',
+          }),
+          fill: new Fill({
+            color: 'rgba(0, 0, 0, 0.4)',
+          }),
+        }),
+        text: new Text({
+          text: 'Drag to modify',
+          font: '12px Calibri,sans-serif',
+          fill: new Fill({
+            color: 'rgba(255, 255, 255, 1)',
+          }),
+          backgroundFill: new Fill({
+            color: 'rgba(0, 0, 0, 0.7)',
+          }),
+          padding: [2, 2, 2, 2],
+          textAlign: 'left',
+          offsetX: 15,
+        }),
+      });
+      const raster = new TileLayer({
+        source: new OSM(),
+      });
+      const source = new VectorSource();
+      const modify = new Modify({source: source, style: modifyStyle});
 
-        var circle = new ol.geom.Circle(center, radius);
-        var circleFeature = new ol.Feature(circle);
+      draw = new Draw({
+        source: source,
+        type: drawType,
+        style: function (feature) {
+          return styleFunction(feature, showSegments.checked, drawType, tip);
+        },
+      });
 
-        // Source and vector layer
-        var vectorSource = new ol.source.Vector({
-            projection: 'EPSG:4326'
-        });
-        vectorSource.addFeature(circleFeature);
-        var vectorLayer = new ol.layer.Vector({
-            source: vectorSource
-        });
-
-        map.addLayer(vectorLayer);
     }
+
+
+
 }
 
 /**
