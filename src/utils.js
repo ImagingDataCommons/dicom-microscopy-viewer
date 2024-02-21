@@ -384,13 +384,12 @@ function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing, affin
  * @param {number[]} options.orientation - Direction cosines along the row and column direction of the Total Pixel Matrix for each of the three axis of the slide coordinate system
  * @param {number[]} options.spacing - Spacing between pixels along the Column and Row direction of the Total Pixel Matrix
  * @param {number[]} options.point - (x, y, z) slide coordinates
- * @param {number[][]} options.affineInverse - 3x3 affine transformation matrix
  *
  * @returns {number[]} (row, column) image coordinates
  *
  * @memberof utils
  */
-function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing, affineInverse }) {
+function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
   if (point == null) {
     throw new Error('Option "point" is required.')
   }
@@ -401,7 +400,7 @@ function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing, affin
     throw new Error('Option "point" must be an array with 2 elements.')
   }
 
-  const affine = affineInverse ? affineInverse : buildInverseTransform({
+  const affine = buildInverseTransform({
     orientation,
     offset,
     spacing

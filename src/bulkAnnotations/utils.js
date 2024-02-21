@@ -64,51 +64,6 @@ export const getPolygonFeature = ({
   numberOfAnnotations,
   annotationIndex,
   pyramid,
-  affineInverse,
-  commonZCoordinate,
-  coordinateDimensionality,
-  annotationGroupUID
-}) => {
-  const offset = graphicIndex[annotationIndex] - 1
-
-  let annotationLength
-  if (annotationIndex < numberOfAnnotations - 1) {
-    annotationLength = graphicIndex[annotationIndex + 1] - offset
-  } else {
-    annotationLength = graphicData.length
-  }
-
-  const polygonCoordinates = []
-  const roof = offset + annotationLength
-  for (let j = offset; j < roof; j++) {
-    const coordinate = _getCoordinates(graphicData, j === (offset + annotationLength - 1) ? offset : j, commonZCoordinate)
-    const renderableCoordinate = _scoord3dCoordinates2geometryCoordinates(
-      coordinate,
-      pyramid,
-      affineInverse
-    )
-    polygonCoordinates.push(renderableCoordinate)
-    /** Jump to the next point: (x, y) if 2 or (x, y, z) if 3 */
-    j += coordinateDimensionality - 1
-  }
-
-  return new Feature({
-    geometry: new PolygonGeometry([polygonCoordinates])
-  })
-}
-
-/**
- * Get 2D polygon feature from bulk data annotation data
- *
- * @param {*} param0
- * @returns
- */
-export const get2DPolygonFeature = ({
-  graphicIndex,
-  graphicData,
-  numberOfAnnotations,
-  annotationIndex,
-  pyramid,
   affine,
   affineInverse,
   commonZCoordinate,
@@ -128,9 +83,13 @@ export const get2DPolygonFeature = ({
   const roof = offset + annotationLength
   for (let j = offset; j < roof; j++) {
     let coordinate = _getCoordinates(graphicData, j === (offset + annotationLength - 1) ? offset : j, commonZCoordinate)
-    coordinate = mapPixelCoordToSlideCoord(
-      { point: [coordinate[0], coordinate[1]], affine }
-    )
+
+    if (coordinateDimensionality === 2) {
+      coordinate = mapPixelCoordToSlideCoord(
+        { point: [coordinate[0], coordinate[1]], affine }
+      )
+    }
+
     coordinate = _scoord3dCoordinates2geometryCoordinates(
       coordinate,
       pyramid,
@@ -140,18 +99,19 @@ export const get2DPolygonFeature = ({
     /** Jump to the next point: (x, y) if 2 or (x, y, z) if 3 */
     j += coordinateDimensionality - 1
   }
+
   return new Feature({
     geometry: new PolygonGeometry([polygonCoordinates])
   })
 }
 
 /**
- * Get 2D point feature from bulk data annotation data
+ * Get point feature from bulk data annotation data
  *
  * @param {*} param0
  * @returns
  */
-export const get2DPointFeature = ({
+export const getPointFeature = ({
   graphicType,
   graphicIndex,
   graphicData,
@@ -178,9 +138,13 @@ export const get2DPointFeature = ({
       numberOfAnnotations
     )
   }
-  coordinate = mapPixelCoordToSlideCoord(
-    { point: [coordinate[0], coordinate[1]], affine }
-  )
+  
+  if (coordinateDimensionality === 2) {
+    coordinate = mapPixelCoordToSlideCoord(
+      { point: [coordinate[0], coordinate[1]], affine }
+    )
+  }
+
   coordinate = _scoord3dCoordinates2geometryCoordinates(
     coordinate,
     pyramid,
@@ -188,48 +152,6 @@ export const get2DPointFeature = ({
   )
   return new Feature({
     geometry: new PointGeometry(coordinate)
-  })
-}
-
-/**
- * Get point feature from bulk data annotation data
- *
- * @param {*} param0
- * @returns
- */
-export const getPointFeature = ({
-  graphicType,
-  graphicIndex,
-  graphicData,
-  numberOfAnnotations,
-  annotationIndex,
-  pyramid,
-  affineInverse,
-  commonZCoordinate,
-  coordinateDimensionality,
-  annotationGroupUID
-}) => {
-  let coordinate;
-  if (graphicIndex) {
-    const offset = graphicIndex[annotationIndex] - 1
-    coordinate = _getCoordinates(graphicData, offset, commonZCoordinate)
-  } else {
-    coordinate = _getPoint(  
-      graphicData,
-      graphicIndex,
-      coordinateDimensionality,
-      commonZCoordinate,
-      annotationIndex,
-      numberOfAnnotations
-    )
-  }
-  const renderableCoordinate = _scoord3dCoordinates2geometryCoordinates(
-    coordinate,
-    pyramid,
-    affineInverse
-  )
-  return new Feature({
-    geometry: new PointGeometry(renderableCoordinate)
   })
 }
 
@@ -250,6 +172,7 @@ export const getFeaturesFromBulkAnnotations = ({
   isHighResolution
 }) => {
   console.info('create features from bulk annotations')
+  console.info('coordinateDimensionality', coordinateDimensionality)
 
   let { topLeft, bottomRight } = getViewportBoundingBox({ view, pyramid, affine })
 
@@ -267,11 +190,13 @@ export const getFeaturesFromBulkAnnotations = ({
         offset,
         commonZCoordinate
       )
+
       if (coordinateDimensionality === 2) {
         firstCoordinate = mapPixelCoordToSlideCoord(
           { point: [firstCoordinate[0], firstCoordinate[1]], affine }
         )
       }
+
       if (!isCoordinateInsideBoundingBox(
         firstCoordinate,
         topLeft,
@@ -317,9 +242,7 @@ export const getFeaturesFromBulkAnnotations = ({
 export default {
   getFeaturesFromBulkAnnotations,
   getPointFeature,
-  get2DPointFeature,
   getPolygonFeature,
-  get2DPolygonFeature,
   isCoordinateInsideBoundingBox,
   getViewportBoundingBox
 }

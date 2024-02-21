@@ -96,8 +96,6 @@ import {
   getPointFeature,
   getPolygonFeature,
   getFeaturesFromBulkAnnotations,
-  get2DPointFeature,
-  get2DPolygonFeature
 } from './bulkAnnotations/utils'
 
 import Enums from './enums'
@@ -3268,12 +3266,10 @@ class VolumeImageViewer {
        * In the loader function "this" is bound to the vector source.
        */
       function pointsLoader (extent, resolution, projection, success, failure) {
-        const featureFunc = coordinateDimensionality === 3 ? getPointFeature : get2DPointFeature
-        bulkAnnotationsLoader.call(this, featureFunc, success, failure)
+        bulkAnnotationsLoader.call(this, getPointFeature, success, failure)
       }
       function polygonsLoader (extent, resolution, projection, success, failure) {
-        const featureFunc = coordinateDimensionality === 3 ? getPolygonFeature : get2DPolygonFeature
-        bulkAnnotationsLoader.call(this, featureFunc, success, failure)
+        bulkAnnotationsLoader.call(this, getPolygonFeature, success, failure)
       }
 
       const pointsSource = new VectorSource({
@@ -3329,7 +3325,7 @@ class VolumeImageViewer {
           console.info('load high resolution bulk annotations')
           bulkAnnotationsLoader.call(
             polygonsSource,
-            coordinateDimensionality === 3 ? getPolygonFeature : get2DPolygonFeature,
+            getPolygonFeature,
             onLayerLoadSuccess,
             onLayerLoadFailure
           )
