@@ -1,15 +1,10 @@
 import Feature from "ol/Feature.js"
 import { Circle as CircleStyle, Fill, Stroke, Style, Text } from "ol/style.js"
-import { LineString } from "ol/geom.js"
 import { createEmpty, extend, getHeight, getWidth } from 'ol/extent.js';
 
 const circleDistanceMultiplier = 1
 const circleFootSeparation = 28
 const circleStartAngle = Math.PI / 2
-const convexHullStroke = new Stroke({
-  color: "rgba(204, 85, 0, 1)",
-  width: 1.5,
-})
 const textFill = new Fill({
   color: "#fff",
 })
@@ -27,35 +22,6 @@ export function clusterMemberStyle(clusterMember) {
   return new Style({
     geometry: clusterMember.getGeometry(),
   })
-}
-
-export let clickFeature, clickResolution
-/**
- * Style for clusters with features that are too close to each other, activated on click.
- * @param {Feature} cluster A cluster with overlapping members.
- * @param {number} resolution The current view resolution.
- * @return {Style|null} A style to render an expanded view of the cluster members.
- */
-export function clusterCircleStyle(cluster, resolution) {
-  if (cluster !== clickFeature || resolution !== clickResolution) {
-    return null
-  }
-  const clusterMembers = cluster.get("features")
-  const centerCoordinates = cluster.getGeometry().getCoordinates()
-  return generatePointsCircle(
-    clusterMembers.length,
-    cluster.getGeometry().getCoordinates(),
-    resolution
-  ).reduce((styles, coordinates, i) => {
-    const line = new LineString([centerCoordinates, coordinates])
-    styles.unshift(
-      new Style({
-        geometry: line,
-        stroke: convexHullStroke,
-      })
-    )
-    return styles
-  }, [])
 }
 
 /**
@@ -90,12 +56,6 @@ export function generatePointsCircle(count, clusterCenter, resolution) {
   return res
 }
 
-function mapNumberToRange(number, min, max, newMin, newMax) {
-  const percentage = (number - min) / (max - min);
-  const newValue = (1 - percentage) * (newMax - newMin) + newMin;
-  return newValue;
-}
-
 export function getClusterStyleFunc({ color, opacity }, clusterSource) {
   const outerCircleFill = new Fill({
     color: `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.3)`,
@@ -103,20 +63,6 @@ export function getClusterStyleFunc({ color, opacity }, clusterSource) {
   const innerCircleFill = new Fill({
     color: `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${opacity})`,
   })
-
-  function runOnce(fn) {
-    let hasRun = false;
-    let result;
-
-    return function (...args) {
-      if (!hasRun) {
-        result = fn(...args);
-        hasRun = true;
-      }
-
-      return result;
-    };
-  }
 
   let maxFeatureCount, currentResolution;
 

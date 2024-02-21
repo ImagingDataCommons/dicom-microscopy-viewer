@@ -104,7 +104,7 @@ import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 import getExtendedROI from './bulkAnnotations/getExtendedROI'
-import { clusterCircleStyle, getClusterStyleFunc, clickFeature, clickResolution } from './clusterStyles.js'
+import { getClusterStyleFunc } from './clusterStyles.js'
 
 function _getClient (clientMapping, sopClassUID) {
   if (clientMapping[sopClassUID] == null) {
@@ -3323,8 +3323,9 @@ class VolumeImageViewer {
       const onLayerLoadSuccess = () => {}
       const onLayerLoadFailure = (error) => { console.error(error) }
       const debouncedUpdate = debounce(() => {
+        console.info('change:center event')
         const isVisible = annotationGroup.activeLayer().getVisible()
-        if (isVisible && graphicType !== 'POINT' && areAnnotationsLoaded && isHighResolution()) {
+        if (isVisible && graphicType !== 'POINT' && areAnnotationsLoaded === true && isHighResolution()) {
           console.info('load high resolution bulk annotations')
           bulkAnnotationsLoader.call(
             polygonsSource,
@@ -3337,7 +3338,7 @@ class VolumeImageViewer {
       view.on('change:center', debouncedUpdate)
 
       const highResLayer =
-        graphicType === "POINT"
+        graphicType === 'POINT'
           ? new PointsLayer({
               source: pointsSource,
               style: this.getGraphicTypeLayerStyle(
@@ -3362,21 +3363,18 @@ class VolumeImageViewer {
       annotationGroup.layers[0] = highResLayer
       annotationGroup.layers[1] = lowResLayer
       annotationGroup.activeLayer = () =>
-        isHighResolution() || graphicType === "POINT"
+        isHighResolution() || graphicType === 'POINT'
           ? annotationGroup.layers[0]
           : annotationGroup.layers[1]
 
-      /** Updating layers when zoom changes */
-      if (graphicType !== "POINT") {
+      /** Switch low and high res layers when zoom changes */
+      if (graphicType !== 'POINT') {
         this[_map].on('moveend', () => {
-          if (areAnnotationsLoaded) {
-            if (isHighResolution()) {
-              annotationGroup.layers[0].setVisible(true)
-              annotationGroup.layers[1].setVisible(false)
-            } else {
-              annotationGroup.layers[0].setVisible(false)
-              annotationGroup.layers[1].setVisible(true)
-            }
+          console.info('moveend event')
+          const atLeastOneVisible = annotationGroup.layers.some(l => l.getVisible() === true)
+          if (atLeastOneVisible === true && areAnnotationsLoaded === true) {
+            annotationGroup.layers[0].setVisible(isHighResolution() === true)
+            annotationGroup.layers[1].setVisible(isHighResolution() === false)
           }
         })
       }
@@ -3384,7 +3382,7 @@ class VolumeImageViewer {
       /** 
        * Zoom in inside clusters (low res layer) when clicking on them.
        */  
-      if (graphicType !== "POINT") {
+      if (graphicType !== 'POINT') {
         this[_map].on('click', (event) => {
           annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
             if (features.length > 0) {
@@ -3396,19 +3394,8 @@ class VolumeImageViewer {
                   extend(extent, feature.getGeometry().getExtent())
                 )
                 const view = map.getView()
-                const resolution = map.getView().getResolution()
-                if (
-                  view.getZoom() === view.getMaxZoom() ||
-                  (getWidth(extent) < resolution && getHeight(extent) < resolution)
-                ) {
-                  /** Show an expanded view of the cluster members */
-                  clickFeature = features[0]
-                  clickResolution = resolution
-                  clusterCircles.setStyle(clusterCircleStyle)
-                } else {
-                  /** Zoom to the extent of the cluster members */
-                  view.fit(extent, { duration: 500, padding: [50, 50, 50, 50] })
-                }
+                /** Zoom to the extent of the cluster members */
+                view.fit(extent, { duration: 500, padding: [50, 50, 50, 50] })
               }
             }
           })
@@ -3734,7 +3721,7 @@ class VolumeImageViewer {
 
         const previousHighResLayer = annotationGroup.layers[0]
         const newHighResLayer =
-          graphicType === "POINT"
+          graphicType === 'POINT'
             ? new PointsLayer({
                 source: previousHighResLayer.getSource(),
                 style: this.getGraphicTypeLayerStyle(
@@ -3757,7 +3744,7 @@ class VolumeImageViewer {
         previousHighResLayer.dispose()
         annotationGroup.layers[0] = newHighResLayer
 
-        if (graphicType !== "POINT") {
+        if (graphicType !== 'POINT') {
           const previousLowResLayer = annotationGroup.layers[1]
           const newLowResLayer = new VectorLayer({
             source: previousLowResLayer.getSource(),
@@ -3793,7 +3780,7 @@ class VolumeImageViewer {
 
         const previousHighResLayer = annotationGroup.layers[0]
         const newHighResLayer =
-          graphicType === "POINT"
+          graphicType === 'POINT'
             ? new PointsLayer({
                 source: previousHighResLayer.getSource(),
                 style: this.getGraphicTypeLayerStyle(
@@ -3816,7 +3803,7 @@ class VolumeImageViewer {
         previousHighResLayer.dispose()
         annotationGroup.layers[0] = newHighResLayer
 
-        if (graphicType !== "POINT") {
+        if (graphicType !== 'POINT') {
           const previousLowResLayer = annotationGroup.layers[1]
           const newLowResLayer = new VectorLayer({
             source: previousLowResLayer.getSource(),

@@ -267,9 +267,11 @@ export const getFeaturesFromBulkAnnotations = ({
         offset,
         commonZCoordinate
       )
-      firstCoordinate = mapPixelCoordToSlideCoord(
-        { point: [firstCoordinate[0], firstCoordinate[1]], affine }
-      )
+      if (coordinateDimensionality === 2) {
+        firstCoordinate = mapPixelCoordToSlideCoord(
+          { point: [firstCoordinate[0], firstCoordinate[1]], affine }
+        )
+      }
       if (!isCoordinateInsideBoundingBox(
         firstCoordinate,
         topLeft,
