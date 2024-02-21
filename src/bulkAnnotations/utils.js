@@ -68,7 +68,8 @@ export const getPolygonFeature = ({
   affineInverse,
   commonZCoordinate,
   coordinateDimensionality,
-  annotationGroupUID
+  annotationGroupUID,
+  annotationCoordinateType
 }) => {
   const offset = graphicIndex[annotationIndex] - 1
 
@@ -84,7 +85,7 @@ export const getPolygonFeature = ({
   for (let j = offset; j < roof; j++) {
     let coordinate = _getCoordinates(graphicData, j === (offset + annotationLength - 1) ? offset : j, commonZCoordinate)
 
-    if (coordinateDimensionality === 2) {
+    if (annotationCoordinateType === '2D') {
       coordinate = mapPixelCoordToSlideCoord(
         { point: [coordinate[0], coordinate[1]], affine }
       )
@@ -122,7 +123,8 @@ export const getPointFeature = ({
   affineInverse,
   commonZCoordinate,
   coordinateDimensionality,
-  annotationGroupUID
+  annotationGroupUID,
+  annotationCoordinateType
 }) => {
   let coordinate;
   if (graphicIndex) {
@@ -139,7 +141,7 @@ export const getPointFeature = ({
     )
   }
   
-  if (coordinateDimensionality === 2) {
+  if (annotationCoordinateType === '2D') {
     coordinate = mapPixelCoordToSlideCoord(
       { point: [coordinate[0], coordinate[1]], affine }
     )
@@ -169,7 +171,8 @@ export const getFeaturesFromBulkAnnotations = ({
   affineInverse,
   view,
   featureFunction,
-  isHighResolution
+  isHighResolution,
+  annotationCoordinateType
 }) => {
   console.info('create features from bulk annotations')
   console.info('coordinateDimensionality', coordinateDimensionality)
@@ -191,7 +194,7 @@ export const getFeaturesFromBulkAnnotations = ({
         commonZCoordinate
       )
 
-      if (coordinateDimensionality === 2) {
+      if (annotationCoordinateType === '2D') {
         firstCoordinate = mapPixelCoordToSlideCoord(
           { point: [firstCoordinate[0], firstCoordinate[1]], affine }
         )
@@ -217,7 +220,8 @@ export const getFeaturesFromBulkAnnotations = ({
       affineInverse,
       commonZCoordinate,
       coordinateDimensionality,
-      annotationGroupUID
+      annotationGroupUID,
+      annotationCoordinateType
     })
 
     feature.setId(annotationGroupUID + '-' + annotationIndex)

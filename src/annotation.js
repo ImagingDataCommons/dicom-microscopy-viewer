@@ -503,18 +503,22 @@ async function _fetchMeasurement ({
  * Get dimensionality of coordinates.
  *
  * @param {object} metadataItem - Metadata of Annotation Group Sequence item
+ * @param {string} annotationCoordinateType - Annotation Coordinate Type
  *
  * @returns {number} Dimensionality (2 or 3)
  *
  * @private
  */
-function _getCoordinateDimensionality (metadataItem) {
-  if (metadataItem.CommonZCoordinateValue == null || metadataItem.AnnotationCoordinateType === '2D') {
-    return 2
+function _getCoordinateDimensionality (metadataItem, annotationCoordinateType) {
+  /** TODO: Check this logic against the standard */
+  if (metadataItem.CommonZCoordinateValue == null) {
+    if (annotationCoordinateType === '2D') {
+      return 2
+    }
+    return 3
   }
-  return 3
+  return 2
 }
-
 /**
  * Get common Z coordinate value that is shared across all annotations.
  *

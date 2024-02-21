@@ -2726,7 +2726,7 @@ class VolumeImageViewer {
    * @returns {roi.ROI} Region of interest.
    */
   getROI (uid) {
-    console.debug(`get ROI ${uid}`)
+    console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
     if (feature == null) {
       throw new Error(`Could not find a ROI with UID "${uid}".`)
@@ -3150,8 +3150,10 @@ class VolumeImageViewer {
       const graphicType = metadataItem.GraphicType
       /** 2D or 3D dimentionality: (x, y) if value 2 and (x, y, z) if value 3. */
       const coordinateDimensionality = _getCoordinateDimensionality(
-        metadataItem
+        metadataItem,
+        annotationGroup.metadata.AnnotationCoordinateType
       )
+
       /** Required if all points are in the same Z plane. */
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)
 
@@ -3205,7 +3207,8 @@ class VolumeImageViewer {
             affineInverse,
             view,
             featureFunction,
-            isHighResolution: isHighResolution()
+            isHighResolution: isHighResolution(),
+            annotationCoordinateType: annotationGroup.metadata.AnnotationCoordinateType
           })
 
           console.info(
