@@ -96,6 +96,8 @@ import {
   getPointFeature,
   getPolygonFeature,
   getFeaturesFromBulkAnnotations,
+  getRectangleFeature,
+  getEllipseFeature,
 } from './bulkAnnotations/utils'
 
 import Enums from './enums'
@@ -3157,6 +3159,8 @@ class VolumeImageViewer {
       /** Required if all points are in the same Z plane. */
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)
 
+      const map = this[_map]
+
       let areAnnotationsLoaded = false
       const cacheBulkAnnotations = (id, data) => (this[_retrievedBulkdata][id] = data)
       const getCachedBulkAnnotations = (id) => (this[_retrievedBulkdata][id])
@@ -3208,7 +3212,8 @@ class VolumeImageViewer {
             view,
             featureFunction,
             isHighResolution: isHighResolution(),
-            annotationCoordinateType: annotationGroup.metadata.AnnotationCoordinateType
+            annotationCoordinateType: annotationGroup.metadata.AnnotationCoordinateType,
+            map
           })
 
           console.info(
@@ -3274,6 +3279,40 @@ class VolumeImageViewer {
       function polygonsLoader (extent, resolution, projection, success, failure) {
         bulkAnnotationsLoader.call(this, getPolygonFeature, success, failure)
       }
+      function rectanglesLoader (extent, resolution, projection, success, failure) {
+        bulkAnnotationsLoader.call(this, getRectangleFeature, success, failure)
+      }
+      function ellipseLoader (extent, resolution, projection, success, failure) {
+        bulkAnnotationsLoader.call(this, getEllipseFeature, success, failure)
+      }
+
+      const getGraphicTypeLoader = (graphicType) => {
+        switch (graphicType) {
+          case 'POINT':
+            return pointsLoader
+          case 'POLYGON':
+            return polygonsLoader
+          case 'RECTANGLE':
+            return rectanglesLoader
+          case 'ELLIPSE':
+            return ellipseLoader
+          default:
+            throw new Error(`Unsupported graphic type "${graphicType}"`)
+        }
+      }
+
+      const getHighResFeatureFunc = (graphicType) => {
+        switch (graphicType) {
+          case 'POLYGON':
+            return getPolygonFeature
+          case 'RECTANGLE':
+            return getRectangleFeature
+          case 'ELLIPSE':
+            return getEllipseFeature
+          default:
+            throw new Error(`Unsupported graphic type "${graphicType}"`)
+        }
+      }
 
       const pointsSource = new VectorSource({
         loader: pointsLoader,
@@ -3281,8 +3320,8 @@ class VolumeImageViewer {
         rotateWithView: true,
         overlaps: false
       })
-      const polygonsSource = new VectorSource({
-        loader: polygonsLoader,
+      const highResSource = new VectorSource({
+        loader: getGraphicTypeLoader(graphicType),
         wrapX: false,
         rotateWithView: true,
         overlaps: false
@@ -3308,9 +3347,9 @@ class VolumeImageViewer {
       pointsSource.on('featuresloadstart', onFeaturesLoadStart)
       pointsSource.on('featuresloadend', onFeaturesLoadEnd)
       pointsSource.on('featuresloaderror', onFeaturesLoadError)
-      polygonsSource.on('featuresloadstart', onFeaturesLoadStart)
-      polygonsSource.on('featuresloadend', onFeaturesLoadEnd)
-      polygonsSource.on('featuresloaderror', onFeaturesLoadError)
+      highResSource.on('featuresloadstart', onFeaturesLoadStart)
+      highResSource.on('featuresloadend', onFeaturesLoadEnd)
+      highResSource.on('featuresloaderror', onFeaturesLoadError)
       clustersSource.on('featuresloadstart', onFeaturesLoadStart)
       clustersSource.on('featuresloadend', onFeaturesLoadEnd)
       clustersSource.on('featuresloaderror', onFeaturesLoadError)
@@ -3327,8 +3366,8 @@ class VolumeImageViewer {
         if (isVisible && graphicType !== 'POINT' && areAnnotationsLoaded === true && isHighResolution()) {
           console.info('load high resolution bulk annotations')
           bulkAnnotationsLoader.call(
-            polygonsSource,
-            getPolygonFeature,
+            highResSource,
+            getHighResFeatureFunc(graphicType),
             onLayerLoadSuccess,
             onLayerLoadFailure
           )
@@ -3347,10 +3386,10 @@ class VolumeImageViewer {
               disableHitDetection: true,
             })
           : new VectorLayer({
-              source: polygonsSource,
+              source: highResSource,
               style: this.getGraphicTypeLayerStyle(
                 annotationGroup,
-                polygonsSource
+                highResSource
               ),
             })
       const lowResLayer = new VectorLayer({
@@ -3501,8 +3540,22 @@ class VolumeImageViewer {
         fill: new Fill({ color: 'rgba(0, 0, 255, 0)' })
       })
     }
-  
-    return () => {}
+
+    return new Style({
+      stroke: new Stroke({
+        color,
+        width: 1,
+        opacity: style.opacity
+      }),
+    })
+
+    // return new Style({
+    //   image: new Circle({
+    //     radius: 5,
+    //     fill: new Fill({ color: '#666666' }),
+    //     stroke: new Stroke({ color: '#bada55', width: 1 }),
+    //   }),
+    // })
   }
 
   /**
