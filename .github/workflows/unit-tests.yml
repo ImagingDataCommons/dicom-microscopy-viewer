@@ -20,12 +20,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "yarn"
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
       - name: Install dependencies
-        run: yarn
+        run: bun install
       - name: Build package in production mode
-        run: yarn build
+        run: bun run build
       - name: Lint with standard
-        run: yarn lint
+        run: bun run lint
       - name: Test with jest
-        run: yarn test
+        run: bun run test
