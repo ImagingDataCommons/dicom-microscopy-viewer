@@ -1,8 +1,6 @@
 import PointGeometry from 'ol/geom/Point'
-import PolygonGeometry from 'ol/geom/Polygon'
+import PolygonGeometry, { fromCircle } from 'ol/geom/Polygon'
 import CircleGeometry from 'ol/geom/Circle.js'
-import LineString from 'ol/geom/LineString'
-import { getLength } from 'ol/sphere'
 import Feature from 'ol/Feature'
 import { getTopLeft, getBottomRight } from 'ol/extent'
 
@@ -145,31 +143,6 @@ export const getEllipseFeature = ({
   annotationCoordinateType,
   map
 }) => {
-  function getEllipseFeature(center, semiMajor, semiMinor, rotateDegrees = 0) {
-    let coordinates = []
-    const rotate = rotateDegrees * (Math.PI / 180)
-    const radinas = Math.PI / 180
-
-    for (let angle = 1; angle <= 360; angle++) {
-      const px = semiMajor * Math.cos(radinas * angle)
-      const py = semiMinor * Math.sin(radinas * angle)
-      const [pxi, pyi] = rotatePoint(px, py, rotate)
-      const pxii = center[0] + pxi
-      const pyii = center[1] + pyi
-      coordinates.push([pxii, pyii])
-    }
-
-    return new Feature({
-      geometry: new PolygonGeometry([coordinates]),
-    })
-  }
-
-  function rotatePoint(px, py, rotate) {
-    const pxi = px * Math.cos(rotate) - py * Math.sin(rotate)
-    const pyi = px * Math.sin(rotate) + py * Math.cos(rotate)
-    return [pxi, pyi]
-  }
-
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
 
@@ -194,43 +167,49 @@ export const getEllipseFeature = ({
     j += coordinateDimensionality - 1
   }
 
+  function calculateEllipsePoints(majorAxisStart, majorAxisEnd, minorAxisStart, minorAxisEnd) {
+    // Calculate semi-major and semi-minor axis lengths
+    const semiMajorAxis = Math.sqrt(Math.pow(majorAxisEnd[0] - majorAxisStart[0], 2) + Math.pow(majorAxisEnd[1] - majorAxisStart[1], 2)) / 2
+    const semiMinorAxis = Math.sqrt(Math.pow(minorAxisEnd[0] - minorAxisStart[0], 2) + Math.pow(minorAxisEnd[1] - minorAxisStart[1], 2)) / 2
+
+    // Calculate rotation angle in radians
+    const rotationAngle = Math.atan2(majorAxisEnd[1] - majorAxisStart[1], majorAxisEnd[0] - majorAxisStart[0])
+
+    // Generate points on the ellipse
+    const ellipsePoints = []
+    for (let i = 0; i <= 360; i++) {
+        // Calculate the parameter 't' representing the angle
+        const angle = (2 * Math.PI * i) / 360
+
+        // Calculate coordinates based on parametric equations for an ellipse
+        const x = semiMajorAxis * Math.cos(angle)
+        const y = semiMinorAxis * Math.sin(angle)
+
+        // Rotate the points to match the orientation of the ellipse
+        const rotatedX = x * Math.cos(rotationAngle) - y * Math.sin(rotationAngle)
+        const rotatedY = x * Math.sin(rotationAngle) + y * Math.cos(rotationAngle)
+
+        // Translate the points to the center of the ellipse
+        const centerX = (majorAxisStart[0] + majorAxisEnd[0]) / 2
+        const centerY = (majorAxisStart[1] + majorAxisEnd[1]) / 2
+
+        // Add the rotated and translated points to the result array
+        ellipsePoints.push([centerX + rotatedX, centerY + rotatedY])
+    }
+
+    return ellipsePoints
+  }
+
   const majorAxisFirstEndpoint = coordinates[0]
   const majorAxisSecondEndpoint = coordinates[1]
   const minorAxisFirstEndpoint = coordinates[2]
   const minorAxisSecondEndpoint = coordinates[3]
 
-  const centroid = [
-    (majorAxisFirstEndpoint[0] + majorAxisSecondEndpoint[0]) / parseFloat(2),
-    (majorAxisFirstEndpoint[1] + majorAxisSecondEndpoint[1]) / parseFloat(2),
-    0
-  ]
-
-  const majorAxis = new LineString([
-    majorAxisFirstEndpoint,
-    majorAxisSecondEndpoint,
-  ])
-  const minorAxis = new LineString([
-    minorAxisFirstEndpoint,
-    minorAxisSecondEndpoint,
-  ])
-
-  const majorAxisLength = getLength(majorAxis)
-  const minorAxisLength = getLength(minorAxis)
-
-  const semiMajor = majorAxisLength / 2
-  const semiMinor = minorAxisLength / 2
-
-  function calculateRotation(semiMajor, semiMinor) {
-    const covariance = (semiMajor ** 2 - semiMinor ** 2) / (semiMajor ** 2 + semiMinor ** 2)
-    const rotationAngle = (1 / 2) * Math.atan2(2 * covariance, semiMajor ** 2 - semiMinor ** 2)
-    const rotationDegrees = rotationAngle * (180 / Math.PI)
-    return rotationDegrees
-  }
-
-  const rotatedDegrees = calculateRotation(semiMajor, semiMinor)
-  console.debug('rotatedDegrees', rotatedDegrees)
-
-  return getEllipseFeature(centroid, semiMajor, semiMinor, rotatedDegrees)
+  const points = calculateEllipsePoints(majorAxisFirstEndpoint, majorAxisSecondEndpoint, minorAxisFirstEndpoint, minorAxisSecondEndpoint)
+ 
+  return new Feature({ 
+    geometry: new PolygonGeometry([points]) 
+  })
 }
 
 /**
@@ -353,7 +332,7 @@ export const getPointFeature = ({
   annotationGroupUID,
   annotationCoordinateType
 }) => {
-  let coordinate;
+  let coordinate
   if (graphicIndex) {
     const offset = graphicIndex[annotationIndex] - 1
     coordinate = _getCoordinates(graphicData, offset, commonZCoordinate)
