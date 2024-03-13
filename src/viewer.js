@@ -3297,12 +3297,15 @@ class VolumeImageViewer {
           case 'ELLIPSE':
             return ellipseLoader
           default:
-            throw new Error(`Unsupported graphic type "${graphicType}"`)
+            console.error(`Unsupported graphic type "${graphicType}"`)
+            return polygonsLoader
         }
       }
 
       const getHighResFeatureFunc = (graphicType) => {
         switch (graphicType) {
+          case 'POINT':
+            return getPointFeature
           case 'POLYGON':
             return getPolygonFeature
           case 'RECTANGLE':
@@ -3310,9 +3313,13 @@ class VolumeImageViewer {
           case 'ELLIPSE':
             return getEllipseFeature
           default:
-            throw new Error(`Unsupported graphic type "${graphicType}"`)
+            console.error(`Unsupported graphic type "${graphicType}"`)
+            return getPolygonFeature
         }
       }
+
+      const highResLoader = getGraphicTypeLoader(graphicType);
+      const highResFeatureFunc = getHighResFeatureFunc(graphicType);
 
       const pointsSource = new VectorSource({
         loader: pointsLoader,
@@ -3321,7 +3328,7 @@ class VolumeImageViewer {
         overlaps: false
       })
       const highResSource = new VectorSource({
-        loader: getGraphicTypeLoader(graphicType),
+        loader: highResLoader,
         wrapX: false,
         rotateWithView: true,
         overlaps: false
@@ -3367,7 +3374,7 @@ class VolumeImageViewer {
           console.info('load high resolution bulk annotations')
           bulkAnnotationsLoader.call(
             highResSource,
-            getHighResFeatureFunc(graphicType),
+            highResFeatureFunc,
             onLayerLoadSuccess,
             onLayerLoadFailure
           )

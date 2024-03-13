@@ -93,6 +93,7 @@ export const getCircleFeature = ({
     )
 
     coordinates.push(coordinate)
+
     j += coordinateDimensionality - 1
   }
 
@@ -164,6 +165,7 @@ export const getEllipseFeature = ({
     )
 
     coordinates.push(coordinate)
+
     j += coordinateDimensionality - 1
   }
 
@@ -250,6 +252,7 @@ export const getRectangleFeature = ({
     )
 
     coordinates.push(coordinate)
+
     j += coordinateDimensionality - 1
   }
 
@@ -302,7 +305,9 @@ export const getPolygonFeature = ({
       pyramid,
       affineInverse
     )
+
     polygonCoordinates.push(coordinate)
+
     /** Jump to the next point: (x, y) if 2 or (x, y, z) if 3 */
     j += coordinateDimensionality - 1
   }
@@ -364,6 +369,8 @@ export const getPointFeature = ({
   })
 }
 
+const HIGH_RES_GRAPHIC_TYPES = ['POLYGON', 'ELLIPSE', 'RECTANGLE']
+
 export const getFeaturesFromBulkAnnotations = ({
   graphicType,
   graphicData,
@@ -383,7 +390,7 @@ export const getFeaturesFromBulkAnnotations = ({
   map
 }) => {
   console.info('create features from bulk annotations')
-  console.info('coordinateDimensionality', coordinateDimensionality)
+  console.info('coordinate dimensionality:', coordinateDimensionality)
 
   let { topLeft, bottomRight } = getViewportBoundingBox({ view, pyramid, affine })
 
@@ -394,9 +401,10 @@ export const getFeaturesFromBulkAnnotations = ({
     annotationIndex < numberOfAnnotations;
     annotationIndex++
   ) {
-    if (isHighResolution && (graphicType === 'POLYGON' || graphicType === 'ELLIPSE' || graphicType === 'RECTANGLE')) {
-      const length = coordinateDimensionality * 4
-      const offset = (graphicType === 'ELLIPSE' || graphicType === 'RECTANGLE') ? annotationIndex * length : graphicType === 'ELLIPSE'
+    if (isHighResolution && HIGH_RES_GRAPHIC_TYPES.includes(graphicType)) {
+      const length = coordinateDimensionality * 4 
+      const offset = graphicType === 'POLYGON' ? graphicIndex[annotationIndex] - 1 : annotationIndex * length
+
       let firstCoordinate = _getCoordinates(
         graphicData,
         offset,
