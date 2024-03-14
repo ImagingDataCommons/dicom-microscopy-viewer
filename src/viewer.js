@@ -106,9 +106,43 @@ import webWorkerManager from './webWorker/webWorkerManager.js'
 import getExtendedROI from './bulkAnnotations/getExtendedROI'
 import { getClusterStyleFunc } from './clusterStyles.js'
 
-/** Properly dispose layer to avoid memory leaks */
+/** 
+ * Dispose all map layers to free up memory.
+ */
+function disposeMapLayers(map) {
+  console.info('dispose map layers...')
+  const mapLayers = map.getLayers()
+  if (mapLayers) { 
+    const layers = [...mapLayers.getArray()];
+    layers.forEach(layer => {
+      disposeLayer(layer)
+      map.removeLayer(layer)
+    })
+  }
+}
+
+/** 
+ * Dispose overview map layers to free up memory.
+ */
+function disposeOverviewMapLayers(map) {
+  console.info('dispose overview map layers...')
+  const overviewMap = map.getOverviewMap()
+  if (overviewMap) {
+    const overviewMapLayers = overviewMap.getLayers()
+    if (overviewMapLayers) {
+      overviewMapLayers.forEach(layer => {  
+        disposeLayer(layer)
+        overviewMap.removeLayer(layer)
+      })
+    }
+  }
+}
+
+/** 
+ * Dispose layer and its dependencies to free up memory.
+ */
 function disposeLayer(layer) { 
-  layer.dispose()
+  console.info('dispose layer:', layer)
   const source = layer.getSource()
   if (source) {
     source.clear()
@@ -118,6 +152,7 @@ function disposeLayer(layer) {
     renderer.dispose()
   }
   layer.setSource(undefined)
+  layer.dispose()
 }
 
 function _getClient (clientMapping, sopClassUID) {
@@ -1879,21 +1914,23 @@ class VolumeImageViewer {
   }
 
   /**
-   * Clean up.
-   *
-   * Release allocated memory and clear the viewport.
+   * Clean up memory by releasing allocated memory 
+   * to the map and its layers and clearing the viewport.
    */
   cleanup () {
-    console.info('cleanup')
+    console.info('cleanup memory')
     const itemsRequiringDisposal = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
       ...Object.values(this[_mappings]),
       ...Object.values(this[_annotationGroups])
     ]
+    console.info('items requiring disposal:', itemsRequiringDisposal)
     itemsRequiringDisposal.forEach(item => {
-      disposeLayer(item.layer)
-      this[_map].removeLayer(item.layer)
+      if (item.layer) {
+        disposeLayer(item.layer)
+        this[_map].removeLayer(item.layer)
+      }
       if (item.overlay) {
         disposeLayer(item.overlay)
         this[_map].removeOverlay(item.overlay)
@@ -1906,6 +1943,8 @@ class VolumeImageViewer {
       }
       this[_features].clear()
     })
+    disposeMapLayers(this[_map])
+    disposeOverviewMapLayers(this[_overviewMap])
     webWorkerManager.terminateAllWebWorkers()
   }
 
@@ -5018,7 +5057,9 @@ class _NonVolumeImageViewer {
    *
    * Release allocated memory and clear the viewport.
    */
-  cleanup () {}
+  cleanup () {
+    disposeMapLayers(this[_map])
+  }
 
   /**
    * Render the image in the specified viewport container.
