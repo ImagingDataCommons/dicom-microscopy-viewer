@@ -106,6 +106,20 @@ import webWorkerManager from './webWorker/webWorkerManager.js'
 import getExtendedROI from './bulkAnnotations/getExtendedROI'
 import { getClusterStyleFunc } from './clusterStyles.js'
 
+/** Properly dispose layer to avoid memory leaks */
+function disposeLayer(layer) { 
+  layer.dispose()
+  const source = layer.getSource()
+  if (source) {
+    source.clear()
+  }
+  const renderer = layer.getRenderer()
+  if (renderer) {
+    renderer.dispose()
+  }
+  layer.setSource(undefined)
+}
+
 function _getClient (clientMapping, sopClassUID) {
   if (clientMapping[sopClassUID] == null) {
     return clientMapping.default
@@ -1878,15 +1892,20 @@ class VolumeImageViewer {
       ...Object.values(this[_annotationGroups])
     ]
     itemsRequiringDisposal.forEach(item => {
-      item.layer.dispose()
+      disposeLayer(item.layer)
       this[_map].removeLayer(item.layer)
       if (item.overlay) {
-        item.overlay.dispose()
+        disposeLayer(item.overlay)
         this[_map].removeOverlay(item.overlay)
+      }
+      if (item.layers) {
+        item.layers.forEach(layer => {
+          disposeLayer(layer)
+          this[_map].removeLayer(layer)
+        })
       }
       this[_features].clear()
     })
-
     webWorkerManager.terminateAllWebWorkers()
   }
 
@@ -3583,7 +3602,7 @@ class VolumeImageViewer {
 
     annotationGroup.layers.forEach(layer => {
       this[_map].removeLayer(layer)
-      layer.dispose()
+      disposeLayer(layer)
     })
     delete this[_retrievedBulkdata][annotationGroupUID]
     delete this[_annotationGroups][annotationGroupUID]
@@ -3800,7 +3819,7 @@ class VolumeImageViewer {
               })
         this[_map].addLayer(newHighResLayer)
         this[_map].removeLayer(previousHighResLayer)
-        previousHighResLayer.dispose()
+        disposeLayer(previousHighResLayer)
         annotationGroup.layers[0] = newHighResLayer
 
         if (graphicType !== 'POINT') {
@@ -3815,7 +3834,7 @@ class VolumeImageViewer {
           })
           this[_map].addLayer(newLowResLayer)
           this[_map].removeLayer(previousLowResLayer)
-          previousLowResLayer.dispose()
+          disposeLayer(previousLowResLayer)
           annotationGroup.layers[1] = newLowResLayer
         }
       }
@@ -3859,7 +3878,7 @@ class VolumeImageViewer {
               })
         this[_map].addLayer(newHighResLayer)
         this[_map].removeLayer(previousHighResLayer)
-        previousHighResLayer.dispose()
+        disposeLayer(previousHighResLayer)
         annotationGroup.layers[0] = newHighResLayer
 
         if (graphicType !== 'POINT') {
@@ -3874,7 +3893,7 @@ class VolumeImageViewer {
           })
           this[_map].addLayer(newLowResLayer)
           this[_map].removeLayer(previousLowResLayer)
-          previousLowResLayer.dispose()
+          disposeLayer(previousLowResLayer)
           annotationGroup.layers[1] = newLowResLayer
         }
       }
@@ -4148,7 +4167,7 @@ class VolumeImageViewer {
     }
     const segment = this[_segments][segmentUID]
     this[_map].removeLayer(segment.layer)
-    segment.layer.dispose()
+    disposeLayer(segment.layer)
     this[_map].removeOverlay(segment.overlay)
     delete this[_segments][segmentUID]
   }
@@ -4624,7 +4643,7 @@ class VolumeImageViewer {
     }
     const mapping = this[_mappings][mappingUID]
     this[_map].removeLayer(mapping.layer)
-    mapping.layer.dispose()
+    disposeLayer(mapping.layer)
     this[_map].removeOverlay(mapping.overlay)
     delete this[_mappings][mappingUID]
   }
