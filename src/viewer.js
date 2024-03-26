@@ -1955,6 +1955,8 @@ class VolumeImageViewer {
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render ({ container }) {
+    window.cleanup = this.cleanup.bind(this)
+    
     if (container == null) {
       console.error('container must be provided for rendering images')
       return
