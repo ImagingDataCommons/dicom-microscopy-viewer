@@ -3147,8 +3147,11 @@ class VolumeImageViewer {
      * properties or measurements.
      */
     metadata.AnnotationGroupSequence.forEach((item) => {
+      console.debug('Annotation group:', item)
       const annotationGroupUID = item.AnnotationGroupUID
-      const algorithm = item.AnnotationGroupAlgorithmIdentificationSequence[0]
+      const algorithm =
+        ["SEMIAUTOMATIC", "AUTOMATIC"].includes(item.AnnotationGroupGenerationType)
+          ? item.AnnotationGroupAlgorithmIdentificationSequence[0] : { AlgorithmName: "N/A" }
       const annotationGroup = {
         annotationGroup: new AnnotationGroup({
           uid: annotationGroupUID,
