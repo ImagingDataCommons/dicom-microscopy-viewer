@@ -3225,6 +3225,7 @@ class VolumeImageViewer {
       const cacheBulkAnnotations = (id, data) => (this[_retrievedBulkdata][id] = data)
       const getCachedBulkAnnotations = (id) => (this[_retrievedBulkdata][id])
 
+      let cachedError;
       const bulkAnnotationsLoader = function (featureFunction, success, failure) {
         console.info('load bulk annotations layer')
 
@@ -3292,7 +3293,8 @@ class VolumeImageViewer {
             processBulkAnnotations(cachedBulkAnnotations)
           } catch (error) {
             console.error('Failed to process cached bulk annotations', error)
-            failure(error)
+            cachedError = error
+            failure()
           }
         } else {
           // TODO: Only fetch measurements if required.
@@ -3303,16 +3305,18 @@ class VolumeImageViewer {
           ]
           Promise.allSettled(promises).then(results => {
             const errors = {
-              1: 'Failed to retrieve point coordiante data of annotation group',
-              2: 'Failed to retrieve point index list of annotation group',
-              3: 'Failed to fetch measurements of annotation group'
+              0: 'Failed to retrieve point coordiante data of annotation group',
+              1: 'Failed to retrieve point index list of annotation group',
+              2: 'Failed to fetch measurements of annotation group'
             }
             const retrievedBulkdata = [[], [], []]
             results.forEach((result, index) => {
               if (result.status === 'fulfilled') {
                 retrievedBulkdata[index] = result.value
               } else {
-                console.error(errors[index])
+                console.error(errors[index], result.reason)
+                cachedError = new Error(result.reason)
+                failure()
               }
             })
             console.info('retrieve and cache bulk annotations')
@@ -3320,7 +3324,8 @@ class VolumeImageViewer {
             processBulkAnnotations(retrievedBulkdata)
           }).catch(error => {
             console.error('Failed to retrieve and cache bulk annotations', error)
-            failure(error)
+            cachedError = error
+            failure()
           })
         }
       }
@@ -3398,18 +3403,18 @@ class VolumeImageViewer {
         minDistance: 0,
         source: pointsSource,
       })
-      const onFeaturesLoadStart = () => {
+      const onFeaturesLoadStart = (event) => {
         const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_STARTED)
+        publish(container, EVENT.LOADING_STARTED, event)
       }
-      const onFeaturesLoadEnd = () => {
+      const onFeaturesLoadEnd = (event) => {
         const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_ENDED)
+        publish(container, EVENT.LOADING_ENDED, event)
       }
       const onFeaturesLoadError = () => {
         const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_ENDED)
-        publish(container, EVENT.LOADING_ERROR)
+        publish(container, EVENT.LOADING_ENDED, cachedError)
+        publish(container, EVENT.LOADING_ERROR, cachedError)
       }
       pointsSource.on('featuresloadstart', onFeaturesLoadStart)
       pointsSource.on('featuresloadend', onFeaturesLoadEnd)
@@ -3425,8 +3430,6 @@ class VolumeImageViewer {
        * Reload annotations when panning. 
        * The annotations will be drawn inside the viewport area for better performance.
        */
-      const onLayerLoadSuccess = () => {}
-      const onLayerLoadFailure = (error) => { console.error(error) }
       const debouncedUpdate = debounce(() => {
         console.info('change:center event')
         const isVisible = annotationGroup.activeLayer().getVisible()
@@ -3435,8 +3438,8 @@ class VolumeImageViewer {
           bulkAnnotationsLoader.call(
             highResSource,
             highResFeatureFunc,
-            onLayerLoadSuccess,
-            onLayerLoadFailure
+            onFeaturesLoadEnd,
+            onFeaturesLoadError
           )
         }
       }, 500)

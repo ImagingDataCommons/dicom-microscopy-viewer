@@ -35,7 +35,7 @@ const EVENTS = {
   /* Triggered when the loading of an image tile has ended. */
   FRAME_LOADING_ENDED: `${PROJECT_NAME}_frame_loading_ended`,
   /* Triggered when the error occurs during loading of an image tile. */
-  FRAME_LOADING_ERROR: `${PROJECT_NAME}_frame_loading_ended`
+  FRAME_LOADING_ERROR: `${PROJECT_NAME}_frame_loading_error`
 }
 
 export default EVENTS
