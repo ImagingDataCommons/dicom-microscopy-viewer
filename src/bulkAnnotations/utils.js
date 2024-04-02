@@ -416,7 +416,7 @@ export const getFeaturesFromBulkAnnotations = ({
           { point: [firstCoordinate[0], firstCoordinate[1]], affine }
         )
       }
-
+      
       if (!isCoordinateInsideBoundingBox(
         firstCoordinate,
         topLeft,
@@ -424,7 +424,7 @@ export const getFeaturesFromBulkAnnotations = ({
       )) {
         continue
       }
-    }
+    } 
 
     const feature = featureFunction({
       graphicType,

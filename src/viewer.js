@@ -3110,12 +3110,13 @@ class VolumeImageViewer {
    */
   addAnnotationGroups (metadata) {
     const refImage = this[_pyramid].metadata[0]
-    // if (refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
-    //   throw new Error(
-    //     'Microscopy Bulk Simple Annotation instances must have the same ' +
-    //     'Frame of Reference UID as the corresponding source images.'
-    //   )
-    // }
+    /** TODO: This should throw error? */
+    if (refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
+      console.warn(
+        'Microscopy Bulk Simple Annotation instances must have the same ' +
+        'Frame of Reference UID as the corresponding source images.'
+      )
+    }
     console.info(
       'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
       `of series "${metadata.SeriesInstanceUID}"`
@@ -3147,28 +3148,27 @@ class VolumeImageViewer {
      * properties or measurements.
      */
     metadata.AnnotationGroupSequence.forEach((item) => {
-      console.debug('Annotation group:', item)
       const annotationGroupUID = item.AnnotationGroupUID
-      const algorithm =
-        ["SEMIAUTOMATIC", "AUTOMATIC"].includes(item.AnnotationGroupGenerationType)
-          ? item.AnnotationGroupAlgorithmIdentificationSequence[0] : { AlgorithmName: "N/A" }
       const annotationGroup = {
         annotationGroup: new AnnotationGroup({
           uid: annotationGroupUID,
           number: item.AnnotationGroupNumber,
           label: item.AnnotationGroupLabel,
           algorithmType: item.AnnotationGroupGenerationType,
-          algorithmName: algorithm.AlgorithmName,
+          algorithmName: item.AnnotationGroupAlgorithmIdentificationSequence
+            ? item.AnnotationGroupAlgorithmIdentificationSequence[0]
+                .AlgorithmName
+            : "",
           propertyCategory: item.AnnotationPropertyCategoryCodeSequence[0],
           propertyType: item.AnnotationPropertyTypeCodeSequence[0],
           studyInstanceUID: metadata.StudyInstanceUID,
           seriesInstanceUID: metadata.SeriesInstanceUID,
-          sopInstanceUIDs: [metadata.SOPInstanceUID]
+          sopInstanceUIDs: [metadata.SOPInstanceUID],
         }),
         style: { ...defaultAnnotationGroupStyle },
         defaultStyle: defaultAnnotationGroupStyle,
-        metadata
-      }
+        metadata,
+      };
 
       if (this[_annotationGroups][annotationGroupUID]) {
         console.info('annotation group already added', annotationGroupUID)
@@ -3191,7 +3191,12 @@ class VolumeImageViewer {
       const { bulkdataReferences } = annotationGroup.metadata
 
       // TODO: figure out how to use "loader" with bbox or tile "strategy"?
-      const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
+      let annotationGroupIndex = annotationGroup.annotationGroup.number - 1 
+      if (annotationGroupIndex < 1 || annotationGroupIndex >= annotationGroup.metadata.AnnotationGroupSequence.length) {
+        console.warn(`skip annotation group "${annotationGroupUID}": annotation group number outside annotation group sequence boundaries`)
+        return
+      }
+
       const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
 
       /**
@@ -3204,6 +3209,8 @@ class VolumeImageViewer {
       if (bulkdataReferences.AnnotationGroupSequence != null) {
         bulkdataItem = bulkdataReferences.AnnotationGroupSequence[annotationGroupIndex]
       }
+
+      console.debug('Annotation Group:', annotationGroup)
 
       /**
        * The number of Annotations in this Annotation Group.

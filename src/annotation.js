@@ -64,14 +64,7 @@ class AnnotationGroup {
     }
     this[_attrs].propertyType = propertyType
 
-    if (algorithmName == null) {
-      throw new Error('Annotation Group Algorithm Name is required.')
-    }
     this[_attrs].algorithmType = algorithmType
-
-    if (algorithmType == null) {
-      throw new Error('Annotation Group Generation Type is required.')
-    }
     this[_attrs].algorithmName = algorithmName
 
     if (studyInstanceUID == null) {
