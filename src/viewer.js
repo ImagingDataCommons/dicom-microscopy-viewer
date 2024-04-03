@@ -111,14 +111,11 @@ import { getClusterStyleFunc } from './clusterStyles.js'
  */
 function disposeMapLayers(map) {
   console.info('dispose map layers...')
-  const mapLayers = map.getLayers()
-  if (mapLayers) { 
-    const layers = [...mapLayers.getArray()];
-    layers.forEach(layer => {
-      disposeLayer(layer)
-      map.removeLayer(layer)
-    })
-  }
+  map.getAllLayers().forEach(layer => {
+    disposeLayer(layer, true)
+    map.getView().dispose()
+    map.removeLayer(layer)
+  })
 }
 
 /** 
@@ -131,7 +128,7 @@ function disposeOverviewMapLayers(map) {
     const overviewMapLayers = overviewMap.getLayers()
     if (overviewMapLayers) {
       overviewMapLayers.forEach(layer => {  
-        disposeLayer(layer)
+        disposeLayer(layer, true)
         overviewMap.removeLayer(layer)
       })
     }
@@ -141,11 +138,12 @@ function disposeOverviewMapLayers(map) {
 /** 
  * Dispose layer and its dependencies to free up memory.
  */
-function disposeLayer(layer) { 
+function disposeLayer(layer, disposeSource = false) { 
   console.info('dispose layer:', layer)
   const source = layer.getSource()
-  if (source && source.clear) {
+  if (disposeSource === true && source && source.clear) {
     source.clear()
+    source.dispose()
   }
   const renderer = layer.getRenderer()
   if (renderer) {
@@ -3109,14 +3107,6 @@ class VolumeImageViewer {
    * DICOM Microscopy Simple Bulk Annotations instance
    */
   addAnnotationGroups (metadata) {
-    const refImage = this[_pyramid].metadata[0]
-    /** TODO: This should throw error? */
-    if (refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
-      console.warn(
-        'Microscopy Bulk Simple Annotation instances must have the same ' +
-        'Frame of Reference UID as the corresponding source images.'
-      )
-    }
     console.info(
       'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
       `of series "${metadata.SeriesInstanceUID}"`
@@ -3191,13 +3181,12 @@ class VolumeImageViewer {
       const { bulkdataReferences } = annotationGroup.metadata
 
       // TODO: figure out how to use "loader" with bbox or tile "strategy"?
-      let annotationGroupIndex = annotationGroup.annotationGroup.number - 1 
-      if (annotationGroupIndex < 1 || annotationGroupIndex >= annotationGroup.metadata.AnnotationGroupSequence.length) {
-        console.warn(`skip annotation group "${annotationGroupUID}": annotation group number outside annotation group sequence boundaries`)
+      const annotationGroupIndex = annotationGroup.annotationGroup.number - 1 
+      const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
+      if (!metadataItem) {
+        console.warn(`skip annotation group "${annotationGroupUID}": invalid annotation group number or annotation group sequence`)
         return
       }
-
-      const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
 
       /**
        * Bulkdata may not be available, since it's possible that all information
@@ -3211,6 +3200,9 @@ class VolumeImageViewer {
       }
 
       console.debug('Annotation Group:', annotationGroup)
+      console.debug('Bulk data item:', bulkdataItem)
+      console.debug('Bulkdata references:', bulkdataReferences)
+      console.debug('Annotation group index:', annotationGroupIndex)
 
       /**
        * The number of Annotations in this Annotation Group.
@@ -3225,6 +3217,15 @@ class VolumeImageViewer {
         metadataItem,
         annotationGroup.metadata.AnnotationCoordinateType
       )
+
+      const refImage = this[_pyramid].metadata[0]
+      /** TODO: This should throw error? */
+      if (coordinateDimensionality === '3D' && refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID) {
+        throw new Error(
+          'Microscopy Bulk Simple Annotation instances must have the same ' +
+          'Frame of Reference UID as the corresponding source images.'
+        )
+      }
 
       /** Required if all points are in the same Z plane. */
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)

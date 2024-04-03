@@ -198,6 +198,7 @@ async function _fetchGraphicData ({
   } else if ('DoublePointCoordinatesData' in metadataItem) {
     return metadataItem.DoublePointCoordinatesData
   } else {
+    console.debug('_fetchGraphicData', metadataItem)
     if (bulkdataItem == null) {
       throw new Error(
         `Could not find bulkdata of annotation group "${uid}".`
