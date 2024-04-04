@@ -1,5 +1,6 @@
 import PointGeometry from 'ol/geom/Point'
 import PolygonGeometry, { fromCircle } from 'ol/geom/Polygon'
+import LineStringGeometry from 'ol/geom/LineString'
 import CircleGeometry from 'ol/geom/Circle.js'
 import Feature from 'ol/Feature'
 import { getTopLeft, getBottomRight } from 'ol/extent'
@@ -295,6 +296,7 @@ export const getRectangleFeature = ({
 export const getPolygonFeature = ({
   graphicIndex,
   graphicData,
+  graphicType,
   numberOfAnnotations,
   annotationIndex,
   pyramid,
@@ -306,6 +308,8 @@ export const getPolygonFeature = ({
   annotationCoordinateType
 }) => {
   const offset = graphicIndex[annotationIndex] - 1
+
+  const Geometry = graphicType === 'POLYLINE' ? LineStringGeometry : PolygonGeometry
 
   let annotationLength
   if (annotationIndex < numberOfAnnotations - 1) {
@@ -342,7 +346,7 @@ export const getPolygonFeature = ({
   }
 
   return new Feature({
-    geometry: new PolygonGeometry([polygonCoordinates])
+    geometry: new Geometry(graphicType === 'POLYLINE' ? polygonCoordinates : [polygonCoordinates])
   })
 }
 
