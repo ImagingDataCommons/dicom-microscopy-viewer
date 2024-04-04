@@ -798,7 +798,7 @@ class VolumeImageViewer {
    * turned on (e.g., display of tile boundaries)
    * @param {number} [options.tilesCacheSize=1000] - Number of tiles that should
    * be cached to avoid repeated retrieval for the DICOMweb server
-   * @param {number[]} [options.primaryColor=[0, 126, 163]] - Primary color of
+   * @param {number[]} [options.primaryColor=[255, 234, 0]] - Primary color of
    * the application
    * @param {number[]} [options.highlightColor=[140, 184, 198]] - Color that
    * should be used to highlight things that get selected by the user
@@ -857,7 +857,7 @@ class VolumeImageViewer {
     this[_options].controls = new Set(this[_options].controls)
 
     if (this[_options].primaryColor == null) {
-      this[_options].primaryColor = [0, 126, 163]
+      this[_options].primaryColor = [255, 234, 0]
     }
     if (this[_options].highlightColor == null) {
       this[_options].highlightColor = [140, 184, 198]
@@ -3618,7 +3618,7 @@ class VolumeImageViewer {
       return new Style({
         stroke: new Stroke({
           color,
-          width: 1,
+          width: 2,
           opacity: style.opacity
         }),
         fill: new Fill({ color: 'rgba(0, 0, 255, 0)' })
@@ -3628,7 +3628,7 @@ class VolumeImageViewer {
     return new Style({
       stroke: new Stroke({
         color,
-        width: 1,
+        width: 2,
         opacity: style.opacity
       }),
     })
