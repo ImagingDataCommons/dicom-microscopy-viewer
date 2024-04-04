@@ -1,3 +1,4 @@
+import dcmjs from 'dcmjs'
 import { _fetchBulkdata } from './utils.js'
 
 const _attrs = Symbol('attrs')
@@ -190,6 +191,8 @@ class AnnotationGroup {
 async function _fetchGraphicData ({
   metadataItem,
   bulkdataItem,
+  annotationGroupIndex,
+  metadata,
   client
 }) {
   const uid = metadataItem.AnnotationGroupUID
@@ -198,8 +201,30 @@ async function _fetchGraphicData ({
   } else if ('DoublePointCoordinatesData' in metadataItem) {
     return metadataItem.DoublePointCoordinatesData
   } else {
-    console.debug('_fetchGraphicData', metadataItem)
     if (bulkdataItem == null) {
+      /** Attempt to retrieve it from P10 */
+      console.warn('Could not find "PointCoordinatesData" or "DoublePointCoordinatesData" in bulkdata or metadata, attempting to retrieve from P10.')
+      const dicomP10 = await client.retrieveInstance({
+        studyInstanceUID: metadata.StudyInstanceUID,
+        seriesInstanceUID: metadata.SeriesInstanceUID,
+        sopInstanceUID: metadata.SOPInstanceUID,
+      })
+      const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10);
+      const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+      console.debug('p10 instance:', instance)
+      const annotationGroupSequence = instance['006A0002'] || instance['AnnotationGroupSequence']
+      if (annotationGroupSequence) {
+        const item = annotationGroupSequence[annotationGroupIndex]
+        const pointCoordinatesData = item.PointCoordinatesData || item['00660016']
+        const doublePointCoordinatesData = item.DoublePointCoordinatesData || item['00660016']
+        if (item && pointCoordinatesData) {
+          console.debug('PointCoordinatesData from p10:', pointCoordinatesData)
+          return new Int32Array(pointCoordinatesData[0])
+        } else if (item && doublePointCoordinatesData) {
+          console.debug('DoublePointCoordinatesData from p10:', doublePointCoordinatesData)
+          return new Float32Array(doublePointCoordinatesData[0])
+        }
+      }
       throw new Error(
         `Could not find bulkdata of annotation group "${uid}".`
       )
@@ -217,6 +242,29 @@ async function _fetchGraphicData ({
           reference: bulkdataItem.DoublePointCoordinatesData
         })
       } else {
+        /** Attempt to retrieve it from P10 */
+        console.warn('Could not find "PointCoordinatesData" or "DoublePointCoordinatesData" in bulkdata or metadata, attempting to retrieve from P10.')
+        const dicomP10 = await client.retrieveInstance({
+          studyInstanceUID: metadata.StudyInstanceUID,
+          seriesInstanceUID: metadata.SeriesInstanceUID,
+          sopInstanceUID: metadata.SOPInstanceUID,
+        })
+        const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10);
+        const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+        console.debug('p10 instance:', instance)
+        const annotationGroupSequence = instance['006A0002'] || instance['AnnotationGroupSequence']
+        if (annotationGroupSequence) {
+          const item = annotationGroupSequence[annotationGroupIndex]
+          const pointCoordinatesData = item.PointCoordinatesData || item['00660016']
+          const doublePointCoordinatesData = item.DoublePointCoordinatesData || item['00660016']
+          if (item && pointCoordinatesData) {
+            console.debug('PointCoordinatesData from p10:', pointCoordinatesData)
+            return new Int32Array(pointCoordinatesData[0])
+          } else if (item && doublePointCoordinatesData) {
+            console.debug('DoublePointCoordinatesData from p10:', doublePointCoordinatesData)
+            return new Float32Array(doublePointCoordinatesData[0])
+          }
+        }
         throw new Error(
           'Could not find "PointCoordinatesData" or ' +
           '"DoublePointCoordinatesData" in bulkdata ' +
@@ -242,6 +290,8 @@ async function _fetchGraphicData ({
 async function _fetchGraphicIndex ({
   metadataItem,
   bulkdataItem,
+  metadata,
+  annotationGroupIndex,
   client
 }) {
   const uid = metadataItem.AnnotationGroupUID
@@ -266,6 +316,25 @@ async function _fetchGraphicIndex ({
         })
       } else {
         if (graphicType === 'POLYGON') {
+          /** Attempt to retrieve it from P10 */
+          console.warn('Could not find "LongPrimitivePointIndexList" in bulkdata or metadata, attempting to retrieve from P10.')
+          const dicomP10 = await client.retrieveInstance({
+            studyInstanceUID: metadata.StudyInstanceUID,
+            seriesInstanceUID: metadata.SeriesInstanceUID,
+            sopInstanceUID: metadata.SOPInstanceUID,
+          })
+          const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10);
+          const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+          console.debug('p10 instance:', instance)
+          const annotationGroupSequence = instance['006A0002'] || instance['AnnotationGroupSequence']
+          if (annotationGroupSequence) {
+            const item = annotationGroupSequence[annotationGroupIndex]
+            const longPrimitivePointIndexList = item.LongPrimitivePointIndexList || item['00660040']
+            if (item && longPrimitivePointIndexList) {
+              console.debug('LongPrimitivePointIndexList from p10', longPrimitivePointIndexList)
+              return new Int32Array(longPrimitivePointIndexList[0])
+            }
+          }
           throw new Error(
             'Could not find "LongPrimitivePointIndexList" ' +
             `in bulkdata of annotation group "${uid}".`
@@ -308,10 +377,15 @@ async function _fetchMeasurementValues ({
         `Could not find bulkdata of annotation group "${uid}".`
       )
     } else if (bulkdataItem.MeasurementsSequence == null) {
-      throw new Error(
+      console.warn(
         `Could not find item #${index + 1} of "MeasurementSequence" ` +
         `in bulkdata of annotation group "${uid}".`
       )
+      return []
+      // throw new Error(
+      //   `Could not find item #${index + 1} of "MeasurementSequence" ` +
+      //   `in bulkdata of annotation group "${uid}".`
+      // )
     } else {
       const measurementBulkdataItem = bulkdataItem.MeasurementsSequence[index]
       const valuesBulkdataItem = (
@@ -368,10 +442,15 @@ async function _fetchMeasurementIndices ({
         `Could not find bulkdata of annotation group "${uid}".`
       )
     } else if (bulkdataItem.MeasurementsSequence == null) {
-      throw new Error(
+      console.warn(
         `Could not find item #${index + 1} of "MeasurementSequence" ` +
         `in bulkdata of annotation group "${uid}".`
       )
+      return []
+      // throw new Error(
+      //   `Could not find item #${index + 1} of "MeasurementSequence" ` +
+      //   `in bulkdata of annotation group "${uid}".`
+      // )
     } else {
       const measurementBulkdataItem = bulkdataItem.MeasurementsSequence[index]
       const valuesBulkdataItem = (
@@ -410,6 +489,8 @@ async function _fetchMeasurementIndices ({
 async function _fetchMeasurements ({
   metadataItem,
   bulkdataItem,
+  metadata,
+  annotationGroupIndex,
   client
 }) {
   const measurements = []
@@ -457,6 +538,8 @@ async function _fetchMeasurements ({
 async function _fetchMeasurement ({
   metadataItem,
   bulkdataItem,
+  metadata,
+  annotationGroupIndex,
   index,
   client
 }) {
@@ -481,12 +564,16 @@ async function _fetchMeasurement ({
   const values = await _fetchMeasurementValues({
     metadataItem,
     bulkdataItem,
+    metadata,
+    annotationGroupIndex,
     index,
     client
   })
   const indices = await _fetchMeasurementIndices({
     metadataItem,
     bulkdataItem,
+    metadata,
+    annotationGroupIndex,
     index,
     client
   })

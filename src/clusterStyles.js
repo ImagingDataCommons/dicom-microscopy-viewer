@@ -92,7 +92,7 @@ export function getClusterStyleFunc({ color, opacity }, clusterSource) {
     }
 
     const size = feature.get("features").length
-    if (size > 1) {
+    if (size > 0) {
       const innerCircle = new CircleStyle({
         radius: 14,
         fill: innerCircleFill,

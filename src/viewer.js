@@ -3199,10 +3199,9 @@ class VolumeImageViewer {
         bulkdataItem = bulkdataReferences.AnnotationGroupSequence[annotationGroupIndex]
       }
 
-      console.debug('Annotation Group:', annotationGroup)
-      console.debug('Bulk data item:', bulkdataItem)
-      console.debug('Bulkdata references:', bulkdataReferences)
-      console.debug('Annotation group index:', annotationGroupIndex)
+      console.debug('High-level metadata:', metadata)
+      console.debug('Annotation group generic:', annotationGroup)
+      console.debug('Annotation group item:', metadataItem)
 
       /**
        * The number of Annotations in this Annotation Group.
@@ -3245,6 +3244,10 @@ class VolumeImageViewer {
           areAnnotationsLoaded = true
 
           const [graphicData, graphicIndex, measurements] = retrievedBulkdata
+
+          console.debug('graphic data:', graphicData)
+          console.debug('graphic index:', graphicIndex)
+          console.debug('measurements:', measurements)
 
           console.info(
             'compute statistics for measurement values ' +
@@ -3310,9 +3313,9 @@ class VolumeImageViewer {
         } else {
           // TODO: Only fetch measurements if required.
           const promises = [
-            _fetchGraphicData({ metadataItem, bulkdataItem, client }),
-            _fetchGraphicIndex({ metadataItem, bulkdataItem, client }),
-            _fetchMeasurements({ metadataItem, bulkdataItem, client })
+            _fetchGraphicData({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
+            _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
+            _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
           ]
           Promise.allSettled(promises).then(results => {
             const errors = {

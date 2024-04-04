@@ -53,13 +53,16 @@ export const isCoordinateInsideBoundingBox = (
   topLeft,
   bottomRight
 ) => {
-  swapIfGreater(topLeft, bottomRight, 0)
-  swapIfGreater(topLeft, bottomRight, 1)
   return !(
     Math.abs(topLeft[0]) > Math.abs(coordinate[0]) ||
     Math.abs(coordinate[0]) > Math.abs(bottomRight[0]) ||
     Math.abs(topLeft[1]) > Math.abs(coordinate[1]) ||
     Math.abs(coordinate[1]) > Math.abs(bottomRight[1])
+  ) || !(
+    Math.abs(bottomRight[0]) > Math.abs(coordinate[0]) ||
+    Math.abs(coordinate[0]) > Math.abs(topLeft[0]) ||
+    Math.abs(bottomRight[1]) > Math.abs(coordinate[1]) ||
+    Math.abs(coordinate[1]) > Math.abs(topLeft[1])
   )
 }
 
@@ -304,6 +307,10 @@ export const getPolygonFeature = ({
   for (let j = offset; j < roof; j++) {
     let coordinate = _getCoordinates(graphicData, j === (offset + annotationLength - 1) ? offset : j, commonZCoordinate)
 
+    if (!coordinate || !coordinate[0] || !coordinate[1]) {
+      continue;
+    }
+
     if (annotationCoordinateType === '2D') {
       coordinate = mapPixelCoordToSlideCoord(
         { point: [coordinate[0], coordinate[1]], affine }
@@ -420,6 +427,10 @@ export const getFeaturesFromBulkAnnotations = ({
         offset,
         commonZCoordinate
       )
+
+      if (!firstCoordinate || !firstCoordinate[0] || !firstCoordinate[1]) {
+        continue;
+      }
 
       if (annotationCoordinateType === '2D') {
         firstCoordinate = mapPixelCoordToSlideCoord(
