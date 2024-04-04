@@ -53,7 +53,7 @@ export const isCoordinateInsideBoundingBox = (
   topLeft,
   bottomRight
 ) => {
-  return !(
+  const result = !(
     Math.abs(topLeft[0]) > Math.abs(coordinate[0]) ||
     Math.abs(coordinate[0]) > Math.abs(bottomRight[0]) ||
     Math.abs(topLeft[1]) > Math.abs(coordinate[1]) ||
@@ -63,7 +63,19 @@ export const isCoordinateInsideBoundingBox = (
     Math.abs(coordinate[0]) > Math.abs(topLeft[0]) ||
     Math.abs(bottomRight[1]) > Math.abs(coordinate[1]) ||
     Math.abs(coordinate[1]) > Math.abs(topLeft[1])
-  )
+  ) 
+  if (result === true) {
+    return result;
+  } else {
+    swapIfGreater(topLeft, bottomRight, 0)
+    swapIfGreater(topLeft, bottomRight, 1)
+    return !(
+      Math.abs(topLeft[0]) > Math.abs(coordinate[0]) ||
+      Math.abs(coordinate[0]) > Math.abs(bottomRight[0]) ||
+      Math.abs(topLeft[1]) > Math.abs(coordinate[1]) ||
+      Math.abs(coordinate[1]) > Math.abs(bottomRight[1])
+    )
+  }
 }
 
 /**
@@ -386,7 +398,7 @@ export const getPointFeature = ({
   })
 }
 
-const HIGH_RES_GRAPHIC_TYPES = ['POLYGON', 'ELLIPSE', 'RECTANGLE']
+const HIGH_RES_GRAPHIC_TYPES = ['POLYLINE', 'POLYGON', 'ELLIPSE', 'RECTANGLE']
 
 export const getFeaturesFromBulkAnnotations = ({
   graphicType,
@@ -420,7 +432,7 @@ export const getFeaturesFromBulkAnnotations = ({
   ) {
     if (isHighResolution && HIGH_RES_GRAPHIC_TYPES.includes(graphicType)) {
       const length = coordinateDimensionality * 4 
-      const offset = graphicType === 'POLYGON' ? graphicIndex[annotationIndex] - 1 : annotationIndex * length
+      const offset = ['POLYGON', 'POLYLINE'].includes(graphicType) ? graphicIndex[annotationIndex] - 1 : annotationIndex * length
 
       let firstCoordinate = _getCoordinates(
         graphicData,

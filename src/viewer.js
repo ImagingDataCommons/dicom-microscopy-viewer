@@ -3165,19 +3165,6 @@ class VolumeImageViewer {
         return
       }
 
-      if (item.GraphicType === 'POLYLINE') {
-        /*
-         * We represent graphics as polygons in low zoom levels
-         * or centroid points when in high zoom levels, but it's unclear whether
-         * the centroid of a polyline would be meaningful.
-         */
-        console.warn(
-          `skip annotation group "${annotationGroupUID}" ` +
-          'with Graphic Type POLYLINE'
-        )
-        return
-      }
-
       const { bulkdataReferences } = annotationGroup.metadata
 
       // TODO: figure out how to use "loader" with bbox or tile "strategy"?
@@ -3199,9 +3186,8 @@ class VolumeImageViewer {
         bulkdataItem = bulkdataReferences.AnnotationGroupSequence[annotationGroupIndex]
       }
 
-      console.debug('High-level metadata:', metadata)
-      console.debug('Annotation group generic:', annotationGroup)
-      console.debug('Annotation group item:', metadataItem)
+      console.debug('bulk data series metadata:', metadata)
+      console.debug('annotation group metadata:', metadataItem)
 
       /**
        * The number of Annotations in this Annotation Group.
@@ -3370,13 +3356,14 @@ class VolumeImageViewer {
           case 'POINT':
             return pointsLoader
           case 'POLYGON':
+          case 'POLYLINE':
             return polygonsLoader
           case 'RECTANGLE':
             return rectanglesLoader
           case 'ELLIPSE':
             return ellipseLoader
           default:
-            console.error(`Unsupported graphic type "${graphicType}"`)
+            console.warn(`Unsupported graphic type "${graphicType}"`)
             return polygonsLoader
         }
       }
@@ -3386,13 +3373,14 @@ class VolumeImageViewer {
           case 'POINT':
             return getPointFeature
           case 'POLYGON':
+          case 'POLYLINE':
             return getPolygonFeature
           case 'RECTANGLE':
             return getRectangleFeature
           case 'ELLIPSE':
             return getEllipseFeature
           default:
-            console.error(`Unsupported graphic type "${graphicType}"`)
+            console.warn(`Unsupported graphic type "${graphicType}"`)
             return getPolygonFeature
         }
       }
