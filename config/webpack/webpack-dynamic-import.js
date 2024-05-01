@@ -3,7 +3,7 @@ const merge = require('./merge')
 const rootPath = process.cwd()
 const baseConfig = require('./webpack-base')
 const TerserPlugin = require('terser-webpack-plugin')
-const outputPath = path.join(rootPath, 'dist', 'dynamic-import', 'dicom-microscopy-viewer')
+const outputPath = path.join(rootPath, 'dist', 'dynamic-import')
 
 const prodConfig = {
   mode: 'production',
@@ -12,15 +12,11 @@ const prodConfig = {
   },
   output: {
     path: outputPath,
-    library: {
-      name: 'dicomMicroscopyViewer',
-      type: 'window',
-    },
-    filename: '[name].min.js',
-    publicPath: '/dicom-microscopy-viewer/',
+    libraryTarget: 'umd',
+    globalObject: 'this',
+    filename: '[name].min.js'
   },
   optimization: {
-    // minimize: false,
     minimizer: [
       new TerserPlugin({
         parallel: true
