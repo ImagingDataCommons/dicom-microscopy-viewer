@@ -1374,10 +1374,24 @@ class VolumeImageViewer {
     const _this = this
     _this[_map].on("click", function (event) {
       _this[_map].forEachFeatureAtPixel(event.pixel, function (feature, layer) {
-        console.debug("select roi", feature);
         publish(
           _this[_map].getTargetElement(),
           EVENT.ROI_SELECTED,
+          _this._getROIFromFeature(
+            feature,
+            _this[_pyramid].metadata,
+            _this[_affine]
+          )
+        )
+      })
+    })
+
+    _this[_map].on("dblclick", function (event) {
+      _this[_map].forEachFeatureAtPixel(event.pixel, function (feature, layer) {
+        console.debug('dblclick + featureclick')
+        publish(
+          _this[_map].getTargetElement(),
+          EVENT.ROI_DOUBLE_CLICKED,
           _this._getROIFromFeature(
             feature,
             _this[_pyramid].metadata,
