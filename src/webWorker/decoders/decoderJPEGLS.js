@@ -1,5 +1,5 @@
-import charlsFactory from '@cornerstonejs/codec-charls/dist/charlswasm_decode.js'
-import charlsWasm from '@cornerstonejs/codec-charls/dist/charlswasm_decode.wasm'
+import charlsFactory from '@cornerstonejs/codec-charls/decodewasmjs'
+import charlsWasm from '@cornerstonejs/codec-charls/decodewasm'
 import Decoder from './decoderAbstract.js'
 
 export default class JPEGLSDecoder extends Decoder {

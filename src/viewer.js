@@ -40,6 +40,7 @@ import { getCenter, getHeight, getWidth } from 'ol/extent'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
 import { CustomError, errorTypes } from './customError'
+import _ from 'lodash'
 
 import {
   AnnotationGroup,
@@ -423,13 +424,11 @@ function _updateFeatureMeasurements (map, feature, pyramid, affine) {
         schemeDesignator: 'SCT'
       }),
       value: area,
-      unit: [
-        new dcmjs.sr.coding.CodedConcept({
-          value: unitCodedConceptValue,
-          meaning: unitCodedConceptMeaning,
-          schemeDesignator: 'SCT'
-        })
-      ]
+      unit: new dcmjs.sr.coding.CodedConcept({
+        value: unitCodedConceptValue,
+        meaning: unitCodedConceptMeaning,
+        schemeDesignator: 'SCT'
+      })
     })
   }
 
@@ -443,13 +442,11 @@ function _updateFeatureMeasurements (map, feature, pyramid, affine) {
         schemeDesignator: 'SCT'
       }),
       value: length,
-      unit: [
-        new dcmjs.sr.coding.CodedConcept({
-          value: unitCodedConceptValue,
-          meaning: unitCodedConceptMeaning,
-          schemeDesignator: 'SCT'
-        })
-      ]
+      unit: new dcmjs.sr.coding.CodedConcept({
+        value: unitCodedConceptValue,
+        meaning: unitCodedConceptMeaning,
+        schemeDesignator: 'SCT'
+      })
     })
   }
 
@@ -690,7 +687,7 @@ function _getColorPaletteStyleForPointLayer ({
   return { color: expression }
 }
 
-const _affine = Symbol('affine')
+const _affine = Symbol.for('affine')
 const _affineInverse = Symbol('affineInverse')
 const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
@@ -701,8 +698,8 @@ const _drawingLayer = Symbol('drawingLayer')
 const _drawingSource = Symbol('drawingSource')
 const _features = Symbol('features')
 const _imageLayer = Symbol('imageLayer')
-const _interactions = Symbol('interactions')
-const _map = Symbol('map')
+const _interactions = Symbol.for('interactions')
+const _map = Symbol.for('map')
 const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
 const _opticalPaths = Symbol('opticalPaths')
@@ -758,6 +755,8 @@ class VolumeImageViewer {
    * should be used to highlight things that get selected by the user
    * @param {errorInterceptor} [options.errorInterceptor] - Callback for
    * intercepting errors
+   * @param {number[]} [options.mapViewResolutions] Map's view list of
+   * resolutions. If not passed, the tile grid resolution will be used.
    */
   constructor (options) {
     this[_options] = options
@@ -1018,10 +1017,16 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
+    let mapViewResolutions = this[_tileGrid].getResolutions()
+
+    if (_.has(this[_options], 'mapViewResolutions')) {
+      mapViewResolutions = this[_options].mapViewResolutions
+    }
+
     const view = new View({
       center: getCenter(this[_pyramid].extent),
       projection: this[_projection],
-      resolutions: this[_tileGrid].getResolutions(),
+      resolutions: mapViewResolutions,
       rotation: this[_rotation],
       constrainOnlyCenter: false,
       smoothResolutionConstraint: true,
@@ -1971,6 +1976,9 @@ class VolumeImageViewer {
       )
       _getIccProfiles(metadata, client).then(profiles => {
         const source = item.layer.getSource()
+        if (!source) {
+          return
+        }
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
@@ -3060,6 +3068,7 @@ class VolumeImageViewer {
 
     if (feature) {
       this[_features].remove(feature)
+      this[_annotationManager].onRemove(feature)
       return
     }
 

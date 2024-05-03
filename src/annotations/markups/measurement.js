@@ -65,27 +65,20 @@ const MeasurementMarkup = ({ map, pyramid, affine, markupManager }) => {
       }
     },
     onRemove: (feature) => {
-      if (_isMeasurement(feature)) {
-        const featureId = feature.getId()
-        markupManager.remove(featureId)
-      }
+      const featureId = feature.getId()
+      markupManager.remove(featureId)
     },
     onDrawStart: ({ feature }) => {
       if (_isMeasurement(feature)) {
-        markupManager.create({ feature })
+        const view = map.getView()
+        const unitSuffix = _getUnitSuffix(view)
+        markupManager.create({
+          feature,
+          value: _format(feature, unitSuffix, pyramid, affine)
+        })
       }
     },
-    onUpdate: (feature) => {
-      const view = map.getView()
-      const unitSuffix = _getUnitSuffix(view)
-      const id = feature.getId()
-      const markup = markupManager.get(id)
-      markupManager.update({
-        feature,
-        value: _format(feature, unitSuffix, pyramid, affine),
-        coordinate: markup.overlay.getPosition()
-      })
-    },
+    onUpdate: (feature) => {},
     onDrawEnd: ({ feature }) => {},
     onDrawAbort: ({ feature }) => {}
   }
