@@ -8,9 +8,10 @@ import { getTopLeft, getBottomRight } from 'ol/extent'
 import { _getCoordinates, _getPoint } from '../annotation'
 import {
   _scoord3dCoordinates2geometryCoordinates,
-  _geometryCoordinates2scoord3dCoordinates
+  _geometryCoordinates2scoord3dCoordinates,
+  getPixelSpacing
 } from '../scoord3dUtils'
-import { mapPixelCoordToSlideCoord } from '../utils'
+import { buildTransform, mapPixelCoordToSlideCoord } from '../utils'
 
 /**
  * Get viewport bounding box
@@ -80,24 +81,50 @@ export const isCoordinateInsideBoundingBox = (
 }
 
 /**
+ * Calculates the affine transformation matrix based on the pyramid level.
+ *
+ * @param {Object} options - The options object.
+ * @param {Object} options.affine - The initial affine transformation matrix.
+ * @param {Array} options.pyramid - The array of pyramid metadata.
+ * @param {Object} options.annotationGroup - The annotation group metadata.
+ * @returns {Array} - The affine transformation matrix.
+ */
+const getAffineBasedOnPyramidLevel = ({ affine, pyramid, annotationGroup }) => {
+  const { ReferencedSOPInstanceUID } = annotationGroup.metadata.ReferencedImageSequence[0]
+  const currentPyramidMetadata = pyramid.find(p => p.SOPInstanceUID === ReferencedSOPInstanceUID)
+  if (currentPyramidMetadata && currentPyramidMetadata.ImageOrientationSlide) {
+    const orientation = currentPyramidMetadata.ImageOrientationSlide 
+    const spacing = getPixelSpacing(currentPyramidMetadata) 
+    const origin = currentPyramidMetadata.TotalPixelMatrixOriginSequence[0]
+    const offset = [
+      Number(origin.XOffsetInSlideCoordinateSystem),
+      Number(origin.YOffsetInSlideCoordinateSystem)
+    ]
+    return buildTransform({
+      offset,
+      orientation,
+      spacing
+    })
+  } 
+  return affine
+}
+
+/**
  * Get circle feature from bulk data annotation data
  *
  * @param {*} param0
  * @returns
  */
 export const getCircleFeature = ({
-  graphicIndex,
   graphicData,
-  numberOfAnnotations,
   annotationIndex,
   pyramid,
   affine,
   affineInverse,
   commonZCoordinate,
   coordinateDimensionality,
-  annotationGroupUID,
   annotationCoordinateType,
-  map
+  annotationGroup
 }) => {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
@@ -106,15 +133,19 @@ export const getCircleFeature = ({
   for (let j = offset; j < offset + length; j++) {
     let coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
 
-    if (annotationCoordinateType === '2D') {
-      coordinate = mapPixelCoordToSlideCoord(
-        { point: [coordinate[0], coordinate[1]], affine }
-      )
+    if (annotationCoordinateType === "2D") {
+      coordinate = mapPixelCoordToSlideCoord({
+        point: [coordinate[0], coordinate[1]],
+        affine: getAffineBasedOnPyramidLevel({
+          affine,
+          pyramid,
+          annotationGroup,
+        }),
+      })
     }
 
     coordinate = _scoord3dCoordinates2geometryCoordinates(
       coordinate,
-      pyramid,
       affineInverse
     )
 
@@ -157,18 +188,15 @@ export const getCircleFeature = ({
  * @returns
  */
 export const getEllipseFeature = ({
-  graphicIndex,
   graphicData,
-  numberOfAnnotations,
   annotationIndex,
   pyramid,
   affine,
   affineInverse,
   commonZCoordinate,
   coordinateDimensionality,
-  annotationGroupUID,
   annotationCoordinateType,
-  map
+  annotationGroup
 }) => {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
@@ -180,13 +208,16 @@ export const getEllipseFeature = ({
     if (annotationCoordinateType === "2D") {
       coordinate = mapPixelCoordToSlideCoord({
         point: [coordinate[0], coordinate[1]],
-        affine,
+        affine: getAffineBasedOnPyramidLevel({
+          affine,
+          pyramid,
+          annotationGroup,
+        }),
       })
     }
 
     coordinate = _scoord3dCoordinates2geometryCoordinates(
       coordinate,
-      pyramid,
       affineInverse
     )
 
@@ -247,17 +278,15 @@ export const getEllipseFeature = ({
  * @returns
  */
 export const getRectangleFeature = ({
-  graphicIndex,
   graphicData,
-  numberOfAnnotations,
   annotationIndex,
   pyramid,
   affine,
   affineInverse,
   commonZCoordinate,
   coordinateDimensionality,
-  annotationGroupUID,
-  annotationCoordinateType
+  annotationCoordinateType,
+  annotationGroup
 }) => {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
@@ -265,15 +294,19 @@ export const getRectangleFeature = ({
   for (let j = offset; j < offset + length; j++) {
     let coordinate = _getCoordinates(graphicData, j, commonZCoordinate)
 
-    if (annotationCoordinateType === '2D') {
-      coordinate = mapPixelCoordToSlideCoord(
-        { point: [coordinate[0], coordinate[1]], affine }
-      )
+    if (annotationCoordinateType === "2D") {
+      coordinate = mapPixelCoordToSlideCoord({
+        point: [coordinate[0], coordinate[1]],
+        affine: getAffineBasedOnPyramidLevel({
+          affine,
+          pyramid,
+          annotationGroup,
+        }),
+      })
     }
 
     coordinate = _scoord3dCoordinates2geometryCoordinates(
       coordinate,
-      pyramid,
       affineInverse
     )
 
@@ -304,7 +337,7 @@ export const getPolygonFeature = ({
   affineInverse,
   commonZCoordinate,
   coordinateDimensionality,
-  annotationGroupUID,
+  annotationGroup,
   annotationCoordinateType
 }) => {
   const offset = graphicIndex[annotationIndex] - 1
@@ -317,7 +350,7 @@ export const getPolygonFeature = ({
   } else {
     annotationLength = graphicData.length
   }
-
+  
   const polygonCoordinates = []
   const roof = offset + annotationLength
   for (let j = offset; j < roof; j++) {
@@ -327,15 +360,19 @@ export const getPolygonFeature = ({
       continue;
     }
 
-    if (annotationCoordinateType === '2D') {
-      coordinate = mapPixelCoordToSlideCoord(
-        { point: [coordinate[0], coordinate[1]], affine }
-      )
+    if (annotationCoordinateType === "2D") {
+      coordinate = mapPixelCoordToSlideCoord({
+        point: [coordinate[0], coordinate[1]],
+        affine: getAffineBasedOnPyramidLevel({
+          affine,
+          pyramid,
+          annotationGroup,
+        }),
+      })
     }
 
     coordinate = _scoord3dCoordinates2geometryCoordinates(
       coordinate,
-      pyramid,
       affineInverse
     )
 
@@ -357,7 +394,6 @@ export const getPolygonFeature = ({
  * @returns
  */
 export const getPointFeature = ({
-  graphicType,
   graphicIndex,
   graphicData,
   numberOfAnnotations,
@@ -367,7 +403,7 @@ export const getPointFeature = ({
   affineInverse,
   commonZCoordinate,
   coordinateDimensionality,
-  annotationGroupUID,
+  annotationGroup,
   annotationCoordinateType
 }) => {
   let coordinate
@@ -385,15 +421,19 @@ export const getPointFeature = ({
     )
   }
   
-  if (annotationCoordinateType === '2D') {
-    coordinate = mapPixelCoordToSlideCoord(
-      { point: [coordinate[0], coordinate[1]], affine }
-    )
+  if (annotationCoordinateType === "2D") {
+    coordinate = mapPixelCoordToSlideCoord({
+      point: [coordinate[0], coordinate[1]],
+      affine: getAffineBasedOnPyramidLevel({
+        affine,
+        pyramid,
+        annotationGroup,
+      }),
+    })
   }
 
   coordinate = _scoord3dCoordinates2geometryCoordinates(
     coordinate,
-    pyramid,
     affineInverse
   )
 
@@ -413,15 +453,16 @@ export const getFeaturesFromBulkAnnotations = ({
   coordinateDimensionality,
   numberOfAnnotations,
   annotationGroupUID,
+  annotationGroup,
   pyramid,
   affine,
   affineInverse,
   view,
   featureFunction,
   isHighResolution,
-  annotationCoordinateType,
-  map
 }) => {
+  const annotationCoordinateType = annotationGroup.metadata.AnnotationCoordinateType
+
   console.info('create features from bulk annotations')
   console.info('coordinate dimensionality:', coordinateDimensionality)
 
@@ -448,10 +489,15 @@ export const getFeaturesFromBulkAnnotations = ({
         continue;
       }
 
-      if (annotationCoordinateType === '2D') {
-        firstCoordinate = mapPixelCoordToSlideCoord(
-          { point: [firstCoordinate[0], firstCoordinate[1]], affine }
-        )
+      if (annotationCoordinateType === "2D") {
+        firstCoordinate = mapPixelCoordToSlideCoord({
+          point: [firstCoordinate[0], firstCoordinate[1]],
+          affine: getAffineBasedOnPyramidLevel({
+            affine,
+            pyramid,
+            annotationGroup,
+          }),
+        })
       }
       
       if (!isCoordinateInsideBoundingBox(
@@ -469,14 +515,13 @@ export const getFeaturesFromBulkAnnotations = ({
       graphicData,
       numberOfAnnotations,
       annotationIndex,
+      annotationGroup,
       pyramid,
       affine,
       affineInverse,
       commonZCoordinate,
       coordinateDimensionality,
-      annotationGroupUID,
       annotationCoordinateType,
-      map
     })
 
     feature.setId(annotationGroupUID + '-' + annotationIndex)

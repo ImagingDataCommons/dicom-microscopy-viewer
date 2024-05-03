@@ -2222,7 +2222,6 @@ class VolumeImageViewer {
     if (position != null) {
       coordinates = _scoord3dCoordinates2geometryCoordinates(
         position,
-        this[_pyramid],
         this[_affineInverse]
       )
     }
@@ -2898,7 +2897,6 @@ class VolumeImageViewer {
 
     const geometry = _scoord3d2Geometry(
       roi.scoord3d,
-      this[_pyramid].metadata,
       this[_affineInverse]
     )
     const featureOptions = { geometry }
@@ -3010,7 +3008,6 @@ class VolumeImageViewer {
   addViewportOverlay ({ element, coordinates, navigate, className }) {
     const offset = _scoord3dCoordinates2geometryCoordinates(
       coordinates,
-      this[_pyramid],
       this[_affineInverse]
     )
     const overlay = new Overlay({
@@ -3267,14 +3264,14 @@ class VolumeImageViewer {
             coordinateDimensionality,
             numberOfAnnotations,
             annotationGroupUID,
+            annotationGroup,
+            metadataItem,
             pyramid,
             affine,
             affineInverse,
             view,
             featureFunction,
             isHighResolution: isHighResolution(),
-            annotationCoordinateType: annotationGroup.metadata.AnnotationCoordinateType,
-            map
           })
 
           console.info(
@@ -3681,7 +3678,7 @@ class VolumeImageViewer {
       )
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.info(`show annotation group ${annotationGroupUID}`)
+    console.info(`show annotation group ${annotationGroupUID}`, annotationGroup)
     this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
 
     annotationGroup.activeLayer().setVisible(true)
@@ -3701,7 +3698,7 @@ class VolumeImageViewer {
       )
     }
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.info(`hide annotation group ${annotationGroupUID}`)
+    console.info(`hide annotation group ${annotationGroupUID}`, annotationGroup)
 
     annotationGroup.activeLayer().setVisible(false)
   }
