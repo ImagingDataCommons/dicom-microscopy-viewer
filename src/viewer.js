@@ -3444,27 +3444,30 @@ class VolumeImageViewer {
       }, 500)
       view.on('change:center', debouncedUpdate)
 
-      const highResLayer =
-        graphicType === 'POINT'
-          ? new PointsLayer({
-              source: pointsSource,
-              style: this.getGraphicTypeLayerStyle(
-                annotationGroup,
-                pointsSource
-              ),
-              disableHitDetection: true,
-            })
-          : new VectorLayer({
-              source: highResSource,
-              style: this.getGraphicTypeLayerStyle(
-                annotationGroup,
-                highResSource
-              ),
-            })
-      const lowResLayer = new VectorLayer({
+      const getHighResLayer = ({ pointsSource, highResSource, annotationGroup }) => {
+        return graphicType === 'POINT'
+        ? new PointsLayer({
+            source: pointsSource,
+            style: this.getGraphicTypeLayerStyle(
+              annotationGroup,
+              pointsSource
+            ),
+            disableHitDetection: true,
+          })
+        : new VectorLayer({
+            source: highResSource,
+            style: this.getGraphicTypeLayerStyle(
+              annotationGroup,
+              highResSource
+            ),
+          })
+      }
+
+      const highResLayer = getHighResLayer({ pointsSource, highResSource, annotationGroup })
+      const lowResLayer = numberOfAnnotations > 1000 ? new VectorLayer({
         source: clustersSource,
         style: getClusterStyleFunc(annotationGroup.style, clustersSource),
-      })
+      }) : getHighResLayer({ pointsSource, highResSource, annotationGroup })
 
       annotationGroup.layers = []
       annotationGroup.layers[0] = highResLayer
@@ -3758,6 +3761,7 @@ class VolumeImageViewer {
     const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
     const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
     const graphicType = metadataItem.GraphicType
+    const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
 
     const metadata = annotationGroup.metadata
     const source = annotationGroup.layers[1].getSource()
@@ -3786,6 +3790,59 @@ class VolumeImageViewer {
     //   this[_pyramid].resolutions.length,
     //   Math.min(diameter / baseLayerPixelSpacing[0], 50)
     // ]
+
+    const getHighResLayer = ({ graphicType, annotationGroup, prevLayer }) => {
+      return graphicType === "POINT"
+        ? new PointsLayer({
+            source: prevLayer.getSource(),
+            style: this.getGraphicTypeLayerStyle(
+              annotationGroup,
+              prevLayer.getSource()
+            ),
+            disableHitDetection: true,
+            visible: prevLayer.getVisible(),
+          })
+        : new VectorLayer({
+            source: prevLayer.getSource(),
+            visible: prevLayer.getVisible(),
+            style: this.getGraphicTypeLayerStyle(
+              annotationGroup,
+              prevLayer.getSource()
+            ),
+          })
+    }
+
+    const getLowResLayer = ({ numberOfAnnotations, annotationGroup }) => {
+      const prevLowResLayer = annotationGroup.layers[1]
+      return numberOfAnnotations > 1000 ? new VectorLayer({
+        source: prevLowResLayer.getSource(),
+        visible: prevLowResLayer.getVisible(),
+        style: getClusterStyleFunc(
+          annotationGroup.style,
+          prevLowResLayer.getSource()
+        ),
+      }) : getHighResLayer({ annotationGroup, prevLayer: prevLowResLayer })
+    }
+
+    const updateHighResLayer = ({ annotationGroup }) => {
+      const prevHighResLayer = annotationGroup.layers[0]
+      const newHighResLayer = getHighResLayer({ annotationGroup, prevLayer: prevHighResLayer })
+      this[_map].addLayer(newHighResLayer)
+      this[_map].removeLayer(prevHighResLayer)
+      disposeLayer(prevHighResLayer)
+      annotationGroup.layers[0] = newHighResLayer
+    }
+
+    const updateLowResLayer = ({ numberOfAnnotations, graphicType, annotationGroup }) => {
+      if (graphicType !== 'POINT') {
+        const prevLowResLayer = annotationGroup.layers[1]
+        const newLowResLayer = getLowResLayer({ numberOfAnnotations, annotationGroup })
+        this[_map].addLayer(newLowResLayer)
+        this[_map].removeLayer(prevLowResLayer)
+        disposeLayer(prevLowResLayer)
+        annotationGroup.layers[1] = newLowResLayer
+      }
+    }
 
     const name = styleOptions.measurement
     if (name) {
@@ -3840,46 +3897,8 @@ class VolumeImageViewer {
           })
         )
 
-        const previousHighResLayer = annotationGroup.layers[0]
-        const newHighResLayer =
-          graphicType === 'POINT'
-            ? new PointsLayer({
-                source: previousHighResLayer.getSource(),
-                style: this.getGraphicTypeLayerStyle(
-                  annotationGroup,
-                  previousHighResLayer.getSource()
-                ),
-                disableHitDetection: true,
-                visible: previousHighResLayer.getVisible(),
-              })
-            : new VectorLayer({
-                source: previousHighResLayer.getSource(),
-                visible: previousHighResLayer.getVisible(),
-                style: this.getGraphicTypeLayerStyle(
-                  annotationGroup,
-                  previousHighResLayer.getSource()
-                ),
-              })
-        this[_map].addLayer(newHighResLayer)
-        this[_map].removeLayer(previousHighResLayer)
-        disposeLayer(previousHighResLayer)
-        annotationGroup.layers[0] = newHighResLayer
-
-        if (graphicType !== 'POINT') {
-          const previousLowResLayer = annotationGroup.layers[1]
-          const newLowResLayer = new VectorLayer({
-            source: previousLowResLayer.getSource(),
-            visible: previousLowResLayer.getVisible(),
-            style: getClusterStyleFunc(
-              annotationGroup.style,
-              previousLowResLayer.getSource()
-            ),
-          })
-          this[_map].addLayer(newLowResLayer)
-          this[_map].removeLayer(previousLowResLayer)
-          disposeLayer(previousLowResLayer)
-          annotationGroup.layers[1] = newLowResLayer
-        }
+        updateHighResLayer({ annotationGroup })
+        updateLowResLayer({ numberOfAnnotations, graphicType, annotationGroup })
       }
     } else {
       if (styleOptions.color != null) {
@@ -3899,46 +3918,8 @@ class VolumeImageViewer {
         //   }
         // }
 
-        const previousHighResLayer = annotationGroup.layers[0]
-        const newHighResLayer =
-          graphicType === 'POINT'
-            ? new PointsLayer({
-                source: previousHighResLayer.getSource(),
-                style: this.getGraphicTypeLayerStyle(
-                  annotationGroup,
-                  previousHighResLayer.getSource()
-                ),
-                disableHitDetection: true,
-                visible: previousHighResLayer.getVisible(),
-              })
-          : new VectorLayer({
-                source: previousHighResLayer.getSource(),
-                visible: previousHighResLayer.getVisible(),
-                style: this.getGraphicTypeLayerStyle(
-                  annotationGroup,
-                  previousHighResLayer.getSource()
-                ),
-              })
-        this[_map].addLayer(newHighResLayer)
-        this[_map].removeLayer(previousHighResLayer)
-        disposeLayer(previousHighResLayer)
-        annotationGroup.layers[0] = newHighResLayer
-
-        if (graphicType !== 'POINT') {
-          const previousLowResLayer = annotationGroup.layers[1]
-          const newLowResLayer = new VectorLayer({
-            source: previousLowResLayer.getSource(),
-            visible: previousLowResLayer.getVisible(),
-            style: getClusterStyleFunc(
-              annotationGroup.style,
-              previousLowResLayer.getSource()
-            ),
-          })
-          this[_map].addLayer(newLowResLayer)
-          this[_map].removeLayer(previousLowResLayer)
-          disposeLayer(previousLowResLayer)
-          annotationGroup.layers[1] = newLowResLayer
-        }
+        updateHighResLayer({ annotationGroup })
+        updateLowResLayer({ numberOfAnnotations, graphicType, annotationGroup })
       }
     }
   }
