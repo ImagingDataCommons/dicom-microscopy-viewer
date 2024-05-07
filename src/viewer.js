@@ -1372,7 +1372,7 @@ class VolumeImageViewer {
     })
 
     const _this = this
-    _this[_map].on("click", function (event) {
+    _this[_map].on('click', function (event) {
       _this[_map].forEachFeatureAtPixel(event.pixel, function (feature, layer) {
         publish(
           _this[_map].getTargetElement(),
@@ -1386,7 +1386,7 @@ class VolumeImageViewer {
       })
     })
 
-    _this[_map].on("dblclick", function (event) {
+    _this[_map].on('dblclick', function (event) {
       _this[_map].forEachFeatureAtPixel(event.pixel, function (feature, layer) {
         console.debug('dblclick + featureclick')
         publish(
