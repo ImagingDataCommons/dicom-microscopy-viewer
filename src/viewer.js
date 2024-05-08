@@ -73,7 +73,8 @@ import {
   _generateUID,
   _getUnitSuffix,
   doContentItemsMatch,
-  createWindow
+  createWindow,
+  rgb2hex
 } from './utils.js'
 import {
   _scoord3dCoordinates2geometryCoordinates,
@@ -620,6 +621,67 @@ function _getColorPaletteStyleForTileLayer ({
   }
 
   return { color: expression, variables }
+}
+
+/**
+ * Build OpenLayers style expression for coloring a WebGL PointLayer.
+ *
+ * @param {Object} styleOptions - Style options
+ * @param {string} styleOptions.key - Name of a property for which values
+ * should be colorized
+ * @param {number} styleOptions.minValue - Mininum value of the output range
+ * @param {number} styleOptions.maxValue - Maxinum value of the output range
+ * @param {number[]} styleOptions.color - RGB color triplet
+ *
+ * @returns {Object} color style expression and corresponding variables
+ *
+ * @private
+ */
+function _getColorInterpolationStyleForPointLayer ({
+  key,
+  minValue,
+  maxValue,
+  color
+}) {
+  const minIndexValue = 0
+  const maxIndexValue = 1
+  const indexExpression = [
+    '+',
+    [
+      '/',
+      [
+        '*',
+        [
+          '-',
+          ['get', key],
+          minValue
+        ],
+        [
+          '-',
+          maxIndexValue,
+          minIndexValue
+        ]
+      ],
+      [
+        '-',
+        maxValue,
+        minValue
+      ]
+    ],
+    minIndexValue
+  ]
+
+  const expression = [
+    'interpolate',
+    ['linear'],
+    indexExpression,
+    0,
+    [255, 255, 255, 1],
+    1,
+    color
+  ]
+
+  return { color: expression }
 }
 
 /**
@@ -3448,18 +3510,12 @@ class VolumeImageViewer {
         return graphicType === 'POINT'
         ? new PointsLayer({
             source: pointsSource,
-            style: this.getGraphicTypeLayerStyle(
-              annotationGroup,
-              pointsSource
-            ),
+            style: this.getGraphicTypeLayerStyle(annotationGroup),
             disableHitDetection: true,
           })
         : new VectorLayer({
             source: highResSource,
-            style: this.getGraphicTypeLayerStyle(
-              annotationGroup,
-              highResSource
-            ),
+            style: this.getGraphicTypeLayerStyle(annotationGroup),
           })
       }
 
@@ -3579,27 +3635,85 @@ class VolumeImageViewer {
     const graphicType = metadataItem.GraphicType
   
     if (graphicType === 'POINT') {
+      const topLayerIndex = 0
+      const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
+      const baseLayerIndex = this[_pyramid].metadata.length - 1
+      const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
+      const diameter = 5 * 10 ** -3 /** micrometer */
+        
       /*
        * TODO: Determine optimal sizes based on number of zoom levels and
        * number of objects, and zoom factor between levels.
        * Use style variable(s) that can subsequently be updated.
        */
-      return {
+      const pointsStyle = {
         symbol: {
           symbolType: 'circle',
           size: [
             'interpolate',
-            ['linear'],
+            ['exponential', 2],
             ['zoom'],
             1,
-            2,
-            this[_pyramid].metadata.length,
-            15
+            Math.max(diameter / topLayerPixelSpacing[0], 2),
+            this[_pyramid].resolutions.length,
+            Math.min(diameter / baseLayerPixelSpacing[0], 50)
           ],
-          color: style.color,
-          opacity: style.opacity
+          opacity: annotationGroup.style.opacity
         }
       }
+
+      const name = annotationGroup.style.measurement
+      if (name) {
+        const measurementIndex = annotationGroup.groupItem.MeasurementsSequence.findIndex(item => {
+          return areCodedConceptsEqual(name, getContentItemNameCodedConcept(item))
+        })
+        if (measurementIndex == null) {
+          throw new Error(
+            'Cannot set style of annotation group. ' +
+            `Could not find measurement "${name.CodeMeaning}" ` +
+            `of annotation group "${annotationGroupUID}".`
+          )
+        }
+        const source = annotationGroup.layers[0].getSource()
+        const properties = source.getProperties()
+        const key = `measurementValue${measurementIndex.toString()}`
+  
+        if (properties[key]) {
+          /*
+           * Ideally, we would use a color palette to colorize objects.
+           * However, it appears the "palette" expression is not yet supported for
+           * styling PointLayer.
+           */
+          Object.assign(
+            pointsStyle.symbol,
+            _getColorInterpolationStyleForPointLayer({
+              key,
+              minValue: properties[key].min,
+              maxValue: properties[key].max,
+              color: annotationGroup.style.color,
+            })
+          )
+        }
+      } 
+
+      if (annotationGroup.style.color !== null) {
+        Object.assign(
+          pointsStyle.symbol,
+          {
+            color: [
+              'match',
+              ['get', 'selected'],
+              1,
+              rgb2hex(this[_options].highlightColor),
+              rgb2hex(annotationGroup.style.color)
+            ]
+          }
+        )
+      }
+
+      console.debug('annotationGroup.style', annotationGroup.style)
+
+      return pointsStyle
     }
   
     if (graphicType === 'POLYGON') {
@@ -3620,14 +3734,6 @@ class VolumeImageViewer {
         opacity: style.opacity
       }),
     })
-
-    // return new Style({
-    //   image: new Circle({
-    //     radius: 5,
-    //     fill: new Fill({ color: '#666666' }),
-    //     stroke: new Stroke({ color: '#bada55', width: 1 }),
-    //   }),
-    // })
   }
 
   /**
@@ -3734,6 +3840,7 @@ class VolumeImageViewer {
    * @param {number[]} [styleOptions.color] - RGB color triplet
    * @param {Object} [styleOptions.measurement] - Selected measurement for
    * pseudo-coloring of annotations using measurement values
+   * @returns {void}
    */
   setAnnotationGroupStyle (annotationGroupUID, styleOptions = {}) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -3757,6 +3864,9 @@ class VolumeImageViewer {
     if (styleOptions.color != null) {
       annotationGroup.style.color = styleOptions.color
     }
+    if (styleOptions.measurement != null) {
+      annotationGroup.style.measurement = styleOptions.measurement
+    }
 
     const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
     const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
@@ -3764,7 +3874,6 @@ class VolumeImageViewer {
     const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
 
     const metadata = annotationGroup.metadata
-    const source = annotationGroup.layers[1].getSource()
     const groupItem = metadata.AnnotationGroupSequence.find(item => {
       return item.AnnotationGroupUID === annotationGroupUID
     })
@@ -3775,46 +3884,28 @@ class VolumeImageViewer {
       )
     }
 
-    // const markerType = 'circle'
-    // const topLayerIndex = 0
-    // const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
-    // const baseLayerIndex = this[_pyramid].metadata.length - 1
-    // const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
-    // const diameter = 5 * 10 ** -3 // micometer
-    // const markerSize = [
-    //   'interpolate',
-    //   ['exponential', 2],
-    //   ['zoom'],
-    //   1,
-    //   Math.max(diameter / topLayerPixelSpacing[0], 1),
-    //   this[_pyramid].resolutions.length,
-    //   Math.min(diameter / baseLayerPixelSpacing[0], 50)
-    // ]
+    annotationGroup.groupItem = groupItem
+    annotationGroup.graphicType = graphicType
+    annotationGroup.numberOfAnnotations = numberOfAnnotations
 
-    const getHighResLayer = ({ graphicType, annotationGroup, prevLayer }) => {
-      return graphicType === "POINT"
+    const getHighResLayer = ({ annotationGroup, prevLayer }) => {
+      return annotationGroup.graphicType === "POINT"
         ? new PointsLayer({
             source: prevLayer.getSource(),
-            style: this.getGraphicTypeLayerStyle(
-              annotationGroup,
-              prevLayer.getSource()
-            ),
+            style: this.getGraphicTypeLayerStyle(annotationGroup),
             disableHitDetection: true,
             visible: prevLayer.getVisible(),
           })
         : new VectorLayer({
             source: prevLayer.getSource(),
             visible: prevLayer.getVisible(),
-            style: this.getGraphicTypeLayerStyle(
-              annotationGroup,
-              prevLayer.getSource()
-            ),
+            style: this.getGraphicTypeLayerStyle(annotationGroup),
           })
     }
 
-    const getLowResLayer = ({ numberOfAnnotations, annotationGroup }) => {
+    const getLowResLayer = ({ annotationGroup }) => {
       const prevLowResLayer = annotationGroup.layers[1]
-      return numberOfAnnotations > 1000 ? new VectorLayer({
+      return annotationGroup.numberOfAnnotations > 1000 ? new VectorLayer({
         source: prevLowResLayer.getSource(),
         visible: prevLowResLayer.getVisible(),
         style: getClusterStyleFunc(
@@ -3833,10 +3924,10 @@ class VolumeImageViewer {
       annotationGroup.layers[0] = newHighResLayer
     }
 
-    const updateLowResLayer = ({ numberOfAnnotations, graphicType, annotationGroup }) => {
-      if (graphicType !== 'POINT') {
+    const updateLowResLayer = ({ annotationGroup }) => {
+      if (annotationGroup.graphicType !== 'POINT') {
         const prevLowResLayer = annotationGroup.layers[1]
-        const newLowResLayer = getLowResLayer({ numberOfAnnotations, annotationGroup })
+        const newLowResLayer = getLowResLayer({ annotationGroup })
         this[_map].addLayer(newLowResLayer)
         this[_map].removeLayer(prevLowResLayer)
         disposeLayer(prevLowResLayer)
@@ -3844,84 +3935,8 @@ class VolumeImageViewer {
       }
     }
 
-    const name = styleOptions.measurement
-    if (name) {
-      const measurementIndex = groupItem.MeasurementsSequence.findIndex(item => {
-        return areCodedConceptsEqual(name, getContentItemNameCodedConcept(item))
-      })
-      if (measurementIndex == null) {
-        throw new Error(
-          'Cannot set style of annotation group. ' +
-          `Could not find measurement "${name.CodeMeaning}" ` +
-          `of annotation group "${annotationGroupUID}".`
-        )
-      }
-      const properties = source.getProperties()
-      const key = `measurementValue${measurementIndex.toString()}`
-
-      if (properties[key]) {
-        // const pointStyle = {
-        //   symbol: {
-        //     symbolType: markerType,
-        //     size: markerSize,
-        //     opacity: annotationGroup.style.opacity
-        //   }
-        // }
-        const pointStyle = {
-          symbol: {
-            symbolType: 'circle',
-            size: [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              1,
-              2,
-              this[_pyramid].metadata.length,
-              15
-            ],
-            color: annotationGroup.style.color,
-            opacity: annotationGroup.style.opacity
-          }
-        }
-        const colormap = createColormap({
-          name: ColormapNames.VIRIDIS,
-          bins: 50
-        })
-        Object.assign(
-          pointStyle.symbol,
-          _getColorPaletteStyleForPointLayer({
-            key,
-            minValue: properties[key].min,
-            maxValue: properties[key].max,
-            colormap
-          })
-        )
-
-        updateHighResLayer({ annotationGroup })
-        updateLowResLayer({ numberOfAnnotations, graphicType, annotationGroup })
-      }
-    } else {
-      if (styleOptions.color != null) {
-        // Only replace the layer if necessary
-        // const pointStyle = {
-        //   symbol: {
-        //     symbolType: markerType,
-        //     size: markerSize,
-        //     color: [
-        //       'match',
-        //       ['get', 'selected'],
-        //       1,
-        //       rgb2hex(this[_options].highlightColor),
-        //       rgb2hex(annotationGroup.style.color)
-        //     ],
-        //     opacity: annotationGroup.style.opacity
-        //   }
-        // }
-
-        updateHighResLayer({ annotationGroup })
-        updateLowResLayer({ numberOfAnnotations, graphicType, annotationGroup })
-      }
-    }
+    updateHighResLayer({ annotationGroup })
+    updateLowResLayer({ annotationGroup })
   }
 
   /**
