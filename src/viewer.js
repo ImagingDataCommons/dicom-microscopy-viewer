@@ -1377,9 +1377,9 @@ class VolumeImageViewer {
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
-          const correctFeature = feature.values_ && feature.values_.features ? feature.values_.features[0] : feature
+          const correctFeature = feature.values_?.features?.[0] || feature
           console.debug('dblclick feature id:', correctFeature)
-          if (correctFeature && correctFeature.getId()) {
+          if (correctFeature?.getId()) {
             publish(
               this[_map].getTargetElement(),
               EVENT.ROI_SELECTED,
@@ -1414,9 +1414,9 @@ class VolumeImageViewer {
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
-          const correctFeature = feature.values_ && feature.values_.features ? feature.values_.features[0] : feature
+          const correctFeature = feature.values_?.features?.[0] || feature
           console.debug('click feature id:', correctFeature)
-          if (correctFeature && correctFeature.getId()) {
+          if (correctFeature?.getId()) {
             publish(
               this[_map].getTargetElement(),
               EVENT.ROI_SELECTED,
@@ -2563,7 +2563,7 @@ class VolumeImageViewer {
 
     this[_interactions].select.on('select', (e) => {
       console.debug('select roi')
-      if (e.selected[0] && e.selected[0].getId()) {
+      if (e.selected[0]?.getId()) {
         publish(
           container,
           EVENT.ROI_SELECTED,
