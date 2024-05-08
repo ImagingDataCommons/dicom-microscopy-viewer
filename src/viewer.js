@@ -786,9 +786,7 @@ class VolumeImageViewer {
     }
 
     if (this[_options].errorInterceptor == null) {
-      this[_options].errorInterceptor = error => {
-        throw error
-      }
+      this[_options].errorInterceptor = error => error
     }
     
     if (this[_options].debug == null) {
@@ -4797,7 +4795,7 @@ class _NonVolumeImageViewer {
    */
   constructor (options) {
     if (options.errorInterceptor == null) {
-      options.errorInterceptor = error => { throw error }
+      options.errorInterceptor = error => error
     }
 
     // We also accept metadata in raw JSON format for backwards compatibility
@@ -4999,7 +4997,7 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
    */
   constructor (options) {
     if (options.errorInterceptor == null) {
-      options.errorInterceptor = error => { throw error }
+      options.errorInterceptor = error => error
     }
 
     if (options.orientation === undefined) {
@@ -5031,7 +5029,7 @@ class LabelImageViewer extends _NonVolumeImageViewer {
    */
   constructor (options) {
     if (options.errorInterceptor == null) {
-      options.errorInterceptor = error => { throw error }
+      options.errorInterceptor = error => error
     }
 
     if (options.orientation === undefined) {
