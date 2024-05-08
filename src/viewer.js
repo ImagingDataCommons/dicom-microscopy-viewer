@@ -1379,24 +1379,26 @@ class VolumeImageViewer {
         (feature) => {
           const correctFeature = feature.values_ && feature.values_.features ? feature.values_.features[0] : feature
           console.debug('dblclick feature id:', correctFeature)
-          publish(
-            this[_map].getTargetElement(),
-            EVENT.ROI_SELECTED,
-            this._getROIFromFeature(
-              correctFeature,
-              this[_pyramid].metadata,
-              this[_affine]
+          if (correctFeature && correctFeature.getId()) {
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_SELECTED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
             )
-          )
-          publish(
-            this[_map].getTargetElement(),
-            EVENT.ROI_DOUBLE_CLICKED,
-            this._getROIFromFeature(
-              correctFeature,
-              this[_pyramid].metadata,
-              this[_affine]
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_DOUBLE_CLICKED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
             )
-          )
+          }
           clickEvent = null
         },
         { hitTolerance: 1 }
@@ -1414,15 +1416,17 @@ class VolumeImageViewer {
         (feature) => {
           const correctFeature = feature.values_ && feature.values_.features ? feature.values_.features[0] : feature
           console.debug('click feature id:', correctFeature)
-          publish(
-            this[_map].getTargetElement(),
-            EVENT.ROI_SELECTED,
-            this._getROIFromFeature(
-              correctFeature,
-              this[_pyramid].metadata,
-              this[_affine]
+          if (correctFeature && correctFeature.getId()) {
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_SELECTED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
             )
-          )
+          }
           clickEvent = null
         },
         { hitTolerance: 1 }
@@ -2559,15 +2563,17 @@ class VolumeImageViewer {
 
     this[_interactions].select.on('select', (e) => {
       console.debug('select roi')
-      publish(
-        container,
-        EVENT.ROI_SELECTED,
-        this._getROIFromFeature(
-          e.selected[0],
-          this[_pyramid].metadata,
-          this[_affine]
+      if (e.selected[0] && e.selected[0].getId()) {
+        publish(
+          container,
+          EVENT.ROI_SELECTED,
+          this._getROIFromFeature(
+            e.selected[0],
+            this[_pyramid].metadata,
+            this[_affine]
+          )
         )
-      )
+      }
     })
 
     this[_map].addInteraction(this[_interactions].select)
