@@ -28,7 +28,19 @@ Documentation of the JavaScript Application Programming Interface (API) is avail
 Note that the *dicom-microscopy-viewer* package is **not** a viewer application, it is a library to build viewer applications.
 
 Below is an example for the most basic usage: a web page that displays a collection of DICOM VL Whole Slide Microscopy Image instances of a digital slide.
+
 For more advanced usage, take a look at the [Slim](https://github.com/ImagingDataCommons/slim) viewer.
+
+## Packaging
+
+The library is packaged as two different builds, one using dynamic import, and the other bundling into one 
+larger library.  The dynamic import version uses a public path of `/dicom-microscopy-viewer/` so that they can be used by simply adding an alias to the appropriate version, and then deploying that version.  In a straight web application, this can be loaded as:
+
+```javascript
+   const DICOMMicroscopyViewer = (await('/dicom-microscopy-viewer/dicomMicroscopyViewer.min.js')).default
+```
+
+The point of using the sub-directory here is to isolate the dependencies that unique to `dicom-microscopy-viewer`.
 
 ### Basic usage
 

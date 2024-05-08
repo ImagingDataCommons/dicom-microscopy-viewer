@@ -1,7 +1,14 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.44.0",
+  "version": "0.45.1",
+  "license": "MIT",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
+  "keywords": [
+    "dicom",
+    "dcmjs",
+    "dicomweb",
+    "microscopy"
+  ],
   "main": "./src/dicom-microscopy-viewer.js",
   "standard": {
     "ignore": [
@@ -37,14 +44,7 @@
     "type": "git",
     "url": "git+https://github.com/ImagingDataCommons/dicom-microscopy-viewer.git"
   },
-  "keywords": [
-    "dicom",
-    "dcmjs",
-    "dicomweb",
-    "microscopy"
-  ],
   "author": "Markus D. Herrmann",
-  "license": "MIT",
   "bugs": {
     "url": "https://github.com/ImagingDataCommons/dicom-microscopy-viewer/issues"
   },
@@ -55,7 +55,6 @@
     "@babel/plugin-transform-runtime": "^7.15.0",
     "@babel/preset-env": "^7.16",
     "@babel/runtime-corejs3": "^7.15.4",
-    "@webpack-cli/serve": "^1.5.2",
     "babel-eslint": "10.1.0",
     "babel-jest": "27.5",
     "babel-loader": "^8.2.3",
@@ -66,20 +65,20 @@
     "css-loader": "^6.7.1",
     "jest": "^27.5",
     "jest-canvas-mock": "^2.3",
-    "jsdoc": "^3.6",
+    "jsdoc": "^4.0.2",
     "open-cli": "^7.0.1",
     "standard": "^17.0",
     "terser-webpack-plugin": "^5.2.2",
     "webpack": "^5.68",
     "webpack-bundle-analyzer": "^4.4.2",
-    "webpack-cli": "^4.9",
+    "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^4.9.0",
     "worker-loader": "^3.0.8"
   },
   "dependencies": {
-    "@cornerstonejs/codec-charls": "^0.1.1",
-    "@cornerstonejs/codec-libjpeg-turbo-8bit": "^0.0.7",
-    "@cornerstonejs/codec-openjpeg": "^0.1.1",
+    "@cornerstonejs/codec-charls": "^1.2.1",
+    "@cornerstonejs/codec-libjpeg-turbo-8bit": "^1.2.1",
+    "@cornerstonejs/codec-openjpeg": "^1.2.1",
     "colormap": "^2.3",
     "dcmjs": "^0.27",
     "dicomicc": "^0.1",

@@ -160,6 +160,7 @@ class _MarkupManager {
 
     if (this._listeners.get(id)) {
       this._listeners.delete(id)
+      console.debug('deleting feature listener')
     }
 
     return id
@@ -213,6 +214,9 @@ class _MarkupManager {
 
     if (this.has(id)) {
       console.warn('Markup for feature already exists', id)
+      /** Wire events again so they are not lost (closure of this function) */
+      this._drawLink(feature)
+      this._wireInternalEvents(feature)
       return this.get(id)
     }
 
@@ -256,6 +260,7 @@ class _MarkupManager {
     const listener = feature.on(
       Enums.FeatureEvents.CHANGE,
       (event) => {
+        console.debug('feature changed', id)
         if (this.has(id)) {
           const view = this._map.getView()
           const unitSuffix = _getUnitSuffix(view)
@@ -266,15 +271,17 @@ class _MarkupManager {
             this._pyramid,
             this._affine
           )
+          const geometry = event.target.getGeometry()
           this.update({
             feature,
             value: output,
-            coordinate: event.target.getGeometry().getLastCoordinate()
+            coordinate: geometry.getLastCoordinate()
           })
           this._drawLink(feature)
         }
       }
     )
+
     this._listeners.set(id, listener)
 
     this._styleTooltip(feature)
@@ -283,6 +290,7 @@ class _MarkupManager {
     feature.on(
       Enums.FeatureEvents.PROPERTY_CHANGE,
       ({ key: property, target: feature }) => {
+        console.debug('feature property changed')
         if (property === Enums.InternalProperties.StyleOptions) {
           this._styleTooltip(feature)
         }
@@ -291,6 +299,7 @@ class _MarkupManager {
 
     /** Update markup style on feature geometry change */
     feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
+      console.debug('feature geometry changed')
       this._styleTooltip(feature)
     })
 
