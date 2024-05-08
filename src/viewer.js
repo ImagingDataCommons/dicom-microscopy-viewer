@@ -1372,13 +1372,13 @@ class VolumeImageViewer {
     })
 
     let clickEvent = null
-    this[_map].on("dblclick", (event) => {
-      clickEvent = "dblclick"
+    this[_map].on('dblclick', (event) => {
+      clickEvent = 'dblclick'
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
           const correctFeature = feature.values_ && feature.values_.features ? feature.values_.features[0] : feature
-          console.debug("dblclick feature id:", correctFeature)
+          console.debug('dblclick feature id:', correctFeature)
           publish(
             this[_map].getTargetElement(),
             EVENT.ROI_SELECTED,
@@ -1402,18 +1402,18 @@ class VolumeImageViewer {
         { hitTolerance: 1 }
       )
     })
-    this[_map].on("click", (event) => {
-      if (clickEvent === "dblclick") {
+    this[_map].on('click', (event) => {
+      if (clickEvent === 'dblclick') {
         event.preventDefault()
         event.stopPropagation()
-        return;
+        return
       }
-      clickEvent = "click"
+      clickEvent = 'click'
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
           const correctFeature = feature.values_ && feature.values_.features ? feature.values_.features[0] : feature
-          console.debug("click feature id:", correctFeature)
+          console.debug('click feature id:', correctFeature)
           publish(
             this[_map].getTargetElement(),
             EVENT.ROI_SELECTED,
@@ -3420,32 +3420,32 @@ class VolumeImageViewer {
     })
 
     let selectedAnnotation = null
-    this[_map].on('singleclick', (event) => {
-        if (selectedAnnotation !== null) {
-          selectedAnnotation.set('selected', 0)
-          selectedAnnotation = null
-        }
-        const container = this[_map].getTargetElement()
-        this[_map].forEachFeatureAtPixel(
-          e.pixel,
-          (feature) => {
-            if (feature != null) {
-              feature.set('selected', 1)
-              selectedAnnotation = feature
-              publish(
-                container,
-                EVENT.ROI_SELECTED,
-                _getROIFromFeature(feature)
-              )
-              return true
-            }
-            return false
-          },
-          {
-            hitTolerance: 1,
-            layerFilter: (layer) => (layer instanceof PointsLayer)
+    this[_map].on('singleclick', (e) => {
+      if (selectedAnnotation !== null) {
+        selectedAnnotation.set('selected', 0)
+        selectedAnnotation = null
+      }
+      const container = this[_map].getTargetElement()
+      this[_map].forEachFeatureAtPixel(
+        e.pixel,
+        (feature) => {
+          if (feature != null) {
+            feature.set('selected', 1)
+            selectedAnnotation = feature
+            publish(
+              container,
+              EVENT.ROI_SELECTED,
+              _getROIFromFeature(feature)
+            )
+            return true
           }
-        )
+          return false
+        },
+        {
+          hitTolerance: 1,
+          layerFilter: (layer) => (layer instanceof PointsLayer)
+        }
+      )
     })
   }
 
