@@ -788,7 +788,7 @@ class VolumeImageViewer {
     if (this[_options].errorInterceptor == null) {
       this[_options].errorInterceptor = error => error
     }
-    
+
     if (this[_options].debug == null) {
       this[_options].debug = false
     } else {
