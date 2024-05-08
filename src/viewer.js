@@ -1371,34 +1371,62 @@ class VolumeImageViewer {
       })
     })
 
-    const _this = this
-    _this[_map].on('click', function (event) {
-      _this[_map].forEachFeatureAtPixel(event.pixel, function (feature, layer) {
-        publish(
-          _this[_map].getTargetElement(),
-          EVENT.ROI_SELECTED,
-          _this._getROIFromFeature(
-            feature,
-            _this[_pyramid].metadata,
-            _this[_affine]
+    let clickEvent = null
+    this[_map].on("dblclick", (event) => {
+      clickEvent = "dblclick"
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          const correctFeature = feature.values_ && feature.values_.features ? feature.values_.features[0] : feature
+          console.debug("dblclick feature id:", correctFeature)
+          publish(
+            this[_map].getTargetElement(),
+            EVENT.ROI_SELECTED,
+            this._getROIFromFeature(
+              correctFeature,
+              this[_pyramid].metadata,
+              this[_affine]
+            )
           )
-        )
-      })
+          publish(
+            this[_map].getTargetElement(),
+            EVENT.ROI_DOUBLE_CLICKED,
+            this._getROIFromFeature(
+              correctFeature,
+              this[_pyramid].metadata,
+              this[_affine]
+            )
+          )
+          clickEvent = null
+        },
+        { hitTolerance: 1 }
+      )
     })
-
-    _this[_map].on('dblclick', function (event) {
-      _this[_map].forEachFeatureAtPixel(event.pixel, function (feature, layer) {
-        console.debug('dblclick + featureclick')
-        publish(
-          _this[_map].getTargetElement(),
-          EVENT.ROI_DOUBLE_CLICKED,
-          _this._getROIFromFeature(
-            feature,
-            _this[_pyramid].metadata,
-            _this[_affine]
+    this[_map].on("click", (event) => {
+      if (clickEvent === "dblclick") {
+        event.preventDefault()
+        event.stopPropagation()
+        return;
+      }
+      clickEvent = "click"
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          const correctFeature = feature.values_ && feature.values_.features ? feature.values_.features[0] : feature
+          console.debug("click feature id:", correctFeature)
+          publish(
+            this[_map].getTargetElement(),
+            EVENT.ROI_SELECTED,
+            this._getROIFromFeature(
+              correctFeature,
+              this[_pyramid].metadata,
+              this[_affine]
+            )
           )
-        )
-      })
+          clickEvent = null
+        },
+        { hitTolerance: 1 }
+      )
     })
 
     view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
@@ -3392,9 +3420,8 @@ class VolumeImageViewer {
     })
 
     let selectedAnnotation = null
-    this[_map].on('singleclick', (e) => {
-      if (e != null) {
-        if (selectedAnnotation != null) {
+    this[_map].on('singleclick', (event) => {
+        if (selectedAnnotation !== null) {
           selectedAnnotation.set('selected', 0)
           selectedAnnotation = null
         }
@@ -3419,7 +3446,6 @@ class VolumeImageViewer {
             layerFilter: (layer) => (layer instanceof PointsLayer)
           }
         )
-      }
     })
   }
 
