@@ -803,7 +803,7 @@ function _getColorPaletteStyleForPointLayer ({
 }
 
 const _retrievedBulkdata = Symbol('retrievedBulkdata')
-const _affine = Symbol('affine')
+const _affine = Symbol.for('affine')
 const _affineInverse = Symbol('affineInverse')
 const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
@@ -814,8 +814,8 @@ const _drawingLayer = Symbol('drawingLayer')
 const _drawingSource = Symbol('drawingSource')
 const _features = Symbol('features')
 const _imageLayer = Symbol('imageLayer')
-const _interactions = Symbol('interactions')
-const _map = Symbol('map')
+const _interactions = Symbol.for('interactions')
+const _map = Symbol.for('map')
 const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
 const _opticalPaths = Symbol('opticalPaths')
@@ -1494,6 +1494,68 @@ class VolumeImageViewer {
         pinchRotate: true,
         pinchZoom: true
       })
+    })
+
+    let clickEvent = null
+    this[_map].on('dblclick', (event) => {
+      clickEvent = 'dblclick'
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          const correctFeature = feature.values_?.features?.[0] || feature
+          console.debug('dblclick feature id:', correctFeature)
+          if (correctFeature?.getId()) {
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_SELECTED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+            )
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_DOUBLE_CLICKED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+            )
+          }
+          clickEvent = null
+        },
+        { hitTolerance: 1 }
+      )
+    })
+    this[_map].on('click', (event) => {
+      if (clickEvent === 'dblclick') {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+      clickEvent = 'click'
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          const correctFeature = feature.values_?.features?.[0] || feature
+          console.debug('click feature id:', correctFeature)
+          if (correctFeature?.getId()) {
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_SELECTED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+            )
+          }
+          clickEvent = null
+        },
+        { hitTolerance: 1 }
+      )
     })
 
     view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
@@ -2635,15 +2697,18 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement()
 
     this[_interactions].select.on('select', (e) => {
-      publish(
-        container,
-        EVENT.ROI_SELECTED,
-        this._getROIFromFeature(
-          e.selected[0],
-          this[_pyramid].metadata,
-          this[_affine]
+      console.debug('select roi')
+      if (e.selected[0]?.getId()) {
+        publish(
+          container,
+          EVENT.ROI_SELECTED,
+          this._getROIFromFeature(
+            e.selected[0],
+            this[_pyramid].metadata,
+            this[_affine]
+          )
         )
-      )
+      }
     })
 
     this[_map].addInteraction(this[_interactions].select)
@@ -3585,7 +3650,7 @@ class VolumeImageViewer {
      */
     let selectedAnnotation = null
     this[_map].on('singleclick', (e) => {
-      if (e != null) {
+      if (e !== null) {
         if (selectedAnnotation != null) {
           selectedAnnotation.set('selected', 0)
           selectedAnnotation = null
@@ -3594,7 +3659,7 @@ class VolumeImageViewer {
         this[_map].forEachFeatureAtPixel(
           e.pixel,
           (feature) => {
-            if (feature != null) {
+            if (feature !== null) {
               feature.set('selected', 1)
               selectedAnnotation = feature
               const roi = this._getROIFromFeature(
@@ -3618,6 +3683,27 @@ class VolumeImageViewer {
           }
         )
       }
+      const container = this[_map].getTargetElement()
+      this[_map].forEachFeatureAtPixel(
+        e.pixel,
+        (feature) => {
+          if (feature != null) {
+            feature.set('selected', 1)
+            selectedAnnotation = feature
+            publish(
+              container,
+              EVENT.ROI_SELECTED,
+              _getROIFromFeature(feature)
+            )
+            return true
+          }
+          return false
+        },
+        {
+          hitTolerance: 1,
+          layerFilter: (layer) => (layer instanceof PointsLayer)
+        }
+      )
     })
   }
 
