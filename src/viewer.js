@@ -1498,6 +1498,10 @@ class VolumeImageViewer {
 
     let clickEvent = null
     this[_map].on('dblclick', (event) => {
+      if (this[_interactions].draw !== undefined) {
+        return
+      }
+
       clickEvent = 'dblclick'
       this[_map].forEachFeatureAtPixel(
         event.pixel,
