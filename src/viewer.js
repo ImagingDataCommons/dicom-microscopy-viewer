@@ -687,7 +687,7 @@ function _getColorPaletteStyleForPointLayer ({
   return { color: expression }
 }
 
-const _affine = Symbol('affine')
+const _affine = Symbol.for('affine')
 const _affineInverse = Symbol('affineInverse')
 const _annotationManager = Symbol('annotationManager')
 const _annotationGroups = Symbol('annotationGroups')
@@ -698,8 +698,8 @@ const _drawingLayer = Symbol('drawingLayer')
 const _drawingSource = Symbol('drawingSource')
 const _features = Symbol('features')
 const _imageLayer = Symbol('imageLayer')
-const _interactions = Symbol('interactions')
-const _map = Symbol('map')
+const _interactions = Symbol.for('interactions')
+const _map = Symbol.for('map')
 const _mappings = Symbol('mappings')
 const _metadata = Symbol('metadata')
 const _opticalPaths = Symbol('opticalPaths')
