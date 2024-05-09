@@ -1,6 +1,6 @@
 const errorTypes = {
   VISUALIZATION: 'Visualization',
-  ENCODINGANDDECODING: 'Encoding/Decoding'
+  ENCODINGANDDECODING: 'EncodingDecoding'
 }
 
 class CustomError extends Error {
