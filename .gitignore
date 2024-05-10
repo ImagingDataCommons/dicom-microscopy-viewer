@@ -62,5 +62,4 @@ typings/
 node_modules/
 build/
 dist/
-yarn.lock
 .vscode/

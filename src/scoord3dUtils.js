@@ -71,30 +71,28 @@ function _geometry2Scoord3d (feature, pyramid, affine) {
  * representation.
  *
  * @param {Scoord3D} scoord3d - DICOM Microscopy Viewer Scoord3D
- * @param {Object[]} pyramid - Metadata for resolution levels of image pyramid
  * @param {number[][]} affine - 3x3 affine transformation matrix
  * @returns {object} Openlayers Geometry
  * @private
  */
-function _scoord3d2Geometry (scoord3d, pyramid, affine) {
+function _scoord3d2Geometry (scoord3d, affine) {
   const type = scoord3d.graphicType
   const data = scoord3d.graphicData
 
   if (type === 'POINT') {
     const coordinates = _scoord3dCoordinates2geometryCoordinates(
       data,
-      pyramid,
       affine
     )
     return new PointGeometry(coordinates)
   } else if (type === 'POLYLINE') {
     const coordinates = data.map((d) => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid, affine)
+      return _scoord3dCoordinates2geometryCoordinates(d, affine)
     })
     return new LineStringGeometry(coordinates)
   } else if (type === 'POLYGON') {
     const coordinates = data.map((d) => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid, affine)
+      return _scoord3dCoordinates2geometryCoordinates(d, affine)
     })
     return new PolygonGeometry([coordinates])
   } else if (type === 'ELLIPSE') {
@@ -115,7 +113,7 @@ function _scoord3d2Geometry (scoord3d, pyramid, affine) {
       point2
     ]
     coordinates = coordinates.map((d) => {
-      return _scoord3dCoordinates2geometryCoordinates(d, pyramid, affine)
+      return _scoord3dCoordinates2geometryCoordinates(d, affine)
     })
     // to flat coordinates
     coordinates = [
@@ -199,14 +197,12 @@ function _geometryCoordinates2scoord3dCoordinates (
  * Map SCOORD3D coordinates into OpenLayers geometry coordinates.
  *
  * @param {array} coordinates - Array of slide coordinates
- * @param {object} pyramid - Metadata of images in the pyramid
  * @param {number[][]} affine - 3x3 affine transformation matrix
  * @returns {array} Array of Openlayers map coordinates
  * @private
  */
 function _scoord3dCoordinates2geometryCoordinates (
   coordinates,
-  pyramid,
   affine
 ) {
   let transform = false
