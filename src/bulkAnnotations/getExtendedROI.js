@@ -1,5 +1,13 @@
 import dcmjs from 'dcmjs'
 
+/**
+ * Retrieves the extended region of interest (ROI) based on the provided feature, ROI, and metadata.
+ * @param {Object} options - The options object.
+ * @param {Object} options.feature - The feature object.
+ * @param {Object} options.roi - The ROI object.
+ * @param {Object} options.metadata - The metadata object.
+ * @returns {Object} The extended ROI.
+ */
 const getExtendedROI = ({ feature, roi, metadata }) => {
   const annotationGroupUID = feature.get('annotationGroupUID')
   const annotationGroupMetadata = metadata.AnnotationGroupSequence.find(
