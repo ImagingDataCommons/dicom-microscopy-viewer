@@ -3665,6 +3665,7 @@ class VolumeImageViewer {
         : new VectorLayer({
             source: highResSource,
             style: this.getGraphicTypeLayerStyle(annotationGroup),
+            extent: this[_pyramid].extent,
           })
       }
 
@@ -3672,6 +3673,7 @@ class VolumeImageViewer {
       const lowResLayer = numberOfAnnotations > 1000 ? new VectorLayer({
         source: clustersSource,
         style: getClusterStyleFunc(annotationGroup.style, clustersSource),
+        extent: this[_pyramid].extent,
       }) : getHighResLayer({ pointsSource, highResSource, annotationGroup })
 
       annotationGroup.layers = []
@@ -4088,6 +4090,7 @@ class VolumeImageViewer {
             source: prevLayer.getSource(),
             visible: prevLayer.getVisible(),
             style: this.getGraphicTypeLayerStyle(annotationGroup),
+            extent: this[_pyramid].extent,
           })
     }
 
@@ -4100,6 +4103,7 @@ class VolumeImageViewer {
           annotationGroup.style,
           prevLowResLayer.getSource()
         ),
+        extent: this[_pyramid].extent,
       }) : getHighResLayer({ annotationGroup, prevLayer: prevLowResLayer })
     }
 
