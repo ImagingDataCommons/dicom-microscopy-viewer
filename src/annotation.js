@@ -36,7 +36,8 @@ class AnnotationGroup {
     algorithmName,
     studyInstanceUID,
     seriesInstanceUID,
-    sopInstanceUIDs
+    sopInstanceUIDs,
+    referencedSeriesInstanceUID
   }) {
     this[_attrs] = {}
     if (uid == null) {
@@ -82,6 +83,7 @@ class AnnotationGroup {
       throw new Error('SOP Instance UIDs are required.')
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
+    this[_attrs].referencedSeriesInstanceUID = referencedSeriesInstanceUID
     Object.freeze(this)
   }
 
@@ -173,6 +175,10 @@ class AnnotationGroup {
    */
   get sopInstanceUIDs () {
     return this[_attrs].sopInstanceUIDs
+  }
+
+  get referencedSeriesInstanceUID () {
+    return this[_attrs].referencedSeriesInstanceUID
   }
 }
 
