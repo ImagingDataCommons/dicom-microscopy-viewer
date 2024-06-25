@@ -108,7 +108,7 @@ import webWorkerManager from './webWorker/webWorkerManager.js'
 import getExtendedROI from './bulkAnnotations/getExtendedROI'
 import { getClusterStyleFunc } from './clusterStyles.js'
 
-/** 
+/**
  * Dispose all map layers to free up memory.
  */
 function disposeMapLayers(map) {
@@ -120,7 +120,7 @@ function disposeMapLayers(map) {
   })
 }
 
-/** 
+/**
  * Dispose overview map layers to free up memory.
  */
 function disposeOverviewMapLayers(map) {
@@ -129,7 +129,7 @@ function disposeOverviewMapLayers(map) {
   if (overviewMap) {
     const overviewMapLayers = overviewMap.getLayers()
     if (overviewMapLayers) {
-      overviewMapLayers.forEach(layer => {  
+      overviewMapLayers.forEach(layer => {
         disposeLayer(layer, true)
         overviewMap.removeLayer(layer)
       })
@@ -137,10 +137,10 @@ function disposeOverviewMapLayers(map) {
   }
 }
 
-/** 
+/**
  * Dispose layer and its dependencies to free up memory.
  */
-function disposeLayer(layer, disposeSource = false) { 
+function disposeLayer(layer, disposeSource = false) {
   console.info('dispose layer:', layer)
   const source = layer.getSource()
   if (disposeSource === true && source && source.clear) {
@@ -2101,7 +2101,7 @@ class VolumeImageViewer {
   }
 
   /**
-   * Clean up memory by releasing allocated memory 
+   * Clean up memory by releasing allocated memory
    * to the map and its layers and clearing the viewport.
    */
   cleanup () {
@@ -2143,7 +2143,7 @@ class VolumeImageViewer {
    */
   render ({ container }) {
     window.cleanup = this.cleanup.bind(this)
-    
+
     if (container == null) {
       console.error('container must be provided for rendering images')
       return
@@ -3362,6 +3362,7 @@ class VolumeImageViewer {
           studyInstanceUID: metadata.StudyInstanceUID,
           seriesInstanceUID: metadata.SeriesInstanceUID,
           sopInstanceUIDs: [metadata.SOPInstanceUID],
+          referencedSeriesSequence: metadata.ReferencedSeriesSequence[0],
         }),
         style: { ...defaultAnnotationGroupStyle },
         defaultStyle: defaultAnnotationGroupStyle,
@@ -3376,7 +3377,7 @@ class VolumeImageViewer {
       const { bulkdataReferences } = annotationGroup.metadata
 
       // TODO: figure out how to use "loader" with bbox or tile "strategy"?
-      const annotationGroupIndex = annotationGroup.annotationGroup.number - 1 
+      const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
       const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
       if (!metadataItem) {
         console.warn(`skip annotation group "${annotationGroupUID}": invalid annotation group number or annotation group sequence`)
@@ -3636,8 +3637,8 @@ class VolumeImageViewer {
       clustersSource.on('featuresloadend', onFeaturesLoadEnd)
       clustersSource.on('featuresloaderror', onFeaturesLoadError)
 
-      /** 
-       * Reload annotations when panning. 
+      /**
+       * Reload annotations when panning.
        * The annotations will be drawn inside the viewport area for better performance.
        */
       const debouncedUpdate = debounce(() => {
@@ -3696,9 +3697,9 @@ class VolumeImageViewer {
         })
       }
 
-      /** 
+      /**
        * Zoom in inside clusters (low res layer) when clicking on them.
-       */  
+       */
       if (graphicType !== 'POINT') {
         this[_map].on('click', (event) => {
           annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
@@ -3731,7 +3732,7 @@ class VolumeImageViewer {
     })
 
     /**
-     * Select an annotation when clicked. 
+     * Select an annotation when clicked.
      * Opens a dialog with ROI information.
      */
     let selectedAnnotation = null
@@ -3807,18 +3808,18 @@ class VolumeImageViewer {
   getGraphicTypeLayerStyle(annotationGroup) {
     const { style } = annotationGroup
     const color = `rgba(${style.color[0]}, ${style.color[1]}, ${style.color[2]}, ${style.opacity})`
-  
+
     const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
     const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
     const graphicType = metadataItem.GraphicType
-  
+
     if (graphicType === 'POINT') {
       const topLayerIndex = 0
       const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
       const baseLayerIndex = this[_pyramid].metadata.length - 1
       const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
       const diameter = 5 * 10 ** -3 /** micrometer */
-        
+
       /*
        * TODO: Determine optimal sizes based on number of zoom levels and
        * number of objects, and zoom factor between levels.
@@ -3855,7 +3856,7 @@ class VolumeImageViewer {
         const source = annotationGroup.layers[0].getSource()
         const properties = source.getProperties()
         const key = `measurementValue${measurementIndex.toString()}`
-  
+
         if (properties[key]) {
           /*
            * Ideally, we would use a color palette to colorize objects.
@@ -3872,7 +3873,7 @@ class VolumeImageViewer {
             })
           )
         }
-      } 
+      }
 
       if (annotationGroup.style.color !== null) {
         Object.assign(
@@ -3893,7 +3894,7 @@ class VolumeImageViewer {
 
       return pointsStyle
     }
-  
+
     if (graphicType === 'POLYGON') {
       return new Style({
         stroke: new Stroke({
