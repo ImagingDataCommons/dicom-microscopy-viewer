@@ -20,6 +20,8 @@ const EVENTS = {
   ROI_SELECTED: `${PROJECT_NAME}_roi_selected`,
   /** Triggered when a ROI was double clicked. */
   ROI_DOUBLE_CLICKED: `${PROJECT_NAME}_roi_double_clicked`,
+  /** Triggered when mouse moves. */
+  POINTER_MOVE: `${PROJECT_NAME}_pointer_move`,
   /** Triggered when a ROI was modified. */
   ROI_MODIFIED: `${PROJECT_NAME}_roi_modified`,
   /** Triggered when a viewport move has started. */

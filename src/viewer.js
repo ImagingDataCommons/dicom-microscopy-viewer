@@ -1540,6 +1540,32 @@ class VolumeImageViewer {
     })
 
     let clickEvent = null
+
+    this[_map].on("pointermove", (event) => {
+      let featureCounter = 0;
+      this[_map].forEachFeatureAtPixel(event.pixel, (feature) => {
+        const correctFeature = feature.values_?.features?.[0] || feature;
+        console.debug("pointermove feature id:", correctFeature);
+        if (correctFeature?.getId()) {
+          featureCounter++;
+          publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+            feature: this._getROIFromFeature(
+              correctFeature,
+              this[_pyramid].metadata,
+              this[_affine]
+            ),
+            event,
+          });
+        }
+      });
+      if (!featureCounter) {
+        publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+          feature: null,
+          event,
+        });
+      }
+    });
+
     this[_map].on('dblclick', (event) => {
       if (this[_interactions].draw !== undefined) {
         return
