@@ -213,12 +213,12 @@ async function _fetchGraphicData ({
       const dicomP10 = await client.retrieveInstance({
         studyInstanceUID: metadata.StudyInstanceUID,
         seriesInstanceUID: metadata.SeriesInstanceUID,
-        sopInstanceUID: metadata.SOPInstanceUID,
+        sopInstanceUID: metadata.SOPInstanceUID
       })
-      const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10);
-      const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+      const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10)
+      const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict)
       console.debug('p10 instance:', instance)
-      const annotationGroupSequence = instance['006A0002'] || instance['AnnotationGroupSequence']
+      const annotationGroupSequence = instance['006A0002'] || instance.AnnotationGroupSequence
       if (annotationGroupSequence) {
         const item = annotationGroupSequence[annotationGroupIndex]
         const pointCoordinatesData = item.PointCoordinatesData || item['00660016']
@@ -253,12 +253,12 @@ async function _fetchGraphicData ({
         const dicomP10 = await client.retrieveInstance({
           studyInstanceUID: metadata.StudyInstanceUID,
           seriesInstanceUID: metadata.SeriesInstanceUID,
-          sopInstanceUID: metadata.SOPInstanceUID,
+          sopInstanceUID: metadata.SOPInstanceUID
         })
-        const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10);
-        const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+        const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10)
+        const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict)
         console.debug('p10 instance:', instance)
-        const annotationGroupSequence = instance['006A0002'] || instance['AnnotationGroupSequence']
+        const annotationGroupSequence = instance['006A0002'] || instance.AnnotationGroupSequence
         if (annotationGroupSequence) {
           const item = annotationGroupSequence[annotationGroupIndex]
           const pointCoordinatesData = item.PointCoordinatesData || item['00660016']
@@ -327,12 +327,12 @@ async function _fetchGraphicIndex ({
           const dicomP10 = await client.retrieveInstance({
             studyInstanceUID: metadata.StudyInstanceUID,
             seriesInstanceUID: metadata.SeriesInstanceUID,
-            sopInstanceUID: metadata.SOPInstanceUID,
+            sopInstanceUID: metadata.SOPInstanceUID
           })
-          const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10);
-          const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict);
+          const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10)
+          const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict)
           console.debug('p10 instance:', instance)
-          const annotationGroupSequence = instance['006A0002'] || instance['AnnotationGroupSequence']
+          const annotationGroupSequence = instance['006A0002'] || instance.AnnotationGroupSequence
           if (annotationGroupSequence) {
             const item = annotationGroupSequence[annotationGroupIndex]
             const longPrimitivePointIndexList = item.LongPrimitivePointIndexList || item['00660040']

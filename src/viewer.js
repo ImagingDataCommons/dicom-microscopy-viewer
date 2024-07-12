@@ -99,7 +99,7 @@ import {
   getPolygonFeature,
   getFeaturesFromBulkAnnotations,
   getRectangleFeature,
-  getEllipseFeature,
+  getEllipseFeature
 } from './bulkAnnotations/utils'
 
 import Enums from './enums'
@@ -111,7 +111,7 @@ import { getClusterStyleFunc } from './clusterStyles.js'
 /**
  * Dispose all map layers to free up memory.
  */
-function disposeMapLayers(map) {
+function disposeMapLayers (map) {
   console.info('dispose map layers...')
   map.getAllLayers().forEach(layer => {
     disposeLayer(layer, true)
@@ -123,7 +123,7 @@ function disposeMapLayers(map) {
 /**
  * Dispose overview map layers to free up memory.
  */
-function disposeOverviewMapLayers(map) {
+function disposeOverviewMapLayers (map) {
   console.info('dispose overview map layers...')
   const overviewMap = map.getOverviewMap()
   if (overviewMap) {
@@ -140,7 +140,7 @@ function disposeOverviewMapLayers(map) {
 /**
  * Dispose layer and its dependencies to free up memory.
  */
-function disposeLayer(layer, disposeSource = false) {
+function disposeLayer (layer, disposeSource = false) {
   console.info('dispose layer:', layer)
   const source = layer.getSource()
   if (disposeSource === true && source && source.clear) {
@@ -737,70 +737,6 @@ function _getColorInterpolationStyleForTileLayer ({
   }
 
   return { color: expression, variables }
-}
-
-/**
- * Build OpenLayers style expression for coloring a WebGL PointLayer.
- *
- * @param {Object} styleOptions - Style options
- * @param {string} styleOptions.name - Name of a property for which values should be colorized
- * @param {number} styleOptions.minValue - Mininum value of the output range
- * @param {number} styleOptions.maxValue - Maxinum value of the output range
- * @param {number[][]} styleOptions.colormap - RGB color triplets
- *
- * @returns {Object} color style expression
- *
- * @private
- */
-function _getColorPaletteStyleForPointLayer ({
-  key,
-  minValue,
-  maxValue,
-  colormap
-}) {
-  const minIndexValue = 0
-  const maxIndexValue = colormap.length - 1
-  const indexExpression = [
-    'clamp',
-    [
-      'round',
-      [
-        '+',
-        [
-          '/',
-          [
-            '*',
-            [
-              '-',
-              ['get', key],
-              minValue
-            ],
-            [
-              '-',
-              maxIndexValue,
-              minIndexValue
-            ]
-          ],
-          [
-            '-',
-            maxValue,
-            minValue
-          ]
-        ],
-        minIndexValue
-      ]
-    ],
-    minIndexValue,
-    maxIndexValue
-  ]
-
-  const expression = [
-    'palette',
-    indexExpression,
-    colormap
-  ]
-
-  return { color: expression }
 }
 
 const _retrievedBulkdata = Symbol('retrievedBulkdata')
@@ -1539,33 +1475,32 @@ class VolumeImageViewer {
       })
     })
 
-
     let clickEvent = null
 
-    this[_map].on("pointermove", (event) => {
-      let featureCounter = 0;
+    this[_map].on('pointermove', (event) => {
+      let featureCounter = 0
       this[_map].forEachFeatureAtPixel(event.pixel, (feature) => {
-        const correctFeature = feature.values_?.features?.[0] || feature;
-        console.debug("pointermove feature id:", correctFeature);
+        const correctFeature = feature.values_?.features?.[0] || feature
+        console.debug('pointermove feature id:', correctFeature)
         if (correctFeature?.getId()) {
-          featureCounter++;
+          featureCounter++
           publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
             feature: this._getROIFromFeature(
               correctFeature,
               this[_pyramid].metadata,
               this[_affine]
             ),
-            event,
-          });
+            event
+          })
         }
-      });
+      })
       if (!featureCounter) {
         publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
           feature: null,
-          event,
-        });
+          event
+        })
       }
-    });
+    })
 
     this[_map].on('dblclick', (event) => {
       if (this[_interactions].draw !== undefined) {
@@ -3382,18 +3317,18 @@ class VolumeImageViewer {
           algorithmType: item.AnnotationGroupGenerationType,
           algorithmName: item.AnnotationGroupAlgorithmIdentificationSequence
             ? item.AnnotationGroupAlgorithmIdentificationSequence[0]
-                .AlgorithmName
-            : "",
+              .AlgorithmName
+            : '',
           propertyCategory: item.AnnotationPropertyCategoryCodeSequence[0],
           propertyType: item.AnnotationPropertyTypeCodeSequence[0],
           studyInstanceUID: metadata.StudyInstanceUID,
           seriesInstanceUID: metadata.SeriesInstanceUID,
           sopInstanceUIDs: [metadata.SOPInstanceUID],
-          referencedSeriesInstanceUID: metadata.ReferencedSeriesSequence[0].SeriesInstanceUID,
+          referencedSeriesInstanceUID: metadata.ReferencedSeriesSequence[0].SeriesInstanceUID
         }),
         style: { ...defaultAnnotationGroupStyle },
         defaultStyle: defaultAnnotationGroupStyle,
-        metadata,
+        metadata
       }
 
       if (this[_annotationGroups][annotationGroupUID]) {
@@ -3510,7 +3445,7 @@ class VolumeImageViewer {
             affineInverse,
             view,
             featureFunction,
-            isHighResolution: isHighResolution(),
+            isHighResolution: isHighResolution()
           })
 
           console.info(
@@ -3639,7 +3574,7 @@ class VolumeImageViewer {
       const clustersSource = new Cluster({
         distance: 100,
         minDistance: 0,
-        source: pointsSource,
+        source: pointsSource
       })
       const onFeaturesLoadStart = (event) => {
         const container = this[_map].getTargetElement()
@@ -3685,24 +3620,26 @@ class VolumeImageViewer {
 
       const getHighResLayer = ({ pointsSource, highResSource, annotationGroup }) => {
         return graphicType === 'POINT'
-        ? new PointsLayer({
+          ? new PointsLayer({
             source: pointsSource,
             style: this.getGraphicTypeLayerStyle(annotationGroup),
-            disableHitDetection: true,
+            disableHitDetection: true
           })
-        : new VectorLayer({
+          : new VectorLayer({
             source: highResSource,
             style: this.getGraphicTypeLayerStyle(annotationGroup),
-            extent: this[_pyramid].extent,
+            extent: this[_pyramid].extent
           })
       }
 
       const highResLayer = getHighResLayer({ pointsSource, highResSource, annotationGroup })
-      const lowResLayer = numberOfAnnotations > 1000 ? new VectorLayer({
-        source: clustersSource,
-        style: getClusterStyleFunc(annotationGroup.style, clustersSource),
-        extent: this[_pyramid].extent,
-      }) : getHighResLayer({ pointsSource, highResSource, annotationGroup })
+      const lowResLayer = numberOfAnnotations > 1000
+        ? new VectorLayer({
+          source: clustersSource,
+          style: getClusterStyleFunc(annotationGroup.style, clustersSource),
+          extent: this[_pyramid].extent
+        })
+        : getHighResLayer({ pointsSource, highResSource, annotationGroup })
 
       annotationGroup.layers = []
       annotationGroup.layers[0] = highResLayer
@@ -3832,7 +3769,7 @@ class VolumeImageViewer {
    * @param {Object} annotationGroup - The annotation group object.
    * @returns {Object|Function} - The layer style object or an empty function.
    */
-  getGraphicTypeLayerStyle(annotationGroup) {
+  getGraphicTypeLayerStyle (annotationGroup) {
     const { style } = annotationGroup
     const color = `rgba(${style.color[0]}, ${style.color[1]}, ${style.color[2]}, ${style.opacity})`
 
@@ -3877,7 +3814,7 @@ class VolumeImageViewer {
           throw new Error(
             'Cannot set style of annotation group. ' +
             `Could not find measurement "${name.CodeMeaning}" ` +
-            `of annotation group "${annotationGroupUID}".`
+            `of annotation group "${metadataItem.AnnotationGroupUID}".`
           )
         }
         const source = annotationGroup.layers[0].getSource()
@@ -3896,7 +3833,7 @@ class VolumeImageViewer {
               key,
               minValue: properties[key].min,
               maxValue: properties[key].max,
-              color: annotationGroup.style.color,
+              color: annotationGroup.style.color
             })
           )
         }
@@ -3938,7 +3875,7 @@ class VolumeImageViewer {
         color,
         width: 2,
         opacity: style.opacity
-      }),
+      })
     })
   }
 
@@ -4107,32 +4044,34 @@ class VolumeImageViewer {
     annotationGroup.numberOfAnnotations = numberOfAnnotations
 
     const getHighResLayer = ({ annotationGroup, prevLayer }) => {
-      return annotationGroup.graphicType === "POINT"
+      return annotationGroup.graphicType === 'POINT'
         ? new PointsLayer({
-            source: prevLayer.getSource(),
-            style: this.getGraphicTypeLayerStyle(annotationGroup),
-            disableHitDetection: true,
-            visible: prevLayer.getVisible(),
-          })
+          source: prevLayer.getSource(),
+          style: this.getGraphicTypeLayerStyle(annotationGroup),
+          disableHitDetection: true,
+          visible: prevLayer.getVisible()
+        })
         : new VectorLayer({
-            source: prevLayer.getSource(),
-            visible: prevLayer.getVisible(),
-            style: this.getGraphicTypeLayerStyle(annotationGroup),
-            extent: this[_pyramid].extent,
-          })
+          source: prevLayer.getSource(),
+          visible: prevLayer.getVisible(),
+          style: this.getGraphicTypeLayerStyle(annotationGroup),
+          extent: this[_pyramid].extent
+        })
     }
 
     const getLowResLayer = ({ annotationGroup }) => {
       const prevLowResLayer = annotationGroup.layers[1]
-      return annotationGroup.numberOfAnnotations > 1000 ? new VectorLayer({
-        source: prevLowResLayer.getSource(),
-        visible: prevLowResLayer.getVisible(),
-        style: getClusterStyleFunc(
-          annotationGroup.style,
-          prevLowResLayer.getSource()
-        ),
-        extent: this[_pyramid].extent,
-      }) : getHighResLayer({ annotationGroup, prevLayer: prevLowResLayer })
+      return annotationGroup.numberOfAnnotations > 1000
+        ? new VectorLayer({
+          source: prevLowResLayer.getSource(),
+          visible: prevLowResLayer.getVisible(),
+          style: getClusterStyleFunc(
+            annotationGroup.style,
+            prevLowResLayer.getSource()
+          ),
+          extent: this[_pyramid].extent
+        })
+        : getHighResLayer({ annotationGroup, prevLayer: prevLowResLayer })
     }
 
     const updateHighResLayer = ({ annotationGroup }) => {

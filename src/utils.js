@@ -367,7 +367,7 @@ function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing, affin
     throw new Error('Option "point" must be an array with 2 elements.')
   }
 
-  const affine = defaultAffine ? defaultAffine : buildTransform({
+  const affine = defaultAffine || buildTransform({
     orientation,
     offset,
     spacing
