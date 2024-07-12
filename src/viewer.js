@@ -1539,6 +1539,7 @@ class VolumeImageViewer {
       })
     })
 
+
     let clickEvent = null
 
     this[_map].on("pointermove", (event) => {
