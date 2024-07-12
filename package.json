@@ -56,6 +56,7 @@
     "@babel/plugin-transform-runtime": "^7.15.0",
     "@babel/preset-env": "^7.16",
     "@babel/runtime-corejs3": "^7.15.4",
+    "@webpack-cli/serve": "^1.5.2",
     "babel-eslint": "10.1.0",
     "babel-jest": "27.5",
     "babel-loader": "^8.2.3",
@@ -72,7 +73,7 @@
     "terser-webpack-plugin": "^5.2.2",
     "webpack": "^5.68",
     "webpack-bundle-analyzer": "^4.4.2",
-    "webpack-cli": "^5.1.4",
+    "webpack-cli": "^4.9",
     "webpack-dev-server": "^4.9.0",
     "worker-loader": "^3.0.8"
   },
@@ -80,14 +81,14 @@
     "@cornerstonejs/codec-charls": "^1.2.3",
     "@cornerstonejs/codec-libjpeg-turbo-8bit": "^1.2.2",
     "@cornerstonejs/codec-openjpeg": "^1.2.2",
+    "dicomweb-client": "^0.10.3",
     "@cornerstonejs/codec-openjph": "^2.4.5",
     "colormap": "^2.3",
     "dcmjs": "^0.29.8",
     "dicomicc": "^0.1",
-    "dicomweb-client": "^0.8.4",
     "image-type": "^4.1",
     "mathjs": "^11.2",
-    "ol": "^7.1",
+    "ol": "^7.5.1",
     "uuid": "^9.0"
   }
 }

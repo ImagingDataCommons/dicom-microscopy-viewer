@@ -20,6 +20,8 @@ const EVENTS = {
   ROI_SELECTED: `${PROJECT_NAME}_roi_selected`,
   /** Triggered when a ROI was double clicked. */
   ROI_DOUBLE_CLICKED: `${PROJECT_NAME}_roi_double_clicked`,
+  /** Triggered when mouse moves. */
+  POINTER_MOVE: `${PROJECT_NAME}_pointer_move`,
   /** Triggered when a ROI was modified. */
   ROI_MODIFIED: `${PROJECT_NAME}_roi_modified`,
   /** Triggered when a viewport move has started. */
@@ -37,7 +39,7 @@ const EVENTS = {
   /* Triggered when the loading of an image tile has ended. */
   FRAME_LOADING_ENDED: `${PROJECT_NAME}_frame_loading_ended`,
   /* Triggered when the error occurs during loading of an image tile. */
-  FRAME_LOADING_ERROR: `${PROJECT_NAME}_frame_loading_ended`
+  FRAME_LOADING_ERROR: `${PROJECT_NAME}_frame_loading_error`
 }
 
 export default EVENTS

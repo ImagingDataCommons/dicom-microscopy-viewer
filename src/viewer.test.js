@@ -89,7 +89,7 @@ const testCases = [
             ]
           }),
           style: {
-            color: [0, 126, 163],
+            color: [255, 234, 0],
             opacity: 1
           }
         }
