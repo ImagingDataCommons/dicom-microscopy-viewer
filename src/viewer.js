@@ -140,16 +140,12 @@ function disposeOverviewMapLayers (map) {
 /**
  * Dispose layer and its dependencies to free up memory.
  */
-function disposeLayer (layer, disposeSource = false) {
+export function disposeLayer (layer, disposeSource = false) {
   console.info('dispose layer:', layer)
   const source = layer.getSource()
   if (disposeSource === true && source && source.clear) {
     source.clear()
     source.dispose()
-  }
-  const renderer = layer.getRenderer()
-  if (renderer) {
-    renderer.dispose()
   }
   layer.setSource(undefined)
   layer.dispose()
