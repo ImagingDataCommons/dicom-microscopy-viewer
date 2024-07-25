@@ -1,6 +1,4 @@
-# This workflow will install JavaScript dependencies, run tests and lint.
-
-name: unit tests
+name: dmv/build-and-unit-tests
 
 on:
   push:
@@ -14,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: ["12.x", "14.x", "16.x"]
+        node-version: ["16.x", "20.x"]
 
     steps:
       - uses: actions/checkout@v2
@@ -22,12 +20,12 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "npm"
+          cache: "yarn"
       - name: Install dependencies
-        run: npm install
+        run: yarn
       - name: Build package in production mode
-        run: npm run build
+        run: yarn build
       - name: Lint with standard
-        run: npm run lint
+        run: yarn lint
       - name: Test with jest
-        run: npm run test
+        run: yarn test
