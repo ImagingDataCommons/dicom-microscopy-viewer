@@ -48,7 +48,7 @@
     "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
     "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
-    "webpack:watch": "webpack --progress --watch  --config ./config/webpack"
+    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle"
   },
   "devDependencies": {
     "@babel/core": "^7.17",
