@@ -600,8 +600,8 @@ const doContentItemsMatch = (contentItem1, contentItem2) => {
  *
  * @private
  */
-async function _fetchBulkdata ({ client, reference }) {
-  const retrieveOptions = { BulkDataURI: reference.BulkDataURI }
+async function _fetchBulkdata ({ client, reference, options }) {
+  const retrieveOptions = { BulkDataURI: reference.BulkDataURI, ...options }
   return await client.retrieveBulkData(retrieveOptions).then(data => {
     const byteArray = new Uint8Array(data[0])
     if (reference.vr === 'OB') {
@@ -661,6 +661,20 @@ function rgb2hex (values) {
   return '#' + (0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1)
 }
 
+function throttle(mainFunction, delay) {
+  let timerFlag = null; // Variable to keep track of the timer
+
+  // Returning a throttled version
+  return (...args) => {
+    if (timerFlag === null) { // If there is no timer currently running
+      mainFunction(...args); // Execute the main function
+      timerFlag = setTimeout(() => { // Set a timer to clear the timerFlag after the specified delay
+        timerFlag = null; // Clear the timerFlag to allow the main function to be executed again
+      }, delay);
+    }
+  };
+}
+
 export {
   _getUnitSuffix,
   applyInverseTransform,
@@ -680,5 +694,6 @@ export {
   areCodedConceptsEqual,
   getContentItemNameCodedConcept,
   rgb2hex,
-  rescale
+  rescale,
+  throttle,
 }
