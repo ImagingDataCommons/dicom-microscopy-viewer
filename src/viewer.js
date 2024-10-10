@@ -3362,6 +3362,8 @@ class VolumeImageViewer {
        * ellipse or rectangle is counted as one Annotation.
        */
       const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
+      console.log("AnnotationGroupUID:", metadataItem.AnnotationGroupUID, "NumberOfAnnotations:", numberOfAnnotations)
+
       /** Point, Open/Closed Polygon, Circle, Ellipse, etc. */
       const graphicType = metadataItem.GraphicType
       /** 2D or 3D dimentionality: (x, y) if value 2 and (x, y, z) if value 3. */
