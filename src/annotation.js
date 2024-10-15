@@ -239,14 +239,14 @@ async function _fetchGraphicData ({
         console.info(`Loaded ${Math.round(progressEvent.loaded / 1024 / 1024 * 100) / 100} MB from annotation group "${uid}"`)
       }
       const options = {
-        progressCallback: throttle(progressCallback, 1000),
+        progressCallback: throttle(progressCallback, 1000)
       }
       if ('PointCoordinatesData' in bulkdataItem) {
         console.info(`fetch point coordinate data of annotation group "${uid}"`)
         return await _fetchBulkdata({
           client,
           reference: bulkdataItem.PointCoordinatesData,
-          options,
+          options
         })
       } else if ('DoublePointCoordinatesData' in bulkdataItem) {
         console.info(`fetch point coordinate data of annotation group "${uid}"`)
