@@ -236,7 +236,7 @@ async function _fetchGraphicData ({
       )
     } else {
       const progressCallback = (progressEvent) => {
-        console.info(`Loaded ${Math.round(progressEvent.loaded / 1024 / 1024 * 100) / 100} MB from annotation group "${uid}"`)
+        console.debug(`Loaded ${Math.round(progressEvent.loaded / 1024 / 1024 * 100) / 100} MB from annotation group "${uid}"`)
       }
       const options = {
         progressCallback: throttle(progressCallback, 1000)
