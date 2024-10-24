@@ -1,5 +1,5 @@
 import dcmjs from 'dcmjs'
-import { _fetchBulkdata } from './utils.js'
+import { _fetchBulkdata, throttle } from './utils.js'
 
 const _attrs = Symbol('attrs')
 
@@ -235,17 +235,25 @@ async function _fetchGraphicData ({
         `Could not find bulkdata of annotation group "${uid}".`
       )
     } else {
+      const progressCallback = (progressEvent) => {
+        console.debug(`Loaded ${Math.round(progressEvent.loaded / 1024 / 1024 * 100) / 100} MB from annotation group "${uid}"`)
+      }
+      const options = {
+        progressCallback: throttle(progressCallback, 1000)
+      }
       if ('PointCoordinatesData' in bulkdataItem) {
         console.info(`fetch point coordinate data of annotation group "${uid}"`)
         return await _fetchBulkdata({
           client,
-          reference: bulkdataItem.PointCoordinatesData
+          reference: bulkdataItem.PointCoordinatesData,
+          options
         })
       } else if ('DoublePointCoordinatesData' in bulkdataItem) {
         console.info(`fetch point coordinate data of annotation group "${uid}"`)
         return await _fetchBulkdata({
           client,
-          reference: bulkdataItem.DoublePointCoordinatesData
+          reference: bulkdataItem.DoublePointCoordinatesData,
+          options
         })
       } else {
         /** Attempt to retrieve it from P10 */
