@@ -4283,6 +4283,7 @@ class VolumeImageViewer {
 
       const defaultSegmentStyle = {
         opacity: 0.75,
+        backgroundOpacity: 0,
         paletteColorLookupTable: buildPaletteColorLookupTable({
           data: colormap,
           firstValueMapped: 0
@@ -4342,13 +4343,16 @@ class VolumeImageViewer {
         source,
         extent: this[_pyramid].extent,
         visible: false,
-        opacity: 0.9,
+        opacity: 1,
         preload: this[_options].preload ? 1 : 0,
         transition: 0,
         style: _getColorPaletteStyleForTileLayer({
           windowCenter,
           windowWidth,
-          colormap: segment.style.paletteColorLookupTable.data
+          colormap: [
+            [...segment.style.paletteColorLookupTable.data.at(0), defaultSegmentStyle.backgroundOpacity],
+            [...segment.style.paletteColorLookupTable.data.at(-1)],
+          ],
         }),
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
