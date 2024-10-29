@@ -4351,8 +4351,8 @@ class VolumeImageViewer {
           windowWidth,
           colormap: [
             [...segment.style.paletteColorLookupTable.data.at(0), defaultSegmentStyle.backgroundOpacity],
-            [...segment.style.paletteColorLookupTable.data.at(-1)],
-          ],
+            [...segment.style.paletteColorLookupTable.data.at(-1)]
+          ]
         }),
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
