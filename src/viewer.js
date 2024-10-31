@@ -3362,6 +3362,8 @@ class VolumeImageViewer {
        * ellipse or rectangle is counted as one Annotation.
        */
       const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
+      console.debug('AnnotationGroupUID:', metadataItem.AnnotationGroupUID, 'NumberOfAnnotations:', numberOfAnnotations)
+
       /** Point, Open/Closed Polygon, Circle, Ellipse, etc. */
       const graphicType = metadataItem.GraphicType
       /** 2D or 3D dimentionality: (x, y) if value 2 and (x, y, z) if value 3. */
@@ -4281,6 +4283,7 @@ class VolumeImageViewer {
 
       const defaultSegmentStyle = {
         opacity: 0.75,
+        backgroundOpacity: 0,
         paletteColorLookupTable: buildPaletteColorLookupTable({
           data: colormap,
           firstValueMapped: 0
@@ -4340,13 +4343,16 @@ class VolumeImageViewer {
         source,
         extent: this[_pyramid].extent,
         visible: false,
-        opacity: 0.9,
+        opacity: 1,
         preload: this[_options].preload ? 1 : 0,
         transition: 0,
         style: _getColorPaletteStyleForTileLayer({
           windowCenter,
           windowWidth,
-          colormap: segment.style.paletteColorLookupTable.data
+          colormap: [
+            [...segment.style.paletteColorLookupTable.data.at(0), defaultSegmentStyle.backgroundOpacity],
+            [...segment.style.paletteColorLookupTable.data.at(-1)]
+          ]
         }),
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
