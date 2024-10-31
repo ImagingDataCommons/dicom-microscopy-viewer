@@ -1471,6 +1471,14 @@ class VolumeImageViewer {
       })
     })
 
+    this[_map].on('movestart', (event) => {
+      publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event });
+    });
+
+    this[_map].on('moveend', (event) => {
+      publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event });
+    });
+
     let clickEvent = null
 
     this[_map].on('pointermove', (event) => {
@@ -5285,6 +5293,14 @@ class _NonVolumeImageViewer {
       controls: [],
       keyboardEventTarget: document
     })
+
+    this[_map].on('movestart', (event) => {
+      publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event });
+    });
+
+    this[_map].on('moveend', (event) => {
+      publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event });
+    });
 
     view.fit(projection.getExtent(), { size: this[_map].getSize() })
   }
