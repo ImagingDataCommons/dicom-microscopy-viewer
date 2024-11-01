@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.47.0",
+  "version": "0.47.1",
   "license": "MIT",
   "author": "ImagingDataCommons",
   "homepage": "https://github.com/imagingdatacommons/dicom-microscopy-viewer#readme",
@@ -41,7 +41,7 @@
     "prepublishOnly": "npm run build",
     "generateStaticSite": "npm run build && cp -R ./dist ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
-    "fmt": "standard 'src/**/.js' --fix",
+    "fmt": "standard 'src/**/*.js' --fix",
     "lint": "standard 'src/**/*.js'",
     "clean": "rm -rf ./dist ./node_modules",
     "clean:dist": "rm -rf ./dist",
@@ -90,5 +90,8 @@
     "mathjs": "^11.2",
     "ol": "^7.5.1",
     "uuid": "^9.0"
+  },
+  "resolutions": {
+    "braces": "3.0.3"
   }
 }
