@@ -454,6 +454,12 @@ export const getFeaturesFromBulkAnnotations = ({
 
   const { topLeft, bottomRight } = getViewportBoundingBox({ view, pyramid, affine })
 
+  const affine = getAffineBasedOnPyramidLevel({
+    affine,
+    pyramid,
+    annotationGroup
+  })
+
   const features = []
 
   for (
@@ -478,11 +484,7 @@ export const getFeaturesFromBulkAnnotations = ({
       if (annotationCoordinateType === '2D') {
         firstCoordinate = mapPixelCoordToSlideCoord({
           point: [firstCoordinate[0], firstCoordinate[1]],
-          affine: getAffineBasedOnPyramidLevel({
-            affine,
-            pyramid,
-            annotationGroup
-          })
+          affine: affine
         })
       }
 
