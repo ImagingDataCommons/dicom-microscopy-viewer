@@ -55,29 +55,15 @@ export const isCoordinateInsideBoundingBox = (
   topLeft,
   bottomRight
 ) => {
-  const result = !(
-    Math.abs(topLeft[0]) > Math.abs(coordinate[0]) ||
-    Math.abs(coordinate[0]) > Math.abs(bottomRight[0]) ||
-    Math.abs(topLeft[1]) > Math.abs(coordinate[1]) ||
-    Math.abs(coordinate[1]) > Math.abs(bottomRight[1])
-  ) || !(
-    Math.abs(bottomRight[0]) > Math.abs(coordinate[0]) ||
-    Math.abs(coordinate[0]) > Math.abs(topLeft[0]) ||
-    Math.abs(bottomRight[1]) > Math.abs(coordinate[1]) ||
-    Math.abs(coordinate[1]) > Math.abs(topLeft[1])
-  )
-  if (result === true) {
-    return result
-  } else {
-    swapIfGreater(topLeft, bottomRight, 0)
-    swapIfGreater(topLeft, bottomRight, 1)
-    return !(
-      Math.abs(topLeft[0]) > Math.abs(coordinate[0]) ||
-      Math.abs(coordinate[0]) > Math.abs(bottomRight[0]) ||
-      Math.abs(topLeft[1]) > Math.abs(coordinate[1]) ||
-      Math.abs(coordinate[1]) > Math.abs(bottomRight[1])
-    )
-  }
+  let minX = Math.min(topLeft[0], bottomRight[0]);
+  let maxX = Math.max(topLeft[0], bottomRight[0]);
+  let minY = Math.min(topLeft[1], bottomRight[1]); 
+  let maxY = Math.max(topLeft[1], bottomRight[1]);
+
+  return coordinate[0] >= minX && 
+          coordinate[0] <= maxX &&
+          coordinate[1] >= minY &&
+          coordinate[1] <= maxY;
 }
 
 /**
