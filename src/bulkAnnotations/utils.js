@@ -34,14 +34,6 @@ export const getViewportBoundingBox = ({ view, pyramid, affine }) => {
   }
 }
 
-const swapIfGreater = (array1, array2, index) => {
-  if (array1[index] > array2[index]) {
-    const temp = array1[index]
-    array1[index] = array2[index]
-    array2[index] = temp
-  }
-}
-
 /**
  * Check if coordinate is inside bounding box
  *
@@ -55,15 +47,15 @@ export const isCoordinateInsideBoundingBox = (
   topLeft,
   bottomRight
 ) => {
-  let minX = Math.min(topLeft[0], bottomRight[0]);
-  let maxX = Math.max(topLeft[0], bottomRight[0]);
-  let minY = Math.min(topLeft[1], bottomRight[1]); 
-  let maxY = Math.max(topLeft[1], bottomRight[1]);
+  const minX = Math.min(topLeft[0], bottomRight[0])
+  const maxX = Math.max(topLeft[0], bottomRight[0])
+  const minY = Math.min(topLeft[1], bottomRight[1])
+  const maxY = Math.max(topLeft[1], bottomRight[1])
 
-  return coordinate[0] >= minX && 
+  return coordinate[0] >= minX &&
           coordinate[0] <= maxX &&
           coordinate[1] >= minY &&
-          coordinate[1] <= maxY;
+          coordinate[1] <= maxY
 }
 
 /**
