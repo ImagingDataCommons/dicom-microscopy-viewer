@@ -4486,7 +4486,7 @@ class VolumeImageViewer {
    *
    * @param {Object} segment - The segment for which to show the overlay
    */
-  addOverlay(segment) {
+  addOverlay (segment) {
     let title = segment.segment.propertyType.CodeMeaning
     const padding = Math.round((16 - title.length) / 2)
     title = title.padStart(title.length + padding)
@@ -4554,8 +4554,8 @@ class VolumeImageViewer {
       segment.layer.setOpacity(styleOptions.opacity)
     }
 
-    if(segment.segmentationType === 'FRACTIONAL'){
-      this.addOverlay(segment);
+    if (segment.segmentationType === 'FRACTIONAL') {
+      this.addOverlay(segment)
     }
   }
 
