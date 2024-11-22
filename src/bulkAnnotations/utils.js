@@ -34,14 +34,6 @@ export const getViewportBoundingBox = ({ view, pyramid, affine }) => {
   }
 }
 
-const swapIfGreater = (array1, array2, index) => {
-  if (array1[index] > array2[index]) {
-    const temp = array1[index]
-    array1[index] = array2[index]
-    array2[index] = temp
-  }
-}
-
 /**
  * Check if coordinate is inside bounding box
  *
@@ -55,29 +47,15 @@ export const isCoordinateInsideBoundingBox = (
   topLeft,
   bottomRight
 ) => {
-  const result = !(
-    Math.abs(topLeft[0]) > Math.abs(coordinate[0]) ||
-    Math.abs(coordinate[0]) > Math.abs(bottomRight[0]) ||
-    Math.abs(topLeft[1]) > Math.abs(coordinate[1]) ||
-    Math.abs(coordinate[1]) > Math.abs(bottomRight[1])
-  ) || !(
-    Math.abs(bottomRight[0]) > Math.abs(coordinate[0]) ||
-    Math.abs(coordinate[0]) > Math.abs(topLeft[0]) ||
-    Math.abs(bottomRight[1]) > Math.abs(coordinate[1]) ||
-    Math.abs(coordinate[1]) > Math.abs(topLeft[1])
-  )
-  if (result === true) {
-    return result
-  } else {
-    swapIfGreater(topLeft, bottomRight, 0)
-    swapIfGreater(topLeft, bottomRight, 1)
-    return !(
-      Math.abs(topLeft[0]) > Math.abs(coordinate[0]) ||
-      Math.abs(coordinate[0]) > Math.abs(bottomRight[0]) ||
-      Math.abs(topLeft[1]) > Math.abs(coordinate[1]) ||
-      Math.abs(coordinate[1]) > Math.abs(bottomRight[1])
-    )
-  }
+  const minX = Math.min(topLeft[0], bottomRight[0])
+  const maxX = Math.max(topLeft[0], bottomRight[0])
+  const minY = Math.min(topLeft[1], bottomRight[1])
+  const maxY = Math.max(topLeft[1], bottomRight[1])
+
+  return coordinate[0] >= minX &&
+          coordinate[0] <= maxX &&
+          coordinate[1] >= minY &&
+          coordinate[1] <= maxY
 }
 
 /**
@@ -468,6 +446,12 @@ export const getFeaturesFromBulkAnnotations = ({
 
   const { topLeft, bottomRight } = getViewportBoundingBox({ view, pyramid, affine })
 
+  const cachedAffine = getAffineBasedOnPyramidLevel({
+    affine,
+    pyramid,
+    annotationGroup
+  })
+
   const features = []
 
   for (
@@ -492,11 +476,7 @@ export const getFeaturesFromBulkAnnotations = ({
       if (annotationCoordinateType === '2D') {
         firstCoordinate = mapPixelCoordToSlideCoord({
           point: [firstCoordinate[0], firstCoordinate[1]],
-          affine: getAffineBasedOnPyramidLevel({
-            affine,
-            pyramid,
-            annotationGroup
-          })
+          affine: cachedAffine
         })
       }
 
