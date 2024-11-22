@@ -4329,7 +4329,8 @@ class VolumeImageViewer {
           client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
           channel: segmentNumber
         },
-        hasLoader: false
+        hasLoader: false,
+        segmentationType: refSegmentation.SegmentationType
       }
 
       const source = new DataTileSource({
@@ -4359,7 +4360,7 @@ class VolumeImageViewer {
           windowWidth,
           colormap: [
             [...segment.style.paletteColorLookupTable.data.at(0), defaultSegmentStyle.backgroundOpacity],
-            [...segment.style.paletteColorLookupTable.data.at(-1)]
+            ...segment.style.paletteColorLookupTable.data.slice(1)
           ]
         }),
         useInterimTilesOnError: false,
@@ -4438,15 +4439,6 @@ class VolumeImageViewer {
       source.setLoader(loader)
     }
 
-    const view = this[_map].getView()
-    const currentZoomLevel = view.getZoom()
-    if (
-      currentZoomLevel < segment.minZoomLevel ||
-      currentZoomLevel > segment.maxZoomLevel
-    ) {
-      view.animate({ zoom: segment.minZoomLevel })
-    }
-
     segment.layer.setVisible(true)
     this.setSegmentStyle(segmentUID, styleOptions)
   }
@@ -4490,32 +4482,16 @@ class VolumeImageViewer {
   }
 
   /**
-   * Set the style of a segment.
+   * Add segment overlay. The overlay shows the color palette of the segment.
    *
-   * @param {string} segmentUID - Unique tracking identifier of segment
-   * @param {Object} styleOptions - Style options
-   * @param {number} [styleOptions.opacity] - Opacity
+   * @param {Object} segment - The segment for which to show the overlay
    */
-  setSegmentStyle (segmentUID, styleOptions = {}) {
-    if (!(segmentUID in this[_segments])) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Cannot set style of segment. ' +
-        `Could not find segment "${segmentUID}".`
-      )
-      throw this[_options].errorInterceptor(error) || error
-    }
-    const segment = this[_segments][segmentUID]
-
-    if (styleOptions.opacity != null) {
-      segment.style.opacity = styleOptions.opacity
-      segment.layer.setOpacity(styleOptions.opacity)
-    }
-
+  addOverlay(segment) {
     let title = segment.segment.propertyType.CodeMeaning
     const padding = Math.round((16 - title.length) / 2)
     title = title.padStart(title.length + padding)
     title = title.padEnd(title.length + 2 * padding)
+
     const overlayElement = segment.overlay.getElement()
     overlayElement.innerHTML = title
     overlayElement.style = {}
@@ -4553,6 +4529,34 @@ class VolumeImageViewer {
     parentElement.style.display = 'inline'
 
     this[_map].addOverlay(segment.overlay)
+  }
+
+  /**
+   * Set the style of a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @param {Object} styleOptions - Style options
+   * @param {number} [styleOptions.opacity] - Opacity
+   */
+  setSegmentStyle (segmentUID, styleOptions = {}) {
+    if (!(segmentUID in this[_segments])) {
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
+        'Cannot set style of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+      throw this[_options].errorInterceptor(error) || error
+    }
+    const segment = this[_segments][segmentUID]
+
+    if (styleOptions.opacity != null) {
+      segment.style.opacity = styleOptions.opacity
+      segment.layer.setOpacity(styleOptions.opacity)
+    }
+
+    if(segment.segmentationType === 'FRACTIONAL'){
+      this.addOverlay(segment);
+    }
   }
 
   /**
