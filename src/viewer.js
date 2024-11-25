@@ -4523,7 +4523,16 @@ class VolumeImageViewer {
       context.fillStyle = `rgb(${r}, ${g}, ${b})`
       context.fillRect(0, height / colors.length * j, width, 1)
     }
+
+    const upperBound = document.createElement('span');
+    upperBound.innerHTML = '255';
+
+    const lowerBound = document.createElement('span');
+    lowerBound.innerHTML = '0';
+
+    overlayElement.appendChild(upperBound)
     overlayElement.appendChild(canvas)
+    overlayElement.appendChild(lowerBound)
 
     const parentElement = overlayElement.parentNode
     parentElement.style.display = 'inline'
