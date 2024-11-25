@@ -4524,11 +4524,11 @@ class VolumeImageViewer {
       context.fillRect(0, height / colors.length * j, width, 1)
     }
 
-    const upperBound = document.createElement('span');
-    upperBound.innerHTML = '255';
+    const upperBound = document.createElement('span')
+    upperBound.innerHTML = '255'
 
-    const lowerBound = document.createElement('span');
-    lowerBound.innerHTML = '0';
+    const lowerBound = document.createElement('span')
+    lowerBound.innerHTML = '0'
 
     overlayElement.appendChild(upperBound)
     overlayElement.appendChild(canvas)
