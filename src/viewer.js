@@ -4420,7 +4420,7 @@ class VolumeImageViewer {
    * @param {Object} [styleOptions]
    * @param {number} [styleOptions.opacity] - Opacity
    */
-  showSegment (segmentUID, styleOptions = {}) {
+  showSegment (segmentUID, styleOptions = {}, shouldZoomIn = false) {
     if (!(segmentUID in this[_segments])) {
       const error = new CustomError(
         errorTypes.VISUALIZATION,
@@ -4440,6 +4440,18 @@ class VolumeImageViewer {
       })
       const source = segment.layer.getSource()
       source.setLoader(loader)
+    }
+
+    if (shouldZoomIn) {
+      const view = this[_map].getView()
+      const currentZoomLevel = view.getZoom()
+
+      if (
+        currentZoomLevel < segment.minZoomLevel ||
+        currentZoomLevel > segment.maxZoomLevel
+      ) {
+        view.animate({ zoom: segment.minZoomLevel })
+      }
     }
 
     segment.layer.setVisible(true)
