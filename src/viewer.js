@@ -4564,7 +4564,7 @@ class VolumeImageViewer {
     }
 
     if (segment.segmentationType === 'FRACTIONAL') {
-      this.addOverlay(segment)
+      this.addSegmentOverlay(segment)
     }
   }
 
