@@ -4486,7 +4486,7 @@ class VolumeImageViewer {
    *
    * @param {Object} segment - The segment for which to show the overlay
    */
-  addOverlay (segment) {
+  addSegmentOverlay (segment) {
     let title = segment.segment.propertyType.CodeMeaning
     const padding = Math.round((16 - title.length) / 2)
     title = title.padStart(title.length + padding)
