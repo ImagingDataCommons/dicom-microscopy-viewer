@@ -142,8 +142,8 @@ function disposeOverviewMapLayers (map) {
  */
 export function disposeLayer (layer, disposeSource = false) {
   console.info('dispose layer:', layer)
-  if(typeof layer?.getSource !== 'function'){
-    return;
+  if (typeof layer?.getSource !== 'function') {
+    return
   }
   const source = layer.getSource()
   if (disposeSource === true && source && source.clear) {
