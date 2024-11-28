@@ -142,6 +142,9 @@ function disposeOverviewMapLayers (map) {
  */
 export function disposeLayer (layer, disposeSource = false) {
   console.info('dispose layer:', layer)
+  if (typeof layer?.getSource !== 'function') {
+    return
+  }
   const source = layer.getSource()
   if (disposeSource === true && source && source.clear) {
     source.clear()
@@ -4329,7 +4332,8 @@ class VolumeImageViewer {
           client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
           channel: segmentNumber
         },
-        hasLoader: false
+        hasLoader: false,
+        segmentationType: refSegmentation.SegmentationType
       }
 
       const source = new DataTileSource({
@@ -4359,7 +4363,7 @@ class VolumeImageViewer {
           windowWidth,
           colormap: [
             [...segment.style.paletteColorLookupTable.data.at(0), defaultSegmentStyle.backgroundOpacity],
-            [...segment.style.paletteColorLookupTable.data.at(-1)]
+            ...segment.style.paletteColorLookupTable.data.slice(1)
           ]
         }),
         useInterimTilesOnError: false,
@@ -4416,7 +4420,7 @@ class VolumeImageViewer {
    * @param {Object} [styleOptions]
    * @param {number} [styleOptions.opacity] - Opacity
    */
-  showSegment (segmentUID, styleOptions = {}) {
+  showSegment (segmentUID, styleOptions = {}, shouldZoomIn = false) {
     if (!(segmentUID in this[_segments])) {
       const error = new CustomError(
         errorTypes.VISUALIZATION,
@@ -4438,13 +4442,16 @@ class VolumeImageViewer {
       source.setLoader(loader)
     }
 
-    const view = this[_map].getView()
-    const currentZoomLevel = view.getZoom()
-    if (
-      currentZoomLevel < segment.minZoomLevel ||
-      currentZoomLevel > segment.maxZoomLevel
-    ) {
-      view.animate({ zoom: segment.minZoomLevel })
+    if (shouldZoomIn) {
+      const view = this[_map].getView()
+      const currentZoomLevel = view.getZoom()
+
+      if (
+        currentZoomLevel < segment.minZoomLevel ||
+        currentZoomLevel > segment.maxZoomLevel
+      ) {
+        view.animate({ zoom: segment.minZoomLevel })
+      }
     }
 
     segment.layer.setVisible(true)
@@ -4490,32 +4497,16 @@ class VolumeImageViewer {
   }
 
   /**
-   * Set the style of a segment.
+   * Add segment overlay. The overlay shows the color palette of the segment.
    *
-   * @param {string} segmentUID - Unique tracking identifier of segment
-   * @param {Object} styleOptions - Style options
-   * @param {number} [styleOptions.opacity] - Opacity
+   * @param {Object} segment - The segment for which to show the overlay
    */
-  setSegmentStyle (segmentUID, styleOptions = {}) {
-    if (!(segmentUID in this[_segments])) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Cannot set style of segment. ' +
-        `Could not find segment "${segmentUID}".`
-      )
-      throw this[_options].errorInterceptor(error) || error
-    }
-    const segment = this[_segments][segmentUID]
-
-    if (styleOptions.opacity != null) {
-      segment.style.opacity = styleOptions.opacity
-      segment.layer.setOpacity(styleOptions.opacity)
-    }
-
+  addSegmentOverlay (segment) {
     let title = segment.segment.propertyType.CodeMeaning
     const padding = Math.round((16 - title.length) / 2)
     title = title.padStart(title.length + padding)
     title = title.padEnd(title.length + 2 * padding)
+
     const overlayElement = segment.overlay.getElement()
     overlayElement.innerHTML = title
     overlayElement.style = {}
@@ -4547,12 +4538,49 @@ class VolumeImageViewer {
       context.fillStyle = `rgb(${r}, ${g}, ${b})`
       context.fillRect(0, height / colors.length * j, width, 1)
     }
+
+    const upperBound = document.createElement('span')
+    upperBound.innerHTML = '255'
+
+    const lowerBound = document.createElement('span')
+    lowerBound.innerHTML = '0'
+
+    overlayElement.appendChild(upperBound)
     overlayElement.appendChild(canvas)
+    overlayElement.appendChild(lowerBound)
 
     const parentElement = overlayElement.parentNode
     parentElement.style.display = 'inline'
 
     this[_map].addOverlay(segment.overlay)
+  }
+
+  /**
+   * Set the style of a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @param {Object} styleOptions - Style options
+   * @param {number} [styleOptions.opacity] - Opacity
+   */
+  setSegmentStyle (segmentUID, styleOptions = {}) {
+    if (!(segmentUID in this[_segments])) {
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
+        'Cannot set style of segment. ' +
+        `Could not find segment "${segmentUID}".`
+      )
+      throw this[_options].errorInterceptor(error) || error
+    }
+    const segment = this[_segments][segmentUID]
+
+    if (styleOptions.opacity != null) {
+      segment.style.opacity = styleOptions.opacity
+      segment.layer.setOpacity(styleOptions.opacity)
+    }
+
+    if (segment.segmentationType === 'FRACTIONAL') {
+      this.addSegmentOverlay(segment)
+    }
   }
 
   /**
