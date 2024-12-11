@@ -204,15 +204,22 @@ function _computeImagePyramid ({ metadata }) {
       (totalPixelMatrixColumns * pixelSpacing[1]).toFixed(4),
       (totalPixelMatrixRows * pixelSpacing[0]).toFixed(4)
     ])
+    let zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns
+    const roundedZoomFactor = Math.round(zoomFactor)
     /*
     * Compute the resolution at each pyramid level, since the zoom
     * factor may not be the same between adjacent pyramid levels.
+    *
+    * Round is conditional to avoid openlayers resolutions error.
+    * The resolutions array should be composed of unique values in descending order.
     */
-    const zoomFactor = Math.round(
-      baseTotalPixelMatrixColumns / totalPixelMatrixColumns
-    )
+    if (pyramidResolutions.includes(roundedZoomFactor)) {
+      console.warn('resolution conflict rounding zoom factor (baseTotalPixelMatrixColumns / totalPixelMatrixColumns): ', zoomFactor)
+      zoomFactor = parseFloat(zoomFactor.toFixed(2))
+    } else {
+      zoomFactor = roundedZoomFactor
+    }
     pyramidResolutions.push(zoomFactor)
-
     pyramidOrigins.push(offset)
   }
   pyramidResolutions.reverse()
