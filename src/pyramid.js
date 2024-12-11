@@ -213,11 +213,13 @@ function _computeImagePyramid ({ metadata }) {
     * Round is conditional to avoid openlayers resolutions error.
     * The resolutions array should be composed of unique values in descending order.
     */
-    zoomFactor = pyramidResolutions.includes(roundedZoomFactor)
-      ? zoomFactor.toFixed(3)
-      : roundedZoomFactor
+    if (pyramidResolutions.includes(roundedZoomFactor)) {
+      console.warn('resolution conflict rounding zoom factor (baseTotalPixelMatrixColumns / totalPixelMatrixColumns): ', zoomFactor)
+      zoomFactor = parseFloat(zoomFactor.toFixed(2))
+    } else {
+      zoomFactor = roundedZoomFactor
+    }
     pyramidResolutions.push(zoomFactor)
-
     pyramidOrigins.push(offset)
   }
   pyramidResolutions.reverse()
