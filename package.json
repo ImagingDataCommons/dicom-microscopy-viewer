@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.45.1",  
+  "version": "0.47.3",
   "license": "MIT",
   "author": "ImagingDataCommons",
   "homepage": "https://github.com/imagingdatacommons/dicom-microscopy-viewer#readme",
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/imagingdatacommons/dicom-microscopy-viewer.git"
+    "url": "https://github.com/imagingdatacommons/dicom-microscopy-viewer.git"
   },
   "keywords": [
     "dicom",
@@ -41,13 +41,14 @@
     "prepublishOnly": "npm run build",
     "generateStaticSite": "npm run build && cp -R ./dist ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
-    "fmt": "standard 'src/**/.js' --fix",
+    "fmt": "standard 'src/**/*.js' --fix",
     "lint": "standard 'src/**/*.js'",
     "clean": "rm -rf ./dist ./node_modules",
+    "clean:dist": "rm -rf ./dist",
     "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
     "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
-    "webpack:watch": "webpack --progress --watch  --config ./config/webpack"
+    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle"
   },
   "devDependencies": {
     "@babel/core": "^7.17",
@@ -66,7 +67,7 @@
     "css-loader": "^6.7.1",
     "jest": "^27.5",
     "jest-canvas-mock": "^2.3",
-    "jsdoc": "^3.6",
+    "jsdoc": "^4.0.2",
     "open-cli": "^7.0.1",
     "standard": "^17.0",
     "terser-webpack-plugin": "^5.2.2",
@@ -77,16 +78,20 @@
     "worker-loader": "^3.0.8"
   },
   "dependencies": {
-    "@cornerstonejs/codec-charls": "^1.2.1",
-    "@cornerstonejs/codec-libjpeg-turbo-8bit": "^1.2.1",
-    "@cornerstonejs/codec-openjpeg": "^1.2.1",
+    "@cornerstonejs/codec-charls": "^1.2.3",
+    "@cornerstonejs/codec-libjpeg-turbo-8bit": "^1.2.2",
+    "@cornerstonejs/codec-openjpeg": "^1.2.2",
+    "dicomweb-client": "^0.10.3",
+    "@cornerstonejs/codec-openjph": "^2.4.5",
     "colormap": "^2.3",
-    "dcmjs": "^0.27",
+    "dcmjs": "^0.29.8",
     "dicomicc": "^0.1",
-    "dicomweb-client": "^0.8",
     "image-type": "^4.1",
     "mathjs": "^11.2",
-    "ol": "^7.1",
+    "ol": "^7.5.1",
     "uuid": "^9.0"
+  },
+  "resolutions": {
+    "braces": "3.0.3"
   }
 }
