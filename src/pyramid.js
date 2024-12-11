@@ -209,7 +209,7 @@ function _computeImagePyramid ({ metadata }) {
     /*
     * Compute the resolution at each pyramid level, since the zoom
     * factor may not be the same between adjacent pyramid levels.
-    * 
+    *
     * Round is conditional to avoid openlayers resolutions error.
     * The resolutions array should be composed of unique values in descending order.
     */
