@@ -766,6 +766,7 @@ const _tileGrid = Symbol('tileGrid')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 const _annotationOptions = Symbol('annotationOptions')
 const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
+const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
 
 /**
@@ -815,6 +816,7 @@ class VolumeImageViewer {
     this[_isICCProfilesEnabled] = true
     this[_container] = null
     this[_clients] = {}
+    this[_iccProfiles] = []
 
     if (this[_options].client) {
       this[_clients].default = this[_options].client
@@ -1966,7 +1968,16 @@ class VolumeImageViewer {
     }
   }
 
-    /**
+  /**
+   * Get ICC profiles.
+   *
+   * @returns {any[]} ICC profiles
+   */
+  getICCProfiles () {
+    return this[_iccProfiles] || []
+  }
+
+  /**
    * Toggle ICC profiles.
    *
    * @returns {void}
@@ -1986,7 +1997,7 @@ class VolumeImageViewer {
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
       _getIccProfiles(metadata, client).then(profiles => {
-        console.debug('icc profiles (render):', profiles)
+        this[_iccProfiles] = profiles
         const source = item.layer.getSource()
         if (!source) {
           return
@@ -2003,26 +2014,6 @@ class VolumeImageViewer {
         const loader = this[_isICCProfilesEnabled] ? loaderWithICCProfiles : loaderWithoutICCProfiles
         source.setLoader(loader)
         source.refresh()
-        // item.layer.changed()
-        // source.changed()
-        //this[_map].updateSize()
-        // var params = source.getParams();
-        // params.t = new Date().getMilliseconds();
-        // source.updateParams(params); 
-        // source.tileCache.expireCache({});
-        // source.tileCache.clear();
-        // source.refresh();
-        // source.clear();
-        // source.setProperties({ TIMESTAMP: Date.now() })
-        // source.refresh({ force: true })
-        // item.layer.redraw();
-        // const cache = item.layer.getRenderer().getTileCache();
-        // cache.forEach((tile) => {
-        //   source.removeSourceTiles(tile);
-        // });
-        // cache.clear();
-        // item.layer.changed();
-
         item.hasLoader = true
       })
     })
@@ -2064,6 +2055,7 @@ class VolumeImageViewer {
       )
       _getIccProfiles(metadata, client).then(profiles => {
         console.debug('icc profiles (optical path):', profiles)
+        this[_iccProfiles] = profiles
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
@@ -2180,6 +2172,7 @@ class VolumeImageViewer {
    */
   render ({ container }) {
     window.toggleICCProfiles = this.toggleICCProfiles.bind(this)
+    window.getICCProfiles = this.getICCProfiles.bind(this)
     window.cleanup = this.cleanup.bind(this)
 
     if (container == null) {
@@ -2209,12 +2202,11 @@ class VolumeImageViewer {
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
       _getIccProfiles(metadata, client).then(profiles => {
-        console.debug('icc profiles (render):', profiles)
+        this[_iccProfiles] = profiles
         const source = item.layer.getSource()
         if (!source) {
           return
         }
-        console.debug('is ICC profiles enabled:', this[_isICCProfilesEnabled])
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: this[_isICCProfilesEnabled] ? profiles : null,
