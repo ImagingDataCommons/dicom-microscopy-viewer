@@ -88,7 +88,7 @@
     "dicomicc": "^0.1",
     "image-type": "^4.1",
     "mathjs": "^11.2",
-    "ol": "^7.5.1",
+    "ol": "^10.4.0",
     "uuid": "^9.0"
   },
   "resolutions": {

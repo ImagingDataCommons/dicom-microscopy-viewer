@@ -765,6 +765,8 @@ const _rotation = Symbol('rotation')
 const _tileGrid = Symbol('tileGrid')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 const _annotationOptions = Symbol('annotationOptions')
+const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
+const _container = Symbol('container')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -810,8 +812,10 @@ class VolumeImageViewer {
     this[_options] = options
     this[_retrievedBulkdata] = {}
     this[_annotationOptions] = {}
-
+    this[_isICCProfilesEnabled] = true
+    this[_container] = null
     this[_clients] = {}
+
     if (this[_options].client) {
       this[_clients].default = this[_options].client
     } else {
@@ -1614,7 +1618,6 @@ class VolumeImageViewer {
     }
     if (this[_options].controls.has('position')) {
       this[_controls].position = new MousePosition({
-        projection: this[_projection],
         coordinateFormat: (imageCoordinates) => {
           const slideCoordinates = _geometryCoordinates2scoord3dCoordinates(
             imageCoordinates,
@@ -1963,6 +1966,70 @@ class VolumeImageViewer {
     }
   }
 
+    /**
+   * Toggle ICC profiles.
+   *
+   * @returns {void}
+   */
+  toggleICCProfiles () {
+    console.debug('toggle ICC profiles:', this[_isICCProfilesEnabled])
+    const itemsRequiringDecodersAndTransformers = [
+      ...Object.values(this[_opticalPaths]),
+      ...Object.values(this[_segments]),
+      ...Object.values(this[_mappings])
+    ]
+
+    itemsRequiringDecodersAndTransformers.forEach(item => {
+      const metadata = item.pyramid.metadata
+      const client = _getClient(
+        this[_clients],
+        Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
+      )
+      _getIccProfiles(metadata, client).then(profiles => {
+        console.debug('icc profiles (render):', profiles)
+        const source = item.layer.getSource()
+        if (!source) {
+          return
+        }
+        const loaderWithICCProfiles = _createTileLoadFunction({
+          targetElement: this[_container],
+          iccProfiles: profiles,
+          ...item.loaderParams
+        })
+        const loaderWithoutICCProfiles = _createTileLoadFunction({
+          targetElement: this[_container],
+          ...item.loaderParams
+        })
+        const loader = this[_isICCProfilesEnabled] ? loaderWithICCProfiles : loaderWithoutICCProfiles
+        source.setLoader(loader)
+        source.refresh()
+        // item.layer.changed()
+        // source.changed()
+        //this[_map].updateSize()
+        // var params = source.getParams();
+        // params.t = new Date().getMilliseconds();
+        // source.updateParams(params); 
+        // source.tileCache.expireCache({});
+        // source.tileCache.clear();
+        // source.refresh();
+        // source.clear();
+        // source.setProperties({ TIMESTAMP: Date.now() })
+        // source.refresh({ force: true })
+        // item.layer.redraw();
+        // const cache = item.layer.getRenderer().getTileCache();
+        // cache.forEach((tile) => {
+        //   source.removeSourceTiles(tile);
+        // });
+        // cache.clear();
+        // item.layer.changed();
+
+        item.hasLoader = true
+      })
+    })
+
+    this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+  }
+
   /**
    * Show an optical path.
    *
@@ -1996,6 +2063,7 @@ class VolumeImageViewer {
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
       _getIccProfiles(metadata, client).then(profiles => {
+        console.debug('icc profiles (optical path):', profiles)
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
@@ -2111,12 +2179,15 @@ class VolumeImageViewer {
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render ({ container }) {
+    window.toggleICCProfiles = this.toggleICCProfiles.bind(this)
     window.cleanup = this.cleanup.bind(this)
 
     if (container == null) {
       console.error('container must be provided for rendering images')
       return
     }
+
+    this[_container] = container
 
     const itemsRequiringDecodersAndTransformers = [
       ...Object.values(this[_opticalPaths]),
@@ -2138,13 +2209,15 @@ class VolumeImageViewer {
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
       _getIccProfiles(metadata, client).then(profiles => {
+        console.debug('icc profiles (render):', profiles)
         const source = item.layer.getSource()
         if (!source) {
           return
         }
+        console.debug('is ICC profiles enabled:', this[_isICCProfilesEnabled])
         const loader = _createTileLoadFunction({
           targetElement: container,
-          iccProfiles: profiles,
+          iccProfiles: this[_isICCProfilesEnabled] ? profiles : null,
           ...item.loaderParams
         })
         source.setLoader(loader)
