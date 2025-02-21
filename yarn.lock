@@ -2799,16 +2799,16 @@ data-urls@^2.0.0:
     whatwg-mimetype "^2.3.0"
     whatwg-url "^8.0.0"
 
-dcmjs@^0.29.8:
-  version "0.29.11"
-  resolved "https://registry.yarnpkg.com/dcmjs/-/dcmjs-0.29.11.tgz#82e19d7c5212218c3225f8022ce97b0102ed3cc8"
-  integrity sha512-B5fO5D+USzfnuUG7ephnaKMluqBOP4qcckV2LgROXvn0hmWc53Gs2YzlokjcYcDeBAXNfssOOhDekUc+AduwkQ==
+dcmjs@^0.38.1:
+  version "0.38.1"
+  resolved "https://registry.yarnpkg.com/dcmjs/-/dcmjs-0.38.1.tgz#9c39813ac2717a8efc62d1db64ce8a723e8efae8"
+  integrity sha512-amSv71Gs/Yd8DRLcvS15dGlcWjpSHt5h6NTj8ozWRRuKIP5BgXhAnPPzrsJTXs+LDm13JDA8Ip2/7WLo5qfzhA==
   dependencies:
     "@babel/runtime-corejs3" "^7.22.5"
     adm-zip "^0.5.10"
     gl-matrix "^3.1.0"
     lodash.clonedeep "^4.5.0"
-    loglevelnext "^3.0.1"
+    loglevel "^1.8.1"
     ndarray "^1.0.19"
     pako "^2.0.4"
 
@@ -5243,10 +5243,10 @@ lodash@^4.17.15, lodash@^4.17.20, lodash@^4.17.21, lodash@^4.7.0:
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz#679591c564c3bffaae8454cf0b3df370c3d6911c"
   integrity sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==
 
-loglevelnext@^3.0.1:
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/loglevelnext/-/loglevelnext-3.0.1.tgz#e3e4659c4061c09264f6812c33586dc55a009a04"
-  integrity sha512-JpjaJhIN1reaSb26SIxDGtE0uc67gPl19OMVHrr+Ggt6b/Vy60jmCtKgQBrygAH0bhRA2nkxgDvM+8QvR8r0YA==
+loglevel@^1.8.1:
+  version "1.9.2"
+  resolved "https://registry.yarnpkg.com/loglevel/-/loglevel-1.9.2.tgz#c2e028d6c757720107df4e64508530db6621ba08"
+  integrity sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==
 
 loose-envify@^1.4.0:
   version "1.4.0"
