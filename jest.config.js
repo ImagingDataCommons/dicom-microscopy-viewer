@@ -16,7 +16,7 @@ module.exports = {
     '\\.(wasm)$': '<rootDir>/src/__mocks__/wasmMock.js'
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(ol|@cornerstonejs|dicomicc)/)' // <- transform libraries
+    'node_modules/(?!(ol|@cornerstonejs|dicomicc|rbush|color-rgba|color-parse|color-name|color-space|quickselect|earcut)/)' // <- transform libraries
   ],
   testMatch: [
     '<rootDir>/src/**/*.test.js'
