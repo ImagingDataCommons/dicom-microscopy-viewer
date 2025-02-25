@@ -3764,7 +3764,6 @@ class VolumeImageViewer {
           ? annotationGroup.layers[0]
           : annotationGroup.layers[1]
 
-
       /** Switch low and high res layers when zoom changes */
       if (graphicType !== 'POINT') {
         this[_map].on('moveend', () => {
@@ -5434,6 +5433,7 @@ class _NonVolumeImageViewer {
 
       options.client.retrieveInstanceRendered(retrieveOptions).then(
         (thumbnail) => {
+          // eslint-disable-next-line no-undef
           const blob = new Blob([thumbnail], { type: mediaType })
           image.getImage().src = window.URL.createObjectURL(blob)
           image.getImage().onload = () => {
@@ -5634,7 +5634,7 @@ class LabelImageViewer extends _NonVolumeImageViewer {
     if (options.orientation === undefined) {
       options.orientation = 'vertical'
     }
-    
+
     super(options)
 
     this[_errorInterceptor] = options.errorInterceptor || (error => error)
