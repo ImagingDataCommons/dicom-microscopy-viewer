@@ -3817,44 +3817,55 @@ class VolumeImageViewer {
      */
     let selectedAnnotation = null
     this[_map].on('singleclick', (event) => {
-      if (event !== null) {
-        if (selectedAnnotation !== null) {
-          selectedAnnotation.set('selected', 0)
-          selectedAnnotation = null
-        }
-        const container = this[_map].getTargetElement()
-        this[_map].forEachFeatureAtPixel(
-          event.pixel,
-          (feature) => {
-            if (feature !== null) {
-              feature.set('selected', 1)
-              selectedAnnotation = feature
-              const roi = this._getROIFromFeature(
-                feature,
-                this[_pyramid].metadata,
-                this[_affine]
-              )
-              const extendedROI = getExtendedROI({ feature, roi, metadata })
-              publish(
-                container,
-                EVENT.ROI_SELECTED,
-                extendedROI
-              )
-              return true
-            }
-            return false
-          },
-          {
-            hitTolerance: 1,
-            layerFilter: (layer) => (layer instanceof VectorLayer)
-          }
-        )
+      if (selectedAnnotation !== null) {
+        selectedAnnotation.set('selected', 0)
+        selectedAnnotation = null
       }
+
       const container = this[_map].getTargetElement()
+      if (!container) {
+        return
+      }
+
+      /**
+       * Select an annotation when clicked.
+       * Opens a dialog with ROI information.
+       */
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
-          if (feature !== null) {
+          if (feature !== null && feature.getId() !== undefined) {
+            feature.set('selected', 1)
+            selectedAnnotation = feature
+            const roi = this._getROIFromFeature(
+              feature,
+              this[_pyramid].metadata,
+              this[_affine]
+            )
+            const extendedROI = getExtendedROI({ feature, roi, metadata })
+            publish(
+              container,
+              EVENT.ROI_SELECTED,
+              extendedROI
+            )
+            return true
+          }
+          return false
+        },
+        {
+          hitTolerance: 1,
+          layerFilter: (layer) => (layer instanceof VectorLayer)
+        }
+      )
+
+      /**
+       * Select an annotation when clicked.
+       * Opens a dialog with ROI information.
+       */
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          if (feature !== null && feature.getId() !== undefined) {
             feature.set('selected', 1)
             selectedAnnotation = feature
             const roi = this._getROIFromFeature(
@@ -5428,6 +5439,7 @@ class _NonVolumeImageViewer {
           image.getImage().onload = () => {
             window.URL.revokeObjectURL(image.getImage().src)
           }
+
           console.debug('Thumbnail blob:', image.getImage().src)
         }
       )
@@ -5513,6 +5525,8 @@ class _NonVolumeImageViewer {
       console.error('container must be provided for rendering images')
       return
     }
+
+    console.debug('render', container)
 
     this[_map].setTarget(container)
     const view = this[_map].getView()
