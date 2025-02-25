@@ -145,11 +145,13 @@ export function disposeLayer (layer, disposeSource = false) {
   if (typeof layer?.getSource !== 'function') {
     return
   }
+
   const source = layer.getSource()
   if (disposeSource === true && source && source.clear) {
     source.clear()
     source.dispose()
   }
+
   layer.setSource(undefined)
   layer.dispose()
 }
@@ -738,6 +740,7 @@ function _getColorInterpolationStyleForTileLayer ({
   return { color: expression, variables }
 }
 
+const _errorInterceptor = Symbol('errorInterceptor')
 const _retrievedBulkdata = Symbol('retrievedBulkdata')
 const _affine = Symbol.for('affine')
 const _affineInverse = Symbol('affineInverse')
@@ -813,10 +816,16 @@ class VolumeImageViewer {
     this[_options] = options
     this[_retrievedBulkdata] = {}
     this[_annotationOptions] = {}
+    this[_clients] = {}
+    this[_errorInterceptor] = options.errorInterceptor || (error => error)
     this[_isICCProfilesEnabled] = true
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
+
+    this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
+    this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
+    this._onBulkAnnotationsFeaturesLoadError = this._onBulkAnnotationsFeaturesLoadError.bind(this)
 
     if (this[_options].client) {
       this[_clients].default = this[_options].client
@@ -826,22 +835,25 @@ class VolumeImageViewer {
           errorTypes.ENCODINGANDDECODING,
           'Either option "client" or option "clientMapping" must be provided .'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       if (!(typeof this[_options].clientMapping === 'object')) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
           'Option "clientMapping" must be an object.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       if (this[_options].clientMapping.default == null) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
           'Option "clientMapping" must contain "default" key.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       for (const key in this[_options].clientMapping) {
         this[_clients][key] = this[_options].clientMapping[key]
       }
@@ -879,6 +891,7 @@ class VolumeImageViewer {
     if (this[_options].primaryColor == null) {
       this[_options].primaryColor = [255, 234, 0]
     }
+
     if (this[_options].highlightColor == null) {
       this[_options].highlightColor = [140, 184, 198]
     }
@@ -912,7 +925,7 @@ class VolumeImageViewer {
         errorTypes.ENCODINGANDDECODING,
         'Input metadata must be an array.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
 
     if (this[_options].metadata.length === 0) {
@@ -920,7 +933,7 @@ class VolumeImageViewer {
         errorTypes.ENCODINGANDDECODING,
         'Input metadata array is empty.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
 
     if (this[_options].metadata.some((item) => typeof item !== 'object')) {
@@ -928,7 +941,7 @@ class VolumeImageViewer {
         errorTypes.ENCODINGANDDECODING,
         'Input metadata must be an array of objects.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
 
     // We also accept metadata in raw JSON format for backwards compatibility
@@ -981,21 +994,23 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         'Could not find any channels or color images.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     if (numChannels > 0 && numColorImages > 0) {
       const error = new CustomError(
         errorTypes.VISUALIZATION,
         'Found both channels and color images.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     if (numColorImages > 1) {
       const error = new CustomError(
         errorTypes.VISUALIZATION,
         'Found more than one color image.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
 
     /*
@@ -1076,7 +1091,6 @@ class VolumeImageViewer {
     })
 
     let mapViewResolutions = this[_tileGrid].getResolutions()
-
     if (has(this[_options], 'mapViewResolutions')) {
       mapViewResolutions = this[_options].mapViewResolutions
     }
@@ -1134,6 +1148,7 @@ class VolumeImageViewer {
             blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData
           })
         }
+
         const defaultOpticalPathStyle = {
           opacity: 1,
           limitValues: [minStoredValue, maxStoredValue]
@@ -1191,7 +1206,7 @@ class VolumeImageViewer {
             `Pyramid of optical path "${opticalPathIdentifier}" ` +
             'is different from reference pyramid.'
           )
-          throw this[_options].errorInterceptor(error) || error
+          throw this[_options].errorInterceptor(error)
         }
 
         const source = new DataTileSource({
@@ -1250,7 +1265,6 @@ class VolumeImageViewer {
             event
           )
         })
-
         opticalPath.overviewLayer = new TileLayer({
           source,
           extent: pyramid.extent,
@@ -1273,10 +1287,7 @@ class VolumeImageViewer {
       const opticalPathIdentifier = colorOpticalPathIdentifiers[0]
       const info = colorImageInformation[opticalPathIdentifier]
       const pyramid = _computeImagePyramid({ metadata: info.metadata })
-
-      const defaultOpticalPathStyle = {
-        opacity: 1
-      }
+      const defaultOpticalPathStyle = { opacity: 1 }
 
       const opticalPath = {
         opticalPathIdentifier,
@@ -1335,7 +1346,6 @@ class VolumeImageViewer {
           event
         )
       })
-
       opticalPath.overviewLayer = new TileLayer({
         source,
         extent: pyramid.extent,
@@ -1345,7 +1355,6 @@ class VolumeImageViewer {
 
       layers.push(opticalPath.layer)
       overviewLayers.push(opticalPath.overviewLayer)
-
       this[_opticalPaths][opticalPathIdentifier] = opticalPath
     }
 
@@ -1381,6 +1390,7 @@ class VolumeImageViewer {
         collapsible: true,
         rotateWithView: true
       })
+
       this[_updateOverviewMapSize] = () => {
         const degrees = this[_rotation] / Math.PI * 180
         const isRotated = !(
@@ -1393,11 +1403,11 @@ class VolumeImageViewer {
         const viewportWidthFraction = 0.25
         const targetHeight = viewportHeight * viewportHeightFraction
         const targetWidth = viewportWidth * viewportWidthFraction
-
         const extent = this[_projection].getExtent()
         let height
         let width
         let resolution
+
         if (isRotated) {
           if (targetWidth > targetHeight) {
             height = targetHeight
@@ -1419,6 +1429,7 @@ class VolumeImageViewer {
             resolution = getHeight(extent) / height
           }
         }
+
         const center = getCenter(extent)
         const overviewView = new View({
           projection: this[_projection],
@@ -1430,7 +1441,6 @@ class VolumeImageViewer {
           showFullExtent: true
         })
         const map = this[_overviewMap].getOverviewMap()
-
         const overviewElement = this[_overviewMap].element
         const overviewmapElement = Object.values(overviewElement.children).find(
           c => c.className === 'ol-overviewmap-map'
@@ -1454,6 +1464,7 @@ class VolumeImageViewer {
       features: this[_features],
       wrapX: false
     })
+
     this[_drawingLayer] = new VectorLayer({
       extent: this[_pyramid].extent,
       source: this[_drawingSource],
@@ -1461,6 +1472,7 @@ class VolumeImageViewer {
       updateWhileAnimating: true,
       updateWhileInteracting: true
     })
+
     layers.push(this[_drawingLayer])
 
     this[_map] = new Map({
@@ -1478,106 +1490,6 @@ class VolumeImageViewer {
         pinchRotate: true,
         pinchZoom: true
       })
-    })
-
-    this[_map].on('movestart', (event) => {
-      publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
-    })
-
-    this[_map].on('moveend', (event) => {
-      publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
-    })
-
-    let clickEvent = null
-
-    this[_map].on('pointermove', (event) => {
-      let featureCounter = 0
-      this[_map].forEachFeatureAtPixel(event.pixel, (feature) => {
-        const correctFeature = feature.values_?.features?.[0] || feature
-        console.debug('pointermove feature id:', correctFeature)
-        if (correctFeature?.getId()) {
-          featureCounter++
-          publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
-            feature: this._getROIFromFeature(
-              correctFeature,
-              this[_pyramid].metadata,
-              this[_affine]
-            ),
-            event
-          })
-        }
-      })
-      if (!featureCounter) {
-        publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
-          feature: null,
-          event
-        })
-      }
-    })
-
-    this[_map].on('dblclick', (event) => {
-      if (this[_interactions].draw !== undefined) {
-        return
-      }
-
-      clickEvent = 'dblclick'
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          const correctFeature = feature.values_?.features?.[0] || feature
-          console.debug('dblclick feature id:', correctFeature)
-          if (correctFeature?.getId()) {
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_SELECTED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
-              )
-            )
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_DOUBLE_CLICKED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
-              )
-            )
-          }
-          clickEvent = null
-        },
-        { hitTolerance: 1 }
-      )
-    })
-    this[_map].on('click', (event) => {
-      if (clickEvent === 'dblclick') {
-        event.preventDefault()
-        event.stopPropagation()
-        return
-      }
-      clickEvent = 'click'
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          const correctFeature = feature.values_?.features?.[0] || feature
-          console.debug('click feature id:', correctFeature)
-          if (correctFeature?.getId()) {
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_SELECTED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
-              )
-            )
-          }
-          clickEvent = null
-        },
-        { hitTolerance: 1 }
-      )
     })
 
     view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
@@ -1606,18 +1518,22 @@ class VolumeImageViewer {
         className: ''
       })
     }
+
     if (this[_options].controls.has('fullscreen')) {
       this[_controls].fullscreen = new FullScreen()
     }
+
     if (this[_options].controls.has('zoom')) {
       this[_controls].zoom = new Zoom()
       this[_controls].zoomslider = new ZoomSlider()
     }
+
     if (this[_options].controls.has('overview')) {
       if (this[_overviewMap]) {
         this[_controls].overview = this[_overviewMap]
       }
     }
+
     if (this[_options].controls.has('position')) {
       this[_controls].position = new MousePosition({
         coordinateFormat: (imageCoordinates) => {
@@ -1640,6 +1556,7 @@ class VolumeImageViewer {
         }
       })
     }
+
     for (const name in this[_controls]) {
       console.info(`add control "${name}"`)
       this[_map].addControl(this[_controls][name])
@@ -1653,6 +1570,223 @@ class VolumeImageViewer {
     })
 
     this[_overlays] = {}
+
+    this._setupMapEventListeners()
+    this._setupDrawingSourceEventListeners()
+  }
+
+  /**
+   * Set up event listeners for the map.
+   * @private
+   */
+  _setupMapEventListeners () {
+    /**
+     * Handle the start of a movement event.
+     * @private
+     */
+    this[_map].on('movestart', (event) => {
+      publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
+    })
+
+    /**
+     * Handle the end of a movement event.
+     * @private
+     */
+    this[_map].on('moveend', (event) => {
+      publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
+    })
+
+    let clickEvent = null
+
+    /**
+     * Handle pointer movement events.
+     * @private
+     */
+    this[_map].on('pointermove', (event) => {
+      let featureCounter = 0
+      this[_map].forEachFeatureAtPixel(event.pixel, (feature) => {
+        const correctFeature = feature.values_?.features?.[0] || feature
+        if (correctFeature?.getId()) {
+          featureCounter++
+          publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+            feature: this._getROIFromFeature(
+              correctFeature,
+              this[_pyramid].metadata,
+              this[_affine]
+            ),
+            event
+          })
+        }
+      })
+
+      if (!featureCounter) {
+        publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+          feature: null,
+          event
+        })
+      }
+    })
+
+    /**
+     * Handle double-click events.
+     * @private
+     */
+    this[_map].on('dblclick', (event) => {
+      if (this[_interactions].draw !== undefined) {
+        return
+      }
+
+      clickEvent = 'dblclick'
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          const correctFeature = feature.values_?.features?.[0] || feature
+          if (correctFeature?.getId()) {
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_SELECTED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+            )
+
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_DOUBLE_CLICKED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+            )
+          }
+          clickEvent = null
+        },
+        { hitTolerance: 1 }
+      )
+    })
+
+    /**
+     * Handle click events.
+     * @private
+     */
+    this[_map].on('click', (event) => {
+      if (clickEvent === 'dblclick') {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+
+      clickEvent = 'click'
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          const correctFeature = feature.values_?.features?.[0] || feature
+          if (correctFeature?.getId()) {
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_SELECTED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+            )
+          }
+          clickEvent = null
+        },
+        { hitTolerance: 1 }
+      )
+    })
+  }
+
+  /**
+   * Set up event listeners for the drawing source.
+   * @private
+   */
+  _setupDrawingSourceEventListeners () {
+    /**
+     * Handle adding a feature to the drawing source.
+     * @private
+     */
+    this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+      const container = this[_map].getTargetElement()
+      if (!container) {
+        return
+      }
+      publish(
+        container,
+        EVENT.ROI_ADDED,
+        this._getROIFromFeature(e.feature, this[_pyramid].metadata, this[_affine])
+      )
+    })
+
+    /**
+     * Handle changes to a feature in the drawing source.
+     * @private
+     */
+    this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+      const container = this[_map].getTargetElement()
+      if (!container) {
+        return
+      }
+      if (e.feature !== undefined && e.feature !== null) {
+        const geometry = e.feature.getGeometry()
+        const type = geometry.getType()
+        /*
+         * The first and last point of a polygon must be identical. The
+         * last point is an implementation detail and is hidden from the
+         * user in the graphical interface. However, we must update the
+         * last point in case the first point has been modified by the
+         * user.
+         */
+        if (type === 'Polygon') {
+          /*
+           * Polygon in GeoJSON format contains an array of geometries,
+           * where the first element represents the coordinates of the
+           * outer ring and the second element represents the coordinates
+           * of the inner ring (in our case the inner ring should not be
+           * present).
+           */
+          const layout = geometry.getLayout()
+          const coordinates = geometry.getCoordinates()
+          const firstPoint = coordinates[0][0]
+          const lastPoint = coordinates[0][coordinates[0].length - 1]
+          if (
+            firstPoint[0] !== lastPoint[0] ||
+            firstPoint[1] !== lastPoint[1]
+          ) {
+            coordinates[0][coordinates[0].length - 1] = firstPoint
+            geometry.setCoordinates(coordinates, layout)
+            e.feature.setGeometry(geometry)
+          }
+        }
+      }
+
+      publish(
+        container,
+        EVENT.ROI_MODIFIED,
+        this._getROIFromFeature(e.feature, this[_pyramid].metadata, this[_affine])
+      )
+    })
+
+    /**
+     * Remove a feature from the drawing source.
+     * @private
+     */
+    this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
+      const container = this[_map].getTargetElement()
+      if (!container) {
+        return
+      }
+      publish(
+        container,
+        EVENT.ROI_REMOVED,
+        this._getROIFromFeature(e.feature, this[_pyramid].metadata, this[_affine])
+      )
+    })
   }
 
   /**
@@ -1690,7 +1824,7 @@ class VolumeImageViewer {
         'Cannot set optical path style. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
 
     if (Object.entries(styleOptions).length === 0) {
@@ -1800,8 +1934,9 @@ class VolumeImageViewer {
         'Cannot get default style of optical path. ' +
         `Could not find optical path "${opticalPathIdentifier}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     if (opticalPath.opticalPath.isMonochromatic) {
       if (opticalPath.defaultStyle.paletteColorLookupTable) {
         return {
@@ -1816,6 +1951,7 @@ class VolumeImageViewer {
         limitValues: opticalPath.defaultStyle.limitValues
       }
     }
+
     return { opacity: opticalPath.defaultStyle.opacity }
   }
 
@@ -1833,8 +1969,9 @@ class VolumeImageViewer {
         'Cannot get style of optical path. ' +
         `Could not find optical path "${opticalPathIdentifier}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     if (opticalPath.opticalPath.isMonochromatic) {
       if (opticalPath.style.paletteColorLookupTable) {
         return {
@@ -1849,6 +1986,7 @@ class VolumeImageViewer {
         limitValues: opticalPath.style.limitValues
       }
     }
+
     return { opacity: opticalPath.style.opacity }
   }
 
@@ -1867,8 +2005,9 @@ class VolumeImageViewer {
         'Cannot get image metadata optical path. ' +
         `Could not find optical path "${opticalPathIdentifier}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     return opticalPath.pyramid.metadata
   }
 
@@ -1879,9 +2018,11 @@ class VolumeImageViewer {
    */
   getAllOpticalPaths () {
     const opticalPaths = []
+
     for (const opticalPathIdentifier in this[_opticalPaths]) {
       opticalPaths.push(this[_opticalPaths][opticalPathIdentifier].opticalPath)
     }
+
     return opticalPaths.sort(item => (item.OpticalPathIdentifier))
   }
 
@@ -1898,8 +2039,9 @@ class VolumeImageViewer {
         'Cannot activate optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     if (!this.isOpticalPathActive(opticalPathIdentifier)) {
       /*
        * Add layer to the bottom of the layer stack to ensure that vector
@@ -1931,12 +2073,15 @@ class VolumeImageViewer {
         'Cannot deactivate optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     if (!this.isOpticalPathActive(opticalPathIdentifier)) {
       return
     }
+
     this[_map].removeLayer(opticalPath.layer)
+
     if (this[_overviewMap]) {
       this[_overviewMap].getOverviewMap().removeLayer(opticalPath.overviewLayer)
     }
@@ -1953,10 +2098,12 @@ class VolumeImageViewer {
     if (opticalPath == null) {
       return false
     }
+
     const layers = this[_map].getLayers()
     const match = layers.getArray().find(layer => {
       return layer.ol_uid === opticalPath.layer.ol_uid
     })
+
     if (this[_overviewMap] != null) {
       const overviewLayers = this[_overviewMap].getOverviewMap().getLayers()
       const overviewMatch = overviewLayers.getArray().find(layer => {
@@ -2041,8 +2188,9 @@ class VolumeImageViewer {
         'Cannot show optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     console.info(`show optical path ${opticalPathIdentifier}`)
     this.activateOpticalPath(opticalPathIdentifier)
 
@@ -2084,8 +2232,9 @@ class VolumeImageViewer {
         'Cannot hide optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     console.info(`hide optical path ${opticalPathIdentifier}`)
     opticalPath.layer.setVisible(false)
     opticalPath.overviewLayer.setVisible(false)
@@ -2105,8 +2254,9 @@ class VolumeImageViewer {
         'Cannot show optical path. Could not find optical path ' +
         `"${opticalPathIdentifier}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     return opticalPath.layer.getVisible()
   }
 
@@ -2141,7 +2291,9 @@ class VolumeImageViewer {
       ...Object.values(this[_mappings]),
       ...Object.values(this[_annotationGroups])
     ]
+
     console.info('items requiring disposal:', itemsRequiringDisposal)
+
     itemsRequiringDisposal.forEach(item => {
       if (item.layer) {
         disposeLayer(item.layer)
@@ -2159,6 +2311,7 @@ class VolumeImageViewer {
       }
       this[_features].clear()
     })
+
     disposeMapLayers(this[_map])
     disposeOverviewMapLayers(this[_overviewMap])
     webWorkerManager.terminateAllWebWorkers()
@@ -2207,6 +2360,7 @@ class VolumeImageViewer {
         if (!source) {
           return
         }
+
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: this[_isICCProfilesEnabled] ? profiles : null,
@@ -2215,65 +2369,10 @@ class VolumeImageViewer {
         source.setLoader(loader)
         item.hasLoader = true
         this[_map].setTarget(container)
-
         const view = this[_map].getView()
         const projection = view.getProjection()
         view.fit(projection.getExtent(), { size: this[_map].getSize() })
         this[_updateOverviewMapSize]()
-
-        this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-          publish(
-            container,
-            EVENT.ROI_ADDED,
-            this._getROIFromFeature(e.feature, metadata, this[_affine])
-          )
-        })
-        this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-          if (e.feature !== undefined || e.feature !== null) {
-            const geometry = e.feature.getGeometry()
-            const type = geometry.getType()
-            /*
-             * The first and last point of a polygon must be identical. The
-             * last point is an implementation detail and is hidden from the
-             * user in the graphical interface. However, we must update the
-             * last point in case the first point has been modified by the
-             * user.
-             */
-            if (type === 'Polygon') {
-              /*
-               * Polygon in GeoJSON format contains an array of geometries,
-               * where the first element represents the coordinates of the
-               * outer ring and the second element represents the coordinates
-               * of the inner ring (in our case the inner ring should not be
-               * present).
-               */
-              const layout = geometry.getLayout()
-              const coordinates = geometry.getCoordinates()
-              const firstPoint = coordinates[0][0]
-              const lastPoint = coordinates[0][coordinates[0].length - 1]
-              if (
-                firstPoint[0] !== lastPoint[0] ||
-                firstPoint[1] !== lastPoint[1]
-              ) {
-                coordinates[0][coordinates[0].length - 1] = firstPoint
-                geometry.setCoordinates(coordinates, layout)
-                e.feature.setGeometry(geometry)
-              }
-            }
-          }
-          publish(
-            container,
-            EVENT.ROI_MODIFIED,
-            this._getROIFromFeature(e.feature, metadata, this[_affine])
-          )
-        })
-        this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-          publish(
-            container,
-            EVENT.ROI_REMOVED,
-            this._getROIFromFeature(e.feature, metadata, this[_affine])
-          )
-        })
 
         if (this[_controls].overview && this[_overviewMap]) {
           // Style overview element (overriding Openlayers CSS "ol-overviewmap")
@@ -2443,8 +2542,9 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         'Argument "level" exceeds number of resolution levels.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     let coordinates
     if (position != null) {
       coordinates = _scoord3dCoordinates2geometryCoordinates(
@@ -2452,6 +2552,7 @@ class VolumeImageViewer {
         this[_affineInverse]
       )
     }
+
     const view = this[_map].getView()
     view.animate({ zoom: level, center: coordinates })
   }
@@ -2666,7 +2767,6 @@ class VolumeImageViewer {
     }
 
     this[_interactions].translate = new Translate(translateOptions)
-
     this[_map].addInteraction(this[_interactions].translate)
   }
 
@@ -2691,7 +2791,7 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         'Unable to get ROI'
       )
-      this[_options].errorInterceptor(roiError)
+      throw this[_options].errorInterceptor(roiError || error)
     }
 
     const featureProperties = feature.getProperties()
@@ -2762,7 +2862,6 @@ class VolumeImageViewer {
     }
 
     this[_interactions].dragZoom = new DragZoom(dragZoomOptions)
-
     this[_map].addInteraction(this[_interactions].dragZoom)
   }
 
@@ -2800,11 +2899,9 @@ class VolumeImageViewer {
     }
 
     this[_interactions].select = new Select(selectOptions)
-
     const container = this[_map].getTargetElement()
 
     this[_interactions].select.on('select', (e) => {
-      console.debug('select roi')
       if (e.selected[0]?.getId()) {
         publish(
           container,
@@ -2857,7 +2954,6 @@ class VolumeImageViewer {
     }
 
     this[_interactions].dragPan = new DragPan(dragPanOptions)
-
     this[_map].addInteraction(this[_interactions].dragPan)
   }
 
@@ -3026,8 +3122,9 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         `Could not find a ROI with UID "${uid}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     return this._getROIFromFeature(
       feature,
       this[_pyramid].metadata,
@@ -3133,7 +3230,7 @@ class VolumeImageViewer {
         `Frame of Reference UID of ROI ${roi.uid} does not match ` +
         'Frame of Reference UID of source images.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
 
     const geometry = _scoord3d2Geometry(
@@ -3154,7 +3251,6 @@ class VolumeImageViewer {
     )
 
     this[_features].push(feature)
-
     _setFeatureStyle(feature, styleOptions)
     const isVisible = Object.keys(styleOptions).length !== 0
     this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
@@ -3174,11 +3270,8 @@ class VolumeImageViewer {
   updateROI ({ uid, properties = {} }) {
     if (!uid) return
     console.info(`update ROI ${uid}`)
-
     const feature = this[_drawingSource].getFeatureById(uid)
-
     _addROIPropertiesToFeature(feature, properties)
-
     this[_annotationManager].onUpdate(feature)
   }
 
@@ -3193,13 +3286,15 @@ class VolumeImageViewer {
     const feature = this[_features].getArray().find((feature) => {
       return feature.getId() === uid
     })
+
     if (feature == null) {
       const error = new CustomError(
         errorTypes.VISUALIZATION,
         `Could not find a ROI with UID "${uid}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const style = feature.getStyle()
     const stroke = style.getStroke()
     const fill = style.getFill()
@@ -3343,6 +3438,33 @@ class VolumeImageViewer {
   }
 
   /**
+   * Handle the start of a bulk annotations features load event.
+   * @private
+   */
+  _onBulkAnnotationsFeaturesLoadStart (event) {
+    const container = this[_map].getTargetElement()
+    publish(container, EVENT.LOADING_STARTED, event)
+  }
+
+  /**
+   * Handle the end of a bulk annotations features load event.
+   * @private
+   */
+  _onBulkAnnotationsFeaturesLoadEnd (event) {
+    const container = this[_map].getTargetElement()
+    publish(container, EVENT.LOADING_ENDED, event)
+  }
+
+  /**
+   * Handle the error of a bulk annotations features load event.
+   * @private
+   */
+  _onBulkAnnotationsFeaturesLoadError (error) {
+    const container = this[_map].getTargetElement()
+    publish(container, EVENT.LOADING_ERROR, error)
+  }
+
+  /**
    * Add annotation groups.
    *
    * @param {metadata.MicroscopyBulkSimpleAnnotations} metadata - Metadata of a
@@ -3429,16 +3551,12 @@ class VolumeImageViewer {
         bulkdataItem = bulkdataReferences.AnnotationGroupSequence[annotationGroupIndex]
       }
 
-      console.debug('bulk data series metadata:', metadata)
-      console.debug('annotation group metadata:', metadataItem)
-
       /**
        * The number of Annotations in this Annotation Group.
        * Each point, open polyline or closed polygon, circle,
        * ellipse or rectangle is counted as one Annotation.
        */
       const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-      console.debug('AnnotationGroupUID:', metadataItem.AnnotationGroupUID, 'NumberOfAnnotations:', numberOfAnnotations)
 
       /** Point, Open/Closed Polygon, Circle, Ellipse, etc. */
       const graphicType = metadataItem.GraphicType
@@ -3459,14 +3577,11 @@ class VolumeImageViewer {
 
       /** Required if all points are in the same Z plane. */
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)
-
-      const map = this[_map]
-
       let areAnnotationsLoaded = false
+
       const cacheBulkAnnotations = (id, data) => (this[_retrievedBulkdata][id] = data)
       const getCachedBulkAnnotations = (id) => (this[_retrievedBulkdata][id])
 
-      let cachedError
       const bulkAnnotationsLoader = function (featureFunction, success, failure) {
         console.info('load bulk annotations layer')
 
@@ -3476,9 +3591,9 @@ class VolumeImageViewer {
 
           const [graphicData, graphicIndex, measurements] = retrievedBulkdata
 
-          console.debug('graphic data:', graphicData)
-          console.debug('graphic index:', graphicIndex)
-          console.debug('measurements:', measurements)
+          console.debug('graphic data:', graphicData?.length)
+          console.debug('graphic index:', graphicIndex?.length)
+          console.debug('measurements:', measurements?.length)
 
           console.info(
             'compute statistics for measurement values ' +
@@ -3538,7 +3653,6 @@ class VolumeImageViewer {
             processBulkAnnotations(cachedBulkAnnotations)
           } catch (error) {
             console.error('Failed to process cached bulk annotations', error)
-            cachedError = error
             failure()
           }
         } else {
@@ -3560,7 +3674,6 @@ class VolumeImageViewer {
                 retrievedBulkdata[index] = result.value
               } else {
                 console.error(errors[index], result.reason)
-                cachedError = new Error(result.reason)
                 failure()
               }
             })
@@ -3569,7 +3682,6 @@ class VolumeImageViewer {
             processBulkAnnotations(retrievedBulkdata)
           }).catch(error => {
             console.error('Failed to retrieve and cache bulk annotations', error)
-            cachedError = error
             failure()
           })
         }
@@ -3650,28 +3762,16 @@ class VolumeImageViewer {
         minDistance: 0,
         source: pointsSource
       })
-      const onFeaturesLoadStart = (event) => {
-        const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_STARTED, event)
-      }
-      const onFeaturesLoadEnd = (event) => {
-        const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_ENDED, event)
-      }
-      const onFeaturesLoadError = () => {
-        const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_ENDED, cachedError)
-        publish(container, EVENT.LOADING_ERROR, cachedError)
-      }
-      pointsSource.on('featuresloadstart', onFeaturesLoadStart)
-      pointsSource.on('featuresloadend', onFeaturesLoadEnd)
-      pointsSource.on('featuresloaderror', onFeaturesLoadError)
-      highResSource.on('featuresloadstart', onFeaturesLoadStart)
-      highResSource.on('featuresloadend', onFeaturesLoadEnd)
-      highResSource.on('featuresloaderror', onFeaturesLoadError)
-      clustersSource.on('featuresloadstart', onFeaturesLoadStart)
-      clustersSource.on('featuresloadend', onFeaturesLoadEnd)
-      clustersSource.on('featuresloaderror', onFeaturesLoadError)
+
+      pointsSource.on('featuresloadstart', this._onBulkAnnotationsFeaturesLoadStart)
+      pointsSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
+      pointsSource.on('featuresloaderror', this._onBulkAnnotationsFeaturesLoadError)
+      highResSource.on('featuresloadstart', this._onBulkAnnotationsFeaturesLoadStart)
+      highResSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
+      highResSource.on('featuresloaderror', this._onBulkAnnotationsFeaturesLoadError)
+      clustersSource.on('featuresloadstart', this._onBulkAnnotationsFeaturesLoadStart)
+      clustersSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
+      clustersSource.on('featuresloaderror', this._onBulkAnnotationsFeaturesLoadError)
 
       /**
        * Reload annotations when panning.
@@ -3685,8 +3785,8 @@ class VolumeImageViewer {
           bulkAnnotationsLoader.call(
             highResSource,
             highResFeatureFunc,
-            onFeaturesLoadEnd,
-            onFeaturesLoadError
+            this._onBulkAnnotationsFeaturesLoadEnd,
+            this._onBulkAnnotationsFeaturesLoadError
           )
         }
       }, 500)
@@ -3739,6 +3839,7 @@ class VolumeImageViewer {
        * Zoom in inside clusters (low res layer) when clicking on them.
        */
       if (graphicType !== 'POINT') {
+        const mapView = this[_map].getView()
         this[_map].on('click', (event) => {
           annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
             if (features.length > 0) {
@@ -3749,9 +3850,8 @@ class VolumeImageViewer {
                 clusterMembers.forEach((feature) =>
                   extend(extent, feature.getGeometry().getExtent())
                 )
-                const view = map.getView()
                 /** Zoom to the extent of the cluster members */
-                view.fit(extent, { duration: 500, padding: [50, 50, 50, 50] })
+                mapView.fit(extent, { duration: 500, padding: [50, 50, 50, 50] })
               }
             }
           })
@@ -3775,44 +3875,55 @@ class VolumeImageViewer {
      */
     let selectedAnnotation = null
     this[_map].on('singleclick', (event) => {
-      if (event !== null) {
-        if (selectedAnnotation !== null) {
-          selectedAnnotation.set('selected', 0)
-          selectedAnnotation = null
-        }
-        const container = this[_map].getTargetElement()
-        this[_map].forEachFeatureAtPixel(
-          event.pixel,
-          (feature) => {
-            if (feature !== null) {
-              feature.set('selected', 1)
-              selectedAnnotation = feature
-              const roi = this._getROIFromFeature(
-                feature,
-                this[_pyramid].metadata,
-                this[_affine]
-              )
-              const extendedROI = getExtendedROI({ feature, roi, metadata })
-              publish(
-                container,
-                EVENT.ROI_SELECTED,
-                extendedROI
-              )
-              return true
-            }
-            return false
-          },
-          {
-            hitTolerance: 1,
-            layerFilter: (layer) => (layer instanceof VectorLayer)
-          }
-        )
+      if (selectedAnnotation !== null) {
+        selectedAnnotation.set('selected', 0)
+        selectedAnnotation = null
       }
+
       const container = this[_map].getTargetElement()
+      if (!container) {
+        return
+      }
+
+      /**
+       * Select an annotation when clicked.
+       * Opens a dialog with ROI information.
+       */
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
-          if (feature !== null) {
+          if (feature !== null && feature.getId() !== undefined) {
+            feature.set('selected', 1)
+            selectedAnnotation = feature
+            const roi = this._getROIFromFeature(
+              feature,
+              this[_pyramid].metadata,
+              this[_affine]
+            )
+            const extendedROI = getExtendedROI({ feature, roi, metadata })
+            publish(
+              container,
+              EVENT.ROI_SELECTED,
+              extendedROI
+            )
+            return true
+          }
+          return false
+        },
+        {
+          hitTolerance: 1,
+          layerFilter: (layer) => (layer instanceof VectorLayer)
+        }
+      )
+
+      /**
+       * Select an annotation when clicked.
+       * Opens a dialog with ROI information.
+       */
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          if (feature !== null && feature.getId() !== undefined) {
             feature.set('selected', 1)
             selectedAnnotation = feature
             const roi = this._getROIFromFeature(
@@ -3928,8 +4039,6 @@ class VolumeImageViewer {
         )
       }
 
-      console.debug('annotationGroup.style', annotationGroup.style)
-
       return pointsStyle
     }
 
@@ -3966,15 +4075,18 @@ class VolumeImageViewer {
         'Cannot remove annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
+
     console.info(`remove annotation group ${annotationGroupUID}`)
 
     annotationGroup.layers.forEach(layer => {
       this[_map].removeLayer(layer)
       disposeLayer(layer)
     })
+
     delete this[_retrievedBulkdata][annotationGroupUID]
     delete this[_annotationGroups][annotationGroupUID]
   }
@@ -4005,12 +4117,12 @@ class VolumeImageViewer {
         'Cannot show annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`show annotation group ${annotationGroupUID}`, annotationGroup)
     this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
-
     annotationGroup.activeLayer().setVisible(true)
   }
 
@@ -4027,11 +4139,11 @@ class VolumeImageViewer {
         'Cannot hide annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     console.info(`hide annotation group ${annotationGroupUID}`, annotationGroup)
-
     annotationGroup.activeLayer().setVisible(false)
   }
 
@@ -4048,10 +4160,10 @@ class VolumeImageViewer {
         'Cannot determine if annotation group is visible. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
 
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
     return annotationGroup.activeLayer().getVisible()
   }
 
@@ -4074,9 +4186,11 @@ class VolumeImageViewer {
         'Cannot set style of annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
+
     console.info(
       `set style for annotation group "${annotationGroupUID}"`,
       styleOptions
@@ -4088,9 +4202,11 @@ class VolumeImageViewer {
         layer.setOpacity(styleOptions.opacity)
       })
     }
+
     if (styleOptions.color != null) {
       annotationGroup.style.color = styleOptions.color
     }
+
     if (styleOptions.measurement != null) {
       annotationGroup.style.measurement = styleOptions.measurement
     }
@@ -4099,11 +4215,11 @@ class VolumeImageViewer {
     const metadataItem = annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
     const graphicType = metadataItem.GraphicType
     const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-
     const metadata = annotationGroup.metadata
     const groupItem = metadata.AnnotationGroupSequence.find(item => {
       return item.AnnotationGroupUID === annotationGroupUID
     })
+
     if (groupItem == null) {
       const error = new CustomError(
         errorTypes.VISUALIZATION,
@@ -4187,8 +4303,9 @@ class VolumeImageViewer {
         'Cannot get default style of annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     return {
       opacity: annotationGroup.defaultStyle.opacity,
@@ -4211,8 +4328,9 @@ class VolumeImageViewer {
         'Cannot get style of annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     return {
       opacity: annotationGroup.style.opacity,
@@ -4248,8 +4366,9 @@ class VolumeImageViewer {
         'Cannot get metadata of annotation group. ' +
         `Could not find annotation group "${annotationGroupUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     return annotationGroup.metadata
   }
@@ -4266,8 +4385,9 @@ class VolumeImageViewer {
         'Metadata of Segmentation instances needs to be provided to ' +
         'add segments.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const refSegmentation = metadata[0]
     const refImage = this[_pyramid].metadata[0]
     metadata.forEach(instance => {
@@ -4280,30 +4400,34 @@ class VolumeImageViewer {
           'Segmentation instances must contain attributes ' +
           '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
           'Segmentation instances must have the same Frame of Reference UID ' +
           'as the corresponding source images.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       if (refSegmentation.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
           'Segmentation instances must all have same Frame of Reference UID.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       if (refSegmentation.SeriesInstanceUID !== instance.SeriesInstanceUID) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
           'Segmentation instances must all have same Series Instance UID.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       if (
         refSegmentation.SegmentSequence.length !==
         instance.SegmentSequence.length
@@ -4313,9 +4437,10 @@ class VolumeImageViewer {
           'Segmentation instances must all contain the same number of items ' +
           'in the Segment Sequence.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
     })
+
     console.info(
       'add segments of Segmentation instances of series ' +
       `"${refSegmentation.SeriesInstanceUID}"`
@@ -4348,6 +4473,12 @@ class VolumeImageViewer {
       let segmentUID = _generateUID({
         value: refSegmentation.SOPInstanceUID + segmentNumber.toString()
       })
+
+      if (this[_segments][segmentUID]) {
+        console.info(`segment "${segmentUID}" already exists`)
+        return
+      }
+
       if (item.TrackingUID != null) {
         segmentUID = item.TrackingUID
       }
@@ -4444,7 +4575,6 @@ class VolumeImageViewer {
       })
 
       this[_map].addLayer(segment.layer)
-
       this[_segments][segmentUID] = segment
     })
   }
@@ -4460,8 +4590,9 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         `Cannot remove segment. Could not find segment "${segmentUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const segment = this[_segments][segmentUID]
     this[_map].removeLayer(segment.layer)
     disposeLayer(segment.layer)
@@ -4491,8 +4622,9 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         `Cannot show segment. Could not find segment "${segmentUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const segment = this[_segments][segmentUID]
     console.info(`show segment ${segmentUID}`)
 
@@ -4534,8 +4666,9 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         `Cannot hide segment. Could not find segment "${segmentUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const segment = this[_segments][segmentUID]
     console.info(`hide segment ${segmentUID}`)
     segment.layer.setVisible(false)
@@ -4555,8 +4688,9 @@ class VolumeImageViewer {
         'Cannot determine if segment is visible. ' +
         `Could not find segment "${segmentUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const segment = this[_segments][segmentUID]
     return segment.layer.getVisible()
   }
@@ -4634,10 +4768,10 @@ class VolumeImageViewer {
         'Cannot set style of segment. ' +
         `Could not find segment "${segmentUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
-    const segment = this[_segments][segmentUID]
 
+    const segment = this[_segments][segmentUID]
     if (styleOptions.opacity != null) {
       segment.style.opacity = styleOptions.opacity
       segment.layer.setOpacity(styleOptions.opacity)
@@ -4662,8 +4796,9 @@ class VolumeImageViewer {
         'Cannot get default style of segment. ' +
         `Could not find segment "${segmentUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const segment = this[_segments][segmentUID]
     return {
       opacity: segment.defaultStyle.opacity,
@@ -4685,8 +4820,9 @@ class VolumeImageViewer {
         'Cannot get style of segment. ' +
         `Could not find segment "${segmentUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const segment = this[_segments][segmentUID]
     return {
       opacity: segment.style.opacity,
@@ -4708,8 +4844,9 @@ class VolumeImageViewer {
         'Cannot get image metadata of segment. ' +
         `Could not find segment "${segmentUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const segment = this[_segments][segmentUID]
     return segment.pyramid.metadata
   }
@@ -4739,7 +4876,7 @@ class VolumeImageViewer {
         'Metadata of Parametric Map instances needs to be provided to ' +
         'add mappings.'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
 
     const refImage = this[_pyramid].metadata[0]
@@ -4762,31 +4899,35 @@ class VolumeImageViewer {
           'Parametric Map instances must contain attributes ' +
           '"Total Pixel Matrix Rows" and "Total Pixel Matrix Columns".'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       if (refImage.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
           'Parametric Map instances must have the same Frame of Reference UID ' +
           'as the corresponding source images.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       if (refParametricMap.FrameOfReferenceUID !== instance.FrameOfReferenceUID) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
           'Parametric Map instances must all have same Frame of Reference UID.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
+
       if (refParametricMap.SeriesInstanceUID !== instance.SeriesInstanceUID) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
           'Parametric Map instances must all have same Series Instance UID.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
     })
+
     console.info(
       'add mappings of Parametric Map instances of series ' +
       `"${refParametricMap.SeriesInstanceUID}"`
@@ -4807,7 +4948,6 @@ class VolumeImageViewer {
     })
 
     const refInstance = pyramid.metadata[0]
-
     const sharedFuncGroup = refInstance.SharedFunctionalGroupsSequence[0]
     const frameVOILUT = sharedFuncGroup.FrameVOILUTSequence[0]
     if (frameVOILUT === undefined) {
@@ -4816,8 +4956,9 @@ class VolumeImageViewer {
         'The Parametric Map image does not specify a shared frame ' +
         'Value of Interest (VOI) lookup table (LUT).'
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const windowCenter = frameVOILUT.WindowCenter
     const windowWidth = frameVOILUT.WindowWidth
 
@@ -4846,19 +4987,23 @@ class VolumeImageViewer {
               `of frame #${index + 1} has unexpected Tracking UID. ` +
               'All items must have the same unique identifier value.'
             )
-            throw this[_options].errorInterceptor(error) || error
+            throw this[_options].errorInterceptor(error)
           }
         }
+
         let firstValueMapped = item.RealWorldValueFirstValueMapped
         let lastValueMapped = item.RealWorldValueLastValueMapped
+
         if (firstValueMapped === undefined && lastValueMapped === undefined) {
           firstValueMapped = item.DoubleFloatRealWorldValueFirstValueMapped
           lastValueMapped = item.DoubleFloatRealWorldValueLastValueMapped
         }
+
         const intercept = item.RealWorldValueIntercept
         const slope = item.RealWorldValueSlope
         const lowerBound = firstValueMapped * slope + intercept
         const upperBound = lastValueMapped * slope + intercept
+
         if (i === 0) {
           range[0] = lowerBound
           range[1] = upperBound
@@ -4874,17 +5019,19 @@ class VolumeImageViewer {
           errorTypes.ENCODINGANDDECODING,
           'Could not determine range of real world values.'
         )
-        throw this[_options].errorInterceptor(error) || error
+        throw this[_options].errorInterceptor(error)
       }
 
       let colormap
       const isFloatPixelData = refInstance.BitsAllocated > 16
       let minStoredValue = 0
       let maxStoredValue = Math.pow(2, refInstance.BitsAllocated) - 1
+
       if (isFloatPixelData) {
         minStoredValue = -(Math.pow(2, refInstance.BitsAllocated) - 1) / 2
         maxStoredValue = (Math.pow(2, refInstance.BitsAllocated) - 1) / 2
       }
+
       if (refInstance.PixelPresentation === 'MONOCHROME') {
         colormap = createColormap({
           name: ColormapNames.MAGMA,
@@ -4994,8 +5141,9 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         `Cannot remove mapping. Could not find mapping "${mappingUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const mapping = this[_mappings][mappingUID]
     this[_map].removeLayer(mapping.layer)
     disposeLayer(mapping.layer)
@@ -5026,8 +5174,9 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         `Cannot show mapping. Could not find mapping "${mappingUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const mapping = this[_mappings][mappingUID]
     console.info(`show mapping ${mappingUID}`)
 
@@ -5066,8 +5215,9 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         `Cannot hide mapping. Could not find mapping "${mappingUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const mapping = this[_mappings][mappingUID]
     console.info(`hide mapping ${mappingUID}`)
     mapping.layer.setVisible(false)
@@ -5087,8 +5237,9 @@ class VolumeImageViewer {
         'Cannot determine if mapping is visible. ' +
         `Could not find mapping "${mappingUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const mapping = this[_mappings][mappingUID]
     return mapping.layer.getVisible()
   }
@@ -5108,8 +5259,9 @@ class VolumeImageViewer {
         'Cannot set style of mapping. ' +
         `Could not find mapping "${mappingUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const mapping = this[_mappings][mappingUID]
 
     if (styleOptions.opacity != null) {
@@ -5136,6 +5288,7 @@ class VolumeImageViewer {
     const padding = Math.round((16 - title.length) / 2)
     title = title.padStart(title.length + padding)
     title = title.padEnd(title.length + 2 * padding)
+
     const overlayElement = mapping.overlay.getElement()
     overlayElement.innerHTML = title
     overlayElement.style = {}
@@ -5188,8 +5341,9 @@ class VolumeImageViewer {
         'Cannot get default style of mapping. ' +
         `Could not find mapping "${mappingUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const mapping = this[_mappings][mappingUID]
     return {
       opacity: mapping.defaultStyle.opacity,
@@ -5211,8 +5365,9 @@ class VolumeImageViewer {
         'Cannot get style of mapping. ' +
         `Could not find mapping "${mappingUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const mapping = this[_mappings][mappingUID]
     return {
       opacity: mapping.style.opacity,
@@ -5236,8 +5391,9 @@ class VolumeImageViewer {
         'Cannot get image metadata of mapping. ' +
         `Could not find mapping "${mappingUID}".`
       )
-      throw this[_options].errorInterceptor(error) || error
+      throw this[_options].errorInterceptor(error)
     }
+
     const mapping = this[_mappings][mappingUID]
     return mapping.pyramid.metadata
   }
@@ -5279,9 +5435,7 @@ class _NonVolumeImageViewer {
    * should be included for correction of image colors.
    */
   constructor (options) {
-    if (options.errorInterceptor == null) {
-      options.errorInterceptor = error => error
-    }
+    this[_errorInterceptor] = options.errorInterceptor || (error => error)
 
     // We also accept metadata in raw JSON format for backwards compatibility
     if (options.metadata.SOPClassUID != null) {
@@ -5298,7 +5452,7 @@ class _NonVolumeImageViewer {
         errorTypes.VISUALIZATION,
         'Viewer cannot render images of type VOLUME.'
       )
-      options.errorInterceptor(error)
+      throw this[_errorInterceptor](error)
     }
 
     const resizeFactor = options.resizeFactor ? options.resizeFactor : 1
@@ -5315,14 +5469,17 @@ class _NonVolumeImageViewer {
       console.info(`load ${imageFlavor} image`)
       const mediaType = 'image/png'
       const queryParams = {}
+
       if (resizeFactor !== 1) {
         queryParams.viewport = [width, height].join(',')
       }
+
       // We make this optional because ICC Profiles can be large and
       // their inclusion can result in significant overhead.
       if (options.includeIccProfile) {
         queryParams.iccprofile = 'yes'
       }
+
       const retrieveOptions = {
         studyInstanceUID: this[_metadata].StudyInstanceUID,
         seriesInstanceUID: this[_metadata].SeriesInstanceUID,
@@ -5330,10 +5487,19 @@ class _NonVolumeImageViewer {
         mediaTypes: [{ mediaType }],
         queryParams
       }
+
       options.client.retrieveInstanceRendered(retrieveOptions).then(
         (thumbnail) => {
-          const blob = new Blob([thumbnail], { type: mediaType })// eslint-disable-line
+          let thumbnailData = thumbnail
+          if (Array.isArray(thumbnail)) {
+            thumbnailData = thumbnail[0]
+          }
+          // eslint-disable-next-line no-undef
+          const blob = new Blob([thumbnailData], { type: mediaType })
           image.getImage().src = window.URL.createObjectURL(blob)
+          image.getImage().onload = () => {
+            window.URL.revokeObjectURL(image.getImage().src)
+          }
         }
       )
     }
@@ -5491,14 +5657,13 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
    * should be included for correction of image colors.
    */
   constructor (options) {
-    if (options.errorInterceptor == null) {
-      options.errorInterceptor = error => error
-    }
-
     if (options.orientation === undefined) {
       options.orientation = 'horizontal'
     }
+
     super(options)
+
+    this[_errorInterceptor] = options.errorInterceptor || (error => error)
   }
 }
 
@@ -5523,14 +5688,13 @@ class LabelImageViewer extends _NonVolumeImageViewer {
    * should be included for correction of image colors
    */
   constructor (options) {
-    if (options.errorInterceptor == null) {
-      options.errorInterceptor = error => error
-    }
-
     if (options.orientation === undefined) {
       options.orientation = 'vertical'
     }
+
     super(options)
+
+    this[_errorInterceptor] = options.errorInterceptor || (error => error)
   }
 }
 
