@@ -1641,7 +1641,6 @@ class VolumeImageViewer {
         event.pixel,
         (feature) => {
           const correctFeature = feature.values_?.features?.[0] || feature
-          console.debug('dblclick feature id:', correctFeature)
           if (correctFeature?.getId()) {
             publish(
               this[_map].getTargetElement(),
@@ -1685,7 +1684,6 @@ class VolumeImageViewer {
         event.pixel,
         (feature) => {
           const correctFeature = feature.values_?.features?.[0] || feature
-          console.debug('click feature id:', correctFeature)
           if (correctFeature?.getId()) {
             publish(
               this[_map].getTargetElement(),
@@ -2904,7 +2902,6 @@ class VolumeImageViewer {
     const container = this[_map].getTargetElement()
 
     this[_interactions].select.on('select', (e) => {
-      console.debug('select roi')
       if (e.selected[0]?.getId()) {
         publish(
           container,
@@ -3554,16 +3551,12 @@ class VolumeImageViewer {
         bulkdataItem = bulkdataReferences.AnnotationGroupSequence[annotationGroupIndex]
       }
 
-      console.debug('bulk data series metadata:', metadata)
-      console.debug('annotation group metadata:', metadataItem)
-
       /**
        * The number of Annotations in this Annotation Group.
        * Each point, open polyline or closed polygon, circle,
        * ellipse or rectangle is counted as one Annotation.
        */
       const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-      console.debug('AnnotationGroupUID:', metadataItem.AnnotationGroupUID, 'NumberOfAnnotations:', numberOfAnnotations)
 
       /** Point, Open/Closed Polygon, Circle, Ellipse, etc. */
       const graphicType = metadataItem.GraphicType
@@ -4045,8 +4038,6 @@ class VolumeImageViewer {
           }
         )
       }
-
-      console.debug('annotationGroup.style', annotationGroup.style)
 
       return pointsStyle
     }
@@ -5499,14 +5490,16 @@ class _NonVolumeImageViewer {
 
       options.client.retrieveInstanceRendered(retrieveOptions).then(
         (thumbnail) => {
+          let thumbnailData = thumbnail
+          if (Array.isArray(thumbnail)) {
+            thumbnailData = thumbnail[0]
+          }
           // eslint-disable-next-line no-undef
-          const blob = new Blob([thumbnail], { type: mediaType })
+          const blob = new Blob([thumbnailData], { type: mediaType })
           image.getImage().src = window.URL.createObjectURL(blob)
           image.getImage().onload = () => {
             window.URL.revokeObjectURL(image.getImage().src)
           }
-
-          console.debug('Thumbnail blob:', image.getImage().src)
         }
       )
     }
@@ -5591,8 +5584,6 @@ class _NonVolumeImageViewer {
       console.error('container must be provided for rendering images')
       return
     }
-
-    console.debug('render', container)
 
     this[_map].setTarget(container)
     const view = this[_map].getView()
