@@ -768,7 +768,6 @@ const _rotation = Symbol('rotation')
 const _tileGrid = Symbol('tileGrid')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 const _annotationOptions = Symbol('annotationOptions')
-const _container = Symbol('container')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -816,6 +815,10 @@ class VolumeImageViewer {
     this[_annotationOptions] = {}
     this[_clients] = {}
     this[_errorInterceptor] = options.errorInterceptor || (error => error)
+
+    this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
+    this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
+    this._onBulkAnnotationsFeaturesLoadError = this._onBulkAnnotationsFeaturesLoadError.bind(this)
 
     if (this[_options].client) {
       this[_clients].default = this[_options].client
@@ -1463,9 +1466,6 @@ class VolumeImageViewer {
       updateWhileInteracting: true
     })
 
-    // Set up event listeners once during initialization
-    this._setupDrawingSourceEventListeners()
-
     layers.push(this[_drawingLayer])
 
     this[_map] = new Map({
@@ -1484,8 +1484,6 @@ class VolumeImageViewer {
         pinchZoom: true
       })
     })
-
-    this._setupMapEventListeners()
 
     view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
 
@@ -1566,6 +1564,9 @@ class VolumeImageViewer {
     })
 
     this[_overlays] = {}
+
+    this._setupMapEventListeners()
+    this._setupDrawingSourceEventListeners()
   }
 
   /**
@@ -1707,12 +1708,12 @@ class VolumeImageViewer {
      * @private
      */
     this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      if (!this[_container]) {
+      const container = this[_map].getTargetElement()
+      if (!container) {
         return
       }
-
       publish(
-        this[_container],
+        container,
         EVENT.ROI_ADDED,
         this._getROIFromFeature(e.feature, this[_pyramid].metadata, this[_affine])
       )
@@ -1723,10 +1724,10 @@ class VolumeImageViewer {
      * @private
      */
     this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      if (!this[_container]) {
+      const container = this[_map].getTargetElement()
+      if (!container) {
         return
       }
-
       if (e.feature !== undefined && e.feature !== null) {
         const geometry = e.feature.getGeometry()
         const type = geometry.getType()
@@ -1761,7 +1762,7 @@ class VolumeImageViewer {
       }
 
       publish(
-        this[_container],
+        container,
         EVENT.ROI_MODIFIED,
         this._getROIFromFeature(e.feature, this[_pyramid].metadata, this[_affine])
       )
@@ -1772,12 +1773,12 @@ class VolumeImageViewer {
      * @private
      */
     this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      if (!this[_container]) {
+      const container = this[_map].getTargetElement()
+      if (!container) {
         return
       }
-
       publish(
-        this[_container],
+        container,
         EVENT.ROI_REMOVED,
         this._getROIFromFeature(e.feature, this[_pyramid].metadata, this[_affine])
       )
@@ -2265,7 +2266,6 @@ class VolumeImageViewer {
    */
   render ({ container }) {
     window.cleanup = this.cleanup.bind(this)
-    this[_container] = container
 
     if (container == null) {
       console.error('container must be provided for rendering images')
@@ -3375,6 +3375,33 @@ class VolumeImageViewer {
   }
 
   /**
+   * Handle the start of a bulk annotations features load event.
+   * @private
+   */
+  _onBulkAnnotationsFeaturesLoadStart (event) {
+    const container = this[_map].getTargetElement()
+    publish(container, EVENT.LOADING_STARTED, event)
+  }
+
+  /**
+   * Handle the end of a bulk annotations features load event.
+   * @private
+   */
+  _onBulkAnnotationsFeaturesLoadEnd (event) {
+    const container = this[_map].getTargetElement()
+    publish(container, EVENT.LOADING_ENDED, event)
+  }
+
+  /**
+   * Handle the error of a bulk annotations features load event.
+   * @private
+   */
+  _onBulkAnnotationsFeaturesLoadError (error) {
+    const container = this[_map].getTargetElement()
+    publish(container, EVENT.LOADING_ERROR, error)
+  }
+
+  /**
    * Add annotation groups.
    *
    * @param {metadata.MicroscopyBulkSimpleAnnotations} metadata - Metadata of a
@@ -3491,14 +3518,11 @@ class VolumeImageViewer {
 
       /** Required if all points are in the same Z plane. */
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)
-
-      const map = this[_map]
-
       let areAnnotationsLoaded = false
+
       const cacheBulkAnnotations = (id, data) => (this[_retrievedBulkdata][id] = data)
       const getCachedBulkAnnotations = (id) => (this[_retrievedBulkdata][id])
 
-      let cachedError
       const bulkAnnotationsLoader = function (featureFunction, success, failure) {
         console.info('load bulk annotations layer')
 
@@ -3508,9 +3532,9 @@ class VolumeImageViewer {
 
           const [graphicData, graphicIndex, measurements] = retrievedBulkdata
 
-          console.debug('graphic data:', graphicData)
-          console.debug('graphic index:', graphicIndex)
-          console.debug('measurements:', measurements)
+          console.debug('graphic data:', graphicData?.length)
+          console.debug('graphic index:', graphicIndex?.length)
+          console.debug('measurements:', measurements?.length)
 
           console.info(
             'compute statistics for measurement values ' +
@@ -3570,7 +3594,6 @@ class VolumeImageViewer {
             processBulkAnnotations(cachedBulkAnnotations)
           } catch (error) {
             console.error('Failed to process cached bulk annotations', error)
-            cachedError = error
             failure()
           }
         } else {
@@ -3592,7 +3615,6 @@ class VolumeImageViewer {
                 retrievedBulkdata[index] = result.value
               } else {
                 console.error(errors[index], result.reason)
-                cachedError = new Error(result.reason)
                 failure()
               }
             })
@@ -3601,7 +3623,6 @@ class VolumeImageViewer {
             processBulkAnnotations(retrievedBulkdata)
           }).catch(error => {
             console.error('Failed to retrieve and cache bulk annotations', error)
-            cachedError = error
             failure()
           })
         }
@@ -3682,28 +3703,16 @@ class VolumeImageViewer {
         minDistance: 0,
         source: pointsSource
       })
-      const onFeaturesLoadStart = (event) => {
-        const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_STARTED, event)
-      }
-      const onFeaturesLoadEnd = (event) => {
-        const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_ENDED, event)
-      }
-      const onFeaturesLoadError = () => {
-        const container = this[_map].getTargetElement()
-        publish(container, EVENT.LOADING_ENDED, cachedError)
-        publish(container, EVENT.LOADING_ERROR, cachedError)
-      }
-      pointsSource.on('featuresloadstart', onFeaturesLoadStart)
-      pointsSource.on('featuresloadend', onFeaturesLoadEnd)
-      pointsSource.on('featuresloaderror', onFeaturesLoadError)
-      highResSource.on('featuresloadstart', onFeaturesLoadStart)
-      highResSource.on('featuresloadend', onFeaturesLoadEnd)
-      highResSource.on('featuresloaderror', onFeaturesLoadError)
-      clustersSource.on('featuresloadstart', onFeaturesLoadStart)
-      clustersSource.on('featuresloadend', onFeaturesLoadEnd)
-      clustersSource.on('featuresloaderror', onFeaturesLoadError)
+
+      pointsSource.on('featuresloadstart', this._onBulkAnnotationsFeaturesLoadStart)
+      pointsSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
+      pointsSource.on('featuresloaderror', this._onBulkAnnotationsFeaturesLoadError)
+      highResSource.on('featuresloadstart', this._onBulkAnnotationsFeaturesLoadStart)
+      highResSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
+      highResSource.on('featuresloaderror', this._onBulkAnnotationsFeaturesLoadError)
+      clustersSource.on('featuresloadstart', this._onBulkAnnotationsFeaturesLoadStart)
+      clustersSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
+      clustersSource.on('featuresloaderror', this._onBulkAnnotationsFeaturesLoadError)
 
       /**
        * Reload annotations when panning.
@@ -3717,8 +3726,8 @@ class VolumeImageViewer {
           bulkAnnotationsLoader.call(
             highResSource,
             highResFeatureFunc,
-            onFeaturesLoadEnd,
-            onFeaturesLoadError
+            this._onBulkAnnotationsFeaturesLoadEnd,
+            this._onBulkAnnotationsFeaturesLoadError
           )
         }
       }, 500)
@@ -3755,6 +3764,7 @@ class VolumeImageViewer {
           ? annotationGroup.layers[0]
           : annotationGroup.layers[1]
 
+
       /** Switch low and high res layers when zoom changes */
       if (graphicType !== 'POINT') {
         this[_map].on('moveend', () => {
@@ -3771,6 +3781,7 @@ class VolumeImageViewer {
        * Zoom in inside clusters (low res layer) when clicking on them.
        */
       if (graphicType !== 'POINT') {
+        const mapView = this[_map].getView()
         this[_map].on('click', (event) => {
           annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
             if (features.length > 0) {
@@ -3781,9 +3792,8 @@ class VolumeImageViewer {
                 clusterMembers.forEach((feature) =>
                   extend(extent, feature.getGeometry().getExtent())
                 )
-                const view = map.getView()
                 /** Zoom to the extent of the cluster members */
-                view.fit(extent, { duration: 500, padding: [50, 50, 50, 50] })
+                mapView.fit(extent, { duration: 500, padding: [50, 50, 50, 50] })
               }
             }
           })
@@ -4396,6 +4406,12 @@ class VolumeImageViewer {
       let segmentUID = _generateUID({
         value: refSegmentation.SOPInstanceUID + segmentNumber.toString()
       })
+
+      if (this[_segments][segmentUID]) {
+        console.info(`segment "${segmentUID}" already exists`)
+        return
+      }
+
       if (item.TrackingUID != null) {
         segmentUID = item.TrackingUID
       }
