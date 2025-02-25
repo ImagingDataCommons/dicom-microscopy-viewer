@@ -768,6 +768,7 @@ const _rotation = Symbol('rotation')
 const _tileGrid = Symbol('tileGrid')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 const _annotationOptions = Symbol('annotationOptions')
+const _container = Symbol('container')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -1453,6 +1454,7 @@ class VolumeImageViewer {
       features: this[_features],
       wrapX: false
     })
+
     this[_drawingLayer] = new VectorLayer({
       extent: this[_pyramid].extent,
       source: this[_drawingSource],
@@ -1460,6 +1462,9 @@ class VolumeImageViewer {
       updateWhileAnimating: true,
       updateWhileInteracting: true
     })
+
+    // Set up event listeners once during initialization
+    this._setupDrawingSourceEventListeners()
 
     layers.push(this[_drawingLayer])
 
@@ -1480,106 +1485,7 @@ class VolumeImageViewer {
       })
     })
 
-    this[_map].on('movestart', (event) => {
-      publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
-    })
-
-    this[_map].on('moveend', (event) => {
-      publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
-    })
-
-    let clickEvent = null
-
-    this[_map].on('pointermove', (event) => {
-      let featureCounter = 0
-      this[_map].forEachFeatureAtPixel(event.pixel, (feature) => {
-        const correctFeature = feature.values_?.features?.[0] || feature
-        console.debug('pointermove feature id:', correctFeature)
-        if (correctFeature?.getId()) {
-          featureCounter++
-          publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
-            feature: this._getROIFromFeature(
-              correctFeature,
-              this[_pyramid].metadata,
-              this[_affine]
-            ),
-            event
-          })
-        }
-      })
-      if (!featureCounter) {
-        publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
-          feature: null,
-          event
-        })
-      }
-    })
-
-    this[_map].on('dblclick', (event) => {
-      if (this[_interactions].draw !== undefined) {
-        return
-      }
-
-      clickEvent = 'dblclick'
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          const correctFeature = feature.values_?.features?.[0] || feature
-          console.debug('dblclick feature id:', correctFeature)
-          if (correctFeature?.getId()) {
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_SELECTED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
-              )
-            )
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_DOUBLE_CLICKED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
-              )
-            )
-          }
-          clickEvent = null
-        },
-        { hitTolerance: 1 }
-      )
-    })
-
-    this[_map].on('click', (event) => {
-      if (clickEvent === 'dblclick') {
-        event.preventDefault()
-        event.stopPropagation()
-        return
-      }
-      clickEvent = 'click'
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          const correctFeature = feature.values_?.features?.[0] || feature
-          console.debug('click feature id:', correctFeature)
-          if (correctFeature?.getId()) {
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_SELECTED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
-              )
-            )
-          }
-          clickEvent = null
-        },
-        { hitTolerance: 1 }
-      )
-    })
+    this._setupMapEventListeners()
 
     view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
 
@@ -1660,6 +1566,222 @@ class VolumeImageViewer {
     })
 
     this[_overlays] = {}
+  }
+
+  /**
+   * Set up event listeners for the map.
+   * @private
+   */
+  _setupMapEventListeners () {
+    /**
+     * Handle the start of a movement event.
+     * @private
+     */
+    this[_map].on('movestart', (event) => {
+      publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
+    })
+
+    /**
+     * Handle the end of a movement event.
+     * @private
+     */
+    this[_map].on('moveend', (event) => {
+      publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
+    })
+
+    let clickEvent = null
+
+    /**
+     * Handle pointer movement events.
+     * @private
+     */
+    this[_map].on('pointermove', (event) => {
+      let featureCounter = 0
+      this[_map].forEachFeatureAtPixel(event.pixel, (feature) => {
+        const correctFeature = feature.values_?.features?.[0] || feature
+        if (correctFeature?.getId()) {
+          featureCounter++
+          publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+            feature: this._getROIFromFeature(
+              correctFeature,
+              this[_pyramid].metadata,
+              this[_affine]
+            ),
+            event
+          })
+        }
+      })
+
+      if (!featureCounter) {
+        publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+          feature: null,
+          event
+        })
+      }
+    })
+
+    /**
+     * Handle double-click events.
+     * @private
+     */
+    this[_map].on('dblclick', (event) => {
+      if (this[_interactions].draw !== undefined) {
+        return
+      }
+
+      clickEvent = 'dblclick'
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          const correctFeature = feature.values_?.features?.[0] || feature
+          console.debug('dblclick feature id:', correctFeature)
+          if (correctFeature?.getId()) {
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_SELECTED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+            )
+
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_DOUBLE_CLICKED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+            )
+          }
+          clickEvent = null
+        },
+        { hitTolerance: 1 }
+      )
+    })
+
+    /**
+     * Handle click events.
+     * @private
+     */
+    this[_map].on('click', (event) => {
+      if (clickEvent === 'dblclick') {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+
+      clickEvent = 'click'
+      this[_map].forEachFeatureAtPixel(
+        event.pixel,
+        (feature) => {
+          const correctFeature = feature.values_?.features?.[0] || feature
+          console.debug('click feature id:', correctFeature)
+          if (correctFeature?.getId()) {
+            publish(
+              this[_map].getTargetElement(),
+              EVENT.ROI_SELECTED,
+              this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              )
+            )
+          }
+          clickEvent = null
+        },
+        { hitTolerance: 1 }
+      )
+    })
+  }
+
+  /**
+   * Set up event listeners for the drawing source.
+   * @private
+   */
+  _setupDrawingSourceEventListeners () {
+    /**
+     * Handle adding a feature to the drawing source.
+     * @private
+     */
+    this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+      if (!this[_container]) {
+        return
+      }
+
+      publish(
+        this[_container],
+        EVENT.ROI_ADDED,
+        this._getROIFromFeature(e.feature, this[_pyramid].metadata, this[_affine])
+      )
+    })
+
+    /**
+     * Handle changes to a feature in the drawing source.
+     * @private
+     */
+    this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+      if (!this[_container]) {
+        return
+      }
+
+      if (e.feature !== undefined && e.feature !== null) {
+        const geometry = e.feature.getGeometry()
+        const type = geometry.getType()
+        /*
+         * The first and last point of a polygon must be identical. The
+         * last point is an implementation detail and is hidden from the
+         * user in the graphical interface. However, we must update the
+         * last point in case the first point has been modified by the
+         * user.
+         */
+        if (type === 'Polygon') {
+          /*
+           * Polygon in GeoJSON format contains an array of geometries,
+           * where the first element represents the coordinates of the
+           * outer ring and the second element represents the coordinates
+           * of the inner ring (in our case the inner ring should not be
+           * present).
+           */
+          const layout = geometry.getLayout()
+          const coordinates = geometry.getCoordinates()
+          const firstPoint = coordinates[0][0]
+          const lastPoint = coordinates[0][coordinates[0].length - 1]
+          if (
+            firstPoint[0] !== lastPoint[0] ||
+            firstPoint[1] !== lastPoint[1]
+          ) {
+            coordinates[0][coordinates[0].length - 1] = firstPoint
+            geometry.setCoordinates(coordinates, layout)
+            e.feature.setGeometry(geometry)
+          }
+        }
+      }
+
+      publish(
+        this[_container],
+        EVENT.ROI_MODIFIED,
+        this._getROIFromFeature(e.feature, this[_pyramid].metadata, this[_affine])
+      )
+    })
+
+    /**
+     * Remove a feature from the drawing source.
+     * @private
+     */
+    this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
+      if (!this[_container]) {
+        return
+      }
+
+      publish(
+        this[_container],
+        EVENT.ROI_REMOVED,
+        this._getROIFromFeature(e.feature, this[_pyramid].metadata, this[_affine])
+      )
+    })
   }
 
   /**
@@ -2143,6 +2265,7 @@ class VolumeImageViewer {
    */
   render ({ container }) {
     window.cleanup = this.cleanup.bind(this)
+    this[_container] = container
 
     if (container == null) {
       console.error('container must be provided for rendering images')
@@ -2186,63 +2309,6 @@ class VolumeImageViewer {
         const projection = view.getProjection()
         view.fit(projection.getExtent(), { size: this[_map].getSize() })
         this[_updateOverviewMapSize]()
-
-        this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-          publish(
-            container,
-            EVENT.ROI_ADDED,
-            this._getROIFromFeature(e.feature, metadata, this[_affine])
-          )
-        })
-
-        this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-          if (e.feature !== undefined || e.feature !== null) {
-            const geometry = e.feature.getGeometry()
-            const type = geometry.getType()
-            /*
-             * The first and last point of a polygon must be identical. The
-             * last point is an implementation detail and is hidden from the
-             * user in the graphical interface. However, we must update the
-             * last point in case the first point has been modified by the
-             * user.
-             */
-            if (type === 'Polygon') {
-              /*
-               * Polygon in GeoJSON format contains an array of geometries,
-               * where the first element represents the coordinates of the
-               * outer ring and the second element represents the coordinates
-               * of the inner ring (in our case the inner ring should not be
-               * present).
-               */
-              const layout = geometry.getLayout()
-              const coordinates = geometry.getCoordinates()
-              const firstPoint = coordinates[0][0]
-              const lastPoint = coordinates[0][coordinates[0].length - 1]
-              if (
-                firstPoint[0] !== lastPoint[0] ||
-                firstPoint[1] !== lastPoint[1]
-              ) {
-                coordinates[0][coordinates[0].length - 1] = firstPoint
-                geometry.setCoordinates(coordinates, layout)
-                e.feature.setGeometry(geometry)
-              }
-            }
-          }
-
-          publish(
-            container,
-            EVENT.ROI_MODIFIED,
-            this._getROIFromFeature(e.feature, metadata, this[_affine])
-          )
-        })
-
-        this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-          publish(
-            container,
-            EVENT.ROI_REMOVED,
-            this._getROIFromFeature(e.feature, metadata, this[_affine])
-          )
-        })
 
         if (this[_controls].overview && this[_overviewMap]) {
           // Style overview element (overriding Openlayers CSS "ol-overviewmap")
