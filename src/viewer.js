@@ -5433,9 +5433,15 @@ class _NonVolumeImageViewer {
    * reduced in size (fraction).
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile
    * should be included for correction of image colors.
+   * @param {boolean} [options.disableInteractions=false] - Whether interactions
+   * should be disabled e.g. zooming, panning, etc.
    */
   constructor (options) {
     this[_errorInterceptor] = options.errorInterceptor || (error => error)
+
+    if (options.disableInteractions === undefined) {
+      options.disableInteractions = false
+    }
 
     // We also accept metadata in raw JSON format for backwards compatibility
     if (options.metadata.SOPClassUID != null) {
@@ -5550,6 +5556,7 @@ class _NonVolumeImageViewer {
       layers: [this[_imageLayer]],
       view,
       controls: [],
+      interactions: options.disableInteractions ? [] : undefined,
       keyboardEventTarget: document
     })
 
@@ -5655,10 +5662,16 @@ class OverviewImageViewer extends _NonVolumeImageViewer {
    * reduced in size (fraction).
    * @param {boolean} [options.includeIccProfile=false] - Whether ICC Profile
    * should be included for correction of image colors.
+   * @param {boolean} [options.disableInteractions=false] - Whether interactions
+   * should be disabled e.g. zooming, panning, etc.
    */
   constructor (options) {
     if (options.orientation === undefined) {
       options.orientation = 'horizontal'
+    }
+
+    if (options.disableInteractions === undefined) {
+      options.disableInteractions = false
     }
 
     super(options)
