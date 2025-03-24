@@ -2940,6 +2940,11 @@ class VolumeImageViewer {
     }
   }
 
+  clearSelections () {
+    this.deactivateSelectInteraction()
+    this.activateSelectInteraction()
+  }
+
   /**
    * Activate drag pan interaction.
    *
