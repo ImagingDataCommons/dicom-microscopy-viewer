@@ -1683,9 +1683,8 @@ class VolumeImageViewer {
       const features = this[_map].getFeaturesAtPixel(event.pixel)
 
       publish(this[_map].getTargetElement(), EVENT.VIEWPORT_CLICKED, {
-        featuresAtPixel: features.length,
-      });
-
+        featuresAtPixel: features.length
+      })
 
       this[_map].forEachFeatureAtPixel(
         event.pixel,
