@@ -1682,14 +1682,10 @@ class VolumeImageViewer {
       clickEvent = 'click'
       const features = this[_map].getFeaturesAtPixel(event.pixel)
 
-      if (features.length === 0) {
-        console.info('No feature clicked.')
-        return publish(
-          this[_map].getTargetElement(),
-          EVENT.NO_ROI_SELECTED,
-          null
-        )
-      }
+      publish(this[_map].getTargetElement(), EVENT.VIEWPORT_CLICKED, {
+        featuresAtPixel: features.length,
+      });
+
 
       this[_map].forEachFeatureAtPixel(
         event.pixel,
