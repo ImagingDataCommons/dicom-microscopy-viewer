@@ -1680,14 +1680,14 @@ class VolumeImageViewer {
       }
 
       clickEvent = 'click'
-      const features = this[_map].getFeaturesAtPixel(event.pixel);
+      const features = this[_map].getFeaturesAtPixel(event.pixel)
 
-      if(features.length === 0){
+      if (features.length === 0) {
         console.info('No feature clicked.')
         return publish(
           this[_map].getTargetElement(),
           EVENT.ROI_SELECTED,
-          null,
+          null
         )
       }
 
@@ -3129,8 +3129,8 @@ class VolumeImageViewer {
     console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
     if (feature == null) {
-      console.warn(`Could not find a ROI with UID "${uid}".`);
-      return;
+      console.warn(`Could not find a ROI with UID "${uid}".`)
+      return
     }
 
     return this._getROIFromFeature(
