@@ -1686,7 +1686,7 @@ class VolumeImageViewer {
         console.info('No feature clicked.')
         return publish(
           this[_map].getTargetElement(),
-          EVENT.ROI_SELECTED,
+          EVENT.NO_ROI_SELECTED,
           null
         )
       }
@@ -2940,6 +2940,9 @@ class VolumeImageViewer {
     }
   }
 
+  /**
+   * Clear all selections.
+   */
   clearSelections () {
     this.deactivateSelectInteraction()
     this.activateSelectInteraction()

@@ -18,6 +18,8 @@ const EVENTS = {
   ROI_DRAWN: `${PROJECT_NAME}_roi_drawn`,
   /** Triggered when a ROI was selected. */
   ROI_SELECTED: `${PROJECT_NAME}_roi_selected`,
+  /** Triggered when the map is clicked but no ROI was selected. */
+  NO_ROI_SELECTED: `${PROJECT_NAME}_no_roi_selected`,
   /** Triggered when a ROI was double clicked. */
   ROI_DOUBLE_CLICKED: `${PROJECT_NAME}_roi_double_clicked`,
   /** Triggered when mouse moves. */
