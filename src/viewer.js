@@ -3118,11 +3118,8 @@ class VolumeImageViewer {
     console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
     if (feature == null) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        `Could not find a ROI with UID "${uid}".`
-      )
-      throw this[_options].errorInterceptor(error)
+      console.warn(`Could not find a ROI with UID "${uid}".`);
+      return;
     }
 
     return this._getROIFromFeature(
