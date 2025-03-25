@@ -1680,7 +1680,7 @@ class VolumeImageViewer {
       }
 
       clickEvent = 'click'
-      const features = this[_map].getFeaturesAtPixel(event.pixel);
+      const features = this[_map].getFeaturesAtPixel(event.pixel)
       const rois = features.map(feature =>
         this._getROIFromFeature(
           feature,
@@ -1689,7 +1689,7 @@ class VolumeImageViewer {
         ))
 
       publish(this[_map].getTargetElement(), EVENT.VIEWPORT_CLICKED, {
-        rois,
+        rois
       })
 
       this[_map].forEachFeatureAtPixel(
