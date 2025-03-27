@@ -1,322 +1,255 @@
-// eslint-disable-next-line
-import DataLoader from './index.worker.js'
+import * as Comlink from "comlink"
+import { RequestType } from "../enums"
+import { RequestPoolManager } from "../requestPoolManager"
 
-// the taskId to assign to the next task added via addTask()
-let nextTaskId = 0
-
-// array of queued tasks sorted with highest priority task first
-const tasks = []
-
-// array of web workers to dispatch decode tasks to
-const webWorkers = []
-
-const defaultConfig = {
-  maxWebWorkers: navigator.hardwareConcurrency || 1,
-  webWorkerTaskPaths: []
-}
-
-// limit number of web workers to avoid memory problems in certain browsers
-defaultConfig.maxWebWorkers = Math.min(defaultConfig.maxWebWorkers, 7)
-
-let config
-
-const statistics = {
-  maxWebWorkers: 0,
-  numWebWorkers: 0,
-  numTasksQueued: 0,
-  numTasksExecuting: 0,
-  numTasksCompleted: 0,
-  totalTaskTimeInMS: 0,
-  totalTimeDelayedInMS: 0
-}
-
-/**
- * Function to start a task on a web worker
- */
-function startTaskOnWebWorker () {
-  // return immediately if no decode tasks to do
-  if (!tasks.length) {
-    return
+class CentralizedWorkerManager {
+  constructor() {
+    this.workerRegistry = {}
+    this.workerPoolManager = new RequestPoolManager("webworker")
   }
 
-  // look for a web worker that is ready
-  for (let i = 0; i < webWorkers.length; i++) {
-    if (webWorkers[i].status === 'ready') {
-      // mark it as busy so tasks are not assigned to it
-      webWorkers[i].status = 'busy'
+  /**
+   * Registers a new worker, it doesn't mean that the function will get executed.
+   *
+   * @param workerName - The name of the worker.
+   * @param workerFn - The function that creates a new instance of the worker.
+   * @param {object} options - Optional parameters.
+   * @param {number} [options.maxWorkerInstances=1] - The maximum number of instances of this worker that can be created.
+   * For instance if you create a worker with maxWorkerInstances = 2, then only 2 instances of this worker will be created
+   * and in case there are 10 tasks that need to be executed, each will get assigned 5 tasks.
+   * @param {boolean} [options.overwrite=false] - Whether to overwrite the worker if it's already registered.
+   * @param {object} [options.autoTerminateOnIdle] - Configuration for automatically terminating idle workers.
+   * @param {boolean} [options.autoTerminateOnIdle.enabled=false] - Whether to enable auto-termination.
+   * @param {number} [options.autoTerminateOnIdle.idleTimeThreshold=3000] - Idle time threshold in milliseconds.
+   */
+  registerWorker(workerName, workerFn, options = {}) {
+    const {
+      maxWorkerInstances = 1,
+      overwrite = false,
+      autoTerminateOnIdle = {
+        enabled: false,
+        idleTimeThreshold: 3000, // 3 seconds
+      },
+    } = options
 
-      // get the highest priority task
-      const task = tasks.shift()
-
-      task.start = new Date().getTime()
-
-      // update stats with how long this task was delayed (waiting in queue)
-      const end = new Date().getTime()
-
-      statistics.totalTimeDelayedInMS += end - task.added
-
-      // assign this task to this web worker and send the web worker
-      // a message to execute it
-      webWorkers[i].task = task
-      webWorkers[i].worker.postMessage(
-        {
-          taskType: task.taskType,
-          workerIndex: i,
-          data: task.data
-        },
-        task.transferList
-      )
-      statistics.numTasksExecuting++
-
+    if (this.workerRegistry[workerName] && !overwrite) {
+      console.warn(`Worker type '${workerName}' is already registered...`)
       return
     }
+
+    if (overwrite && this.workerRegistry[workerName]?.idleCheckIntervalId) {
+      clearInterval(this.workerRegistry[workerName].idleCheckIntervalId)
+    }
+
+    const workerProperties = {
+      workerFn: null,
+      instances: [],
+      loadCounters: [],
+      lastActiveTime: [],
+      // used for termination
+      nativeWorkers: [],
+      // auto termination
+      autoTerminateOnIdle: autoTerminateOnIdle.enabled,
+      idleCheckIntervalId: null,
+      idleTimeThreshold: autoTerminateOnIdle.idleTimeThreshold,
+    }
+
+    workerProperties.loadCounters = Array(maxWorkerInstances).fill(0)
+    workerProperties.lastActiveTime = Array(maxWorkerInstances).fill(null)
+
+    for (let i = 0; i < maxWorkerInstances; i++) {
+      const worker = workerFn()
+      workerProperties.instances.push(Comlink.wrap(worker))
+      workerProperties.nativeWorkers.push(worker)
+      workerProperties.workerFn = workerFn
+    }
+
+    this.workerRegistry[workerName] = workerProperties
   }
 
-  // if no available web workers and we haven't started max web workers, start a new one
-  if (webWorkers.length < config.maxWebWorkers) {
-    spawnWebWorker()
-  }
-}
+  getNextWorkerAPI(workerName) {
+    const workerProperties = this.workerRegistry[workerName]
 
-/**
- * Function to handle a message from a web worker
- * @param msg
- */
-function handleMessageFromWorker (msg) {
-  if (msg.data.taskType === 'initialize') {
-    webWorkers[msg.data.workerIndex].status = 'ready'
-    startTaskOnWebWorker()
-  } else {
-    const start = webWorkers[msg.data.workerIndex].task.start
+    if (!workerProperties) {
+      console.error(`Worker type '${workerName}' is not registered.`)
+      return null
+    }
 
-    const action = msg.data.status === 'success' ? 'resolve' : 'reject'
-
-    webWorkers[msg.data.workerIndex].task.deferred[action](msg.data.result)
-
-    webWorkers[msg.data.workerIndex].task = undefined
-
-    statistics.numTasksExecuting--
-    webWorkers[msg.data.workerIndex].status = 'ready'
-    statistics.numTasksCompleted++
-
-    const end = new Date().getTime()
-
-    statistics.totalTaskTimeInMS += end - start
-
-    startTaskOnWebWorker()
-  }
-}
-
-/**
- * Spawns a new web worker
- */
-function spawnWebWorker () {
-  // prevent exceeding maxWebWorkers
-  if (webWorkers.length >= config.maxWebWorkers) {
-    return
-  }
-
-  const worker = new DataLoader()
-  // spawn the webworker
-  webWorkers.push({
-    worker,
-    status: 'initializing'
-  })
-  worker.addEventListener('message', handleMessageFromWorker)
-  worker.postMessage({
-    taskType: 'initialize',
-    workerIndex: webWorkers.length - 1,
-    config
-  })
-}
-
-/**
- * Initialization function for the web worker manager - spawns web workers
- * @param configObject
- */
-function initialize (configObject) {
-  configObject = configObject || defaultConfig
-
-  // prevent being initialized more than once
-  if (config) {
-    return
-  }
-
-  config = configObject
-
-  config.maxWebWorkers =
-    config.maxWebWorkers || navigator.hardwareConcurrency || 1
-}
-
-/**
- * Terminate all running web workers.
- */
-function terminateAllWebWorkers () {
-  for (let i = 0; i < webWorkers.length; i++) {
-    webWorkers[i].worker.terminate()
-  }
-  webWorkers.length = 0
-  config = undefined
-}
-
-/**
- * dynamically loads a web worker task
- * @param sourcePath
- * @param taskConfig
- */
-function loadWebWorkerTask (sourcePath, taskConfig) {
-  // add it to the list of web worker tasks paths so on demand web workers
-  // load this properly
-  config.webWorkerTaskPaths.push(sourcePath)
-
-  // if a task specific configuration is provided, merge it into the config
-  if (taskConfig) {
-    config.taskConfiguration = Object.assign(
-      config.taskConfiguration,
-      taskConfig
+    // Find the worker with the minimum load.
+    const workerInstances = workerProperties.instances.filter(
+      (instance) => instance !== null
     )
-  }
 
-  // tell each spawned web worker to load this task
-  for (let i = 0; i < webWorkers.length; i++) {
-    webWorkers[i].worker.postMessage({
-      taskType: 'loadWebWorkerTask',
-      workerIndex: webWorkers.length - 1,
-      sourcePath,
-      config
-    })
-  }
-}
-
-/**
- * Function to add a decode task to be performed
- *
- * @param taskType - the taskType for this task
- * @param data - data specific to the task
- * @param priority - optional priority of the task (defaults to 0), > 0 is higher, < 0 is lower
- * @param transferList - optional array of data to transfer to web worker
- *
- * @returns {*}
- */
-function addTask (taskType, data, priority = 0, transferList) {
-  if (!config) {
-    initialize()
-  }
-
-  let deferred = {}
-  const promise = new Promise((resolve, reject) => {
-    deferred = {
-      resolve,
-      reject
+    let minLoadIndex = 0
+    let minLoadValue = workerProperties.loadCounters[0] || 0
+    for (let i = 1; i < workerInstances.length; i++) {
+      const currentLoadValue = workerProperties.loadCounters[i] || 0
+      if (currentLoadValue < minLoadValue) {
+        minLoadIndex = i
+        minLoadValue = currentLoadValue
+      }
     }
-  })
 
-  // find the right spot to insert this decode task (based on priority)
-  let i
+    // Check and recreate the worker if it was terminated.
+    if (workerProperties.instances[minLoadIndex] === null) {
+      const worker = workerProperties.workerFn()
+      workerProperties.instances[minLoadIndex] = Comlink.wrap(worker)
+      workerProperties.nativeWorkers[minLoadIndex] = worker
+    }
 
-  for (i = 0; i < tasks.length; i++) {
-    if (tasks[i].priority < priority) {
-      break
+    // Update the load counter.
+    workerProperties.loadCounters[minLoadIndex] += 1
+
+    // return the worker that has the minimum load.
+    return {
+      api: workerProperties.instances[minLoadIndex],
+      index: minLoadIndex,
     }
   }
 
-  const taskId = nextTaskId++
+  /**
+   * Executes a task on a worker.
+   *
+   * @param {string} workerName - The name of the worker to execute the task on.
+   * @param {string} methodName - The name of the method to execute on the worker.
+   * @param {object} [args={}] - The arguments to pass to the method.
+   * @param {object} [options] - An object containing options for the request.
+   * @param {RequestType} [options.requestType=RequestType.Compute] - The type of the request.
+   * @param {number} [options.priority=0] - The priority of the request.
+   * @param {object} [options.options] - Additional options for the request.
+   * @param {Function[]} [options.callbacks=[]] - Callback functions.
+   * @returns {Promise} A promise that resolves with the result of the task.
+   */
+  executeTask(
+    workerName,
+    methodName,
+    args = {},
+    {
+      requestType = RequestType.Compute,
+      priority = 0,
+      options = {},
+      callbacks = [],
+    } = {}
+  ) {
+    return new Promise((resolve, reject) => {
+      const requestFn = async () => {
+        const { api, index } = this.getNextWorkerAPI(workerName)
+        if (!api) {
+          const error = new Error(
+            `No available worker instance for '${workerName}'`
+          )
+          console.error(error)
+          reject(error)
+          return
+        }
 
-  // insert the decode task at position i
-  tasks.splice(i, 0, {
-    taskId,
-    taskType,
-    status: 'ready',
-    added: new Date().getTime(),
-    data,
-    deferred,
-    priority,
-    transferList
-  })
+        try {
+          // fix if any of the args keys are a function then we need to proxy it
+          // for the worker to be able to call it
+          let finalCallbacks = []
+          if (callbacks.length) {
+            finalCallbacks = callbacks.map((cb) => {
+              return Comlink.proxy(cb)
+            })
+          }
+          const workerProperties = this.workerRegistry[workerName]
 
-  // try to start a task on the web worker since we just added a new task and a web worker may be available
-  startTaskOnWebWorker()
+          workerProperties.processing = true
 
-  return {
-    taskId,
-    promise
-  }
-}
+          const results = await api[methodName](args, ...finalCallbacks)
 
-/**
- * Changes the priority of a queued task
- * @param taskId - the taskId to change the priority of
- * @param priority - priority of the task (defaults to 0), > 0 is higher, < 0 is lower
- * @returns boolean - true on success, false if taskId not found
- */
-function setTaskPriority (taskId, priority = 0) {
-  // search for this taskId
-  for (let i = 0; i < tasks.length; i++) {
-    if (tasks[i].taskId === taskId) {
-      // taskId found, remove it
-      const task = tasks.splice(i, 1)[0]
+          workerProperties.processing = false
+          workerProperties.lastActiveTime[index] = Date.now()
 
-      // set its priority
-      task.priority = priority
+          // If auto termination is enabled and the interval is not set, set it.
+          if (
+            workerProperties.autoTerminateOnIdle &&
+            !workerProperties.idleCheckIntervalId &&
+            workerProperties.idleTimeThreshold
+          ) {
+            workerProperties.idleCheckIntervalId = setInterval(() => {
+              this.terminateIdleWorkers(
+                workerName,
+                workerProperties.idleTimeThreshold
+              )
+            }, workerProperties.idleTimeThreshold)
+          }
 
-      // find the right spot to insert this decode task (based on priority)
-      for (i = 0; i < tasks.length; i++) {
-        if (tasks[i].priority < priority) {
-          break
+          resolve(results)
+        } catch (err) {
+          console.error(
+            `Error executing method '${methodName}' on worker '${workerName}':`,
+            err
+          )
+          reject(err)
+        } finally {
+          this.workerRegistry[workerName].loadCounters[index]--
         }
       }
 
-      // insert the decode task at position i
-      tasks.splice(i, 0, task)
-
-      return true
-    }
+      // I believe there is a bug right now, where if there are two workers
+      // and one wants to run a compute job 6 times and the limit is just 5, then
+      // the other worker will never get a chance to run its compute job.
+      // we should probably have a separate limit for compute jobs per worker
+      // context as there is another layer of parallelism there.
+      this.workerPoolManager.addRequest(
+        requestFn,
+        requestType,
+        options,
+        priority
+      )
+    })
   }
 
-  return false
-}
+  terminateIdleWorkers(workerName, idleTimeThreshold) {
+    const workerProperties = this.workerRegistry[workerName]
 
-/**
- * Cancels a queued task and rejects
- * @param taskId - the taskId to cancel
- * @param reason - optional reason the task was rejected
- * @returns boolean - true on success, false if taskId not found
- */
-function cancelTask (taskId, reason) {
-  // search for this taskId
-  for (let i = 0; i < tasks.length; i++) {
-    if (tasks[i].taskId === taskId) {
-      // taskId found, remove it
-      const task = tasks.splice(i, 1)
-
-      task.deferred.reject(reason)
-
-      return true
+    if (workerProperties.processing) {
+      return
     }
+
+    const now = Date.now()
+
+    workerProperties.instances.forEach((_, index) => {
+      const lastActiveTime = workerProperties.lastActiveTime[index]
+      const isWorkerActive =
+        lastActiveTime !== null && workerProperties.loadCounters[index] > 0
+      const idleTime = now - lastActiveTime
+
+      if (!isWorkerActive && idleTime > idleTimeThreshold) {
+        this.terminateWorkerInstance(workerName, index)
+      }
+    })
   }
 
-  return false
+  terminate(workerName) {
+    const workerProperties = this.workerRegistry[workerName]
+    if (!workerProperties) {
+      console.error(`Worker type '${workerName}' is not registered.`)
+      return
+    }
+
+    workerProperties.instances.forEach((_, index) => {
+      this.terminateWorkerInstance(workerName, index)
+    })
+  }
+
+  // New method to handle individual worker termination
+  terminateWorkerInstance(workerName, index) {
+    const workerProperties = this.workerRegistry[workerName]
+    const workerInstance = workerProperties.instances[index]
+
+    if (workerInstance !== null) {
+      workerInstance[Comlink.releaseProxy]()
+      workerProperties.nativeWorkers[index].terminate()
+
+      // Set the worker instance to null after termination
+      workerProperties.instances[index] = null
+      workerProperties.lastActiveTime[index] = null
+    }
+  }
 }
 
-/**
- * Function to return the statistics on running web workers
- * @returns object containing statistics
- */
-function getStatistics () {
-  statistics.maxWebWorkers = config.maxWebWorkers
-  statistics.numWebWorkers = webWorkers.length
-  statistics.numTasksQueued = tasks.length
+const webWorkerManager = new CentralizedWorkerManager()
 
-  return statistics
-}
-
-export default {
-  initialize,
-  loadWebWorkerTask,
-  addTask,
-  getStatistics,
-  setTaskPriority,
-  cancelTask,
-  webWorkers,
-  terminateAllWebWorkers
-}
+export default webWorkerManager

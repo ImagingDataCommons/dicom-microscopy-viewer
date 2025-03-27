@@ -1,7 +1,7 @@
-import webWorkerManager from './webWorker/webWorkerManager.js'
-import dcmjs from 'dcmjs'
+import webWorkerManager from "./webWorker/webWorkerManager.js"
+import dcmjs from "dcmjs"
 
-function _processDecodeAndTransformTask (
+function _processDecodeAndTransformTask(
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -15,8 +15,25 @@ function _processDecodeAndTransformTask (
   const priority = undefined
   const transferList = undefined
 
-  return webWorkerManager.addTask(
-    'decodeAndTransformTask',
+  // return webWorkerManager.addTask(
+  //   'decodeAndTransformTask',
+  //   {
+  //     frame,
+  //     bitsAllocated,
+  //     pixelRepresentation,
+  //     columns,
+  //     rows,
+  //     samplesPerPixel,
+  //     sopInstanceUID,
+  //     metadata,
+  //     iccProfiles
+  //   },
+  //   priority,
+  //   transferList
+  // ).promise
+  return webWorkerManager.executeTask(
+    "decodeAndTransformTask",
+    "decodeTask",
     {
       frame,
       bitsAllocated,
@@ -26,14 +43,16 @@ function _processDecodeAndTransformTask (
       samplesPerPixel,
       sopInstanceUID,
       metadata,
-      iccProfiles
+      iccProfiles,
     },
-    priority,
-    transferList
-  ).promise
+    {
+      priority,
+      requestType: options?.requestType,
+    }
+  )
 }
 
-async function _decodeAndTransformFrame ({
+async function _decodeAndTransformFrame({
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -42,7 +61,7 @@ async function _decodeAndTransformFrame ({
   samplesPerPixel,
   sopInstanceUID,
   metadata, // metadata of all images (different resolution levels)
-  iccProfiles // ICC profiles for all images
+  iccProfiles, // ICC profiles for all images
 }) {
   const result = await _processDecodeAndTransformTask(
     frame,
@@ -101,13 +120,12 @@ async function _decodeAndTransformFrame ({
       break
     default:
       throw new Error(
-        'The pixel bit depth ' + bitsAllocated +
-        ' is not supported by the decoder.'
+        "The pixel bit depth " +
+          bitsAllocated +
+          " is not supported by the decoder."
       )
   }
   return pixelArray
 }
 
-export {
-  _decodeAndTransformFrame
-}
+export { _decodeAndTransformFrame }
