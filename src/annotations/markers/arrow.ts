@@ -1,14 +1,15 @@
-import Style from 'ol/style/Style'
-import Stroke from 'ol/style/Stroke'
-import Point from 'ol/geom/Point'
-import LineString from 'ol/geom/LineString'
-import Icon from 'ol/style/Icon'
-import Feature from 'ol/Feature'
-import { Coordinate } from 'ol/coordinate'
-import { Map } from 'ol'
+import Style from "ol/style/Style"
+import Stroke from "ol/style/Stroke"
+import Point from "ol/geom/Point"
+import LineString from "ol/geom/LineString"
+import Icon from "ol/style/Icon"
+import Feature from "ol/Feature"
+import type { Coordinate } from "ol/coordinate"
+import { Map } from "ol"
+import BaseEvent from "ol/events/Event"
 
-import Enums from '../../enums'
-import defaultStyles from '../styles'
+import Enums from "../../enums"
+import defaultStyles from "../styles"
 
 /**
  * Format arrow output.
@@ -19,7 +20,7 @@ import defaultStyles from '../styles'
  * @private
  */
 export const _format = (feature: Feature): string =>
-  feature.get(Enums.InternalProperties.Label) || ''
+  feature.get(Enums.InternalProperties.Label) || ""
 
 /**
  * Build arrow styles.
@@ -82,16 +83,16 @@ const _applyStyles = (feature: Feature, map: Map): void => {
               scale: newScale /** Absolute-sized icon */,
               anchor: [0.3, 0.5],
               rotateWithView: true,
-              rotation: -rotation
-            })
+              rotation: -rotation,
+            }),
           })
 
           styles.push(
             new Style({
               stroke: new Stroke({
                 color,
-                width: 5 * newScale /** Keep scale sync with icon */
-              })
+                width: 5 * newScale /** Keep scale sync with icon */,
+              }),
             })
           )
 
@@ -102,16 +103,21 @@ const _applyStyles = (feature: Feature, map: Map): void => {
         return styles
       }
 
+      // Handle point as Coordinate for Point constructor
       const iconStyle = new Style({
-        geometry: new Point(point),
+        geometry: new Point(
+          Array.isArray(point) && point.length >= 2
+            ? (point as Coordinate)
+            : [0, 0]
+        ),
         image: new Icon({
           opacity: 1,
           src: `data:image/svg+xml;utf8,${pointIcon}`,
           scale: newScale /** Absolute-sized icon */,
           anchor,
           rotateWithView: true,
-          rotation: -rotation
-        })
+          rotation: -rotation,
+        }),
       })
 
       return iconStyle
@@ -121,7 +127,7 @@ const _applyStyles = (feature: Feature, map: Map): void => {
 
 /**
  * Checks if feature is an arrow
- * 
+ *
  * @param feature The feature to check
  * @returns True if feature is an arrow
  * @private
@@ -133,21 +139,27 @@ const _isArrow = (feature: Feature): boolean =>
  * Interface for marker dependencies
  */
 interface MarkerDependencies {
-  map: Map;
-  markupManager: any;
+  map: Map
+  markupManager: any
 }
 
 /**
  * Interface for marker event handlers
  */
 interface MarkerEventHandlers {
-  onAdd: (feature: Feature) => void;
-  onDrawStart: ({ feature }: { feature: Feature }) => void;
-  onRemove: (feature: Feature) => void;
-  onFailure: (uid: string) => void;
-  onUpdate: (feature: Feature) => void;
-  onDrawEnd: ({ feature }: { feature: Feature }) => void;
-  onDrawAbort: ({ feature }: { feature: Feature }) => void;
+  onAdd: (feature: Feature) => void
+  onDrawStart: ({ feature }: { feature: Feature }) => void
+  onRemove: (feature: Feature) => void
+  onFailure: (uid: string) => void
+  onUpdate: (feature: Feature) => void
+  onDrawEnd: ({ feature }: { feature: Feature }) => void
+  onDrawAbort: ({ feature }: { feature: Feature }) => void
+}
+
+// Interface for property change event
+interface PropertyChangeEvent extends BaseEvent {
+  key: string
+  target: Feature
 }
 
 /**
@@ -155,7 +167,10 @@ interface MarkerEventHandlers {
  *
  * @param dependencies Shared dependencies
  */
-const ArrowMarker = ({ map, markupManager }: MarkerDependencies): MarkerEventHandlers => {
+const ArrowMarker = ({
+  map,
+  markupManager,
+}: MarkerDependencies): MarkerEventHandlers => {
   return {
     onAdd: (feature) => {
       if (_isArrow(feature)) {
@@ -163,16 +178,16 @@ const ArrowMarker = ({ map, markupManager }: MarkerDependencies): MarkerEventHan
 
         /** Keep arrow style after external style changes */
         feature.on(
-          Enums.FeatureEvents.PROPERTY_CHANGE,
-          ({ key: property, target: feature }) => {
-            if (property === Enums.InternalProperties.StyleOptions) {
+          "propertychange", // Use string literal instead of enum
+          (event: PropertyChangeEvent) => {
+            if (event.key === Enums.InternalProperties.StyleOptions) {
               _applyStyles(feature, map)
             }
           }
         )
 
         /** Update arrow icon position on feature geometry change */
-        feature.getGeometry().on(Enums._FeatureGeometryEvents.CHANGE, () => {
+        feature.getGeometry()?.on("change", () => {
           _applyStyles(feature, map)
         })
       }
@@ -199,7 +214,7 @@ const ArrowMarker = ({ map, markupManager }: MarkerDependencies): MarkerEventHan
       }
     },
     onDrawEnd: ({ feature }) => {},
-    onDrawAbort: ({ feature }) => {}
+    onDrawAbort: ({ feature }) => {},
   }
 }
 

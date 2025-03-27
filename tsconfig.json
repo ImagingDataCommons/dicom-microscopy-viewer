@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+      "rootDir": "./src",
+    "outDir": "./dist/esm",
     "esModuleInterop": true,
     "skipLibCheck": true,
     "target": "ES2022",
@@ -31,6 +33,8 @@
     "typeRoots": ["./node_modules/@webgpu/types", "./node_modules/@types"]
   },
   "exclude": [
+    "docs/**/*",
+    "config/**/*",
     "node_modules",
     "dist",
     "packages/**/dist",
