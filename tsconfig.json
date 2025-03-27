@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "checkJs": false,
+
+    // strictness
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitAny": false,
+    "noImplicitThis": false,
+    // wish we could turn this on
+    "strictNullChecks": false,
+
+    "baseUrl": "./",
+    "useDefineForClassFields": false,
+    "lib": ["ES2022", "dom"],
+    "removeComments": true,
+
+    //
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "declaration": true,
+    "sourceMap": false,
+    "typeRoots": ["./node_modules/@webgpu/types", "./node_modules/@types"]
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "packages/**/dist",
+    "packages/**/lib",
+    "packages/**/lib-esm",
+    "packages/adapters/**/*.js",
+    "packages/dicomImageLoader/codecs/**/*",
+    "packages/docs",
+    "packages/docs/**/*",
+    "snippets",
+    "examples"
+  ]
+}

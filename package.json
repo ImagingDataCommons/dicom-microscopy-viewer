@@ -54,8 +54,8 @@
     "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
     "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle",
-    "build:esm": "rollup -c rollup.config.mjs",
-    "dev:esm": "rollup -c rollup.config.mjs --watch",
+    "dev:esm": "tsc --project ./tsconfig.json",
+    "dev:esm:watch": "tsc --project ./tsconfig.json --watch",
     "dev": "npm run dev:esm"
   },
   "devDependencies": {
@@ -89,7 +89,8 @@
     "webpack-bundle-analyzer": "^4.4.2",
     "webpack-cli": "^4.9",
     "webpack-dev-server": "^4.9.0",
-    "worker-loader": "^3.0.8"
+    "worker-loader": "^3.0.8",
+    "typescript": "5.5.4"
   },
   "dependencies": {
     "@cornerstonejs/codec-charls": "^1.2.3",
