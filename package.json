@@ -55,7 +55,7 @@
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
     "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle",
     "dev:esm": "tsc --project ./tsconfig.json",
-    "dev:esm:watch": "tsc --project ./tsconfig.json --watch",
+    "dev:esm:watch": "bun bun.build.js",
     "dev": "npm run dev:esm"
   },
   "devDependencies": {
@@ -90,7 +90,8 @@
     "webpack-cli": "^4.9",
     "webpack-dev-server": "^4.9.0",
     "worker-loader": "^3.0.8",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "bun": "1.2.6"
   },
   "dependencies": {
     "@cornerstonejs/codec-charls": "^1.2.3",
