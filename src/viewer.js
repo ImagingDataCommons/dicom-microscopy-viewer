@@ -4720,6 +4720,7 @@ class VolumeImageViewer {
     title = title.padEnd(title.length + 2 * padding)
 
     const overlayElement = this.segmentOverlay.getElement()
+
     overlayElement.innerHTML = title
     overlayElement.style = {}
     overlayElement.style.display = 'flex'
@@ -4760,6 +4761,10 @@ class VolumeImageViewer {
     const parentElement = overlayElement.parentNode
     parentElement.style.display = 'block'
     parentElement.style.paddingLeft = '5px'
+
+    while (parentElement.children.length > 1) {
+      parentElement.lastChild.remove()
+    }
 
     parentElement.appendChild(upperBound)
     parentElement.appendChild(canvas)
