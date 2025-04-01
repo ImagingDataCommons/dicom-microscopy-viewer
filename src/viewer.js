@@ -827,12 +827,10 @@ class VolumeImageViewer {
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
     this._onBulkAnnotationsFeaturesLoadError = this._onBulkAnnotationsFeaturesLoadError.bind(this)
 
-
-
     this.segmentOverlay = new Overlay({
       element: document.createElement('div'),
       offset: [7, 5]
-    });
+    })
 
     if (this[_options].client) {
       this[_clients].default = this[_options].client
@@ -1580,7 +1578,6 @@ class VolumeImageViewer {
 
     this._setupMapEventListeners()
     this._setupDrawingSourceEventListeners()
-
   }
 
   /**
@@ -4505,7 +4502,7 @@ class VolumeImageViewer {
         })
       }
 
-      this.paletteColorLookupTable = defaultSegmentStyle.paletteColorLookupTable;
+      this.paletteColorLookupTable = defaultSegmentStyle.paletteColorLookupTable
 
       const segment = {
         segment: new Segment({
@@ -4604,8 +4601,8 @@ class VolumeImageViewer {
     disposeLayer(segment.layer)
     delete this[_segments][segmentUID]
 
-    const shouldRemoveOverlay = Object.values(this[_segments]).length === 0;
-    if(shouldRemoveOverlay){
+    const shouldRemoveOverlay = Object.values(this[_segments]).length === 0
+    if (shouldRemoveOverlay) {
       this[_map].removeOverlay(this.segmentOverlay)
     }
   }
@@ -4685,8 +4682,8 @@ class VolumeImageViewer {
 
     const shouldRemoveOverlay = Object.values(this[_segments]).every(seg => {
       return !seg.layer.isVisible()
-    });
-    if(shouldRemoveOverlay){
+    })
+    if (shouldRemoveOverlay) {
       this[_map].removeOverlay(this.segmentOverlay)
     }
   }
