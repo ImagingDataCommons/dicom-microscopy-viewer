@@ -55,7 +55,7 @@
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
     "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle",
     "dev:esm": "tsc --project ./tsconfig.json",
-    "dev:esm:watch": "bun bun.build.js",
+    "dev:esm:watch": "tsc --project ./tsconfig.json --watch",
     "dev": "npm run dev:esm"
   },
   "devDependencies": {
