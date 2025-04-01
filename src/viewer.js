@@ -4757,10 +4757,6 @@ class VolumeImageViewer {
     const lowerBound = document.createElement('div')
     lowerBound.innerHTML = '0'
 
-    // overlayElement.appendChild(upperBound)
-    // overlayElement.appendChild(canvas)
-    // overlayElement.appendChild(lowerBound)
-
     const parentElement = overlayElement.parentNode
     parentElement.style.display = 'block'
     parentElement.style.paddingLeft = '5px'
