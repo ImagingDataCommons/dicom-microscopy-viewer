@@ -827,6 +827,11 @@ class VolumeImageViewer {
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
     this._onBulkAnnotationsFeaturesLoadError = this._onBulkAnnotationsFeaturesLoadError.bind(this)
 
+    this.segmentOverlay = new Overlay({
+      element: document.createElement('div'),
+      offset: [7, 5]
+    })
+
     if (this[_options].client) {
       this[_clients].default = this[_options].client
     } else {
@@ -4497,6 +4502,8 @@ class VolumeImageViewer {
         })
       }
 
+      this.paletteColorLookupTable = defaultSegmentStyle.paletteColorLookupTable
+
       const segment = {
         segment: new Segment({
           uid: segmentUID,
@@ -4515,10 +4522,6 @@ class VolumeImageViewer {
         pyramid,
         style: { ...defaultSegmentStyle },
         defaultStyle: defaultSegmentStyle,
-        overlay: new Overlay({
-          element: document.createElement('div'),
-          offset: [5 + 5 * index + 2, 5]
-        }),
         minStoredValue,
         maxStoredValue,
         minZoomLevel,
@@ -4596,8 +4599,12 @@ class VolumeImageViewer {
     const segment = this[_segments][segmentUID]
     this[_map].removeLayer(segment.layer)
     disposeLayer(segment.layer)
-    this[_map].removeOverlay(segment.overlay)
     delete this[_segments][segmentUID]
+
+    const shouldRemoveOverlay = Object.values(this[_segments]).length === 0
+    if (shouldRemoveOverlay) {
+      this[_map].removeOverlay(this.segmentOverlay)
+    }
   }
 
   /**
@@ -4672,7 +4679,13 @@ class VolumeImageViewer {
     const segment = this[_segments][segmentUID]
     console.info(`hide segment ${segmentUID}`)
     segment.layer.setVisible(false)
-    this[_map].removeOverlay(segment.overlay)
+
+    const shouldRemoveOverlay = Object.values(this[_segments]).every(seg => {
+      return !seg.layer.isVisible()
+    })
+    if (shouldRemoveOverlay) {
+      this[_map].removeOverlay(this.segmentOverlay)
+    }
   }
 
   /**
@@ -4700,13 +4713,14 @@ class VolumeImageViewer {
    *
    * @param {Object} segment - The segment for which to show the overlay
    */
-  addSegmentOverlay (segment) {
-    let title = segment.segment.propertyType.CodeMeaning
+  addSegmentOverlay () {
+    let title = 'Fractional Segments'
     const padding = Math.round((16 - title.length) / 2)
     title = title.padStart(title.length + padding)
     title = title.padEnd(title.length + 2 * padding)
 
-    const overlayElement = segment.overlay.getElement()
+    const overlayElement = this.segmentOverlay.getElement()
+
     overlayElement.innerHTML = title
     overlayElement.style = {}
     overlayElement.style.display = 'flex'
@@ -4723,12 +4737,12 @@ class VolumeImageViewer {
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
-    const height = 30
+    const height = 120
     const width = 15
     context.canvas.height = height
     context.canvas.width = width
 
-    const colors = segment.style.paletteColorLookupTable.data
+    const colors = this.paletteColorLookupTable.data
     for (let j = 0; j < colors.length; j++) {
       const color = colors[colors.length - j - 1]
       const r = color[0]
@@ -4738,20 +4752,25 @@ class VolumeImageViewer {
       context.fillRect(0, height / colors.length * j, width, 1)
     }
 
-    const upperBound = document.createElement('span')
+    const upperBound = document.createElement('div')
     upperBound.innerHTML = '255'
 
-    const lowerBound = document.createElement('span')
+    const lowerBound = document.createElement('div')
     lowerBound.innerHTML = '0'
 
-    overlayElement.appendChild(upperBound)
-    overlayElement.appendChild(canvas)
-    overlayElement.appendChild(lowerBound)
-
     const parentElement = overlayElement.parentNode
-    parentElement.style.display = 'inline'
+    parentElement.style.display = 'block'
+    parentElement.style.paddingLeft = '5px'
 
-    this[_map].addOverlay(segment.overlay)
+    while (parentElement.children.length > 1) {
+      parentElement.lastChild.remove()
+    }
+
+    parentElement.appendChild(upperBound)
+    parentElement.appendChild(canvas)
+    parentElement.appendChild(lowerBound)
+
+    this[_map].addOverlay(this.segmentOverlay)
   }
 
   /**
@@ -4778,7 +4797,7 @@ class VolumeImageViewer {
     }
 
     if (segment.segmentationType === 'FRACTIONAL') {
-      this.addSegmentOverlay(segment)
+      this.addSegmentOverlay()
     }
   }
 
