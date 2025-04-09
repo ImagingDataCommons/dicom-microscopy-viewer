@@ -28,7 +28,7 @@ class ROI {
       this[_uid] = _generateUID()
     } else {
       if (!(typeof options.uid === 'string' || options.uid instanceof String)) {
-        throw new Error('uid of ROI must be a string')
+        throw new Error(`uid of ROI must be a string: ${typeof options.uid}`)
       }
       this[_uid] = options.uid
     }
