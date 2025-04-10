@@ -27,7 +27,7 @@ const publish = (el, type, payload = null) => {
     event.initCustomEvent(type, true, true, detail)
   }
 
-  return el.dispatchEvent(event)
+  return el?.dispatchEvent?.(event)
 }
 
 export default publish

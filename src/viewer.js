@@ -1685,6 +1685,18 @@ class VolumeImageViewer {
       }
 
       clickEvent = 'click'
+      const features = this[_map].getFeaturesAtPixel(event.pixel)
+      const rois = features.map(feature =>
+        this._getROIFromFeature(
+          feature,
+          this[_pyramid].metadata,
+          this[_affine]
+        ))
+
+      publish(this[_map].getTargetElement(), EVENT.VIEWPORT_CLICKED, {
+        rois
+      })
+
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
@@ -2935,6 +2947,14 @@ class VolumeImageViewer {
   }
 
   /**
+   * Clear all selections.
+   */
+  clearSelections () {
+    this.deactivateSelectInteraction()
+    this.activateSelectInteraction()
+  }
+
+  /**
    * Activate drag pan interaction.
    *
    * @param {Object} options - Options.
@@ -3123,11 +3143,8 @@ class VolumeImageViewer {
     console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
     if (feature == null) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        `Could not find a ROI with UID "${uid}".`
-      )
-      throw this[_options].errorInterceptor(error)
+      console.warn(`Could not find a ROI with UID "${uid}".`)
+      return
     }
 
     return this._getROIFromFeature(
