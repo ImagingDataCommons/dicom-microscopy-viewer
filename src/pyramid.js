@@ -600,7 +600,7 @@ function _fitImagePyramid (pyramid, refPyramid) {
     metadata: [],
     frameMappings: []
   }
-  
+
   // If no matching levels found, handle fixed pixel spacing case
   if (matchingLevelIndices.length === 0) {
     console.warn('No matching pyramid levels found, handling fixed pixel spacing case')
@@ -627,7 +627,6 @@ function _fitImagePyramid (pyramid, refPyramid) {
       fittedPyramid.metadata.push(segLevel)
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
     }
-
   } else {
     // Fit the pyramid levels to the reference image pyramid
     for (let i = 0; i < refPyramid.metadata.length; i++) {
