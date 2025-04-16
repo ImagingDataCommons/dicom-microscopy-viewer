@@ -590,6 +590,17 @@ function _fitImagePyramid (pyramid, refPyramid) {
     }
   }
 
+  const fittedPyramid = {
+    extent: [...refPyramid.extent],
+    origins: [],
+    resolutions: [],
+    gridSizes: [],
+    tileSizes: [],
+    pixelSpacings: [],
+    metadata: [],
+    frameMappings: []
+  }
+  
   // If no matching levels found, handle fixed pixel spacing case
   if (matchingLevelIndices.length === 0) {
     console.warn('No matching pyramid levels found, handling fixed pixel spacing case')
@@ -598,16 +609,6 @@ function _fitImagePyramid (pyramid, refPyramid) {
     const refSpacing = getPixelSpacing(refBaseLevel)
 
     // Create fitted pyramid that preserves segmentation's physical size
-    const fittedPyramid = {
-      extent: [...refPyramid.extent],
-      origins: [],
-      resolutions: [],
-      gridSizes: [],
-      tileSizes: [],
-      pixelSpacings: [],
-      metadata: [],
-      frameMappings: []
-    }
 
     // For each segmentation level, create a corresponding fitted level
     for (let j = 0; j < pyramid.metadata.length; j++) {
@@ -627,49 +628,20 @@ function _fitImagePyramid (pyramid, refPyramid) {
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
     }
 
-    // Sort levels by resolution
-    const sortedIndices = fittedPyramid.resolutions
-      .map((_, index) => index)
-      .sort((a, b) => fittedPyramid.resolutions[a] - fittedPyramid.resolutions[b])
-
-    // Reorder all pyramid arrays based on resolution
-    fittedPyramid.origins = sortedIndices.map(i => fittedPyramid.origins[i])
-    fittedPyramid.gridSizes = sortedIndices.map(i => fittedPyramid.gridSizes[i])
-    fittedPyramid.tileSizes = sortedIndices.map(i => fittedPyramid.tileSizes[i])
-    fittedPyramid.resolutions = sortedIndices.map(i => fittedPyramid.resolutions[i])
-    fittedPyramid.pixelSpacings = sortedIndices.map(i => fittedPyramid.pixelSpacings[i])
-    fittedPyramid.metadata = sortedIndices.map(i => fittedPyramid.metadata[i])
-    fittedPyramid.frameMappings = sortedIndices.map(i => fittedPyramid.frameMappings[i])
-
-    const minZoom = 0
-    const maxZoom = fittedPyramid.resolutions.length - 1
-
-    return [fittedPyramid, minZoom, maxZoom]
-  }
-
-  // Fit the pyramid levels to the reference image pyramid
-  const fittedPyramid = {
-    extent: [...refPyramid.extent],
-    origins: [],
-    resolutions: [],
-    gridSizes: [],
-    tileSizes: [],
-    pixelSpacings: [],
-    metadata: [],
-    frameMappings: []
-  }
-
-  for (let i = 0; i < refPyramid.metadata.length; i++) {
-    const index = matchingLevelIndices.find((element) => element[0] === i)
-    if (index) {
-      const j = index[1]
-      fittedPyramid.origins.push([...pyramid.origins[j]])
-      fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
-      fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
-      fittedPyramid.resolutions.push(refPyramid.resolutions[i])
-      fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
-      fittedPyramid.metadata.push(pyramid.metadata[j])
-      fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+  } else {
+    // Fit the pyramid levels to the reference image pyramid
+    for (let i = 0; i < refPyramid.metadata.length; i++) {
+      const index = matchingLevelIndices.find((element) => element[0] === i)
+      if (index) {
+        const j = index[1]
+        fittedPyramid.origins.push([...pyramid.origins[j]])
+        fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
+        fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
+        fittedPyramid.resolutions.push(refPyramid.resolutions[i])
+        fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
+        fittedPyramid.metadata.push(pyramid.metadata[j])
+        fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+      }
     }
   }
 
