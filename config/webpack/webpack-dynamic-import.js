@@ -13,7 +13,7 @@ const prodConfig = {
   output: {
     path: outputPath,
     libraryTarget: 'umd',
-    globalObject: 'this',
+    globalObject: 'window',
     filename: '[name].min.js'
   },
   optimization: {
