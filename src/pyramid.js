@@ -567,13 +567,11 @@ function _createTileLoadFunction ({
   }
 }
 
+
+
 function _fitImagePyramid (pyramid, refPyramid) {
+  /** Get the matching levels between the two pyramids */
   const matchingLevelIndices = []
-
-  // Get base levels for both pyramids
-  const refBaseLevel = refPyramid.metadata[refPyramid.metadata.length - 1]
-
-  // First try the original matching approach
   for (let i = 0; i < refPyramid.metadata.length; i++) {
     for (let j = 0; j < pyramid.metadata.length; j++) {
       const doOriginsMatch = are1DArraysAlmostEqual(
@@ -590,6 +588,7 @@ function _fitImagePyramid (pyramid, refPyramid) {
     }
   }
 
+  /** Create a new pyramid that fits the reference pyramid */
   const fittedPyramid = {
     extent: [...refPyramid.extent],
     origins: [],
@@ -601,34 +600,32 @@ function _fitImagePyramid (pyramid, refPyramid) {
     frameMappings: []
   }
 
-  // If no matching levels found, handle fixed pixel spacing case
   if (matchingLevelIndices.length === 0) {
-    console.warn('No matching pyramid levels found, handling fixed pixel spacing case')
+    console.warn('No matching pyramid levels found, handling fixed pixel spacing case...')
 
-    // Get pixel spacings
+    const refBaseLevel = refPyramid.metadata[refPyramid.metadata.length - 1]
     const refSpacing = getPixelSpacing(refBaseLevel)
 
-    // Create fitted pyramid that preserves segmentation's physical size
-
-    // For each segmentation level, create a corresponding fitted level
     for (let j = 0; j < pyramid.metadata.length; j++) {
-      const segLevel = pyramid.metadata[j]
-      const segLevelSpacing = getPixelSpacing(segLevel)
+      const imageLevel = pyramid.metadata[j]
+      const imageLevelSpacing = getPixelSpacing(imageLevel)
 
-      // Calculate resolution for this level based on its physical pixel size
-      const resolution = Math.max(segLevelSpacing[0], segLevelSpacing[1]) /
+      const resolution = Math.max(imageLevelSpacing[0], imageLevelSpacing[1]) /
                              Math.max(refSpacing[0], refSpacing[1])
 
       fittedPyramid.origins.push([...pyramid.origins[j]])
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
-      fittedPyramid.resolutions.push(resolution)
-      fittedPyramid.pixelSpacings.push([...segLevelSpacing])
-      fittedPyramid.metadata.push(segLevel)
+      fittedPyramid.resolutions.push(resolution) /** Calculated resolution */
+      fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
+      fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
     }
   } else {
-    // Fit the pyramid levels to the reference image pyramid
+    /** 
+     * Fit the pyramid levels to the reference image pyramid.
+     * Use the matching levels found in the matchingLevelIndices array.
+     */  
     for (let i = 0; i < refPyramid.metadata.length; i++) {
       const index = matchingLevelIndices.find((element) => element[0] === i)
       if (index) {
@@ -662,6 +659,10 @@ function _fitImagePyramid (pyramid, refPyramid) {
       }
     }
   }
+
+  console.debug('image pyramid:', pyramid)
+  console.debug('refPyramid:', refPyramid)
+  console.debug('fittedPyramid:', fittedPyramid)
 
   return [fittedPyramid, minZoom, maxZoom]
 }
