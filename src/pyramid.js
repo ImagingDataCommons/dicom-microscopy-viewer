@@ -567,8 +567,6 @@ function _createTileLoadFunction ({
   }
 }
 
-
-
 function _fitImagePyramid (pyramid, refPyramid) {
   /** Get the matching levels between the two pyramids */
   const matchingLevelIndices = []
@@ -604,19 +602,24 @@ function _fitImagePyramid (pyramid, refPyramid) {
     console.warn('No matching pyramid levels found, handling fixed pixel spacing case...')
 
     const refBaseLevel = refPyramid.metadata[refPyramid.metadata.length - 1]
-    const refSpacing = getPixelSpacing(refBaseLevel)
+    const refBaseTotalPixelMatrixColumns = refBaseLevel.TotalPixelMatrixColumns
 
     for (let j = 0; j < pyramid.metadata.length; j++) {
       const imageLevel = pyramid.metadata[j]
-      const imageLevelSpacing = getPixelSpacing(imageLevel)
+      const totalPixelMatrixColumns = imageLevel.TotalPixelMatrixColumns
 
-      const resolution = Math.max(imageLevelSpacing[0], imageLevelSpacing[1]) /
-                             Math.max(refSpacing[0], refSpacing[1])
+      const resolution = refBaseTotalPixelMatrixColumns / totalPixelMatrixColumns
+      const roundedResolution = Math.round(resolution)
+
+      /** Handle resolution conflicts similar to _computeImagePyramid */
+      const finalResolution = fittedPyramid.resolutions.includes(roundedResolution) 
+        ? parseFloat(resolution.toFixed(2))
+        : roundedResolution
 
       fittedPyramid.origins.push([...pyramid.origins[j]])
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
-      fittedPyramid.resolutions.push(resolution) /** Calculated resolution */
+      fittedPyramid.resolutions.push(finalResolution)
       fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
