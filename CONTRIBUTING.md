@@ -18,7 +18,7 @@ Source code is linted using [standard](https://github.com/standard/standard) (ba
 
 Use the following command to identify potential coding style and type annotation violations:
 
-    $ npm run lint
+    $ bun run lint
 
 Docstrings are written in [JSDoc](https://jsdoc.app/) format:
 
