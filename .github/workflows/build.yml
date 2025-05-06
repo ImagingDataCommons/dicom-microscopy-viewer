@@ -1,0 +1,31 @@
+name: Build
+permissions:
+  contents: read
+  pull-requests: read
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  sonarcloud:
+    name: SonarQube Cloud
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+      - name: Check SONAR_TOKEN
+        run: echo "SONAR_TOKEN length is $(echo -n $SONAR_TOKEN | wc -c)"
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} 
+      - name: Install dependencies
+        run: yarn
+      - name: Test and coverage
+        run: yarn jest --coverage
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"  # Needed to get PR information, if any
+          SONAR_TOKEN: "${{ secrets.SONAR_TOKEN }}"
