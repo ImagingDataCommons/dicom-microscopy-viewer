@@ -12,12 +12,10 @@ const prodConfig = {
   },
   output: {
     path: outputPath,
-    library: {
-      name: 'dicomMicroscopyViewer',
-      type: 'window',
-    },
+    libraryTarget: 'umd',
+    globalObject: 'window',
     filename: '[name].min.js',
-    publicPath: '/dicom-microscopy-viewer/',
+    publicPath: 'auto'
   },
   optimization: {
     minimizer: [
