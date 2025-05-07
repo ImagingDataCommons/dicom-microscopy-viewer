@@ -6,7 +6,7 @@ const TerserPlugin = require('terser-webpack-plugin')
 const outputPath = path.join(rootPath, 'dist', 'dynamic-import', 'dicom-microscopy-viewer')
 
 const prodConfig = {
-  mode: 'production',
+  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   stats: {
     children: true
   },
@@ -15,9 +15,10 @@ const prodConfig = {
     libraryTarget: 'umd',
     globalObject: 'window',
     filename: '[name].min.js',
-    publicPath: 'auto'
+    publicPath: '/dicom-microscopy-viewer/'
   },
   optimization: {
+    minimize: process.env.NODE_ENV === 'production',
     minimizer: [
       new TerserPlugin({
         parallel: true
