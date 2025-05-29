@@ -609,7 +609,7 @@ function _fitImagePyramid (pyramid, refPyramid) {
       const roundedResolution = Math.round(resolution)
 
       /** Handle resolution conflicts similar to _computeImagePyramid */
-      const finalResolution = fittedPyramid.resolutions.includes(roundedResolution) 
+      const finalResolution = fittedPyramid.resolutions.includes(roundedResolution)
         ? parseFloat(resolution.toFixed(2))
         : roundedResolution
 
@@ -622,10 +622,10 @@ function _fitImagePyramid (pyramid, refPyramid) {
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
     }
   } else {
-    /** 
+    /**
      * Fit the pyramid levels to the reference image pyramid.
      * Use the matching levels found in the matchingLevelIndices array.
-     */  
+     */
     for (let i = 0; i < refPyramid.metadata.length; i++) {
       const index = matchingLevelIndices.find((element) => element[0] === i)
       if (index) {
