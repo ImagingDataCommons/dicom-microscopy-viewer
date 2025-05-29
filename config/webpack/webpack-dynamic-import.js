@@ -5,8 +5,17 @@ const baseConfig = require('./webpack-base')
 const TerserPlugin = require('terser-webpack-plugin')
 const outputPath = path.join(rootPath, 'dist', 'dynamic-import')
 
+/** Override the WASM rule from base config to use a specific public path to avoid conflicts */
+const wasmRule = {
+  test: /\.wasm/,
+  type: 'asset/resource',
+  generator: {
+    filename: 'dicom-microscopy-viewer/[name][ext]'
+  }
+}
+
 const prodConfig = {
-  mode: 'production',
+  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   stats: {
     children: true
   },
@@ -14,9 +23,13 @@ const prodConfig = {
     path: outputPath,
     libraryTarget: 'umd',
     globalObject: 'window',
-    filename: '[name].min.js'
+    filename: '[name].min.js',
+  },
+  module: {
+    rules: [wasmRule]
   },
   optimization: {
+    minimize: process.env.NODE_ENV === 'production',
     minimizer: [
       new TerserPlugin({
         parallel: true
