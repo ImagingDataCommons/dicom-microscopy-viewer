@@ -1778,6 +1778,11 @@ class VolumeImageViewer {
          * user in the graphical interface. However, we must update the
          * last point in case the first point has been modified by the
          * user.
+         *
+         * Note: the POLYGON GraphicType value for ANN specifies that the 
+         * first and last points are implicitly joined, so the first point 
+         * should not be repeated at the end (unlike other uses in other IODs).
+         * Reference: https://github.com/ImagingDataCommons/slim/issues/298#issuecomment-2959241315
          */
         if (type === 'Polygon') {
           /*
