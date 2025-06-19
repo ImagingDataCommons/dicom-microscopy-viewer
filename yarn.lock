@@ -2834,10 +2834,10 @@ data-urls@^2.0.0:
     whatwg-mimetype "^2.3.0"
     whatwg-url "^8.0.0"
 
-dcmjs@^0.38.1:
-  version "0.38.1"
-  resolved "https://registry.yarnpkg.com/dcmjs/-/dcmjs-0.38.1.tgz#9c39813ac2717a8efc62d1db64ce8a723e8efae8"
-  integrity sha512-amSv71Gs/Yd8DRLcvS15dGlcWjpSHt5h6NTj8ozWRRuKIP5BgXhAnPPzrsJTXs+LDm13JDA8Ip2/7WLo5qfzhA==
+dcmjs@^0.41.0:
+  version "0.41.0"
+  resolved "https://registry.yarnpkg.com/dcmjs/-/dcmjs-0.41.0.tgz#4804099980ab769f8902a948ad330abdf3b577d2"
+  integrity sha512-kr46REomItFeWz+0ck4Wif4uS5VVDWVlwdh5GGaCtTYHWfNQmrcCSiQOkrShc7Dc5zP8vNKrHEdORlZXenlg3w==
   dependencies:
     "@babel/runtime-corejs3" "^7.22.5"
     adm-zip "^0.5.10"
