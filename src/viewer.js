@@ -46,7 +46,7 @@ import {
   AnnotationGroup,
   _fetchGraphicData,
   _fetchGraphicIndex,
-  _fetchMeasurements,
+  // _fetchMeasurements,
   _getCommonZCoordinate,
   _getCoordinateDimensionality
 } from './annotation.js'
@@ -1779,8 +1779,8 @@ class VolumeImageViewer {
          * last point in case the first point has been modified by the
          * user.
          *
-         * Note: the POLYGON GraphicType value for ANN specifies that the 
-         * first and last points are implicitly joined, so the first point 
+         * Note: the POLYGON GraphicType value for ANN specifies that the
+         * first and last points are implicitly joined, so the first point
          * should not be repeated at the end (unlike other uses in other IODs).
          * Reference: https://github.com/ImagingDataCommons/slim/issues/298#issuecomment-2959241315
          */
@@ -3722,7 +3722,7 @@ class VolumeImageViewer {
         } else {
           const promises = [
             _fetchGraphicData({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
-            _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
+            _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
             // TODO: Only fetch measurements if required.
             // _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
           ]

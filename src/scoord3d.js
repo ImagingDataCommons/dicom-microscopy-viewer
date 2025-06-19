@@ -233,8 +233,8 @@ class Polygon extends Scoord3D {
     if (options.coordinates.find(c => c.some(item => item < 0))) {
       console.warn('coordinates of Polygon contain negative numbers')
     }
-    // Note: the POLYGON GraphicType value for ANN specifies that the 
-    // first and last points are implicitly joined, so the first point 
+    // Note: the POLYGON GraphicType value for ANN specifies that the
+    // first and last points are implicitly joined, so the first point
     // should not be repeated at the end (unlike other uses in other IODs).
     // Reference: https://github.com/ImagingDataCommons/slim/issues/298#issuecomment-2959241315
     //
