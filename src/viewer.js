@@ -3720,11 +3720,11 @@ class VolumeImageViewer {
             failure()
           }
         } else {
-          // TODO: Only fetch measurements if required.
           const promises = [
             _fetchGraphicData({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
             _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
-            _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
+            // TODO: Only fetch measurements if required.
+            // _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
           ]
           Promise.allSettled(promises).then(results => {
             const errors = {
