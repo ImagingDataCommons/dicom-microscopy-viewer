@@ -10,8 +10,9 @@ export default class ColorTransformer extends Transformer {
    * @param {Array<metadata.VLWholeSlideMicroscopyImage>} - Metadata of each
    * image
    * @param {Array<TypedArray>} - ICC profiles of each image
+   * @param {number} [iccOutputType="srgb"] - ICC output type ("srgb": sRGB (default) or "display-p3": Display-P3).
    */
-  constructor(metadata, iccProfiles) {
+  constructor (metadata, iccProfiles, iccOutputType = "srgb") {
     super()
     if (metadata.length !== iccProfiles.length) {
       throw new Error(
@@ -23,6 +24,8 @@ export default class ColorTransformer extends Transformer {
     this.iccProfiles = iccProfiles
     this.codec = null
     this.transformers = {}
+    // ColorManager ICC output type: 0: sRGB, 1: Display-P3
+    this.iccOutputType = iccOutputType === "display-p3" ? 1 : 0;
   }
 
   _initialize() {
@@ -68,6 +71,7 @@ export default class ColorTransformer extends Transformer {
             },
             profile,
             this.codec.DcmIccOutputType?.SRGB ?? 0,
+            this.iccOutputType
           )
         }
         resolve(this.transformers)

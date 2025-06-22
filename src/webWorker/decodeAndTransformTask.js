@@ -42,7 +42,7 @@ function _handler(data, doneCallback) {
       if (iccProfiles?.length) {
         // Only instantiate the transformer once and cache it for reuse.
         if (transformerColor === undefined) {
-          transformerColor = new ColorTransformer(metadata, iccProfiles)
+          transformerColor = new ColorTransformer(metadata, iccProfiles, iccOutputType)
         }
         // Apply ICC color transform
         transformerColor

@@ -356,7 +356,8 @@ function _createTileLoadFunction({
   client,
   channel,
   iccProfiles,
-  targetElement,
+  iccOutputType,
+  targetElement
 }) {
   return async (z, y, x) => {
     let index = `${x + 1}-${y + 1}`
@@ -469,7 +470,8 @@ function _createTileLoadFunction({
             sopInstanceUID,
             metadata: pyramid.metadata,
             iccProfiles,
-          }).then((pixelArray) => {
+            iccOutputType
+          }).then(pixelArray => {
             if (pixelArray.constructor === Float64Array) {
               // TODO: handle Float64Array using LUT
               throw new Error('Double Float Pixel Data is not (yet) supported.')
