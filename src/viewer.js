@@ -769,6 +769,7 @@ const _tileGrid = Symbol('tileGrid')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 const _annotationOptions = Symbol('annotationOptions')
 const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
+const _iccOutputType = Symbol('_iccOutputType')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
 
@@ -819,6 +820,7 @@ class VolumeImageViewer {
     this[_clients] = {}
     this[_errorInterceptor] = options.errorInterceptor || (error => error)
     this[_isICCProfilesEnabled] = true
+    this[_iccOutputType] = "srgb"
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
@@ -1500,6 +1502,24 @@ class VolumeImageViewer {
     view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
 
     /**
+     * Detect the display color space.
+     * @returns {string} 'display-p3' or 'srgb'
+     */
+    function detectDisplayColorSpace() {
+      if (typeof window !== 'undefined' && window.matchMedia) {
+        if (window.matchMedia("(color-gamut: p3)").matches) {
+          return 'display-p3';
+        } else if (window.matchMedia("(color-gamut: srgb)").matches) {
+          return 'srgb';
+        }
+      }
+      return 'srgb';
+    }
+
+    this[_iccOutputType] = detectDisplayColorSpace();
+    console.log(`Detected display color space: "${this[_iccOutputType]}"`);
+
+    /**
      * OpenLayer's map has default active interactions.
      * We need to reuse them here to avoid duplications.
      * Enabling or disabling interactions could cause side effects on
@@ -2169,6 +2189,7 @@ class VolumeImageViewer {
         const loaderWithICCProfiles = _createTileLoadFunction({
           targetElement: this[_container],
           iccProfiles: profiles,
+          iccOutputType: this[_iccOutputType],
           ...item.loaderParams
         })
         const loaderWithoutICCProfiles = _createTileLoadFunction({
