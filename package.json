@@ -84,7 +84,7 @@
     "dicomweb-client": "^0.10.3",
     "colormap": "^2.3",
     "dcmjs": "^0.38.1",
-    "dicomicc": "^0.1",
+    "dicomicc": "^0.2",
     "image-type": "^4.1",
     "mathjs": "^11.2",
     "ol": "^10.4.0",
