@@ -1113,6 +1113,24 @@ class VolumeImageViewer {
       extent: this[_pyramid].extent
     })
 
+    /**
+     * Detect the display color space.
+     * @returns {string} 'display-p3' or 'srgb'
+     */
+    function detectDisplayColorSpace() {
+      if (typeof window !== 'undefined' && window.matchMedia) {
+        if (window.matchMedia("(color-gamut: p3)").matches) {
+          return 'display-p3';
+        } else if (window.matchMedia("(color-gamut: srgb)").matches) {
+          return 'srgb';
+        }
+      }
+      return 'srgb';
+    }
+
+    this[_iccOutputType] = detectDisplayColorSpace();
+    console.log(`Detected display color space: "${this[_iccOutputType]}"`);
+
     const layers = []
     const overviewLayers = []
     this[_opticalPaths] = {}
@@ -1261,7 +1279,11 @@ class VolumeImageViewer {
         })
         opticalPath.layer.helper = helper
         opticalPath.layer.on('precompose', (event) => {
-          const gl = event.context
+          const gl = event.context;
+          if ('drawingBufferColorSpace' in gl) {
+            gl.drawingBufferColorSpace = this[_iccOutputType]
+            console.debug("Using color space - layer:", gl.drawingBufferColorSpace)
+          }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
@@ -1283,6 +1305,10 @@ class VolumeImageViewer {
         opticalPath.overviewLayer.helper = overviewHelper
         opticalPath.overviewLayer.on('precompose', (event) => {
           const gl = event.context
+          if ('drawingBufferColorSpace' in gl) {
+            gl.drawingBufferColorSpace = this[_iccOutputType]
+            console.debug("Using color space - overviewLayer:", gl.drawingBufferColorSpace)
+          }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
@@ -1347,6 +1373,14 @@ class VolumeImageViewer {
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize
       })
+      opticalPath.layer.on('precompose', (event) => {
+        const gl = event.context;
+        if ('drawingBufferColorSpace' in gl) {
+          gl.drawingBufferColorSpace = this[_iccOutputType]
+          console.debug("Using color space - layer:", gl.drawingBufferColorSpace)
+        }
+      })
+
       opticalPath.layer.on('error', (event) => {
         console.error(
           `error rendering optical path "${opticalPathIdentifier}"`,
@@ -1358,6 +1392,13 @@ class VolumeImageViewer {
         extent: pyramid.extent,
         preload: 0,
         useInterimTilesOnError: false
+      })
+      opticalPath.overviewLayer.on('precompose', (event) => {
+        const gl = event.context;
+        if ('drawingBufferColorSpace' in gl) {
+          gl.drawingBufferColorSpace = this[_iccOutputType]
+          console.debug("Using color space - overviewLayer:", gl.drawingBufferColorSpace)
+        }
       })
 
       layers.push(opticalPath.layer)
@@ -1500,24 +1541,6 @@ class VolumeImageViewer {
     })
 
     view.fit(this[_projection].getExtent(), { size: this[_map].getSize() })
-
-    /**
-     * Detect the display color space.
-     * @returns {string} 'display-p3' or 'srgb'
-     */
-    function detectDisplayColorSpace() {
-      if (typeof window !== 'undefined' && window.matchMedia) {
-        if (window.matchMedia("(color-gamut: p3)").matches) {
-          return 'display-p3';
-        } else if (window.matchMedia("(color-gamut: srgb)").matches) {
-          return 'srgb';
-        }
-      }
-      return 'srgb';
-    }
-
-    this[_iccOutputType] = detectDisplayColorSpace();
-    console.log(`Detected display color space: "${this[_iccOutputType]}"`);
 
     /**
      * OpenLayer's map has default active interactions.
