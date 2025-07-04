@@ -771,6 +771,9 @@ const _annotationOptions = Symbol('annotationOptions')
 const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
+const _highResSources = Symbol('highResSources')
+const _pointsSources = Symbol('pointsSources')
+const _clustersSources = Symbol('clustersSources')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -822,6 +825,9 @@ class VolumeImageViewer {
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
+    this[_highResSources] = {}
+    this[_pointsSources] = {}
+    this[_clustersSources] = {}
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
@@ -2369,6 +2375,7 @@ class VolumeImageViewer {
     window.toggleICCProfiles = this.toggleICCProfiles.bind(this)
     window.getICCProfiles = this.getICCProfiles.bind(this)
     window.cleanup = this.cleanup.bind(this)
+    window.zoomToROI = this.zoomToROI.bind(this)
 
     if (container == null) {
       console.error('container must be provided for rendering images')
@@ -2816,6 +2823,29 @@ class VolumeImageViewer {
 
     this[_interactions].translate = new Translate(translateOptions)
     this[_map].addInteraction(this[_interactions].translate)
+  }
+
+  /**
+   * Zoom the map view to the feature with the given ROI id.
+   *
+   * @param {string} uid - Unique identifier of the region of interest or annotation group UID
+   */
+  zoomToROI(uid) {
+    const feature = this[_drawingSource].getFeatureById(uid) 
+      || this[_highResSources]?.[uid]?.getFeatures()?.[0]
+      || this[_pointsSources]?.[uid]?.getFeatures()?.[0]
+      || this[_clustersSources]?.[uid]?.getFeatures()?.[0]
+    if (!feature) {
+      console.warn(`Could not find a ROI with UID "${uid}" to zoom to.`);
+      return;
+    }
+    const geometry = feature.getGeometry();
+    if (!geometry) {
+      console.warn(`Feature with UID "${uid}" has no geometry to zoom to.`);
+      return;
+    }
+    const view = this[_map].getView();
+    view.fit(geometry.getExtent(), { duration: 500, padding: [50, 50, 50, 50] });
   }
 
   /**
@@ -3723,14 +3753,14 @@ class VolumeImageViewer {
           const promises = [
             _fetchGraphicData({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
             _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
-            // TODO: Only fetch measurements if required.
+            // TODO: Only fetch measurements if required
             // _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
           ]
           Promise.allSettled(promises).then(results => {
             const errors = {
               0: 'Failed to retrieve point coordiante data of annotation group',
               1: 'Failed to retrieve point index list of annotation group',
-              2: 'Failed to fetch measurements of annotation group'
+              // 2: 'Failed to fetch measurements of annotation group'
             }
             const retrievedBulkdata = [[], [], []]
             results.forEach((result, index) => {
@@ -3941,6 +3971,10 @@ class VolumeImageViewer {
       }
 
       this[_annotationGroups][annotationGroupUID] = annotationGroup
+      
+      this[_pointsSources][annotationGroupUID] = pointsSource;
+      this[_highResSources][annotationGroupUID] = highResSource;
+      this[_clustersSources][annotationGroupUID] = clustersSource;
     })
 
     /**
