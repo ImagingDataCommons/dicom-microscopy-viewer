@@ -208,7 +208,6 @@ class Polyline extends Scoord3D {
 /**
  * POLYGON graphic denoted by multiple, ordered, coplaner (x, y, z) coordinates
  * that represent vertices of connected line segments.
- * The first and last coordinate should be identical.
  *
  * @class
  * @extends scoord3d.Scoord3D
@@ -234,12 +233,17 @@ class Polygon extends Scoord3D {
     if (options.coordinates.find(c => c.some(item => item < 0))) {
       console.warn('coordinates of Polygon contain negative numbers')
     }
-    const n = options.coordinates.length
-    if ((options.coordinates[0][0] !== options.coordinates[n - 1][0]) ||
-       (options.coordinates[0][1] !== options.coordinates[n - 1][1]) ||
-       (options.coordinates[0][2] !== options.coordinates[n - 1][2])) {
-      throw new Error('First and last coordinate of Polygon must be the same.')
-    }
+    // Note: the POLYGON GraphicType value for ANN specifies that the
+    // first and last points are implicitly joined, so the first point
+    // should not be repeated at the end (unlike other uses in other IODs).
+    // Reference: https://github.com/ImagingDataCommons/slim/issues/298#issuecomment-2959241315
+    //
+    // const n = options.coordinates.length
+    // if ((options.coordinates[0][0] !== options.coordinates[n - 1][0]) ||
+    //    (options.coordinates[0][1] !== options.coordinates[n - 1][1]) ||
+    //    (options.coordinates[0][2] !== options.coordinates[n - 1][2])) {
+    //   throw new Error('First and last coordinate of Polygon must be the same.')
+    // }
     super({
       coordinates: options.coordinates,
       frameOfReferenceUID: options.frameOfReferenceUID,

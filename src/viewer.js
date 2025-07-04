@@ -46,7 +46,7 @@ import {
   AnnotationGroup,
   _fetchGraphicData,
   _fetchGraphicIndex,
-  _fetchMeasurements,
+  // _fetchMeasurements,
   _getCommonZCoordinate,
   _getCoordinateDimensionality
 } from './annotation.js'
@@ -771,6 +771,9 @@ const _annotationOptions = Symbol('annotationOptions')
 const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
+const _highResSources = Symbol('highResSources')
+const _pointsSources = Symbol('pointsSources')
+const _clustersSources = Symbol('clustersSources')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -822,6 +825,9 @@ class VolumeImageViewer {
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
+    this[_highResSources] = {}
+    this[_pointsSources] = {}
+    this[_clustersSources] = {}
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
@@ -1226,6 +1232,11 @@ class VolumeImageViewer {
             `error loading tile of optical path "${opticalPathIdentifier}"`,
             event
           )
+          const error = new CustomError(
+            errorTypes.VISUALIZATION,
+            `error loading tile of optical path "${opticalPathIdentifier}": ${event.message}`
+          )
+          this[_options].errorInterceptor(error)
         })
 
         const [windowCenter, windowWidth] = createWindow(
@@ -1269,6 +1280,11 @@ class VolumeImageViewer {
             `error rendering optical path "${opticalPathIdentifier}"`,
             event
           )
+          const error = new CustomError(
+            errorTypes.VISUALIZATION,
+            `error rendering optical path "${opticalPathIdentifier}": ${event.message}`
+          )
+          this[_options].errorInterceptor(error)
         })
         opticalPath.overviewLayer = new TileLayer({
           source,
@@ -1336,6 +1352,11 @@ class VolumeImageViewer {
           `error loading tile of optical path "${opticalPathIdentifier}"`,
           event
         )
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
+          `error loading tile of optical path "${opticalPathIdentifier}": ${event.message}`
+        )
+        this[_options].errorInterceptor(error)
       })
 
       opticalPath.layer = new TileLayer({
@@ -1350,6 +1371,11 @@ class VolumeImageViewer {
           `error rendering optical path "${opticalPathIdentifier}"`,
           event
         )
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
+          `error rendering optical path "${opticalPathIdentifier}": ${event.message}`
+        )
+        this[_options].errorInterceptor(error)
       })
       opticalPath.overviewLayer = new TileLayer({
         source,
@@ -1758,6 +1784,11 @@ class VolumeImageViewer {
          * user in the graphical interface. However, we must update the
          * last point in case the first point has been modified by the
          * user.
+         *
+         * Note: the POLYGON GraphicType value for ANN specifies that the
+         * first and last points are implicitly joined, so the first point
+         * should not be repeated at the end (unlike other uses in other IODs).
+         * Reference: https://github.com/ImagingDataCommons/slim/issues/298#issuecomment-2959241315
          */
         if (type === 'Polygon') {
           /*
@@ -2344,9 +2375,12 @@ class VolumeImageViewer {
     window.toggleICCProfiles = this.toggleICCProfiles.bind(this)
     window.getICCProfiles = this.getICCProfiles.bind(this)
     window.cleanup = this.cleanup.bind(this)
+    window.zoomToROI = this.zoomToROI.bind(this)
 
     if (container == null) {
       console.error('container must be provided for rendering images')
+      const error = new CustomError(errorTypes.VISUALIZATION, 'container must be provided for rendering images')
+      this[_options].errorInterceptor(error)
       return
     }
 
@@ -2636,10 +2670,14 @@ class VolumeImageViewer {
 
     if (!('geometryType' in options)) {
       console.error('geometry type must be specified for drawing interaction')
+      const error = new CustomError(errorTypes.VISUALIZATION, 'geometry type must be specified for drawing interaction')
+      this[_options].errorInterceptor(error)
     }
 
     if (!(options.geometryType in geometryOptionsMapping)) {
       console.error(`unsupported geometry type "${options.geometryType}"`)
+      const error = new CustomError(errorTypes.VISUALIZATION, `unsupported geometry type "${options.geometryType}"`)
+      this[_options].errorInterceptor(error)
     }
 
     const internalDrawOptions = { source: this[_drawingSource] }
@@ -2788,6 +2826,29 @@ class VolumeImageViewer {
   }
 
   /**
+   * Zoom the map view to the feature with the given ROI id.
+   *
+   * @param {string} uid - Unique identifier of the region of interest or annotation group UID
+   */
+  zoomToROI(uid) {
+    const feature = this[_drawingSource].getFeatureById(uid) 
+      || this[_highResSources]?.[uid]?.getFeatures()?.[0]
+      || this[_pointsSources]?.[uid]?.getFeatures()?.[0]
+      || this[_clustersSources]?.[uid]?.getFeatures()?.[0]
+    if (!feature) {
+      console.warn(`Could not find a ROI with UID "${uid}" to zoom to.`);
+      return;
+    }
+    const geometry = feature.getGeometry();
+    if (!geometry) {
+      console.warn(`Feature with UID "${uid}" has no geometry to zoom to.`);
+      return;
+    }
+    const view = this[_map].getView();
+    view.fit(geometry.getExtent(), { duration: 500, padding: [50, 50, 50, 50] });
+  }
+
+  /**
    * Extract and transform the region of interest (ROI).
    *
    * @param {Object} feature - Openlayers Feature
@@ -2806,7 +2867,7 @@ class VolumeImageViewer {
       this.removeROI(uid)
       const roiError = new CustomError(
         errorTypes.VISUALIZATION,
-        'Unable to get ROI'
+        'Unable to get ROI: ' + error.message
       )
       throw this[_options].errorInterceptor(roiError || error)
     }
@@ -3481,9 +3542,13 @@ class VolumeImageViewer {
    * Handle the error of a bulk annotations features load event.
    * @private
    */
-  _onBulkAnnotationsFeaturesLoadError (error) {
+  _onBulkAnnotationsFeaturesLoadError (event) {
     const container = this[_map].getTargetElement()
-    publish(container, EVENT.LOADING_ERROR, error)
+    const customError = new CustomError(
+      errorTypes.VISUALIZATION,
+      `Failed to load bulk annotations: ${event.type}`
+    )
+    publish(container, EVENT.LOADING_ERROR, customError)
   }
 
   /**
@@ -3604,6 +3669,8 @@ class VolumeImageViewer {
       const cacheBulkAnnotations = (id, data) => (this[_retrievedBulkdata][id] = data)
       const getCachedBulkAnnotations = (id) => (this[_retrievedBulkdata][id])
 
+      const errorInterceptor = this[_options].errorInterceptor
+
       const bulkAnnotationsLoader = function (featureFunction, success, failure) {
         console.info('load bulk annotations layer')
 
@@ -3675,20 +3742,25 @@ class VolumeImageViewer {
             processBulkAnnotations(cachedBulkAnnotations)
           } catch (error) {
             console.error('Failed to process cached bulk annotations', error)
+            const customError = new CustomError(
+              errorTypes.VISUALIZATION,
+              `Failed to process cached bulk annotations: ${error.message}`
+            )
+            errorInterceptor(customError)
             failure()
           }
         } else {
-          // TODO: Only fetch measurements if required.
           const promises = [
             _fetchGraphicData({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
-            _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
-            _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
+            _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
+            // TODO: Only fetch measurements if required
+            // _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
           ]
           Promise.allSettled(promises).then(results => {
             const errors = {
               0: 'Failed to retrieve point coordiante data of annotation group',
               1: 'Failed to retrieve point index list of annotation group',
-              2: 'Failed to fetch measurements of annotation group'
+              // 2: 'Failed to fetch measurements of annotation group'
             }
             const retrievedBulkdata = [[], [], []]
             results.forEach((result, index) => {
@@ -3696,6 +3768,11 @@ class VolumeImageViewer {
                 retrievedBulkdata[index] = result.value
               } else {
                 console.error(errors[index], result.reason)
+                const customError = new CustomError(
+                  errorTypes.VISUALIZATION,
+                  errors[index] + ': ' + result.reason
+                )
+                errorInterceptor(customError)
                 failure()
               }
             })
@@ -3704,6 +3781,11 @@ class VolumeImageViewer {
             processBulkAnnotations(retrievedBulkdata)
           }).catch(error => {
             console.error('Failed to retrieve and cache bulk annotations', error)
+            const customError = new CustomError(
+              errorTypes.VISUALIZATION,
+              `Failed to retrieve and cache bulk annotations: ${error.message}`
+            )
+            errorInterceptor(customError)
             failure()
           })
         }
@@ -3889,6 +3971,10 @@ class VolumeImageViewer {
       }
 
       this[_annotationGroups][annotationGroupUID] = annotationGroup
+      
+      this[_pointsSources][annotationGroupUID] = pointsSource;
+      this[_highResSources][annotationGroupUID] = highResSource;
+      this[_clustersSources][annotationGroupUID] = clustersSource;
     })
 
     /**
@@ -4561,6 +4647,8 @@ class VolumeImageViewer {
       })
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of segment "${segmentUID}"`, event)
+        const error = new CustomError(errorTypes.VISUALIZATION, `error loading tile of segment "${segmentUID}": ${event.message}`)
+        this[_options].errorInterceptor(error)
       })
 
       const [windowCenter, windowWidth] = createWindow(
@@ -4592,6 +4680,8 @@ class VolumeImageViewer {
       })
       segment.layer.on('error', (event) => {
         console.error(`error rendering segment "${segmentUID}"`, event)
+        const error = new CustomError(errorTypes.VISUALIZATION, `error rendering segment "${segmentUID}": ${event.message}`)
+        this[_options].errorInterceptor(error)
       })
 
       this[_map].addLayer(segment.layer)
@@ -5139,6 +5229,8 @@ class VolumeImageViewer {
       })
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of mapping "${mappingUID}"`, event)
+        const error = new CustomError(errorTypes.VISUALIZATION, `error loading tile of mapping "${mappingUID}": ${event.message}`)
+        this[_options].errorInterceptor(error)
       })
 
       mapping.layer = new TileLayer({
@@ -5157,6 +5249,8 @@ class VolumeImageViewer {
       })
       mapping.layer.on('error', (event) => {
         console.error(`error rendering mapping "${mappingUID}"`, event)
+        const error = new CustomError(errorTypes.VISUALIZATION, `error rendering mapping "${mappingUID}": ${event.message}`)
+        this[_options].errorInterceptor(error)
       })
       this[_map].addLayer(mapping.layer)
 
@@ -5625,6 +5719,8 @@ class _NonVolumeImageViewer {
   render ({ container }) {
     if (container == null) {
       console.error('container must be provided for rendering images')
+      const error = new CustomError(errorTypes.VISUALIZATION, 'container must be provided for rendering images')
+      this[_options].errorInterceptor(error)
       return
     }
 
