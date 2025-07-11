@@ -24,16 +24,30 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
 async function _getIccProfiles ({ metadata, client, onError }) {
   const fetchPromises = metadata.map(image => {
     if (image.SamplesPerPixel === 3) {
-      const opticalPathSeq = image.bulkdataReferences.OpticalPathSequence;
-      if (!opticalPathSeq || !opticalPathSeq[0] || !opticalPathSeq[0].ICCProfile) {
+      let iccProfile = false
+      const metadataItem = image.OpticalPathSequence[0]
+      if (metadataItem.ICCProfile == null) {
+        if ('OpticalPathSequence' in image.bulkdataReferences) {
+          const bulkdataItem = image.bulkdataReferences.OpticalPathSequence[0]
+          if ('ICCProfile' in bulkdataItem) {
+            iccProfile = bulkdataItem.ICCProfile
+          }
+        }
+      } else {
+        iccProfile = metadataItem.ICCProfile
+      }
+      if (!iccProfile) {
         console.warn(`ICC Profile was not found for image "${image.SOPInstanceUID}"`);
         return null;
+      } else if ('BulkDataURI' in iccProfile) {
+        console.debug(`fetching ICC Profile for image "${image.SOPInstanceUID}"`, iccProfile);
+        return _fetchBulkdata({
+          client,
+          reference: iccProfile
+        }).catch(onError);
+      } else {
+        return iccProfile
       }
-      console.debug(`fetching ICC Profile for image "${image.SOPInstanceUID}"`, opticalPathSeq);
-      return _fetchBulkdata({
-        client,
-        reference: opticalPathSeq[0].ICCProfile
-      }).catch(onError);
     }
     return null;
   });
