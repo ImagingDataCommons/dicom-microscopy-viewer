@@ -3972,8 +3972,8 @@ class VolumeImageViewer {
           annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
             if (features.length > 0) {
               const clusterMembers = features[0].get('features')
-              if (clusterMembers.length > 1) {
                 /** Calculate the extent of the cluster members */
+              if (clusterMembers && clusterMembers.length > 1) {
                 const extent = createEmpty()
                 clusterMembers.forEach((feature) =>
                   extend(extent, feature.getGeometry().getExtent())
@@ -4032,7 +4032,8 @@ class VolumeImageViewer {
               this[_pyramid].metadata,
               this[_affine]
             )
-            const extendedROI = getExtendedROI({ feature, roi, metadata })
+            const annotationGroupUID = feature.get('annotationGroupUID')
+            const extendedROI = getExtendedROI({ feature, roi, metadata, annotationGroup: this[_annotationGroups][annotationGroupUID] })
             publish(
               container,
               EVENT.ROI_SELECTED,
@@ -4044,38 +4045,7 @@ class VolumeImageViewer {
         },
         {
           hitTolerance: 1,
-          layerFilter: (layer) => (layer instanceof VectorLayer)
-        }
-      )
-
-      /**
-       * Select an annotation when clicked.
-       * Opens a dialog with ROI information.
-       */
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          if (feature !== null && feature.getId() !== undefined) {
-            feature.set('selected', 1)
-            selectedAnnotation = feature
-            const roi = this._getROIFromFeature(
-              feature,
-              this[_pyramid].metadata,
-              this[_affine]
-            )
-            const extendedROI = getExtendedROI({ feature, roi, metadata })
-            publish(
-              container,
-              EVENT.ROI_SELECTED,
-              extendedROI
-            )
-            return true
-          }
-          return false
-        },
-        {
-          hitTolerance: 1,
-          layerFilter: (layer) => (layer instanceof PointsLayer)
+          layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof PointsLayer)
         }
       )
     })
