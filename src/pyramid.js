@@ -12,36 +12,36 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
  *
  * @param {Array<metadata.VLWholeSlideMicroscopyImage>} pyramid - Metadata of
  * VL Whole Slide Microscopy Image instances
- * @param {object} client - dicom web client
+ * @param {object} options - options object
+ * @param {object} options.metadata - metadata of VL Whole Slide Microscopy Image instances
+ * @param {object} options.client - dicom web client
+ * @param {function} options.onError - function to call when an error occurs
  *
- * @returns {Promise<Array<TypedArray>>} image array with ICC profiles
+ * @returns {Promise<Array<TypedArray>>} image array with ICC profiles (only for images with SamplesPerPixel === 3 and ICCProfile present)
  *
  * @private
  */
-async function _getIccProfiles (metadata, client) {
-  const profiles = []
-  for (let i = 0; i < metadata.length; i++) {
-    const image = metadata[i]
+async function _getIccProfiles ({ metadata, client, onError }) {
+  const fetchPromises = metadata.map(image => {
     if (image.SamplesPerPixel === 3) {
-      if (image.bulkdataReferences.OpticalPathSequence == null) {
-        console.warn(
-          `no ICC Profile was not found for image "${image.SOPInstanceUID}"`
-        )
-        continue
+      const opticalPathSeq = image.bulkdataReferences.OpticalPathSequence;
+      if (!opticalPathSeq || !opticalPathSeq[0] || !opticalPathSeq[0].ICCProfile) {
+        console.warn(`ICC Profile was not found for image "${image.SOPInstanceUID}"`);
+        return null;
       }
-      const bulkdata = await _fetchBulkdata({
+      console.debug(`fetching ICC Profile for image "${image.SOPInstanceUID}"`, opticalPathSeq);
+      return _fetchBulkdata({
         client,
-        reference: (
-          image
-            .bulkdataReferences
-            .OpticalPathSequence[0]
-            .ICCProfile
-        )
-      })
-      profiles.push(bulkdata)
+        reference: opticalPathSeq[0].ICCProfile
+      }).catch(onError);
     }
-  }
-  return profiles
+    return null;
+  });
+  const validPromises = fetchPromises.filter(Boolean);
+  const results = await Promise.allSettled(validPromises);
+  return results
+    .filter(result => result.status === 'fulfilled' && result.value != null)
+    .map(result => result.value);
 }
 
 /**

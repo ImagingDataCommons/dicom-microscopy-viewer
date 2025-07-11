@@ -2191,7 +2191,15 @@ class VolumeImageViewer {
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
-      _getIccProfiles(metadata, client).then(profiles => {
+      _getIccProfiles({ 
+        metadata, 
+        client,
+        onError: (error) => {
+          console.error('Failed to fetch ICC profiles:', error)
+          const customError = new CustomError(errorTypes.VISUALIZATION, 'Failed to fetch ICC profiles')
+          this[_options].errorInterceptor(customError)
+        } 
+      }).then(profiles => {
         this[_iccProfiles] = profiles
         const source = item.layer.getSource()
         if (!source) {
@@ -2249,8 +2257,15 @@ class VolumeImageViewer {
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
-      _getIccProfiles(metadata, client).then(profiles => {
-        console.debug('icc profiles (optical path):', profiles)
+      _getIccProfiles({ 
+        metadata, 
+        client,
+        onError: (error) => {
+          console.error('Failed to fetch ICC profiles:', error)
+          const customError = new CustomError(errorTypes.VISUALIZATION, 'Failed to fetch ICC profiles')
+          this[_options].errorInterceptor(customError)
+        } 
+      }).then(profiles => {
         this[_iccProfiles] = profiles
         const loader = _createTileLoadFunction({
           targetElement: container,
@@ -2399,57 +2414,66 @@ class VolumeImageViewer {
       element.style.margin = '1px'
     }
 
-    itemsRequiringDecodersAndTransformers.forEach(item => {
+    itemsRequiringDecodersAndTransformers.forEach(async item => {
       const metadata = item.pyramid.metadata
       const client = _getClient(
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
-      _getIccProfiles(metadata, client).then(profiles => {
-        this[_iccProfiles] = profiles
-        const source = item.layer.getSource()
-        if (!source) {
-          return
-        }
 
-        const loader = _createTileLoadFunction({
-          targetElement: container,
-          iccProfiles: this[_isICCProfilesEnabled] ? profiles : null,
-          ...item.loaderParams
-        })
-        source.setLoader(loader)
-        item.hasLoader = true
-        this[_map].setTarget(container)
-        const view = this[_map].getView()
-        const projection = view.getProjection()
-        view.fit(projection.getExtent(), { size: this[_map].getSize() })
-        this[_updateOverviewMapSize]()
-
-        if (this[_controls].overview && this[_overviewMap]) {
-          // Style overview element (overriding Openlayers CSS "ol-overviewmap")
-          const overviewElement = this[_controls].overview.element
-          const overviewChildren = overviewElement.children
-          const overviewmapElement = Object.values(overviewChildren).find(
-            c => c.className === 'ol-overviewmap-map'
-          )
-          const buttonElement = Object.values(overviewChildren).find(
-            c => c.type === 'button'
-          )
-          if (buttonElement) {
-            buttonElement.title = 'Overview'
-            buttonElement.style.border = '0.25px solid black'
-            buttonElement.style.backgroundColor = 'white'
-            buttonElement.style.cursor = 'pointer'
-            const spanElement = buttonElement.children[0]
-            spanElement.style.color = 'black'
-            spanElement.style.backgroundColor = 'white'
-          }
-          styleControlElement(overviewmapElement)
-          overviewmapElement.style.border = '1px solid black'
-          overviewmapElement.style.color = 'black'
-          this[_updateOverviewMapSize]()
-        }
+      const profiles = await _getIccProfiles({ 
+        metadata, 
+        client,
+        onError: (error) => {
+          console.error('Failed to fetch ICC profiles:', error)
+          const customError = new CustomError(errorTypes.VISUALIZATION, 'Failed to fetch ICC profiles')
+          this[_options].errorInterceptor(customError)
+        } 
       })
+      this[_iccProfiles] = profiles
+
+      const source = item.layer.getSource()
+      if (!source) {
+        return
+      }
+
+      const loader = _createTileLoadFunction({
+        targetElement: container,
+        iccProfiles: this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
+        ...item.loaderParams
+      })
+      source.setLoader(loader)
+      item.hasLoader = true
+      this[_map].setTarget(container)
+      const view = this[_map].getView()
+      const projection = view.getProjection()
+      view.fit(projection.getExtent(), { size: this[_map].getSize() })
+      this[_updateOverviewMapSize]()
+
+      if (this[_controls].overview && this[_overviewMap]) {
+        // Style overview element (overriding Openlayers CSS "ol-overviewmap")
+        const overviewElement = this[_controls].overview.element
+        const overviewChildren = overviewElement.children
+        const overviewmapElement = Object.values(overviewChildren).find(
+          c => c.className === 'ol-overviewmap-map'
+        )
+        const buttonElement = Object.values(overviewChildren).find(
+          c => c.type === 'button'
+        )
+        if (buttonElement) {
+          buttonElement.title = 'Overview'
+          buttonElement.style.border = '0.25px solid black'
+          buttonElement.style.backgroundColor = 'white'
+          buttonElement.style.cursor = 'pointer'
+          const spanElement = buttonElement.children[0]
+          spanElement.style.color = 'black'
+          spanElement.style.backgroundColor = 'white'
+        }
+        styleControlElement(overviewmapElement)
+        overviewmapElement.style.border = '1px solid black'
+        overviewmapElement.style.color = 'black'
+        this[_updateOverviewMapSize]()
+      }
     })
 
     // Style scale element (overriding Openlayers CSS "ol-scale-line")
