@@ -1230,11 +1230,11 @@ class VolumeImageViewer {
         source.on('tileloaderror', (event) => {
           console.error(
             `error loading tile of optical path "${opticalPathIdentifier}"`,
-            event
+            event.tile?.error_?.message || event
           )
           const error = new CustomError(
             errorTypes.VISUALIZATION,
-            `error loading tile of optical path "${opticalPathIdentifier}": ${event.message}`
+            `error loading tile of optical path "${opticalPathIdentifier}": ${event.tile?.error_?.message || event.message}`
           )
           this[_options].errorInterceptor(error)
         })
@@ -1350,11 +1350,11 @@ class VolumeImageViewer {
       source.on('tileloaderror', (event) => {
         console.error(
           `error loading tile of optical path "${opticalPathIdentifier}"`,
-          event
+          event.tile?.error_?.message || event
         )
         const error = new CustomError(
           errorTypes.VISUALIZATION,
-          `error loading tile of optical path "${opticalPathIdentifier}": ${event.message}`
+          `error loading tile of optical path "${opticalPathIdentifier}": ${event.tile?.error_?.message || event.message}`
         )
         this[_options].errorInterceptor(error)
       })
@@ -1636,17 +1636,19 @@ class VolumeImageViewer {
     this[_map].on('pointermove', (event) => {
       let featureCounter = 0
       this[_map].forEachFeatureAtPixel(event.pixel, (feature) => {
-        const correctFeature = feature.values_?.features?.[0] || feature
-        if (correctFeature?.getId()) {
-          featureCounter++
-          publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
-            feature: this._getROIFromFeature(
-              correctFeature,
-              this[_pyramid].metadata,
-              this[_affine]
-            ),
-            event
-          })
+        if (feature !== null && feature.getId() !== undefined) {
+          const correctFeature = feature.values_?.features?.[0] || feature
+          if (correctFeature?.getId()) {
+            featureCounter++
+            publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+              feature: this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              ),
+              event
+            })
+          }
         }
       })
 
@@ -1671,29 +1673,31 @@ class VolumeImageViewer {
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
-          const correctFeature = feature.values_?.features?.[0] || feature
-          if (correctFeature?.getId()) {
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_SELECTED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
+          if (feature !== null && feature.getId() !== undefined) {
+            const correctFeature = feature.values_?.features?.[0] || feature
+            if (correctFeature?.getId()) {
+              publish(
+                this[_map].getTargetElement(),
+                EVENT.ROI_SELECTED,
+                this._getROIFromFeature(
+                  correctFeature,
+                  this[_pyramid].metadata,
+                  this[_affine]
+                )
               )
-            )
 
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_DOUBLE_CLICKED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
+              publish(
+                this[_map].getTargetElement(),
+                EVENT.ROI_DOUBLE_CLICKED,
+                this._getROIFromFeature(
+                  correctFeature,
+                  this[_pyramid].metadata,
+                  this[_affine]
+                )
               )
-            )
+            }
+            clickEvent = null
           }
-          clickEvent = null
         },
         { hitTolerance: 1 }
       )
@@ -1726,19 +1730,21 @@ class VolumeImageViewer {
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
-          const correctFeature = feature.values_?.features?.[0] || feature
-          if (correctFeature?.getId()) {
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_SELECTED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
+          if (feature !== null && feature.getId() !== undefined) { 
+            const correctFeature = feature.values_?.features?.[0] || feature
+            if (correctFeature?.getId()) {
+              publish(
+                this[_map].getTargetElement(),
+                EVENT.ROI_SELECTED,
+                this._getROIFromFeature(
+                  correctFeature,
+                  this[_pyramid].metadata,
+                  this[_affine]
+                )
               )
-            )
+            }
+            clickEvent = null
           }
-          clickEvent = null
         },
         { hitTolerance: 1 }
       )
@@ -4640,7 +4646,7 @@ class VolumeImageViewer {
         interpolate: true
       })
       source.on('tileloaderror', (event) => {
-        console.error(`error loading tile of segment "${segmentUID}"`, event)
+        console.error(`error loading tile of segment "${segmentUID}"`, event.tile?.error_?.message || event)
         const error = new CustomError(errorTypes.VISUALIZATION, `error loading tile of segment "${segmentUID}": ${event.message}`)
         this[_options].errorInterceptor(error)
       })
@@ -5222,7 +5228,7 @@ class VolumeImageViewer {
         interpolate: true
       })
       source.on('tileloaderror', (event) => {
-        console.error(`error loading tile of mapping "${mappingUID}"`, event)
+        console.error(`error loading tile of mapping "${mappingUID}"`, event.tile?.error_?.message || event)
         const error = new CustomError(errorTypes.VISUALIZATION, `error loading tile of mapping "${mappingUID}": ${event.message}`)
         this[_options].errorInterceptor(error)
       })
