@@ -37,25 +37,25 @@ async function _getIccProfiles ({ metadata, client, onError }) {
         iccProfile = metadataItem.ICCProfile
       }
       if (!iccProfile) {
-        console.warn(`ICC Profile was not found for image "${image.SOPInstanceUID}"`);
-        return null;
+        console.warn(`ICC Profile was not found for image "${image.SOPInstanceUID}"`)
+        return null
       } else if ('BulkDataURI' in iccProfile) {
-        console.debug(`fetching ICC Profile for image "${image.SOPInstanceUID}"`, iccProfile);
+        console.debug(`fetching ICC Profile for image "${image.SOPInstanceUID}"`, iccProfile)
         return _fetchBulkdata({
           client,
           reference: iccProfile
-        }).catch(onError);
+        }).catch(onError)
       } else {
         return iccProfile
       }
     }
-    return null;
-  });
-  const validPromises = fetchPromises.filter(Boolean);
-  const results = await Promise.allSettled(validPromises);
+    return null
+  })
+  const validPromises = fetchPromises.filter(Boolean)
+  const results = await Promise.allSettled(validPromises)
   return results
     .filter(result => result.status === 'fulfilled' && result.value != null)
-    .map(result => result.value);
+    .map(result => result.value)
 }
 
 /**

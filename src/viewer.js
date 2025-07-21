@@ -813,7 +813,9 @@ class VolumeImageViewer {
    * @param {errorInterceptor} [options.errorInterceptor] - Callback for
    * intercepting errors
    * @param {number[]} [options.mapViewResolutions] Map's view list of
-   * resolutions. If not passed, the tile grid resolution will be used.
+   * resolutions.
+   * @param {boolean} [options.useTileGridResolutions] If true, the tile grid
+   * resolutions will be used if no map view resolutions are provided.
    */
   constructor (options) {
     this[_options] = options
@@ -1101,7 +1103,12 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
-    let mapViewResolutions = this[_tileGrid].getResolutions()
+    let mapViewResolutions
+
+    if (has(this[_options], 'useTileGridResolutions')) {
+      mapViewResolutions = this[_tileGrid].getResolutions()
+    }
+
     if (has(this[_options], 'mapViewResolutions')) {
       mapViewResolutions = this[_options].mapViewResolutions
     }
@@ -1111,6 +1118,7 @@ class VolumeImageViewer {
       projection: this[_projection],
       rotation: this[_rotation],
       constrainOnlyCenter: false,
+      resolutions: mapViewResolutions,
       smoothResolutionConstraint: true,
       showFullExtent: true,
       extent: this[_pyramid].extent
@@ -1729,7 +1737,7 @@ class VolumeImageViewer {
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
-          if (feature !== null && feature.getId() !== undefined) { 
+          if (feature !== null && feature.getId() !== undefined) {
             const correctFeature = feature.values_?.features?.[0] || feature
             if (correctFeature?.getId()) {
               publish(
@@ -2196,14 +2204,14 @@ class VolumeImageViewer {
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
-      _getIccProfiles({ 
-        metadata, 
+      _getIccProfiles({
+        metadata,
         client,
         onError: (error) => {
           console.error('Failed to fetch ICC profiles:', error)
           const customError = new CustomError(errorTypes.VISUALIZATION, 'Failed to fetch ICC profiles')
           this[_options].errorInterceptor(customError)
-        } 
+        }
       }).then(profiles => {
         this[_iccProfiles] = profiles
         const source = item.layer.getSource()
@@ -2262,14 +2270,14 @@ class VolumeImageViewer {
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
-      _getIccProfiles({ 
-        metadata, 
+      _getIccProfiles({
+        metadata,
         client,
         onError: (error) => {
           console.error('Failed to fetch ICC profiles:', error)
           const customError = new CustomError(errorTypes.VISUALIZATION, 'Failed to fetch ICC profiles')
           this[_options].errorInterceptor(customError)
-        } 
+        }
       }).then(profiles => {
         this[_iccProfiles] = profiles
         const loader = _createTileLoadFunction({
@@ -2426,14 +2434,14 @@ class VolumeImageViewer {
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
 
-      const profiles = await _getIccProfiles({ 
-        metadata, 
+      const profiles = await _getIccProfiles({
+        metadata,
         client,
         onError: (error) => {
           console.error('Failed to fetch ICC profiles:', error)
           const customError = new CustomError(errorTypes.VISUALIZATION, 'Failed to fetch ICC profiles')
           this[_options].errorInterceptor(customError)
-        } 
+        }
       })
       this[_iccProfiles] = profiles
 
@@ -2859,22 +2867,22 @@ class VolumeImageViewer {
    *
    * @param {string} uid - Unique identifier of the region of interest or annotation group UID
    */
-  zoomToROI(uid) {
-    const feature = this[_drawingSource].getFeatureById(uid) 
-      || this[_highResSources]?.[uid]?.getFeatures()?.[0]
-      || this[_pointsSources]?.[uid]?.getFeatures()?.[0]
-      || this[_clustersSources]?.[uid]?.getFeatures()?.[0]
+  zoomToROI (uid) {
+    const feature = this[_drawingSource].getFeatureById(uid) ||
+      this[_highResSources]?.[uid]?.getFeatures()?.[0] ||
+      this[_pointsSources]?.[uid]?.getFeatures()?.[0] ||
+      this[_clustersSources]?.[uid]?.getFeatures()?.[0]
     if (!feature) {
-      console.warn(`Could not find a ROI with UID "${uid}" to zoom to.`);
-      return;
+      console.warn(`Could not find a ROI with UID "${uid}" to zoom to.`)
+      return
     }
-    const geometry = feature.getGeometry();
+    const geometry = feature.getGeometry()
     if (!geometry) {
-      console.warn(`Feature with UID "${uid}" has no geometry to zoom to.`);
-      return;
+      console.warn(`Feature with UID "${uid}" has no geometry to zoom to.`)
+      return
     }
-    const view = this[_map].getView();
-    view.fit(geometry.getExtent(), { duration: 500, padding: [50, 50, 50, 50] });
+    const view = this[_map].getView()
+    view.fit(geometry.getExtent(), { duration: 500, padding: [50, 50, 50, 50] })
   }
 
   /**
@@ -3788,7 +3796,7 @@ class VolumeImageViewer {
           Promise.allSettled(promises).then(results => {
             const errors = {
               0: 'Failed to retrieve point coordiante data of annotation group',
-              1: 'Failed to retrieve point index list of annotation group',
+              1: 'Failed to retrieve point index list of annotation group'
               // 2: 'Failed to fetch measurements of annotation group'
             }
             const retrievedBulkdata = [[], [], []]
@@ -3977,7 +3985,7 @@ class VolumeImageViewer {
           annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
             if (features.length > 0) {
               const clusterMembers = features[0].get('features')
-                /** Calculate the extent of the cluster members */
+              /** Calculate the extent of the cluster members */
               if (clusterMembers && clusterMembers.length > 1) {
                 const extent = createEmpty()
                 clusterMembers.forEach((feature) =>
@@ -4000,10 +4008,10 @@ class VolumeImageViewer {
       }
 
       this[_annotationGroups][annotationGroupUID] = annotationGroup
-      
-      this[_pointsSources][annotationGroupUID] = pointsSource;
-      this[_highResSources][annotationGroupUID] = highResSource;
-      this[_clustersSources][annotationGroupUID] = clustersSource;
+
+      this[_pointsSources][annotationGroupUID] = pointsSource
+      this[_highResSources][annotationGroupUID] = highResSource
+      this[_clustersSources][annotationGroupUID] = clustersSource
     })
 
     /**
