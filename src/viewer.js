@@ -1109,7 +1109,6 @@ class VolumeImageViewer {
     const view = new View({
       center: getCenter(this[_pyramid].extent),
       projection: this[_projection],
-      resolutions: mapViewResolutions,
       rotation: this[_rotation],
       constrainOnlyCenter: false,
       smoothResolutionConstraint: true,
