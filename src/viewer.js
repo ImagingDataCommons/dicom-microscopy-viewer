@@ -125,7 +125,7 @@ function disposeMapLayers (map) {
  */
 function disposeOverviewMapLayers (map) {
   console.info('dispose overview map layers...')
-  const overviewMap = map.getOverviewMap()
+  const overviewMap = map?.getOverviewMap()
   if (overviewMap) {
     const overviewMapLayers = overviewMap.getLayers()
     if (overviewMapLayers) {
