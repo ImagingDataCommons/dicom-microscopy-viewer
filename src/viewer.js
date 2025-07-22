@@ -2882,7 +2882,21 @@ class VolumeImageViewer {
       return
     }
     const view = this[_map].getView()
-    view.fit(geometry.getExtent(), { duration: 500, padding: [50, 50, 50, 50] })
+    // Expand the extent by a scale factor (e.g., 1.5x)
+    const extent = geometry.getExtent()
+    const center = getCenter(extent)
+    const width = getWidth(extent)
+    const height = getHeight(extent)
+    const scale = 7
+    const newWidth = width * scale
+    const newHeight = height * scale
+    const expandedExtent = [
+      center[0] - newWidth / 2,
+      center[1] - newHeight / 2,
+      center[0] + newWidth / 2,
+      center[1] + newHeight / 2
+    ]
+    view.fit(expandedExtent, { duration: 500 })
   }
 
   /**
