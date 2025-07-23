@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
       - name: Check SONAR_TOKEN
-        run: echo "SONAR_TOKEN length is $(echo -n $SONAR_TOKEN | wc -c)"
+        run: echo "SONAR_TOKEN length is $(echo -n ${SONAR_TOKEN} | wc -c)"
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} 
       - name: Install dependencies
