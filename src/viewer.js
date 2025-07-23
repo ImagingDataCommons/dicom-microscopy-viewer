@@ -46,7 +46,7 @@ import {
   AnnotationGroup,
   _fetchGraphicData,
   _fetchGraphicIndex,
-  _fetchMeasurements,
+  // _fetchMeasurements,
   _getCommonZCoordinate,
   _getCoordinateDimensionality
 } from './annotation.js'
@@ -125,7 +125,7 @@ function disposeMapLayers (map) {
  */
 function disposeOverviewMapLayers (map) {
   console.info('dispose overview map layers...')
-  const overviewMap = map.getOverviewMap()
+  const overviewMap = map?.getOverviewMap()
   if (overviewMap) {
     const overviewMapLayers = overviewMap.getLayers()
     if (overviewMapLayers) {
@@ -772,6 +772,9 @@ const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
 const _iccOutputType = Symbol('_iccOutputType')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
+const _highResSources = Symbol('highResSources')
+const _pointsSources = Symbol('pointsSources')
+const _clustersSources = Symbol('clustersSources')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -811,7 +814,9 @@ class VolumeImageViewer {
    * @param {errorInterceptor} [options.errorInterceptor] - Callback for
    * intercepting errors
    * @param {number[]} [options.mapViewResolutions] Map's view list of
-   * resolutions. If not passed, the tile grid resolution will be used.
+   * resolutions.
+   * @param {boolean} [options.useTileGridResolutions] If true, the tile grid
+   * resolutions will be used if no map view resolutions are provided.
    */
   constructor (options) {
     this[_options] = options
@@ -824,6 +829,9 @@ class VolumeImageViewer {
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
+    this[_highResSources] = {}
+    this[_pointsSources] = {}
+    this[_clustersSources] = {}
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
@@ -1097,7 +1105,12 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
-    let mapViewResolutions = this[_tileGrid].getResolutions()
+    let mapViewResolutions
+
+    if (has(this[_options], 'useTileGridResolutions')) {
+      mapViewResolutions = this[_tileGrid].getResolutions()
+    }
+
     if (has(this[_options], 'mapViewResolutions')) {
       mapViewResolutions = this[_options].mapViewResolutions
     }
@@ -1105,9 +1118,9 @@ class VolumeImageViewer {
     const view = new View({
       center: getCenter(this[_pyramid].extent),
       projection: this[_projection],
-      resolutions: mapViewResolutions,
       rotation: this[_rotation],
       constrainOnlyCenter: false,
+      resolutions: mapViewResolutions,
       smoothResolutionConstraint: true,
       showFullExtent: true,
       extent: this[_pyramid].extent
@@ -1244,8 +1257,13 @@ class VolumeImageViewer {
         source.on('tileloaderror', (event) => {
           console.error(
             `error loading tile of optical path "${opticalPathIdentifier}"`,
-            event
+            event.tile?.error_?.message || event
           )
+          const error = new CustomError(
+            errorTypes.VISUALIZATION,
+            `error loading tile of optical path "${opticalPathIdentifier}": ${event.tile?.error_?.message || event.message}`
+          )
+          this[_options].errorInterceptor(error)
         })
 
         const [windowCenter, windowWidth] = createWindow(
@@ -1293,6 +1311,11 @@ class VolumeImageViewer {
             `error rendering optical path "${opticalPathIdentifier}"`,
             event
           )
+          const error = new CustomError(
+            errorTypes.VISUALIZATION,
+            `error rendering optical path "${opticalPathIdentifier}": ${event.message}`
+          )
+          this[_options].errorInterceptor(error)
         })
         opticalPath.overviewLayer = new TileLayer({
           source,
@@ -1362,8 +1385,13 @@ class VolumeImageViewer {
       source.on('tileloaderror', (event) => {
         console.error(
           `error loading tile of optical path "${opticalPathIdentifier}"`,
-          event
+          event.tile?.error_?.message || event
         )
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
+          `error loading tile of optical path "${opticalPathIdentifier}": ${event.tile?.error_?.message || event.message}`
+        )
+        this[_options].errorInterceptor(error)
       })
 
       opticalPath.layer = new TileLayer({
@@ -1386,6 +1414,11 @@ class VolumeImageViewer {
           `error rendering optical path "${opticalPathIdentifier}"`,
           event
         )
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
+          `error rendering optical path "${opticalPathIdentifier}": ${event.message}`
+        )
+        this[_options].errorInterceptor(error)
       })
       opticalPath.overviewLayer = new TileLayer({
         source,
@@ -1653,17 +1686,19 @@ class VolumeImageViewer {
     this[_map].on('pointermove', (event) => {
       let featureCounter = 0
       this[_map].forEachFeatureAtPixel(event.pixel, (feature) => {
-        const correctFeature = feature.values_?.features?.[0] || feature
-        if (correctFeature?.getId()) {
-          featureCounter++
-          publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
-            feature: this._getROIFromFeature(
-              correctFeature,
-              this[_pyramid].metadata,
-              this[_affine]
-            ),
-            event
-          })
+        if (feature !== null && feature.getId() !== undefined) {
+          const correctFeature = feature.values_?.features?.[0] || feature
+          if (correctFeature?.getId()) {
+            featureCounter++
+            publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+              feature: this._getROIFromFeature(
+                correctFeature,
+                this[_pyramid].metadata,
+                this[_affine]
+              ),
+              event
+            })
+          }
         }
       })
 
@@ -1688,29 +1723,31 @@ class VolumeImageViewer {
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
-          const correctFeature = feature.values_?.features?.[0] || feature
-          if (correctFeature?.getId()) {
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_SELECTED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
+          if (feature !== null && feature.getId() !== undefined) {
+            const correctFeature = feature.values_?.features?.[0] || feature
+            if (correctFeature?.getId()) {
+              publish(
+                this[_map].getTargetElement(),
+                EVENT.ROI_SELECTED,
+                this._getROIFromFeature(
+                  correctFeature,
+                  this[_pyramid].metadata,
+                  this[_affine]
+                )
               )
-            )
 
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_DOUBLE_CLICKED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
+              publish(
+                this[_map].getTargetElement(),
+                EVENT.ROI_DOUBLE_CLICKED,
+                this._getROIFromFeature(
+                  correctFeature,
+                  this[_pyramid].metadata,
+                  this[_affine]
+                )
               )
-            )
+            }
+            clickEvent = null
           }
-          clickEvent = null
         },
         { hitTolerance: 1 }
       )
@@ -1743,19 +1780,21 @@ class VolumeImageViewer {
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
-          const correctFeature = feature.values_?.features?.[0] || feature
-          if (correctFeature?.getId()) {
-            publish(
-              this[_map].getTargetElement(),
-              EVENT.ROI_SELECTED,
-              this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine]
+          if (feature !== null && feature.getId() !== undefined) {
+            const correctFeature = feature.values_?.features?.[0] || feature
+            if (correctFeature?.getId()) {
+              publish(
+                this[_map].getTargetElement(),
+                EVENT.ROI_SELECTED,
+                this._getROIFromFeature(
+                  correctFeature,
+                  this[_pyramid].metadata,
+                  this[_affine]
+                )
               )
-            )
+            }
+            clickEvent = null
           }
-          clickEvent = null
         },
         { hitTolerance: 1 }
       )
@@ -1801,6 +1840,11 @@ class VolumeImageViewer {
          * user in the graphical interface. However, we must update the
          * last point in case the first point has been modified by the
          * user.
+         *
+         * Note: the POLYGON GraphicType value for ANN specifies that the
+         * first and last points are implicitly joined, so the first point
+         * should not be repeated at the end (unlike other uses in other IODs).
+         * Reference: https://github.com/ImagingDataCommons/slim/issues/298#issuecomment-2959241315
          */
         if (type === 'Polygon') {
           /*
@@ -2203,7 +2247,15 @@ class VolumeImageViewer {
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
-      _getIccProfiles(metadata, client).then(profiles => {
+      _getIccProfiles({
+        metadata,
+        client,
+        onError: (error) => {
+          console.error('Failed to fetch ICC profiles:', error)
+          const customError = new CustomError(errorTypes.VISUALIZATION, 'Failed to fetch ICC profiles')
+          this[_options].errorInterceptor(customError)
+        }
+      }).then(profiles => {
         this[_iccProfiles] = profiles
         const source = item.layer.getSource()
         if (!source) {
@@ -2262,8 +2314,15 @@ class VolumeImageViewer {
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
-      _getIccProfiles(metadata, client).then(profiles => {
-        console.debug('icc profiles (optical path):', profiles)
+      _getIccProfiles({
+        metadata,
+        client,
+        onError: (error) => {
+          console.error('Failed to fetch ICC profiles:', error)
+          const customError = new CustomError(errorTypes.VISUALIZATION, 'Failed to fetch ICC profiles')
+          this[_options].errorInterceptor(customError)
+        }
+      }).then(profiles => {
         this[_iccProfiles] = profiles
         const loader = _createTileLoadFunction({
           targetElement: container,
@@ -2388,9 +2447,12 @@ class VolumeImageViewer {
     window.toggleICCProfiles = this.toggleICCProfiles.bind(this)
     window.getICCProfiles = this.getICCProfiles.bind(this)
     window.cleanup = this.cleanup.bind(this)
+    window.zoomToROI = this.zoomToROI.bind(this)
 
     if (container == null) {
       console.error('container must be provided for rendering images')
+      const error = new CustomError(errorTypes.VISUALIZATION, 'container must be provided for rendering images')
+      this[_options].errorInterceptor(error)
       return
     }
 
@@ -2409,57 +2471,66 @@ class VolumeImageViewer {
       element.style.margin = '1px'
     }
 
-    itemsRequiringDecodersAndTransformers.forEach(item => {
+    itemsRequiringDecodersAndTransformers.forEach(async item => {
       const metadata = item.pyramid.metadata
       const client = _getClient(
         this[_clients],
         Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE
       )
-      _getIccProfiles(metadata, client).then(profiles => {
-        this[_iccProfiles] = profiles
-        const source = item.layer.getSource()
-        if (!source) {
-          return
-        }
 
-        const loader = _createTileLoadFunction({
-          targetElement: container,
-          iccProfiles: this[_isICCProfilesEnabled] ? profiles : null,
-          ...item.loaderParams
-        })
-        source.setLoader(loader)
-        item.hasLoader = true
-        this[_map].setTarget(container)
-        const view = this[_map].getView()
-        const projection = view.getProjection()
-        view.fit(projection.getExtent(), { size: this[_map].getSize() })
-        this[_updateOverviewMapSize]()
-
-        if (this[_controls].overview && this[_overviewMap]) {
-          // Style overview element (overriding Openlayers CSS "ol-overviewmap")
-          const overviewElement = this[_controls].overview.element
-          const overviewChildren = overviewElement.children
-          const overviewmapElement = Object.values(overviewChildren).find(
-            c => c.className === 'ol-overviewmap-map'
-          )
-          const buttonElement = Object.values(overviewChildren).find(
-            c => c.type === 'button'
-          )
-          if (buttonElement) {
-            buttonElement.title = 'Overview'
-            buttonElement.style.border = '0.25px solid black'
-            buttonElement.style.backgroundColor = 'white'
-            buttonElement.style.cursor = 'pointer'
-            const spanElement = buttonElement.children[0]
-            spanElement.style.color = 'black'
-            spanElement.style.backgroundColor = 'white'
-          }
-          styleControlElement(overviewmapElement)
-          overviewmapElement.style.border = '1px solid black'
-          overviewmapElement.style.color = 'black'
-          this[_updateOverviewMapSize]()
+      const profiles = await _getIccProfiles({
+        metadata,
+        client,
+        onError: (error) => {
+          console.error('Failed to fetch ICC profiles:', error)
+          const customError = new CustomError(errorTypes.VISUALIZATION, 'Failed to fetch ICC profiles')
+          this[_options].errorInterceptor(customError)
         }
       })
+      this[_iccProfiles] = profiles
+
+      const source = item.layer.getSource()
+      if (!source) {
+        return
+      }
+
+      const loader = _createTileLoadFunction({
+        targetElement: container,
+        iccProfiles: this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
+        ...item.loaderParams
+      })
+      source.setLoader(loader)
+      item.hasLoader = true
+      this[_map].setTarget(container)
+      const view = this[_map].getView()
+      const projection = view.getProjection()
+      view.fit(projection.getExtent(), { size: this[_map].getSize() })
+      this[_updateOverviewMapSize]()
+
+      if (this[_controls].overview && this[_overviewMap]) {
+        // Style overview element (overriding Openlayers CSS "ol-overviewmap")
+        const overviewElement = this[_controls].overview.element
+        const overviewChildren = overviewElement.children
+        const overviewmapElement = Object.values(overviewChildren).find(
+          c => c.className === 'ol-overviewmap-map'
+        )
+        const buttonElement = Object.values(overviewChildren).find(
+          c => c.type === 'button'
+        )
+        if (buttonElement) {
+          buttonElement.title = 'Overview'
+          buttonElement.style.border = '0.25px solid black'
+          buttonElement.style.backgroundColor = 'white'
+          buttonElement.style.cursor = 'pointer'
+          const spanElement = buttonElement.children[0]
+          spanElement.style.color = 'black'
+          spanElement.style.backgroundColor = 'white'
+        }
+        styleControlElement(overviewmapElement)
+        overviewmapElement.style.border = '1px solid black'
+        overviewmapElement.style.color = 'black'
+        this[_updateOverviewMapSize]()
+      }
     })
 
     // Style scale element (overriding Openlayers CSS "ol-scale-line")
@@ -2680,10 +2751,14 @@ class VolumeImageViewer {
 
     if (!('geometryType' in options)) {
       console.error('geometry type must be specified for drawing interaction')
+      const error = new CustomError(errorTypes.VISUALIZATION, 'geometry type must be specified for drawing interaction')
+      this[_options].errorInterceptor(error)
     }
 
     if (!(options.geometryType in geometryOptionsMapping)) {
       console.error(`unsupported geometry type "${options.geometryType}"`)
+      const error = new CustomError(errorTypes.VISUALIZATION, `unsupported geometry type "${options.geometryType}"`)
+      this[_options].errorInterceptor(error)
     }
 
     const internalDrawOptions = { source: this[_drawingSource] }
@@ -2832,6 +2907,43 @@ class VolumeImageViewer {
   }
 
   /**
+   * Zoom the map view to the feature with the given ROI id.
+   *
+   * @param {string} uid - Unique identifier of the region of interest or annotation group UID
+   */
+  zoomToROI (uid) {
+    const feature = this[_drawingSource].getFeatureById(uid) ||
+      this[_highResSources]?.[uid]?.getFeatures()?.[0] ||
+      this[_pointsSources]?.[uid]?.getFeatures()?.[0] ||
+      this[_clustersSources]?.[uid]?.getFeatures()?.[0]
+    if (!feature) {
+      console.warn(`Could not find a ROI with UID "${uid}" to zoom to.`)
+      return
+    }
+    const geometry = feature.getGeometry()
+    if (!geometry) {
+      console.warn(`Feature with UID "${uid}" has no geometry to zoom to.`)
+      return
+    }
+    const view = this[_map].getView()
+    // Expand the extent by a scale factor (e.g., 1.5x)
+    const extent = geometry.getExtent()
+    const center = getCenter(extent)
+    const width = getWidth(extent)
+    const height = getHeight(extent)
+    const scale = 7
+    const newWidth = width * scale
+    const newHeight = height * scale
+    const expandedExtent = [
+      center[0] - newWidth / 2,
+      center[1] - newHeight / 2,
+      center[0] + newWidth / 2,
+      center[1] + newHeight / 2
+    ]
+    view.fit(expandedExtent, { duration: 500 })
+  }
+
+  /**
    * Extract and transform the region of interest (ROI).
    *
    * @param {Object} feature - Openlayers Feature
@@ -2850,7 +2962,7 @@ class VolumeImageViewer {
       this.removeROI(uid)
       const roiError = new CustomError(
         errorTypes.VISUALIZATION,
-        'Unable to get ROI'
+        'Unable to get ROI: ' + error.message
       )
       throw this[_options].errorInterceptor(roiError || error)
     }
@@ -3525,9 +3637,13 @@ class VolumeImageViewer {
    * Handle the error of a bulk annotations features load event.
    * @private
    */
-  _onBulkAnnotationsFeaturesLoadError (error) {
+  _onBulkAnnotationsFeaturesLoadError (event) {
     const container = this[_map].getTargetElement()
-    publish(container, EVENT.LOADING_ERROR, error)
+    const customError = new CustomError(
+      errorTypes.VISUALIZATION,
+      `Failed to load bulk annotations: ${event.type}`
+    )
+    publish(container, EVENT.LOADING_ERROR, customError)
   }
 
   /**
@@ -3648,6 +3764,8 @@ class VolumeImageViewer {
       const cacheBulkAnnotations = (id, data) => (this[_retrievedBulkdata][id] = data)
       const getCachedBulkAnnotations = (id) => (this[_retrievedBulkdata][id])
 
+      const errorInterceptor = this[_options].errorInterceptor
+
       const bulkAnnotationsLoader = function (featureFunction, success, failure) {
         console.info('load bulk annotations layer')
 
@@ -3719,20 +3837,25 @@ class VolumeImageViewer {
             processBulkAnnotations(cachedBulkAnnotations)
           } catch (error) {
             console.error('Failed to process cached bulk annotations', error)
+            const customError = new CustomError(
+              errorTypes.VISUALIZATION,
+              `Failed to process cached bulk annotations: ${error.message}`
+            )
+            errorInterceptor(customError)
             failure()
           }
         } else {
-          // TODO: Only fetch measurements if required.
           const promises = [
             _fetchGraphicData({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
-            _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
-            _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
+            _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
+            // TODO: Only fetch measurements if required
+            // _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
           ]
           Promise.allSettled(promises).then(results => {
             const errors = {
               0: 'Failed to retrieve point coordiante data of annotation group',
-              1: 'Failed to retrieve point index list of annotation group',
-              2: 'Failed to fetch measurements of annotation group'
+              1: 'Failed to retrieve point index list of annotation group'
+              // 2: 'Failed to fetch measurements of annotation group'
             }
             const retrievedBulkdata = [[], [], []]
             results.forEach((result, index) => {
@@ -3740,6 +3863,11 @@ class VolumeImageViewer {
                 retrievedBulkdata[index] = result.value
               } else {
                 console.error(errors[index], result.reason)
+                const customError = new CustomError(
+                  errorTypes.VISUALIZATION,
+                  errors[index] + ': ' + result.reason
+                )
+                errorInterceptor(customError)
                 failure()
               }
             })
@@ -3748,6 +3876,11 @@ class VolumeImageViewer {
             processBulkAnnotations(retrievedBulkdata)
           }).catch(error => {
             console.error('Failed to retrieve and cache bulk annotations', error)
+            const customError = new CustomError(
+              errorTypes.VISUALIZATION,
+              `Failed to retrieve and cache bulk annotations: ${error.message}`
+            )
+            errorInterceptor(customError)
             failure()
           })
         }
@@ -3910,8 +4043,8 @@ class VolumeImageViewer {
           annotationGroup.layers[1].getFeatures(event.pixel).then((features) => {
             if (features.length > 0) {
               const clusterMembers = features[0].get('features')
-              if (clusterMembers.length > 1) {
-                /** Calculate the extent of the cluster members */
+              /** Calculate the extent of the cluster members */
+              if (clusterMembers && clusterMembers.length > 1) {
                 const extent = createEmpty()
                 clusterMembers.forEach((feature) =>
                   extend(extent, feature.getGeometry().getExtent())
@@ -3933,6 +4066,10 @@ class VolumeImageViewer {
       }
 
       this[_annotationGroups][annotationGroupUID] = annotationGroup
+
+      this[_pointsSources][annotationGroupUID] = pointsSource
+      this[_highResSources][annotationGroupUID] = highResSource
+      this[_clustersSources][annotationGroupUID] = clustersSource
     })
 
     /**
@@ -3966,7 +4103,8 @@ class VolumeImageViewer {
               this[_pyramid].metadata,
               this[_affine]
             )
-            const extendedROI = getExtendedROI({ feature, roi, metadata })
+            const annotationGroupUID = feature.get('annotationGroupUID')
+            const extendedROI = getExtendedROI({ feature, roi, metadata, annotationGroup: this[_annotationGroups][annotationGroupUID] })
             publish(
               container,
               EVENT.ROI_SELECTED,
@@ -3978,38 +4116,7 @@ class VolumeImageViewer {
         },
         {
           hitTolerance: 1,
-          layerFilter: (layer) => (layer instanceof VectorLayer)
-        }
-      )
-
-      /**
-       * Select an annotation when clicked.
-       * Opens a dialog with ROI information.
-       */
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          if (feature !== null && feature.getId() !== undefined) {
-            feature.set('selected', 1)
-            selectedAnnotation = feature
-            const roi = this._getROIFromFeature(
-              feature,
-              this[_pyramid].metadata,
-              this[_affine]
-            )
-            const extendedROI = getExtendedROI({ feature, roi, metadata })
-            publish(
-              container,
-              EVENT.ROI_SELECTED,
-              extendedROI
-            )
-            return true
-          }
-          return false
-        },
-        {
-          hitTolerance: 1,
-          layerFilter: (layer) => (layer instanceof PointsLayer)
+          layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof PointsLayer)
         }
       )
     })
@@ -4604,7 +4711,9 @@ class VolumeImageViewer {
         interpolate: true
       })
       source.on('tileloaderror', (event) => {
-        console.error(`error loading tile of segment "${segmentUID}"`, event)
+        console.error(`error loading tile of segment "${segmentUID}"`, event.tile?.error_?.message || event)
+        const error = new CustomError(errorTypes.VISUALIZATION, `error loading tile of segment "${segmentUID}": ${event.message}`)
+        this[_options].errorInterceptor(error)
       })
 
       const [windowCenter, windowWidth] = createWindow(
@@ -4636,6 +4745,8 @@ class VolumeImageViewer {
       })
       segment.layer.on('error', (event) => {
         console.error(`error rendering segment "${segmentUID}"`, event)
+        const error = new CustomError(errorTypes.VISUALIZATION, `error rendering segment "${segmentUID}": ${event.message}`)
+        this[_options].errorInterceptor(error)
       })
 
       this[_map].addLayer(segment.layer)
@@ -5182,7 +5293,9 @@ class VolumeImageViewer {
         interpolate: true
       })
       source.on('tileloaderror', (event) => {
-        console.error(`error loading tile of mapping "${mappingUID}"`, event)
+        console.error(`error loading tile of mapping "${mappingUID}"`, event.tile?.error_?.message || event)
+        const error = new CustomError(errorTypes.VISUALIZATION, `error loading tile of mapping "${mappingUID}": ${event.message}`)
+        this[_options].errorInterceptor(error)
       })
 
       mapping.layer = new TileLayer({
@@ -5201,6 +5314,8 @@ class VolumeImageViewer {
       })
       mapping.layer.on('error', (event) => {
         console.error(`error rendering mapping "${mappingUID}"`, event)
+        const error = new CustomError(errorTypes.VISUALIZATION, `error rendering mapping "${mappingUID}": ${event.message}`)
+        this[_options].errorInterceptor(error)
       })
       this[_map].addLayer(mapping.layer)
 
@@ -5669,6 +5784,8 @@ class _NonVolumeImageViewer {
   render ({ container }) {
     if (container == null) {
       console.error('container must be provided for rendering images')
+      const error = new CustomError(errorTypes.VISUALIZATION, 'container must be provided for rendering images')
+      this[_options].errorInterceptor(error)
       return
     }
 

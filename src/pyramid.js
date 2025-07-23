@@ -12,36 +12,50 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
  *
  * @param {Array<metadata.VLWholeSlideMicroscopyImage>} pyramid - Metadata of
  * VL Whole Slide Microscopy Image instances
- * @param {object} client - dicom web client
+ * @param {object} options - options object
+ * @param {object} options.metadata - metadata of VL Whole Slide Microscopy Image instances
+ * @param {object} options.client - dicom web client
+ * @param {function} options.onError - function to call when an error occurs
  *
- * @returns {Promise<Array<TypedArray>>} image array with ICC profiles
+ * @returns {Promise<Array<TypedArray>>} image array with ICC profiles (only for images with SamplesPerPixel === 3 and ICCProfile present)
  *
  * @private
  */
-async function _getIccProfiles (metadata, client) {
-  const profiles = []
-  for (let i = 0; i < metadata.length; i++) {
-    const image = metadata[i]
+async function _getIccProfiles ({ metadata, client, onError }) {
+  const fetchPromises = metadata.map(image => {
     if (image.SamplesPerPixel === 3) {
-      if (image.bulkdataReferences.OpticalPathSequence == null) {
-        console.warn(
-          `no ICC Profile was not found for image "${image.SOPInstanceUID}"`
-        )
-        continue
+      let iccProfile = false
+      const metadataItem = image.OpticalPathSequence[0]
+      if (metadataItem.ICCProfile == null) {
+        if ('OpticalPathSequence' in image.bulkdataReferences) {
+          const bulkdataItem = image.bulkdataReferences.OpticalPathSequence[0]
+          if ('ICCProfile' in bulkdataItem) {
+            iccProfile = bulkdataItem.ICCProfile
+          }
+        }
+      } else {
+        iccProfile = metadataItem.ICCProfile
       }
-      const bulkdata = await _fetchBulkdata({
-        client,
-        reference: (
-          image
-            .bulkdataReferences
-            .OpticalPathSequence[0]
-            .ICCProfile
-        )
-      })
-      profiles.push(bulkdata)
+      if (!iccProfile) {
+        console.warn(`ICC Profile was not found for image "${image.SOPInstanceUID}"`)
+        return null
+      } else if ('BulkDataURI' in iccProfile) {
+        console.debug(`fetching ICC Profile for image "${image.SOPInstanceUID}"`, iccProfile)
+        return _fetchBulkdata({
+          client,
+          reference: iccProfile
+        }).catch(onError)
+      } else {
+        return iccProfile
+      }
     }
-  }
-  return profiles
+    return null
+  })
+  const validPromises = fetchPromises.filter(Boolean)
+  const results = await Promise.allSettled(validPromises)
+  return results
+    .filter(result => result.status === 'fulfilled' && result.value != null)
+    .map(result => result.value)
 }
 
 /**
@@ -567,6 +581,7 @@ function _createTileLoadFunction ({
 }
 
 function _fitImagePyramid (pyramid, refPyramid) {
+  /** Get the matching levels between the two pyramids */
   const matchingLevelIndices = []
   for (let i = 0; i < refPyramid.metadata.length; i++) {
     for (let j = 0; j < pyramid.metadata.length; j++) {
@@ -584,14 +599,7 @@ function _fitImagePyramid (pyramid, refPyramid) {
     }
   }
 
-  if (matchingLevelIndices.length === 0) {
-    console.error(pyramid, refPyramid)
-    throw new Error(
-      'Image pyramid cannot be fit to reference image pyramid.'
-    )
-  }
-
-  // Fit the pyramid levels to the reference image pyramid
+  /** Create a new pyramid that fits the reference pyramid */
   const fittedPyramid = {
     extent: [...refPyramid.extent],
     origins: [],
@@ -602,17 +610,50 @@ function _fitImagePyramid (pyramid, refPyramid) {
     metadata: [],
     frameMappings: []
   }
-  for (let i = 0; i < refPyramid.metadata.length; i++) {
-    const index = matchingLevelIndices.find(element => element[0] === i)
-    if (index) {
-      const j = index[1]
+
+  if (matchingLevelIndices.length === 0) {
+    console.warn('No matching pyramid levels found, handling fixed pixel spacing case...')
+
+    const refBaseLevel = refPyramid.metadata[refPyramid.metadata.length - 1]
+    const refBaseTotalPixelMatrixColumns = refBaseLevel.TotalPixelMatrixColumns
+
+    for (let j = 0; j < pyramid.metadata.length; j++) {
+      const imageLevel = pyramid.metadata[j]
+      const totalPixelMatrixColumns = imageLevel.TotalPixelMatrixColumns
+
+      const resolution = refBaseTotalPixelMatrixColumns / totalPixelMatrixColumns
+      const roundedResolution = Math.round(resolution)
+
+      /** Handle resolution conflicts similar to _computeImagePyramid */
+      const finalResolution = fittedPyramid.resolutions.includes(roundedResolution)
+        ? parseFloat(resolution.toFixed(2))
+        : roundedResolution
+
       fittedPyramid.origins.push([...pyramid.origins[j]])
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
-      fittedPyramid.resolutions.push(Number(refPyramid.resolutions[i]))
+      fittedPyramid.resolutions.push(finalResolution)
       fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+    }
+  } else {
+    /**
+     * Fit the pyramid levels to the reference image pyramid.
+     * Use the matching levels found in the matchingLevelIndices array.
+     */
+    for (let i = 0; i < refPyramid.metadata.length; i++) {
+      const index = matchingLevelIndices.find((element) => element[0] === i)
+      if (index) {
+        const j = index[1]
+        fittedPyramid.origins.push([...pyramid.origins[j]])
+        fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
+        fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
+        fittedPyramid.resolutions.push(refPyramid.resolutions[i])
+        fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
+        fittedPyramid.metadata.push(pyramid.metadata[j])
+        fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+      }
     }
   }
 
