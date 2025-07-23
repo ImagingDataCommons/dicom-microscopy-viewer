@@ -6,13 +6,14 @@ import dcmjs from 'dcmjs'
  * @param {Object} options.feature - The feature object.
  * @param {Object} options.roi - The ROI object.
  * @param {Object} options.metadata - The metadata object.
+ * @param {Object} options.annotationGroup - The annotation group object.
  * @returns {Object} The extended ROI.
  */
-const getExtendedROI = ({ feature, roi, metadata }) => {
+const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
   const annotationGroupUID = feature.get('annotationGroupUID')
   const annotationGroupMetadata = metadata.AnnotationGroupSequence.find(
     (item) => item.AnnotationGroupUID === annotationGroupUID
-  )
+  ) || annotationGroup
 
   if (annotationGroupUID == null || annotationGroupMetadata == null) {
     throw new Error(

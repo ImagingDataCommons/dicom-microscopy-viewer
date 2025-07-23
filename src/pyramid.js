@@ -12,36 +12,50 @@ import { are1DArraysAlmostEqual, are2DArraysAlmostEqual, _fetchBulkdata } from '
  *
  * @param {Array<metadata.VLWholeSlideMicroscopyImage>} pyramid - Metadata of
  * VL Whole Slide Microscopy Image instances
- * @param {object} client - dicom web client
+ * @param {object} options - options object
+ * @param {object} options.metadata - metadata of VL Whole Slide Microscopy Image instances
+ * @param {object} options.client - dicom web client
+ * @param {function} options.onError - function to call when an error occurs
  *
- * @returns {Promise<Array<TypedArray>>} image array with ICC profiles
+ * @returns {Promise<Array<TypedArray>>} image array with ICC profiles (only for images with SamplesPerPixel === 3 and ICCProfile present)
  *
  * @private
  */
-async function _getIccProfiles (metadata, client) {
-  const profiles = []
-  for (let i = 0; i < metadata.length; i++) {
-    const image = metadata[i]
+async function _getIccProfiles ({ metadata, client, onError }) {
+  const fetchPromises = metadata.map(image => {
     if (image.SamplesPerPixel === 3) {
-      if (image.bulkdataReferences.OpticalPathSequence == null) {
-        console.warn(
-          `no ICC Profile was not found for image "${image.SOPInstanceUID}"`
-        )
-        continue
+      let iccProfile = false
+      const metadataItem = image.OpticalPathSequence[0]
+      if (metadataItem.ICCProfile == null) {
+        if ('OpticalPathSequence' in image.bulkdataReferences) {
+          const bulkdataItem = image.bulkdataReferences.OpticalPathSequence[0]
+          if ('ICCProfile' in bulkdataItem) {
+            iccProfile = bulkdataItem.ICCProfile
+          }
+        }
+      } else {
+        iccProfile = metadataItem.ICCProfile
       }
-      const bulkdata = await _fetchBulkdata({
-        client,
-        reference: (
-          image
-            .bulkdataReferences
-            .OpticalPathSequence[0]
-            .ICCProfile
-        )
-      })
-      profiles.push(bulkdata)
+      if (!iccProfile) {
+        console.warn(`ICC Profile was not found for image "${image.SOPInstanceUID}"`)
+        return null
+      } else if ('BulkDataURI' in iccProfile) {
+        console.debug(`fetching ICC Profile for image "${image.SOPInstanceUID}"`, iccProfile)
+        return _fetchBulkdata({
+          client,
+          reference: iccProfile
+        }).catch(onError)
+      } else {
+        return iccProfile
+      }
     }
-  }
-  return profiles
+    return null
+  })
+  const validPromises = fetchPromises.filter(Boolean)
+  const results = await Promise.allSettled(validPromises)
+  return results
+    .filter(result => result.status === 'fulfilled' && result.value != null)
+    .map(result => result.value)
 }
 
 /**
