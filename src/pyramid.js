@@ -579,6 +579,7 @@ function _createTileLoadFunction ({
 }
 
 function _fitImagePyramid (pyramid, refPyramid) {
+  /** Get the matching levels between the two pyramids */
   const matchingLevelIndices = []
   for (let i = 0; i < refPyramid.metadata.length; i++) {
     for (let j = 0; j < pyramid.metadata.length; j++) {
@@ -596,14 +597,7 @@ function _fitImagePyramid (pyramid, refPyramid) {
     }
   }
 
-  if (matchingLevelIndices.length === 0) {
-    console.error(pyramid, refPyramid)
-    throw new Error(
-      'Image pyramid cannot be fit to reference image pyramid.'
-    )
-  }
-
-  // Fit the pyramid levels to the reference image pyramid
+  /** Create a new pyramid that fits the reference pyramid */
   const fittedPyramid = {
     extent: [...refPyramid.extent],
     origins: [],
@@ -614,17 +608,50 @@ function _fitImagePyramid (pyramid, refPyramid) {
     metadata: [],
     frameMappings: []
   }
-  for (let i = 0; i < refPyramid.metadata.length; i++) {
-    const index = matchingLevelIndices.find(element => element[0] === i)
-    if (index) {
-      const j = index[1]
+
+  if (matchingLevelIndices.length === 0) {
+    console.warn('No matching pyramid levels found, handling fixed pixel spacing case...')
+
+    const refBaseLevel = refPyramid.metadata[refPyramid.metadata.length - 1]
+    const refBaseTotalPixelMatrixColumns = refBaseLevel.TotalPixelMatrixColumns
+
+    for (let j = 0; j < pyramid.metadata.length; j++) {
+      const imageLevel = pyramid.metadata[j]
+      const totalPixelMatrixColumns = imageLevel.TotalPixelMatrixColumns
+
+      const resolution = refBaseTotalPixelMatrixColumns / totalPixelMatrixColumns
+      const roundedResolution = Math.round(resolution)
+
+      /** Handle resolution conflicts similar to _computeImagePyramid */
+      const finalResolution = fittedPyramid.resolutions.includes(roundedResolution)
+        ? parseFloat(resolution.toFixed(2))
+        : roundedResolution
+
       fittedPyramid.origins.push([...pyramid.origins[j]])
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
-      fittedPyramid.resolutions.push(Number(refPyramid.resolutions[i]))
+      fittedPyramid.resolutions.push(finalResolution)
       fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+    }
+  } else {
+    /**
+     * Fit the pyramid levels to the reference image pyramid.
+     * Use the matching levels found in the matchingLevelIndices array.
+     */
+    for (let i = 0; i < refPyramid.metadata.length; i++) {
+      const index = matchingLevelIndices.find((element) => element[0] === i)
+      if (index) {
+        const j = index[1]
+        fittedPyramid.origins.push([...pyramid.origins[j]])
+        fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
+        fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
+        fittedPyramid.resolutions.push(refPyramid.resolutions[i])
+        fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
+        fittedPyramid.metadata.push(pyramid.metadata[j])
+        fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+      }
     }
   }
 
