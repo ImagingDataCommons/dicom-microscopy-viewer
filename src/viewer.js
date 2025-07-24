@@ -967,15 +967,15 @@ class VolumeImageViewer {
     const hasImageFlavor = (image, imageFlavor) => {
       return image.ImageType[2] === imageFlavor
     }
-    
-    /* 
+
+    /*
      * Only include THUMBNAIL image into metadata if no other VOLUME image
      * exists with the same resolution
      */
     const filterImagesByResolution = (metadata) => {
       const pyramidBaseMetadata = metadata[metadata.length - 1]
-      const filteredMetadata = metadata.filter(image => { 
-        if (hasImageFlavor(image, ImageFlavors.THUMBNAIL)) { 
+      const filteredMetadata = metadata.filter(image => {
+        if (hasImageFlavor(image, ImageFlavors.THUMBNAIL)) {
           const hasThumbnailEquivalentVolumeImage = metadata.some(
             (img) =>
               hasImageFlavor(img, ImageFlavors.VOLUME) &&
@@ -991,7 +991,7 @@ class VolumeImageViewer {
           return true
         }
       })
-      
+
       return filteredMetadata
     }
 
