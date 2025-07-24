@@ -957,11 +957,50 @@ class VolumeImageViewer {
       throw this[_options].errorInterceptor(error)
     }
 
+    const ImageFlavors = {
+      VOLUME: 'VOLUME',
+      LABEL: 'LABEL',
+      OVERVIEW: 'OVERVIEW',
+      THUMBNAIL: 'THUMBNAIL'
+    }
+
+    const hasImageFlavor = (image, imageFlavor) => {
+      return image.ImageType[2] === imageFlavor
+    }
+
+    /*
+     * Only include THUMBNAIL image into metadata if no other VOLUME image
+     * exists with the same resolution
+     */
+    const filterImagesByResolution = (metadata) => {
+      const pyramidBaseMetadata = metadata[metadata.length - 1]
+      const filteredMetadata = metadata.filter(image => {
+        if (hasImageFlavor(image, ImageFlavors.THUMBNAIL)) {
+          const hasThumbnailEquivalentVolumeImage = metadata.some(
+            (img) =>
+              hasImageFlavor(img, ImageFlavors.VOLUME) &&
+              pyramidBaseMetadata.TotalPixelMatrixColumns / img.TotalPixelMatrixColumns ===
+                pyramidBaseMetadata.TotalPixelMatrixColumns / image.TotalPixelMatrixColumns
+          )
+          if (hasThumbnailEquivalentVolumeImage) {
+            console.debug('Thumbnail image has equivalent volume image resolution, skipping thumbnail.', image.SOPInstanceUID)
+            return false
+          }
+          return true
+        } else {
+          return true
+        }
+      })
+
+      return filteredMetadata
+    }
+
     // We also accept metadata in raw JSON format for backwards compatibility
-    if (this[_options].metadata[0].SOPClassUID != null) {
-      this[_metadata] = this[_options].metadata
+    const filteredMetadata = filterImagesByResolution(this[_options].metadata)
+    if (filteredMetadata[0].SOPClassUID != null) {
+      this[_metadata] = filteredMetadata
     } else {
-      this[_metadata] = this[_options].metadata.map(instance => {
+      this[_metadata] = filteredMetadata.map(instance => {
         return new VLWholeSlideMicroscopyImage({ metadata: instance })
       })
     }
