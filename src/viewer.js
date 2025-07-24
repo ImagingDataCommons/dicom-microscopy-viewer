@@ -1617,15 +1617,15 @@ class VolumeImageViewer {
    * Gets the internal map object, used for finer grained control over the display
    * area/setup.
    */
-  getMap() {
-    return this[_map];
+  getMap () {
+    return this[_map]
   }
 
   /**
    * Gets the affine transform
    */
-  getAffine() {
-    return this[_affine];
+  getAffine () {
+    return this[_affine]
   }
 
   /**
@@ -5798,7 +5798,7 @@ class _NonVolumeImageViewer {
     if (this[_overviewMap]) {
       this[_overviewMap].getOverviewMap().updateSize()
     }
-  } 
+  }
 
   /**
    * Size of the viewport.

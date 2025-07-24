@@ -36,7 +36,9 @@
     ]
   },
   "scripts": {
-    "test": "standard 'src/*.js' && jest --silent",
+    "test": "npm run lint && jest --silent",
+    "lint": "standard src/**/*.js",
+    "lint:fix": "standard --fix src/**/*.js",
     "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
     "prepublishOnly": "npm run build",
     "generateStaticSite": "npm run build && cp -R ./dist ./examples",

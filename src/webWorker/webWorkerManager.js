@@ -1,21 +1,23 @@
+/* global location, Worker */
+
 // the taskId to assign to the next task added via addTask()
-let nextTaskId = 0;
+let nextTaskId = 0
 
 // array of queued tasks sorted with highest priority task first
-const tasks = [];
+const tasks = []
 
 // array of web workers to dispatch decode tasks to
-const webWorkers = [];
+const webWorkers = []
 
 const defaultConfig = {
   maxWebWorkers: navigator.hardwareConcurrency || 1,
-  webWorkerTaskPaths: [],
-};
+  webWorkerTaskPaths: []
+}
 
 // limit number of web workers to avoid memory problems in certain browsers
-defaultConfig.maxWebWorkers = Math.min(defaultConfig.maxWebWorkers, 7);
+defaultConfig.maxWebWorkers = Math.min(defaultConfig.maxWebWorkers, 7)
 
-let config;
+let config
 
 const statistics = {
   maxWebWorkers: 0,
@@ -24,54 +26,54 @@ const statistics = {
   numTasksExecuting: 0,
   numTasksCompleted: 0,
   totalTaskTimeInMS: 0,
-  totalTimeDelayedInMS: 0,
-};
+  totalTimeDelayedInMS: 0
+}
 
 /**
  * Function to start a task on a web worker
  */
-function startTaskOnWebWorker() {
+function startTaskOnWebWorker () {
   // return immediately if no decode tasks to do
   if (!tasks.length) {
-    return;
+    return
   }
 
   // look for a web worker that is ready
   for (let i = 0; i < webWorkers.length; i++) {
     if (webWorkers[i].status === 'ready') {
       // mark it as busy so tasks are not assigned to it
-      webWorkers[i].status = 'busy';
+      webWorkers[i].status = 'busy'
 
       // get the highest priority task
-      const task = tasks.shift();
+      const task = tasks.shift()
 
-      task.start = new Date().getTime();
+      task.start = new Date().getTime()
 
       // update stats with how long this task was delayed (waiting in queue)
-      const end = new Date().getTime();
+      const end = new Date().getTime()
 
-      statistics.totalTimeDelayedInMS += end - task.added;
+      statistics.totalTimeDelayedInMS += end - task.added
 
       // assign this task to this web worker and send the web worker
       // a message to execute it
-      webWorkers[i].task = task;
+      webWorkers[i].task = task
       webWorkers[i].worker.postMessage(
         {
           taskType: task.taskType,
           workerIndex: i,
-          data: task.data,
+          data: task.data
         },
         task.transferList
-      );
-      statistics.numTasksExecuting++;
+      )
+      statistics.numTasksExecuting++
 
-      return;
+      return
     }
   }
 
   // if no available web workers and we haven't started max web workers, start a new one
   if (webWorkers.length < config.maxWebWorkers) {
-    spawnWebWorker();
+    spawnWebWorker()
   }
 }
 
@@ -79,38 +81,38 @@ function startTaskOnWebWorker() {
  * Function to handle a message from a web worker
  * @param msg
  */
-function handleMessageFromWorker(msg) {
+function handleMessageFromWorker (msg) {
   if (msg.data.taskType === 'initialize') {
-    webWorkers[msg.data.workerIndex].status = 'ready';
-    startTaskOnWebWorker();
+    webWorkers[msg.data.workerIndex].status = 'ready'
+    startTaskOnWebWorker()
   } else {
-    const start = webWorkers[msg.data.workerIndex].task.start;
+    const start = webWorkers[msg.data.workerIndex].task.start
 
-    const action = msg.data.status === 'success' ? 'resolve' : 'reject';
+    const action = msg.data.status === 'success' ? 'resolve' : 'reject'
 
-    webWorkers[msg.data.workerIndex].task.deferred[action](msg.data.result);
+    webWorkers[msg.data.workerIndex].task.deferred[action](msg.data.result)
 
-    webWorkers[msg.data.workerIndex].task = undefined;
+    webWorkers[msg.data.workerIndex].task = undefined
 
-    statistics.numTasksExecuting--;
-    webWorkers[msg.data.workerIndex].status = 'ready';
-    statistics.numTasksCompleted++;
+    statistics.numTasksExecuting--
+    webWorkers[msg.data.workerIndex].status = 'ready'
+    statistics.numTasksCompleted++
 
-    const end = new Date().getTime();
+    const end = new Date().getTime()
 
-    statistics.totalTaskTimeInMS += end - start;
+    statistics.totalTaskTimeInMS += end - start
 
-    startTaskOnWebWorker();
+    startTaskOnWebWorker()
   }
 }
 
 /**
  * Spawns a new web worker
  */
-function spawnWebWorker() {
+function spawnWebWorker () {
   // prevent exceeding maxWebWorkers
   if (webWorkers.length >= config.maxWebWorkers) {
-    return;
+    return
   }
 
   // const workerUrl = new URL('./dataLoader.worker.js', import.meta.url);
@@ -118,53 +120,53 @@ function spawnWebWorker() {
   const workerUrl = new URL(
     'dicom-microscopy-viewer/dataLoader.worker.min.js',
     location.href
-  );
+  )
   // const worker = new Worker(
   //   new URL('./dataLoader.worker.js', import.meta.url),
   //   {
   //     type: 'module',
   //   }
   // );
-  const worker = new Worker(workerUrl, { type: 'module' });
+  const worker = new Worker(workerUrl, { type: 'module' })
   webWorkers.push({
     worker,
-    status: 'initializing',
-  });
-  worker.addEventListener('message', handleMessageFromWorker);
+    status: 'initializing'
+  })
+  worker.addEventListener('message', handleMessageFromWorker)
   worker.postMessage({
     taskType: 'initialize',
     workerIndex: webWorkers.length - 1,
-    config,
-  });
+    config
+  })
 }
 
 /**
  * Initialization function for the web worker manager - spawns web workers
  * @param configObject
  */
-function initialize(configObject) {
-  configObject = configObject || defaultConfig;
+function initialize (configObject) {
+  configObject = configObject || defaultConfig
 
   // prevent being initialized more than once
   if (config) {
-    return;
+    return
   }
 
-  config = configObject;
+  config = configObject
 
   config.maxWebWorkers =
-    config.maxWebWorkers || navigator.hardwareConcurrency || 1;
+    config.maxWebWorkers || navigator.hardwareConcurrency || 1
 }
 
 /**
  * Terminate all running web workers.
  */
-function terminateAllWebWorkers() {
+function terminateAllWebWorkers () {
   for (let i = 0; i < webWorkers.length; i++) {
-    webWorkers[i].worker.terminate();
+    webWorkers[i].worker.terminate()
   }
-  webWorkers.length = 0;
-  config = undefined;
+  webWorkers.length = 0
+  config = undefined
 }
 
 /**
@@ -172,17 +174,17 @@ function terminateAllWebWorkers() {
  * @param sourcePath
  * @param taskConfig
  */
-function loadWebWorkerTask(sourcePath, taskConfig) {
+function loadWebWorkerTask (sourcePath, taskConfig) {
   // add it to the list of web worker tasks paths so on demand web workers
   // load this properly
-  config.webWorkerTaskPaths.push(sourcePath);
+  config.webWorkerTaskPaths.push(sourcePath)
 
   // if a task specific configuration is provided, merge it into the config
   if (taskConfig) {
     config.taskConfiguration = Object.assign(
       config.taskConfiguration,
       taskConfig
-    );
+    )
   }
 
   // tell each spawned web worker to load this task
@@ -191,8 +193,8 @@ function loadWebWorkerTask(sourcePath, taskConfig) {
       taskType: 'loadWebWorkerTask',
       workerIndex: webWorkers.length - 1,
       sourcePath,
-      config,
-    });
+      config
+    })
   }
 }
 
@@ -206,29 +208,29 @@ function loadWebWorkerTask(sourcePath, taskConfig) {
  *
  * @returns {*}
  */
-function addTask(taskType, data, priority = 0, transferList) {
+function addTask (taskType, data, priority = 0, transferList) {
   if (!config) {
-    initialize();
+    initialize()
   }
 
-  let deferred = {};
+  let deferred = {}
   const promise = new Promise((resolve, reject) => {
     deferred = {
       resolve,
-      reject,
-    };
-  });
+      reject
+    }
+  })
 
   // find the right spot to insert this decode task (based on priority)
-  let i;
+  let i
 
   for (i = 0; i < tasks.length; i++) {
     if (tasks[i].priority < priority) {
-      break;
+      break
     }
   }
 
-  const taskId = nextTaskId++;
+  const taskId = nextTaskId++
 
   // insert the decode task at position i
   tasks.splice(i, 0, {
@@ -239,16 +241,16 @@ function addTask(taskType, data, priority = 0, transferList) {
     data,
     deferred,
     priority,
-    transferList,
-  });
+    transferList
+  })
 
   // try to start a task on the web worker since we just added a new task and a web worker may be available
-  startTaskOnWebWorker();
+  startTaskOnWebWorker()
 
   return {
     taskId,
-    promise,
-  };
+    promise
+  }
 }
 
 /**
@@ -257,31 +259,31 @@ function addTask(taskType, data, priority = 0, transferList) {
  * @param priority - priority of the task (defaults to 0), > 0 is higher, < 0 is lower
  * @returns boolean - true on success, false if taskId not found
  */
-function setTaskPriority(taskId, priority = 0) {
+function setTaskPriority (taskId, priority = 0) {
   // search for this taskId
   for (let i = 0; i < tasks.length; i++) {
     if (tasks[i].taskId === taskId) {
       // taskId found, remove it
-      const task = tasks.splice(i, 1)[0];
+      const task = tasks.splice(i, 1)[0]
 
       // set its priority
-      task.priority = priority;
+      task.priority = priority
 
       // find the right spot to insert this decode task (based on priority)
       for (i = 0; i < tasks.length; i++) {
         if (tasks[i].priority < priority) {
-          break;
+          break
         }
       }
 
       // insert the decode task at position i
-      tasks.splice(i, 0, task);
+      tasks.splice(i, 0, task)
 
-      return true;
+      return true
     }
   }
 
-  return false;
+  return false
 }
 
 /**
@@ -290,32 +292,32 @@ function setTaskPriority(taskId, priority = 0) {
  * @param reason - optional reason the task was rejected
  * @returns boolean - true on success, false if taskId not found
  */
-function cancelTask(taskId, reason) {
+function cancelTask (taskId, reason) {
   // search for this taskId
   for (let i = 0; i < tasks.length; i++) {
     if (tasks[i].taskId === taskId) {
       // taskId found, remove it
-      const task = tasks.splice(i, 1);
+      const task = tasks.splice(i, 1)
 
-      task.deferred.reject(reason);
+      task.deferred.reject(reason)
 
-      return true;
+      return true
     }
   }
 
-  return false;
+  return false
 }
 
 /**
  * Function to return the statistics on running web workers
  * @returns object containing statistics
  */
-function getStatistics() {
-  statistics.maxWebWorkers = config.maxWebWorkers;
-  statistics.numWebWorkers = webWorkers.length;
-  statistics.numTasksQueued = tasks.length;
+function getStatistics () {
+  statistics.maxWebWorkers = config.maxWebWorkers
+  statistics.numWebWorkers = webWorkers.length
+  statistics.numTasksQueued = tasks.length
 
-  return statistics;
+  return statistics
 }
 
 export default {
@@ -326,5 +328,5 @@ export default {
   setTaskPriority,
   cancelTask,
   webWorkers,
-  terminateAllWebWorkers,
-};
+  terminateAllWebWorkers
+}
