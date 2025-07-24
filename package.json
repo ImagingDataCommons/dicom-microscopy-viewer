@@ -35,23 +35,6 @@
       "jest"
     ]
   },
-  "scripts": {
-    "test": "npm run lint && jest --silent",
-    "lint": "standard src/**/*.js",
-    "lint:fix": "standard --fix src/**/*.js",
-    "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
-    "prepublishOnly": "npm run build",
-    "generateStaticSite": "npm run build && cp -R ./dist ./examples",
-    "generateDocs": "jsdoc -c ./jsdoc_conf.json",
-    "fmt": "standard 'src/**/*.js' --fix",
-    "lint": "standard 'src/**/*.js'",
-    "clean": "rm -rf ./dist ./node_modules",
-    "clean:dist": "rm -rf ./dist",
-    "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
-    "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
-    "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
-    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle"
-  },
   "devDependencies": {
     "@babel/core": "^7.17",
     "@babel/plugin-proposal-object-rest-spread": "^7.14.7",
@@ -93,5 +76,21 @@
   },
   "resolutions": {
     "braces": "3.0.3"
+  },
+  "scripts": {
+    "test": "npm run lint && jest --silent",
+    "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
+    "prepublishOnly": "npm run build",
+    "generateStaticSite": "npm run build && cp -R ./dist ./examples",
+    "generateDocs": "jsdoc -c ./jsdoc_conf.json",
+    "fmt": "standard 'src/**/*.js' --fix",
+    "lint": "standard 'src/**/*.js'",
+    "lint:fix": "standard --fix src/**/*.js",
+    "clean": "rm -rf ./dist ./node_modules",
+    "clean:dist": "rm -rf ./dist",
+    "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
+    "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
+    "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
+    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle"
   }
 }
