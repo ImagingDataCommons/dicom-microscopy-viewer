@@ -814,8 +814,9 @@ class VolumeImageViewer {
    * intercepting errors
    * @param {number[]} [options.mapViewResolutions] Map's view list of
    * resolutions.
-   * @param {boolean} [options.useTileGridResolutions] If true, the tile grid
-   * resolutions will be used if no map view resolutions are provided.
+   * @param {boolean} [options.useTileGridResolutions=true] If false,
+   * zoom will not be limited and the image will fit the viewport extent (no clipping).
+   * This option will be ignored if there are no thumbnail images available or there's just one image.
    */
   constructor (options) {
     this[_options] = options
@@ -878,6 +879,10 @@ class VolumeImageViewer {
 
     if (this[_options].errorInterceptor == null) {
       this[_options].errorInterceptor = error => error
+    }
+
+    if (this[_options].useTileGridResolutions == null) {
+      this[_options].useTileGridResolutions = true
     }
 
     if (this[_options].debug == null) {
@@ -1142,10 +1147,19 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
-    let mapViewResolutions
+    let mapViewResolutions =
+      this[_options].useTileGridResolutions === false
+        ? undefined
+        : this[_tileGrid].getResolutions()
 
-    if (has(this[_options], 'useTileGridResolutions')) {
-      mapViewResolutions = this[_tileGrid].getResolutions()
+    /**
+     * If there are no thumbnail images, dont use any resolutions so we can create a thumbnail image by
+     * loading the the tiles of the lowest resolution and show the entire extent.
+     * Using resolutions will cause the viewer to clip the image to the extent of the viewport. This is
+     * not what we want for a thumbnail image.
+     */
+    if (!this[_metadata].find((image) => image.ImageType[2] === ImageFlavors.THUMBNAIL) && this[_metadata].length > 1) {
+      mapViewResolutions = undefined
     }
 
     if (has(this[_options], 'mapViewResolutions')) {
@@ -1451,7 +1465,9 @@ class VolumeImageViewer {
       layers.push(tileDebugLayer)
     }
 
-    if (Math.max(...this[_pyramid].gridSizes[0]) <= 10) {
+    const noThumbnails = !this[_metadata].find((image) => image.ImageType[2] === ImageFlavors.THUMBNAIL) && this[_metadata].length > 1
+
+    if (Math.max(...this[_pyramid].gridSizes[0]) <= 10 || noThumbnails) {
       const center = getCenter(this[_projection].getExtent())
       this[_overviewMap] = new OverviewMap({
         view: new View({
