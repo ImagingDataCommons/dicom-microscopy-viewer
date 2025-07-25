@@ -115,19 +115,22 @@ function spawnWebWorker () {
     return
   }
 
-  // const workerUrl = new URL('./dataLoader.worker.js', import.meta.url);
+  const metaUrl = import.meta.url;
+  
+  let useUrl = metaUrl;
+  if( metaUrl.startsWith("file:") ) {
+    const { PUBLIC_URL = '/' } = window;
+    useUrl = `${PUBLIC_URL}dicom-microscopy-viewer/dicomMicroscopyViewer.min.js`;
+    if( !useUrl.startsWith('http') ) {
+      useUrl = `${window.location.protocol}//${window.location.host}${useUrl}`;
+    }
+  }
+  const workerUrl = new URL('./dataLoader.worker.min.js', useUrl);
+  console.warn("Chosen url", workerUrl.href);
 
-  const workerUrl = new URL(
-    'dicom-microscopy-viewer/dataLoader.worker.min.js',
-    location.href
-  )
-  // const worker = new Worker(
-  //   new URL('./dataLoader.worker.js', import.meta.url),
-  //   {
-  //     type: 'module',
-  //   }
-  // );
   const worker = new Worker(workerUrl, { type: 'module' })
+  console.warn("created worker", worker);
+
   webWorkers.push({
     worker,
     status: 'initializing'

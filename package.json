@@ -19,6 +19,10 @@
     "microscopy"
   ],
   "main": "./src/dicom-microscopy-viewer.js",
+  "exports": {
+    ".": "./dist/dicomMicroscopyViewer.bundle.min.js",
+    "./dynamic-import": "./dist/dynamic-import/dicom-microscopy-viewer/dicomMicroscopyViewer.min.js"
+  },
   "standard": {
     "ignore": [
       "/build/*",
