@@ -1,5 +1,4 @@
-// eslint-disable-next-line
-import DataLoader from './index.worker.js'
+/* global location, Worker */
 
 // the taskId to assign to the next task added via addTask()
 let nextTaskId = 0
@@ -116,8 +115,22 @@ function spawnWebWorker () {
     return
   }
 
-  const worker = new DataLoader()
-  // spawn the webworker
+  const metaUrl = import.meta.url;
+  
+  let useUrl = metaUrl;
+  if( metaUrl.startsWith("file:") ) {
+    const { PUBLIC_URL = '/' } = window;
+    useUrl = `${PUBLIC_URL}dicom-microscopy-viewer/dicomMicroscopyViewer.min.js`;
+    if( !useUrl.startsWith('http') ) {
+      useUrl = `${window.location.protocol}//${window.location.host}${useUrl}`;
+    }
+  }
+  const workerUrl = new URL('./dataLoader.worker.min.js', useUrl);
+  console.warn("Chosen url", workerUrl.href);
+
+  const worker = new Worker(workerUrl, { type: 'module' })
+  console.warn("created worker", worker);
+
   webWorkers.push({
     worker,
     status: 'initializing'

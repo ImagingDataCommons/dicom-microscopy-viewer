@@ -19,6 +19,10 @@
     "microscopy"
   ],
   "main": "./src/dicom-microscopy-viewer.js",
+  "exports": {
+    ".": "./dist/dicomMicroscopyViewer.bundle.min.js",
+    "./dynamic-import": "./dist/dynamic-import/dicom-microscopy-viewer/dicomMicroscopyViewer.min.js"
+  },
   "standard": {
     "ignore": [
       "/build/*",
@@ -34,21 +38,6 @@
     "env": [
       "jest"
     ]
-  },
-  "scripts": {
-    "test": "standard 'src/*.js' && jest --silent",
-    "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
-    "prepublishOnly": "npm run build",
-    "generateStaticSite": "npm run build && cp -R ./dist ./examples",
-    "generateDocs": "jsdoc -c ./jsdoc_conf.json",
-    "fmt": "standard 'src/**/*.js' --fix",
-    "lint": "standard 'src/**/*.js'",
-    "clean": "rm -rf ./dist ./node_modules",
-    "clean:dist": "rm -rf ./dist",
-    "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
-    "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
-    "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
-    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle"
   },
   "devDependencies": {
     "@babel/core": "^7.17",
@@ -70,21 +59,20 @@
     "open-cli": "^7.0.1",
     "standard": "^17.0",
     "terser-webpack-plugin": "^5.2.2",
-    "webpack": "^5.94.0",
+    "webpack": "^5.100.2",
     "webpack-bundle-analyzer": "^4.10.2",
-    "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.2",
-    "worker-loader": "^3.0.8"
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^4.15.2"
   },
   "dependencies": {
     "@cornerstonejs/codec-charls": "^1.2.3",
     "@cornerstonejs/codec-libjpeg-turbo-8bit": "^1.2.2",
     "@cornerstonejs/codec-openjpeg": "^1.2.4",
     "@cornerstonejs/codec-openjph": "^2.4.5",
-    "dicomweb-client": "^0.10.3",
     "colormap": "^2.3",
     "dcmjs": "^0.41.0",
     "dicomicc": "^0.1",
+    "dicomweb-client": "^0.10.3",
     "image-type": "^4.1",
     "mathjs": "^11.2",
     "ol": "^10.4.0",
@@ -92,5 +80,21 @@
   },
   "resolutions": {
     "braces": "3.0.3"
+  },
+  "scripts": {
+    "test": "npm run lint && jest --silent",
+    "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
+    "prepublishOnly": "npm run build",
+    "generateStaticSite": "npm run build && cp -R ./dist ./examples",
+    "generateDocs": "jsdoc -c ./jsdoc_conf.json",
+    "fmt": "standard 'src/**/*.js' --fix",
+    "lint": "standard 'src/**/*.js'",
+    "lint:fix": "standard --fix src/**/*.js",
+    "clean": "rm -rf ./dist ./node_modules",
+    "clean:dist": "rm -rf ./dist",
+    "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
+    "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
+    "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
+    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle"
   }
 }

@@ -70,3 +70,6 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+*~
+*.swp
+bun.lock
