@@ -3711,7 +3711,8 @@ class VolumeImageViewer {
           studyInstanceUID: metadata.StudyInstanceUID,
           seriesInstanceUID: metadata.SeriesInstanceUID,
           sopInstanceUIDs: [metadata.SOPInstanceUID],
-          referencedSeriesInstanceUID: metadata.ReferencedSeriesSequence[0].SeriesInstanceUID
+          referencedSeriesInstanceUID: metadata.ReferencedSeriesSequence[0].SeriesInstanceUID,
+          referencedSOPInstanceUID: metadata.ReferencedImageSequence[0].ReferencedSOPInstanceUID
         }),
         style: { ...defaultAnnotationGroupStyle },
         defaultStyle: defaultAnnotationGroupStyle,

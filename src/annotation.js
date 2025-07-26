@@ -25,6 +25,8 @@ class AnnotationGroup {
    * @param {string} options.studyInstanceUID - Study Instance UID of Annotation instances
    * @param {string} options.seriesInstanceUID - Series Instance UID of Annotation instances
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of Annotation instances
+   * @param {string} options.referencedSeriesInstanceUID - Referenced Series Instance UID of Annotation instances
+   * @param {string} options.referencedSOPInstanceUID - Referenced SOP Instance UID of Annotation instances
    */
   constructor ({
     uid,
@@ -37,7 +39,8 @@ class AnnotationGroup {
     studyInstanceUID,
     seriesInstanceUID,
     sopInstanceUIDs,
-    referencedSeriesInstanceUID
+    referencedSeriesInstanceUID,
+    referencedSOPInstanceUID
   }) {
     this[_attrs] = {}
     if (uid == null) {
@@ -84,6 +87,7 @@ class AnnotationGroup {
     }
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
     this[_attrs].referencedSeriesInstanceUID = referencedSeriesInstanceUID
+    this[_attrs].referencedSOPInstanceUID = referencedSOPInstanceUID
     Object.freeze(this)
   }
 
@@ -179,6 +183,10 @@ class AnnotationGroup {
 
   get referencedSeriesInstanceUID () {
     return this[_attrs].referencedSeriesInstanceUID
+  }
+
+  get referencedSOPInstanceUID () {
+    return this[_attrs].referencedSOPInstanceUID
   }
 }
 
