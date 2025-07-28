@@ -1,4 +1,4 @@
-/* global location, Worker */
+/* global Worker */
 
 // the taskId to assign to the next task added via addTask()
 let nextTaskId = 0
@@ -107,6 +107,28 @@ function handleMessageFromWorker (msg) {
 }
 
 /**
+ * Gets a full href for the microscopy component.
+ * This will incorporate the meta url if it is a valid http meta url, or it
+ * will use `window.PUBLIC_URL` to decide between the
+ * relative path being `PUBLIC URL / dicom-microscopy-viewer /` and the
+ * relative path being `/ static / js /`
+ */
+export function getMicroscopyHref () {
+  const metaUrl = import.meta.url
+
+  if (metaUrl.startsWith('file:')) {
+    // Work around bugs in webpack that don't update the meta url correctly
+    const { PUBLIC_URL } = window
+    const component = PUBLIC_URL ? 'dicom-microscopy-viewer/' : 'static/js/'
+    const useUrl = `${PUBLIC_URL || '/'}${component}`
+    return useUrl.startsWith('http')
+      ? useUrl
+      : `${window.location.protocol}//${window.location.host}${useUrl}`
+  }
+  return metaUrl.href
+}
+
+/**
  * Spawns a new web worker
  */
 function spawnWebWorker () {
@@ -115,21 +137,8 @@ function spawnWebWorker () {
     return
   }
 
-  const metaUrl = import.meta.url;
-  
-  let useUrl = metaUrl;
-  if( metaUrl.startsWith("file:") ) {
-    const { PUBLIC_URL = '/' } = window;
-    useUrl = `${PUBLIC_URL}dicom-microscopy-viewer/dicomMicroscopyViewer.min.js`;
-    if( !useUrl.startsWith('http') ) {
-      useUrl = `${window.location.protocol}//${window.location.host}${useUrl}`;
-    }
-  }
-  const workerUrl = new URL('./dataLoader.worker.min.js', useUrl);
-  console.warn("Chosen url", workerUrl.href);
-
+  const workerUrl = new URL('./dataLoader.worker.min.js', getMicroscopyHref())
   const worker = new Worker(workerUrl, { type: 'module' })
-  console.warn("created worker", worker);
 
   webWorkers.push({
     worker,

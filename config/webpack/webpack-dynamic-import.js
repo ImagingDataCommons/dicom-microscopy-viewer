@@ -10,7 +10,7 @@ const wasmRule = {
   test: /\.wasm/,
   type: 'asset/resource',
   generator: {
-    filename: 'dicom-microscopy-viewer/[name][ext]',
+    filename: '[name][ext]',
   },
 };
 
@@ -23,9 +23,9 @@ const prodConfig = {
     path: outputPath,
     libraryTarget: 'umd',
     globalObject: 'self',
-    filename: 'dicom-microscopy-viewer/[name].min.js',
+    filename: '[name].min.js',
     publicPath: 'auto',
-    chunkFilename: 'dicom-microscopy-viewer/[name].worker.min.js',
+    chunkFilename: '[name].worker.min.js'
   },
   module: {
     rules: [wasmRule],
