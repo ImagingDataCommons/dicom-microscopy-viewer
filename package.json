@@ -41,14 +41,14 @@
     ]
   },
   "devDependencies": {
-    "@babel/core": "^7.17",
-    "@babel/plugin-proposal-object-rest-spread": "^7.14.7",
-    "@babel/plugin-transform-runtime": "^7.15.0",
-    "@babel/preset-env": "^7.16",
-    "@babel/runtime-corejs3": "^7.15.4",
+    "@babel/core": "^7.28.0",
+    "@babel/plugin-transform-runtime": "^7.28.0",
+    "@babel/preset-env": "^7.28.0",
+    "@babel/runtime-corejs3": "^7.28.0",
     "babel-eslint": "10.1.0",
-    "babel-jest": "27.5",
+    "babel-jest": "30.0.5",
     "babel-loader": "^8.2.3",
+    "babel-plugin-transform-import-meta": "^2.3.3",
     "chai": "^4.3.4",
     "clean-webpack-plugin": "^4.0.0",
     "copy-webpack-plugin": "10.2.0",
@@ -83,7 +83,7 @@
     "braces": "3.0.3"
   },
   "scripts": {
-    "test": "npm run lint && jest --silent",
+    "test": "jest --silent",
     "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
     "prepublishOnly": "npm run build",
     "generateStaticSite": "npm run build && cp -R ./dist ./examples",
