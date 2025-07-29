@@ -10,9 +10,10 @@ jobs:
   build:
     name: Build and run tests
     runs-on: ubuntu-latest
+    
     strategy:
       matrix:
-        node-version: ["16.x", "20.x"]
+        node-version: ["18.x", "24.x"]
 
     steps:
       - uses: actions/checkout@v2

@@ -11,70 +11,61 @@ module.exports = {
   mode: 'production',
   context,
   stats: {
-    children: true
+    children: true,
   },
   entry: {
-    dicomMicroscopyViewer: './dicom-microscopy-viewer.js'
+    dicomMicroscopyViewer: './dicom-microscopy-viewer.js',
+    'dataLoader.worker': './webWorker/dataLoader.worker.js',
   },
   target: 'web',
   output: {
     library: {
       name: 'dicomMicroscopyViewer',
       type: 'umd',
-      umdNamedDefine: true
+      umdNamedDefine: true,
     },
     globalObject: 'this',
     path: outputPath,
-    filename: '[name].bundle.min.js'
+    publicPath: 'auto',
+    filename: '[name].bundle.min.js',
   },
   devtool: 'source-map',
   resolve: {
     fallback: {
       fs: false,
-      path: false
-    }
+      path: false,
+      url: false,
+    },
   },
   module: {
     noParse: [/(codec)/, /(dicomicc)/],
     rules: [
       {
         test: /\.css$/,
-        use: 'css-loader'
+        use: 'css-loader',
       },
       {
         test: /\.wasm/,
-        type: 'asset/inline'
-      },
-      {
-        test: /\.worker\.js$/,
-        use: [
-          {
-            loader: 'worker-loader',
-            options: { inline: 'fallback' }
-          },
-          {
-            loader: 'babel-loader'
-          }
-        ]
+        type: 'asset/inline',
       },
       {
         test: /\.js$/,
         exclude: [/(node_modules)/, /(codecs)/, /(dicomicc)/],
         use: {
-          loader: 'babel-loader'
-        }
-      }
-    ]
+          loader: 'babel-loader',
+        },
+      },
+    ],
   },
   plugins: [new webpack.ProgressPlugin()],
   experiments: {
-    asyncWebAssembly: true
+    asyncWebAssembly: true,
   },
   optimization: {
     minimizer: [
       new TerserPlugin({
-        parallel: true
-      })
-    ]
-  }
-}
+        parallel: true,
+      }),
+    ],
+  },
+};
