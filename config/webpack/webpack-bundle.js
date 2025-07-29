@@ -34,6 +34,7 @@ module.exports = {
     fallback: {
       fs: false,
       path: false,
+      url: false,
     },
   },
   module: {

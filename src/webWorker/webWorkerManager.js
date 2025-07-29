@@ -1,4 +1,4 @@
-/* global Worker */
+/* global Worker, URL */
 
 // the taskId to assign to the next task added via addTask()
 let nextTaskId = 0
@@ -107,25 +107,18 @@ function handleMessageFromWorker (msg) {
 }
 
 /**
- * Gets a full href for the microscopy component.
- * This will incorporate the meta url if it is a valid http meta url, or it
- * will use `window.PUBLIC_URL` to decide between the
- * relative path being `PUBLIC URL / dicom-microscopy-viewer /` and the
- * relative path being `/ static / js /`
+ * Gets a full href for the microscopy component.  This only works when
+ * PUBLIC_URL is defined, which is a horrible way to distinguish between
+ * environments, but given how broken webpack is, this seems the best we can do.
  */
 export function getMicroscopyHref () {
-  const metaUrl = import.meta.url
-
-  if (metaUrl.startsWith('file:')) {
-    // Work around bugs in webpack that don't update the meta url correctly
-    const { PUBLIC_URL } = window
-    const component = PUBLIC_URL ? 'dicom-microscopy-viewer/' : 'static/js/'
-    const useUrl = `${PUBLIC_URL || '/'}${component}`
-    return useUrl.startsWith('http')
-      ? useUrl
-      : `${window.location.protocol}//${window.location.host}${useUrl}`
-  }
-  return metaUrl.href
+  // Work around bugs in webpack that don't update the meta url correctly
+  const { PUBLIC_URL } = window
+  const component = 'dicom-microscopy-viewer/'
+  const useUrl = `${PUBLIC_URL || '/'}${component}`
+  return useUrl.startsWith('http')
+    ? useUrl
+    : `${window.location.protocol}//${window.location.host}${useUrl}`
 }
 
 /**
@@ -136,8 +129,23 @@ function spawnWebWorker () {
   if (webWorkers.length >= config.maxWebWorkers) {
     return
   }
+  const { PUBLIC_URL } = window
 
-  const workerUrl = new URL('./dataLoader.worker.min.js', getMicroscopyHref())
+  let workerUrl
+  if (!PUBLIC_URL) {
+    try {
+      // *******************************
+      // Warning: Magic incancation for Webpack that depends on the line EXACTLY
+      // as written.  Don't assume this will work in the future, it barely works now.
+      workerUrl = new URL('./dataLoader.worker.min.js', import.meta.url)
+    } catch (e) {
+      // This is the fallback that will usually happen
+      workerUrl = new URL(`${window.location.protocol}//${window.location.host}/static/js/dataLoader.worker.min.js`)
+    }
+  } else {
+    // If webpack actually worked reliably, then this wouldn't be needed
+    workerUrl = new URL('./dataLoader.worker.min.js', getMicroscopyHref())
+  }
   const worker = new Worker(workerUrl, { type: 'module' })
 
   webWorkers.push({

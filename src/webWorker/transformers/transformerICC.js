@@ -1,6 +1,7 @@
 import dicomiccFactory from 'dicomicc/dist/dicomiccwasm.js'
 import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm'
 import Transformer from './transformerAbstract.js'
+import { inlineBinaryToUint8Array } from './inlineBinaryToUint8Array.js'
 
 export default class ColorTransformer extends Transformer {
   /**
@@ -49,7 +50,11 @@ export default class ColorTransformer extends Transformer {
           const samplesPerPixel = this.metadata[index].SamplesPerPixel
           const planarConfiguration = this.metadata[index].PlanarConfiguration
           const sopInstanceUID = this.metadata[index].SOPInstanceUID
-          const profile = this.iccProfiles[index]
+          const profile = inlineBinaryToUint8Array(this.iccProfiles[index])
+          if (!profile) {
+            console.warn('Unable to convert icc profile: ', this.iccProfiles[index])
+            return
+          }
           this.transformers[sopInstanceUID] = new this.codec.ColorManager(
             {
               columns,
