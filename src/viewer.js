@@ -5099,13 +5099,6 @@ class VolumeImageViewer {
 
     const refImage = this[_pyramid].metadata[0]
     const refParametricMap = metadata[0]
-    if (refParametricMap.ContentLabel !== 'HEATMAP') {
-      console.warn(
-        'skip mappings because value of "Content Label" attribute of ' +
-        'Parametric Map instances is not "HEATMAP"'
-      )
-      return
-    }
 
     metadata.forEach(instance => {
       if (
