@@ -107,18 +107,31 @@ function handleMessageFromWorker (msg) {
 }
 
 /**
- * Gets a full href for the microscopy component.  This only works when
- * PUBLIC_URL is defined, which is a horrible way to distinguish between
- * environments, but given how broken webpack is, this seems the best we can do.
+ * Gets a full href for the microscopy component.
+ * This will use the PUBLIC_URL and/or PUBLIC_LIB_URL definitions to create a
+ * full path.  If PUBLIC_LIB_URL contains `${component}` then it will be replaced
+ * with this component name.
+ * Then, the returned href is the PUBLIC_LIB_URL combined with the
+ * PUBLIC_URL, combined with the current protocol/use name.
+ * As a general model, this means that:
+ *   * The base protocol and server/port will come from the `window.location`
+ *   * The base path for the application will come from PUBLIC_URL, defaulting to '/'
+ *   * The library path will come from PUBLIC_LIB_URL, defaulting to './static/js/'
+ * However, each level can specify the full absolute path, replacing the previous
+ * items, allowing for distribution of this library to a CDN.
  */
-export function getMicroscopyHref () {
+export function getMicroscopyHref (component = 'dicom-microscopy-viewer') {
   // Work around bugs in webpack that don't update the meta url correctly
-  const { PUBLIC_URL } = window
-  const component = 'dicom-microscopy-viewer/'
-  const useUrl = `${PUBLIC_URL || '/'}${component}`
-  return useUrl.startsWith('http')
-    ? useUrl
-    : `${window.location.protocol}//${window.location.host}${useUrl}`
+  const publicUrl = window.PUBLIC_URL || window.config?.path || '/'
+  const publicLibUrl =
+    window.PUBLIC_LIB_URL || window.config?.publicLibPath || './static/js/'
+  const absoluteUrl = new URL(
+    publicUrl,
+    `${window.location.protocol}//${window.location.host}`
+  ).href
+  const microscopyLibUrl = publicLibUrl.replace(/\${component}/, component)
+  const libUrl = new URL(microscopyLibUrl, absoluteUrl).href
+  return libUrl
 }
 
 /**
@@ -129,21 +142,14 @@ function spawnWebWorker () {
   if (webWorkers.length >= config.maxWebWorkers) {
     return
   }
-  const { PUBLIC_URL } = window
-
   let workerUrl
-  if (!PUBLIC_URL) {
-    try {
-      // *******************************
-      // Warning: Magic incancation for Webpack that depends on the line EXACTLY
-      // as written.  Don't assume this will work in the future, it barely works now.
-      workerUrl = new URL('./dataLoader.worker.min.js', import.meta.url)
-    } catch (e) {
-      // This is the fallback that will usually happen
-      workerUrl = new URL(`${window.location.protocol}//${window.location.host}/static/js/dataLoader.worker.min.js`)
-    }
-  } else {
-    // If webpack actually worked reliably, then this wouldn't be needed
+  try {
+    // *******************************
+    // Warning: Magic incancation for Webpack that depends on the line EXACTLY
+    // as written.  Don't assume this will work in the future, it barely works now.
+    workerUrl = new URL('./dataLoader.worker.min.js', import.meta.url)
+  } catch (e) {
+    // This is the fallback that will usually happen
     workerUrl = new URL('./dataLoader.worker.min.js', getMicroscopyHref())
   }
   const worker = new Worker(workerUrl, { type: 'module' })
