@@ -1669,6 +1669,21 @@ class VolumeImageViewer {
   }
 
   /**
+   * Gets the internal map object, used for finer grained control over the display
+   * area/setup.
+   */
+  getMap () {
+    return this[_map]
+  }
+
+  /**
+   * Gets the affine transform
+   */
+  getAffine () {
+    return this[_affine]
+  }
+
+  /**
    * Set up event listeners for the map.
    * @private
    */

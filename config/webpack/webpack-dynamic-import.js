@@ -10,32 +10,37 @@ const wasmRule = {
   test: /\.wasm/,
   type: 'asset/resource',
   generator: {
-    filename: 'dicom-microscopy-viewer/[name][ext]'
-  }
-}
+    filename: '[name][ext]',
+  },
+};
 
 const prodConfig = {
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   stats: {
-    children: true
+    children: true,
   },
   output: {
     path: outputPath,
     libraryTarget: 'umd',
-    globalObject: 'window',
+    globalObject: 'self',
     filename: '[name].min.js',
+    publicPath: 'auto',
+    chunkFilename: '[name].worker.min.js'
   },
   module: {
-    rules: [wasmRule]
+    rules: [wasmRule],
   },
   optimization: {
     minimize: process.env.NODE_ENV === 'production',
     minimizer: [
       new TerserPlugin({
-        parallel: true
-      })
-    ]
-  }
-}
+        parallel: true,
+      }),
+    ],
+  },
+  experiments: {
+    asyncWebAssembly: true,
+  },
+};
 
 module.exports = merge(baseConfig, prodConfig)
