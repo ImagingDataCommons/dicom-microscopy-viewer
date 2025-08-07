@@ -1128,6 +1128,8 @@ class VolumeImageViewer {
 
     /**
      * Detect the display color space.
+     * Note: The WebGLRenderingContext only supports sRGB and Display-P3
+     * color spaces, Adobe RGB (1998) and ROMM RGB are not supported.
      * @returns {string} 'display-p3' or 'srgb'
      */
     function detectDisplayColorSpace() {
@@ -2327,6 +2329,7 @@ class VolumeImageViewer {
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
+          iccOutputType: this[_iccOutputType],
           ...opticalPath.loaderParams
         })
         const source = opticalPath.layer.getSource()
@@ -2497,6 +2500,7 @@ class VolumeImageViewer {
       const loader = _createTileLoadFunction({
         targetElement: container,
         iccProfiles: this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
+        iccOutputType: this[_isICCProfilesEnabled] && profiles.length > 0 ? this[_iccOutputType] : null,
         ...item.loaderParams
       })
       source.setLoader(loader)
