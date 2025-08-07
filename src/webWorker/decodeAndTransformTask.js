@@ -41,7 +41,7 @@ function _handler (data, doneCallback) {
       frame
     }
   ).then((decodedFrame) => {
-    if (iccProfiles != null && iccProfiles.length > 0) {
+    if (iccProfiles?.length) {
       // Only instantiate the transformer once and cache it for reuse.
       if (transformerColor === undefined) {
         transformerColor = new ColorTransformer(metadata, iccProfiles, iccOutputType)
@@ -61,7 +61,8 @@ function _handler (data, doneCallback) {
         )
       }).catch(
         (error) => {
-          throw new Error(`Failed to transform frame: ${error}`)
+          console.warn('Unable to transform frame', error)
+          doneCallback({ frameData: decodedFrame.buffer }, [decodedFrame.buffer])
         }
       )
     } else {

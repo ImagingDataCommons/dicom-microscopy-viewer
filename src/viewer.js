@@ -815,8 +815,9 @@ class VolumeImageViewer {
    * intercepting errors
    * @param {number[]} [options.mapViewResolutions] Map's view list of
    * resolutions.
-   * @param {boolean} [options.useTileGridResolutions] If true, the tile grid
-   * resolutions will be used if no map view resolutions are provided.
+   * @param {boolean} [options.useTileGridResolutions=true] If false,
+   * zoom will not be limited and the image will fit the viewport extent (no clipping).
+   * This option will be ignored if there are no thumbnail images available or there's just one image.
    */
   constructor (options) {
     this[_options] = options
@@ -880,6 +881,10 @@ class VolumeImageViewer {
 
     if (this[_options].errorInterceptor == null) {
       this[_options].errorInterceptor = error => error
+    }
+
+    if (this[_options].useTileGridResolutions == null) {
+      this[_options].useTileGridResolutions = true
     }
 
     if (this[_options].debug == null) {
@@ -959,11 +964,50 @@ class VolumeImageViewer {
       throw this[_options].errorInterceptor(error)
     }
 
+    const ImageFlavors = {
+      VOLUME: 'VOLUME',
+      LABEL: 'LABEL',
+      OVERVIEW: 'OVERVIEW',
+      THUMBNAIL: 'THUMBNAIL'
+    }
+
+    const hasImageFlavor = (image, imageFlavor) => {
+      return image.ImageType[2] === imageFlavor
+    }
+
+    /*
+     * Only include THUMBNAIL image into metadata if no other VOLUME image
+     * exists with the same resolution
+     */
+    const filterImagesByResolution = (metadata) => {
+      const pyramidBaseMetadata = metadata[metadata.length - 1]
+      const filteredMetadata = metadata.filter(image => {
+        if (hasImageFlavor(image, ImageFlavors.THUMBNAIL)) {
+          const hasThumbnailEquivalentVolumeImage = metadata.some(
+            (img) =>
+              hasImageFlavor(img, ImageFlavors.VOLUME) &&
+              pyramidBaseMetadata.TotalPixelMatrixColumns / img.TotalPixelMatrixColumns ===
+                pyramidBaseMetadata.TotalPixelMatrixColumns / image.TotalPixelMatrixColumns
+          )
+          if (hasThumbnailEquivalentVolumeImage) {
+            console.debug('Thumbnail image has equivalent volume image resolution, skipping thumbnail.', image.SOPInstanceUID)
+            return false
+          }
+          return true
+        } else {
+          return true
+        }
+      })
+
+      return filteredMetadata
+    }
+
     // We also accept metadata in raw JSON format for backwards compatibility
-    if (this[_options].metadata[0].SOPClassUID != null) {
-      this[_metadata] = this[_options].metadata
+    const filteredMetadata = filterImagesByResolution(this[_options].metadata)
+    if (filteredMetadata[0].SOPClassUID != null) {
+      this[_metadata] = filteredMetadata
     } else {
-      this[_metadata] = this[_options].metadata.map(instance => {
+      this[_metadata] = filteredMetadata.map(instance => {
         return new VLWholeSlideMicroscopyImage({ metadata: instance })
       })
     }
@@ -1105,10 +1149,19 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
-    let mapViewResolutions
+    let mapViewResolutions =
+      this[_options].useTileGridResolutions === false
+        ? undefined
+        : this[_tileGrid].getResolutions()
 
-    if (has(this[_options], 'useTileGridResolutions')) {
-      mapViewResolutions = this[_tileGrid].getResolutions()
+    /**
+     * If there are no thumbnail images, dont use any resolutions so we can create a thumbnail image by
+     * loading the the tiles of the lowest resolution and show the entire extent.
+     * Using resolutions will cause the viewer to clip the image to the extent of the viewport. This is
+     * not what we want for a thumbnail image.
+     */
+    if (!this[_metadata].find((image) => image.ImageType[2] === ImageFlavors.THUMBNAIL) && this[_metadata].length > 1) {
+      mapViewResolutions = undefined
     }
 
     if (has(this[_options], 'mapViewResolutions')) {
@@ -1457,7 +1510,9 @@ class VolumeImageViewer {
       layers.push(tileDebugLayer)
     }
 
-    if (Math.max(...this[_pyramid].gridSizes[0]) <= 10) {
+    const noThumbnails = !this[_metadata].find((image) => image.ImageType[2] === ImageFlavors.THUMBNAIL) && this[_metadata].length > 1
+
+    if (Math.max(...this[_pyramid].gridSizes[0]) <= 10 || noThumbnails) {
       const center = getCenter(this[_projection].getExtent())
       this[_overviewMap] = new OverviewMap({
         view: new View({
@@ -1656,6 +1711,21 @@ class VolumeImageViewer {
 
     this._setupMapEventListeners()
     this._setupDrawingSourceEventListeners()
+  }
+
+  /**
+   * Gets the internal map object, used for finer grained control over the display
+   * area/setup.
+   */
+  getMap () {
+    return this[_map]
+  }
+
+  /**
+   * Gets the affine transform
+   */
+  getAffine () {
+    return this[_affine]
   }
 
   /**
@@ -3704,7 +3774,8 @@ class VolumeImageViewer {
           studyInstanceUID: metadata.StudyInstanceUID,
           seriesInstanceUID: metadata.SeriesInstanceUID,
           sopInstanceUIDs: [metadata.SOPInstanceUID],
-          referencedSeriesInstanceUID: metadata.ReferencedSeriesSequence[0].SeriesInstanceUID
+          referencedSeriesInstanceUID: metadata.ReferencedSeriesSequence[0].SeriesInstanceUID,
+          referencedSOPInstanceUID: metadata.ReferencedImageSequence[0].ReferencedSOPInstanceUID
         }),
         style: { ...defaultAnnotationGroupStyle },
         defaultStyle: defaultAnnotationGroupStyle,
@@ -5076,13 +5147,6 @@ class VolumeImageViewer {
 
     const refImage = this[_pyramid].metadata[0]
     const refParametricMap = metadata[0]
-    if (refParametricMap.ContentLabel !== 'HEATMAP') {
-      console.warn(
-        'skip mappings because value of "Content Label" attribute of ' +
-        'Parametric Map instances is not "HEATMAP"'
-      )
-      return
-    }
 
     metadata.forEach(instance => {
       if (
