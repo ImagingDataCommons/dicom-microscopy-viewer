@@ -376,6 +376,7 @@ function _createTileLoadFunction ({
   client,
   channel,
   iccProfiles,
+  iccOutputType,
   targetElement
 }) {
   return async (z, y, x) => {
@@ -521,7 +522,8 @@ function _createTileLoadFunction ({
             samplesPerPixel,
             sopInstanceUID,
             metadata: pyramid.metadata,
-            iccProfiles
+            iccProfiles,
+            iccOutputType
           }).then(pixelArray => {
             if (pixelArray.constructor === Float64Array) {
               // TODO: handle Float64Array using LUT
