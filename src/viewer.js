@@ -4735,7 +4735,8 @@ class VolumeImageViewer {
         projection: this[_projection],
         wrapX: false,
         bandCount: 1,
-        interpolate: true
+        /** Avoid interpolation for single resolution (avoid blocky pixels) */
+        interpolate: fittedPyramid.resolutions.length > 1
       })
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of segment "${segmentUID}"`, event.tile?.error_?.message || event)
