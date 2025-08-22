@@ -626,67 +626,6 @@ function _getColorPaletteStyleForTileLayer ({
 }
 
 /**
- * Build OpenLayers style expression for coloring a WebGL PointLayer.
- *
- * @param {Object} styleOptions - Style options
- * @param {string} styleOptions.key - Name of a property for which values
- * should be colorized
- * @param {number} styleOptions.minValue - Mininum value of the output range
- * @param {number} styleOptions.maxValue - Maxinum value of the output range
- * @param {number[]} styleOptions.color - RGB color triplet
- *
- * @returns {Object} color style expression and corresponding variables
- *
- * @private
- */
-function _getColorInterpolationStyleForPointLayer ({
-  key,
-  minValue,
-  maxValue,
-  color
-}) {
-  const minIndexValue = 0
-  const maxIndexValue = 1
-  const indexExpression = [
-    '+',
-    [
-      '/',
-      [
-        '*',
-        [
-          '-',
-          ['get', key],
-          minValue
-        ],
-        [
-          '-',
-          maxIndexValue,
-          minIndexValue
-        ]
-      ],
-      [
-        '-',
-        maxValue,
-        minValue
-      ]
-    ],
-    minIndexValue
-  ]
-
-  const expression = [
-    'interpolate',
-    ['linear'],
-    indexExpression,
-    0,
-    [255, 255, 255, 1],
-    1,
-    rgb2hex(color)
-  ]
-
-  return { color: expression }
-}
-
-/**
  * Build OpenLayers style expression for coloring a WebGL TileLayer.
  *
  * @param {Object} styleOptions - Style options
@@ -1728,7 +1667,7 @@ class VolumeImageViewer {
           }
         }
       },
-      { 
+      {
         hitTolerance: 1,
         layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
       })
@@ -1780,7 +1719,7 @@ class VolumeImageViewer {
             clickEvent = null
           }
         },
-        { 
+        {
           hitTolerance: 1,
           layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
         }
@@ -1830,7 +1769,7 @@ class VolumeImageViewer {
             clickEvent = null
           }
         },
-        { 
+        {
           hitTolerance: 1,
           layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
         }
@@ -4197,10 +4136,10 @@ class VolumeImageViewer {
         'circle-displacement': [0, 0],
         'circle-opacity': annotationGroup.style.opacity,
         'circle-fill-color': [
-          'match', 
-          ['get', 'hover'], 
-          1, 
-          rgb2hex(this[_options].highlightColor), 
+          'match',
+          ['get', 'hover'],
+          1,
+          rgb2hex(this[_options].highlightColor),
           rgb2hex(annotationGroup.style.color)
         ]
       }
@@ -4226,8 +4165,8 @@ class VolumeImageViewer {
            * Ideally, we would use a color palette to colorize objects.
            * However, it appears the "palette" expression is not yet supported for
            * styling PointLayer.
-           * 
-           * Create a heat map effect: normalize property values to 0-1 range and 
+           *
+           * Create a heat map effect: normalize property values to 0-1 range and
            * interpolate colors from white to annotation color.
            */
           Object.assign(pointsStyle, {
@@ -4241,17 +4180,17 @@ class VolumeImageViewer {
                   [
                     '*',
                     ['-', ['get', key], properties[key].min],
-                    ['-', properties[key].min, properties[key].max],
+                    ['-', properties[key].min, properties[key].max]
                   ],
-                  ['-', properties[key].max, properties[key].min],
+                  ['-', properties[key].max, properties[key].min]
                 ],
-                minIndexValue,
+                properties[key].min
               ],
               0,
-              [255, 255, 255, 1], 
+              [255, 255, 255, 1],
               1,
-              annotationGroup.style.color,
-            ],
+              annotationGroup.style.color
+            ]
           })
         }
       }
@@ -4468,7 +4407,7 @@ class VolumeImageViewer {
     if (annotationGroup.layers[0]) {
       annotationGroup.layers[0].setStyle(this.getGraphicTypeLayerStyle(annotationGroup))
     }
-    
+
     if (annotationGroup.graphicType !== 'POINT' && annotationGroup.layers[1]) {
       if (annotationGroup.numberOfAnnotations > 1000) {
         annotationGroup.layers[1].setStyle(getClusterStyleFunc(annotationGroup.style, annotationGroup.layers[1].getSource()))
