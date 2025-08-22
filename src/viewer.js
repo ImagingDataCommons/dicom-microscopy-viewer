@@ -23,7 +23,7 @@ import Circle from 'ol/style/Circle'
 import Static from 'ol/source/ImageStatic'
 import Cluster from 'ol/source/Cluster'
 import Overlay from 'ol/Overlay'
-import PointsLayer from 'ol/layer/WebGLPoints'
+import WebGLVector from 'ol/layer/WebGLVector'
 import TileLayer from 'ol/layer/WebGLTile'
 import DataTileSource from 'ol/source/DataTile'
 import TileGrid from 'ol/tilegrid/TileGrid'
@@ -626,67 +626,6 @@ function _getColorPaletteStyleForTileLayer ({
 }
 
 /**
- * Build OpenLayers style expression for coloring a WebGL PointLayer.
- *
- * @param {Object} styleOptions - Style options
- * @param {string} styleOptions.key - Name of a property for which values
- * should be colorized
- * @param {number} styleOptions.minValue - Mininum value of the output range
- * @param {number} styleOptions.maxValue - Maxinum value of the output range
- * @param {number[]} styleOptions.color - RGB color triplet
- *
- * @returns {Object} color style expression and corresponding variables
- *
- * @private
- */
-function _getColorInterpolationStyleForPointLayer ({
-  key,
-  minValue,
-  maxValue,
-  color
-}) {
-  const minIndexValue = 0
-  const maxIndexValue = 1
-  const indexExpression = [
-    '+',
-    [
-      '/',
-      [
-        '*',
-        [
-          '-',
-          ['get', key],
-          minValue
-        ],
-        [
-          '-',
-          maxIndexValue,
-          minIndexValue
-        ]
-      ],
-      [
-        '-',
-        maxValue,
-        minValue
-      ]
-    ],
-    minIndexValue
-  ]
-
-  const expression = [
-    'interpolate',
-    ['linear'],
-    indexExpression,
-    0,
-    [255, 255, 255, 1],
-    1,
-    color
-  ]
-
-  return { color: expression }
-}
-
-/**
  * Build OpenLayers style expression for coloring a WebGL TileLayer.
  *
  * @param {Object} styleOptions - Style options
@@ -816,7 +755,9 @@ class VolumeImageViewer {
    * resolutions.
    * @param {boolean} [options.useTileGridResolutions=true] If false,
    * zoom will not be limited and the image will fit the viewport extent (no clipping).
-   * This option will be ignored if there are no thumbnail images available or there's just one image.
+   * Note: This option will be ignored if there are no thumbnail images available or its just one image.
+   * If you set skipThumbnails to true, this option is not needed.
+   * @param {boolean} [options.skipThumbnails=false] If true, thumbnail images will not be loaded as part of the pyramid.
    */
   constructor (options) {
     this[_options] = options
@@ -871,6 +812,10 @@ class VolumeImageViewer {
       for (const key in this[_options].clientMapping) {
         this[_clients][key] = this[_options].clientMapping[key]
       }
+    }
+
+    if (this[_options].skipThumbnails == null) {
+      this[_options].skipThumbnails = false
     }
 
     if (this[_options].annotationOptions) {
@@ -980,6 +925,9 @@ class VolumeImageViewer {
     const filterImagesByResolution = (metadata) => {
       const pyramidBaseMetadata = metadata[metadata.length - 1]
       const filteredMetadata = metadata.filter(image => {
+        if (hasImageFlavor(image, ImageFlavors.THUMBNAIL) && this[_options].skipThumbnails === true) {
+          return false
+        }
         if (hasImageFlavor(image, ImageFlavors.THUMBNAIL)) {
           const hasThumbnailEquivalentVolumeImage = metadata.some(
             (img) =>
@@ -1148,7 +1096,8 @@ class VolumeImageViewer {
     })
 
     let mapViewResolutions =
-      this[_options].useTileGridResolutions === false
+      this[_options].useTileGridResolutions === false ||
+      this[_options].skipThumbnails === true
         ? undefined
         : this[_tileGrid].getResolutions()
 
@@ -1727,6 +1676,10 @@ class VolumeImageViewer {
             })
           }
         }
+      },
+      {
+        hitTolerance: 1,
+        layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
       })
 
       if (!featureCounter) {
@@ -1776,7 +1729,10 @@ class VolumeImageViewer {
             clickEvent = null
           }
         },
-        { hitTolerance: 1 }
+        {
+          hitTolerance: 1,
+          layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
+        }
       )
     })
 
@@ -1823,7 +1779,10 @@ class VolumeImageViewer {
             clickEvent = null
           }
         },
-        { hitTolerance: 1 }
+        {
+          hitTolerance: 1,
+          layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
+        }
       )
     })
   }
@@ -4020,7 +3979,7 @@ class VolumeImageViewer {
 
       const getHighResLayer = ({ pointsSource, highResSource, annotationGroup }) => {
         return graphicType === 'POINT'
-          ? new PointsLayer({
+          ? new WebGLVector({
             source: pointsSource,
             style: this.getGraphicTypeLayerStyle(annotationGroup),
             disableHitDetection: true
@@ -4143,7 +4102,7 @@ class VolumeImageViewer {
         },
         {
           hitTolerance: 1,
-          layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof PointsLayer)
+          layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
         }
       )
     })
@@ -4167,7 +4126,7 @@ class VolumeImageViewer {
       const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
       const baseLayerIndex = this[_pyramid].metadata.length - 1
       const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
-      const diameter = 5 * 10 ** -3 /** micrometer */
+      const diameter = (5 * 10 ** -3) /** micrometer */
 
       /*
        * TODO: Determine optimal sizes based on number of zoom levels and
@@ -4175,19 +4134,24 @@ class VolumeImageViewer {
        * Use style variable(s) that can subsequently be updated.
        */
       const pointsStyle = {
-        symbol: {
-          symbolType: 'circle',
-          size: [
-            'interpolate',
-            ['exponential', 2],
-            ['zoom'],
-            1,
-            Math.max(diameter / topLayerPixelSpacing[0], 2),
-            this[_pyramid].resolutions.length,
-            Math.min(diameter / baseLayerPixelSpacing[0], 50)
-          ],
-          opacity: annotationGroup.style.opacity
-        }
+        'circle-radius': [
+          'interpolate',
+          ['exponential', 2],
+          ['zoom'],
+          1,
+          Math.max(diameter / topLayerPixelSpacing[0], 2),
+          this[_pyramid].resolutions.length,
+          Math.min(diameter / baseLayerPixelSpacing[0], 20)
+        ],
+        'circle-displacement': [0, 0],
+        'circle-opacity': annotationGroup.style.opacity,
+        'circle-fill-color': [
+          'match',
+          ['get', 'hover'],
+          1,
+          rgb2hex(this[_options].highlightColor),
+          rgb2hex(annotationGroup.style.color)
+        ]
       }
 
       const name = annotationGroup.style.measurement
@@ -4211,24 +4175,41 @@ class VolumeImageViewer {
            * Ideally, we would use a color palette to colorize objects.
            * However, it appears the "palette" expression is not yet supported for
            * styling PointLayer.
+           *
+           * Create a heat map effect: normalize property values to 0-1 range and
+           * interpolate colors from white to annotation color.
            */
-          Object.assign(
-            pointsStyle.symbol,
-            _getColorInterpolationStyleForPointLayer({
-              key,
-              minValue: properties[key].min,
-              maxValue: properties[key].max,
-              color: annotationGroup.style.color
-            })
-          )
+          Object.assign(pointsStyle, {
+            'circle-fill-color': [
+              'interpolate',
+              ['linear'],
+              [
+                '+',
+                [
+                  '/',
+                  [
+                    '*',
+                    ['-', ['get', key], properties[key].min],
+                    ['-', properties[key].min, properties[key].max]
+                  ],
+                  ['-', properties[key].max, properties[key].min]
+                ],
+                properties[key].min
+              ],
+              0,
+              [255, 255, 255, 1],
+              1,
+              annotationGroup.style.color
+            ]
+          })
         }
       }
 
       if (annotationGroup.style.color !== null) {
         Object.assign(
-          pointsStyle.symbol,
+          pointsStyle,
           {
-            color: [
+            'circle-fill-color': [
               'match',
               ['get', 'selected'],
               1,
@@ -4433,59 +4414,17 @@ class VolumeImageViewer {
     annotationGroup.graphicType = graphicType
     annotationGroup.numberOfAnnotations = numberOfAnnotations
 
-    const getHighResLayer = ({ annotationGroup, prevLayer }) => {
-      return annotationGroup.graphicType === 'POINT'
-        ? new PointsLayer({
-          source: prevLayer.getSource(),
-          style: this.getGraphicTypeLayerStyle(annotationGroup),
-          disableHitDetection: true,
-          visible: prevLayer.getVisible()
-        })
-        : new VectorLayer({
-          source: prevLayer.getSource(),
-          visible: prevLayer.getVisible(),
-          style: this.getGraphicTypeLayerStyle(annotationGroup),
-          extent: this[_pyramid].extent
-        })
+    if (annotationGroup.layers[0]) {
+      annotationGroup.layers[0].setStyle(this.getGraphicTypeLayerStyle(annotationGroup))
     }
 
-    const getLowResLayer = ({ annotationGroup }) => {
-      const prevLowResLayer = annotationGroup.layers[1]
-      return annotationGroup.numberOfAnnotations > 1000
-        ? new VectorLayer({
-          source: prevLowResLayer.getSource(),
-          visible: prevLowResLayer.getVisible(),
-          style: getClusterStyleFunc(
-            annotationGroup.style,
-            prevLowResLayer.getSource()
-          ),
-          extent: this[_pyramid].extent
-        })
-        : getHighResLayer({ annotationGroup, prevLayer: prevLowResLayer })
-    }
-
-    const updateHighResLayer = ({ annotationGroup }) => {
-      const prevHighResLayer = annotationGroup.layers[0]
-      const newHighResLayer = getHighResLayer({ annotationGroup, prevLayer: prevHighResLayer })
-      this[_map].addLayer(newHighResLayer)
-      this[_map].removeLayer(prevHighResLayer)
-      disposeLayer(prevHighResLayer)
-      annotationGroup.layers[0] = newHighResLayer
-    }
-
-    const updateLowResLayer = ({ annotationGroup }) => {
-      if (annotationGroup.graphicType !== 'POINT') {
-        const prevLowResLayer = annotationGroup.layers[1]
-        const newLowResLayer = getLowResLayer({ annotationGroup })
-        this[_map].addLayer(newLowResLayer)
-        this[_map].removeLayer(prevLowResLayer)
-        disposeLayer(prevLowResLayer)
-        annotationGroup.layers[1] = newLowResLayer
+    if (annotationGroup.graphicType !== 'POINT' && annotationGroup.layers[1]) {
+      if (annotationGroup.numberOfAnnotations > 1000) {
+        annotationGroup.layers[1].setStyle(getClusterStyleFunc(annotationGroup.style, annotationGroup.layers[1].getSource()))
+      } else {
+        annotationGroup.layers[1].setStyle(this.getGraphicTypeLayerStyle(annotationGroup))
       }
     }
-
-    updateHighResLayer({ annotationGroup })
-    updateLowResLayer({ annotationGroup })
   }
 
   /**
@@ -4647,7 +4586,7 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
+    const [fittedPyramid, minZoomLevel, maxZoomLevel, hasMatchingLevels] = _fitImagePyramid(
       pyramid,
       this[_pyramid]
     )
@@ -4735,7 +4674,8 @@ class VolumeImageViewer {
         projection: this[_projection],
         wrapX: false,
         bandCount: 1,
-        interpolate: true
+        /** Avoid interpolation for single resolution (avoid blocky pixels) */
+        interpolate: hasMatchingLevels === true
       })
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of segment "${segmentUID}"`, event.tile?.error_?.message || event)
