@@ -4637,7 +4637,7 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
+    const [fittedPyramid, minZoomLevel, maxZoomLevel, hasMatchingLevels] = _fitImagePyramid(
       pyramid,
       this[_pyramid]
     )
@@ -4726,7 +4726,7 @@ class VolumeImageViewer {
         wrapX: false,
         bandCount: 1,
         /** Avoid interpolation for single resolution (avoid blocky pixels) */
-        interpolate: fittedPyramid.resolutions.length > 1
+        interpolate: hasMatchingLevels === true
       })
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of segment "${segmentUID}"`, event.tile?.error_?.message || event)

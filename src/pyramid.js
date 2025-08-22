@@ -675,7 +675,9 @@ function _fitImagePyramid (pyramid, refPyramid) {
     }
   }
 
-  return [fittedPyramid, minZoom, maxZoom]
+  const hasMatchingLevels = matchingLevelIndices.length > 0
+
+  return [fittedPyramid, minZoom, maxZoom, hasMatchingLevels]
 }
 
 export {
