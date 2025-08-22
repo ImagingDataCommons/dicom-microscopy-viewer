@@ -755,7 +755,9 @@ class VolumeImageViewer {
    * resolutions.
    * @param {boolean} [options.useTileGridResolutions=true] If false,
    * zoom will not be limited and the image will fit the viewport extent (no clipping).
-   * This option will be ignored if there are no thumbnail images available or there's just one image.
+   * Note: This option will be ignored if there are no thumbnail images available or its just one image.
+   * If you set skipThumbnails to true, this option is not needed.
+   * @param {boolean} [options.skipThumbnails=false] If true, thumbnail images will not be loaded as part of the pyramid.
    */
   constructor (options) {
     this[_options] = options
@@ -810,6 +812,10 @@ class VolumeImageViewer {
       for (const key in this[_options].clientMapping) {
         this[_clients][key] = this[_options].clientMapping[key]
       }
+    }
+
+    if (this[_options].skipThumbnails == null) {
+      this[_options].skipThumbnails = false
     }
 
     if (this[_options].annotationOptions) {
@@ -919,6 +925,9 @@ class VolumeImageViewer {
     const filterImagesByResolution = (metadata) => {
       const pyramidBaseMetadata = metadata[metadata.length - 1]
       const filteredMetadata = metadata.filter(image => {
+        if (hasImageFlavor(image, ImageFlavors.THUMBNAIL) && this[_options].skipThumbnails === true) {
+          return false
+        }
         if (hasImageFlavor(image, ImageFlavors.THUMBNAIL)) {
           const hasThumbnailEquivalentVolumeImage = metadata.some(
             (img) =>
@@ -1087,7 +1096,8 @@ class VolumeImageViewer {
     })
 
     let mapViewResolutions =
-      this[_options].useTileGridResolutions === false
+      this[_options].useTileGridResolutions === false ||
+      this[_options].skipThumbnails === true
         ? undefined
         : this[_tileGrid].getResolutions()
 
