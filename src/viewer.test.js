@@ -1024,6 +1024,28 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
       expect(style).toEqual(expectedStyle)
     }
   })
+
+  it('should set segment style with palette color lookup table', () => {
+    inputs.segmentations.forEach(metadata => {
+      viewer.addSegments(metadata)
+    })
+    const segmentUIDs = Object.keys(expectations.segments)
+    if (segmentUIDs.length > 0) {
+      const index = 0
+      const uid = segmentUIDs[index]
+      const segmentColor = [255, 0, 0] // Red color
+      const paletteColorLookupTable = viewer.createSegmentPaletteColorLookupTable(uid, segmentColor)
+      const styleOptions = {
+        opacity: 0.8,
+        paletteColorLookupTable
+      }
+      viewer.setSegmentStyle(uid, styleOptions)
+      const style = viewer.getSegmentStyle(uid)
+      expect(style.opacity).toEqual(0.8)
+      expect(style.paletteColorLookupTable).toBe(paletteColorLookupTable)
+      expect(style.paletteColorLookupTable.data).toEqual([[0, 0, 0], [255, 0, 0]])
+    }
+  })
 })
 
 describe.each(testCases)('test viewer API for mappings of "$name"', ({

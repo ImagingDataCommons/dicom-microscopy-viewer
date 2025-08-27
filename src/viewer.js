@@ -4687,6 +4687,11 @@ class VolumeImageViewer {
         minStoredValue,
         maxStoredValue
       )
+      
+      /** Store window center and width in segment style for later use */
+      segment.style.windowCenter = windowCenter
+      segment.style.windowWidth = windowWidth
+      
       segment.layer = new TileLayer({
         source,
         extent: this[_pyramid].extent,
@@ -4913,11 +4918,47 @@ class VolumeImageViewer {
   }
 
   /**
+   * Create a palette color lookup table for a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @param {number[]} segmentColor - RGB color triplet [r, g, b]
+   * @returns {color.PaletteColorLookupTable} Palette color lookup table
+   * @private
+   */
+  _createSegmentPaletteColorLookupTable (segmentUID, segmentColor) {
+    /** Create a simple palette with the segment color
+     * For binary segments, we typically have 2 values: background (0) and segment (1) */
+    const paletteData = [
+      [0, 0, 0],        /** Background (black/transparent) */
+      segmentColor       /** Segment color */
+    ]
+    
+    const palette = buildPaletteColorLookupTable({
+      data: paletteData,
+      firstValueMapped: 0
+    })
+    
+    return palette
+  }
+
+  /**
+   * Create a palette color lookup table for a segment.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of segment
+   * @param {number[]} segmentColor - RGB color triplet [r, g, b]
+   * @returns {color.PaletteColorLookupTable} Palette color lookup table
+   */
+  createSegmentPaletteColorLookupTable (segmentUID, segmentColor) {
+    return this._createSegmentPaletteColorLookupTable(segmentUID, segmentColor)
+  }
+
+  /**
    * Set the style of a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
    * @param {Object} styleOptions - Style options
    * @param {number} [styleOptions.opacity] - Opacity
+   * @param {color.PaletteColorLookupTable} [styleOptions.paletteColorLookupTable] - Palette color lookup table
    */
   setSegmentStyle (segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
@@ -4930,9 +4971,54 @@ class VolumeImageViewer {
     }
 
     const segment = this[_segments][segmentUID]
+    
+    /** Update opacity if provided */
     if (styleOptions.opacity != null) {
       segment.style.opacity = styleOptions.opacity
       segment.layer.setOpacity(styleOptions.opacity)
+    }
+
+    /** Update palette color lookup table if provided */
+    if (styleOptions.paletteColorLookupTable != null) {
+      let paletteColorLookupTable = styleOptions.paletteColorLookupTable
+      
+      /** If the palette is a plain object (not a PaletteColorLookupTable instance),
+       * convert it to a proper PaletteColorLookupTable instance */
+      if (!paletteColorLookupTable.data && paletteColorLookupTable.redData) {
+        paletteColorLookupTable = new PaletteColorLookupTable({
+          uid: paletteColorLookupTable.uid,
+          redDescriptor: paletteColorLookupTable.redDescriptor,
+          greenDescriptor: paletteColorLookupTable.greenDescriptor,
+          blueDescriptor: paletteColorLookupTable.blueDescriptor,
+          redData: paletteColorLookupTable.redData,
+          greenData: paletteColorLookupTable.greenData,
+          blueData: paletteColorLookupTable.blueData
+        })
+      }
+      
+      segment.style.paletteColorLookupTable = paletteColorLookupTable
+      
+      /** Ensure the palette color lookup table has data */
+      if (!segment.style.paletteColorLookupTable.data) {
+        console.warn(`Palette color lookup table for segment ${segmentUID} has no data, skipping style update`)
+        return
+      }
+      
+      /** Update the layer style with the new palette */
+      const windowCenter = segment.style.windowCenter || 128
+      const windowWidth = segment.style.windowWidth || 256
+      const defaultSegmentStyle = segment.defaultStyle
+      
+      const newStyle = _getColorPaletteStyleForTileLayer({
+        windowCenter,
+        windowWidth,
+        colormap: [
+          [...segment.style.paletteColorLookupTable.data.at(0), defaultSegmentStyle.backgroundOpacity],
+          ...segment.style.paletteColorLookupTable.data.slice(1)
+        ]
+      })
+      
+      segment.layer.setStyle(newStyle)
     }
 
     if (segment.segmentationType === 'FRACTIONAL') {
