@@ -2349,7 +2349,7 @@ class VolumeImageViewer {
   toggleSegmentationInterpolation () {
     console.debug('toggle segmentation interpolation:', this[_segmentationInterpolate])
     this[_segmentationInterpolate] = !this[_segmentationInterpolate]
-    
+
     const segments = Object.values(this[_segments])
 
     segments.forEach(segment => {
@@ -2361,9 +2361,9 @@ class VolumeImageViewer {
         interpolate: this[_segmentationInterpolate]
       }))
       if (segment.layer.getVisible() === true) {
-        this.showSegment(segment.segment.uid);
+        this.showSegment(segment.segment.uid)
       } else {
-        this.hideSegment(segment.segment.uid);
+        this.hideSegment(segment.segment.uid)
       }
     })
   }
