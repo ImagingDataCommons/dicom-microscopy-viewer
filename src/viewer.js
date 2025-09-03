@@ -572,6 +572,83 @@ function _getColorPaletteStyleForTileLayer ({
    */
   const minIndexValue = 0
   const maxIndexValue = colormap.length - 1
+  const indexExpression = [
+    'clamp',
+    [
+      '+',
+      [
+        '*',
+        [
+          '+',
+          [
+            '/',
+            [
+              '-',
+              ['band', 1],
+              [
+                '-',
+                ['var', 'windowCenter'],
+                0.5
+              ]
+            ],
+            [
+              '-',
+              ['var', 'windowWidth'],
+              1
+            ]
+          ],
+          0.5
+        ],
+        [
+          '-',
+          maxIndexValue,
+          minIndexValue
+        ]
+      ],
+      minIndexValue
+    ],
+    minIndexValue,
+    maxIndexValue
+  ]
+
+  const expression = [
+    'palette',
+    indexExpression,
+    colormap
+  ]
+
+  const variables = {
+    windowCenter,
+    windowWidth
+  }
+
+  return { color: expression, variables }
+}
+
+/**
+ * Build OpenLayers style expression for coloring a WebGL TileLayer.
+ *
+ * @param {Object} styleOptions - Style options
+ * @param {number} styleOptions.windowCenter - Center of the window used for contrast stretching
+ * @param {number} styleOptions.windowWidth - Width of the window used for contrast stretching
+ * @param {number[][]} styleOptions.colormap - RGB color triplets
+ *
+ * @returns {Object} color style expression and corresponding variables
+ *
+ * @private
+ */
+function _getColorPaletteStyleForParametricMappingTileLayer ({
+  windowCenter,
+  windowWidth,
+  colormap
+}) {
+  /*
+   * The Palette Color Lookup Table applies to the index values in the range
+   * [0, n] that are obtained by scaling stored pixel values between the lower
+   * and upper value of interest (VOI) defined by the window center and width.
+   */
+  const minIndexValue = 0
+  const maxIndexValue = colormap.length - 1
 
   // Calculate the actual data range
   const minDataValue = windowCenter - windowWidth / 2
@@ -5318,7 +5395,7 @@ class VolumeImageViewer {
         opacity: 1,
         preload: this[_options].preload ? 1 : 0,
         transition: 0,
-        style: _getColorPaletteStyleForTileLayer({
+        style: _getColorPaletteStyleForParametricMappingTileLayer({
           windowCenter,
           windowWidth,
           colormap: mapping.style.paletteColorLookupTable.data
