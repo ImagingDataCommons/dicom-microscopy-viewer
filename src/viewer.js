@@ -631,6 +631,79 @@ function _getColorPaletteStyleForTileLayer ({
  * @param {Object} styleOptions - Style options
  * @param {number} styleOptions.windowCenter - Center of the window used for contrast stretching
  * @param {number} styleOptions.windowWidth - Width of the window used for contrast stretching
+ * @param {number[][]} styleOptions.colormap - RGB color triplets
+ *
+ * @returns {Object} color style expression and corresponding variables
+ *
+ * @private
+ */
+function _getColorPaletteStyleForParametricMappingTileLayer ({
+  windowCenter,
+  windowWidth,
+  colormap
+}) {
+  /*
+   * The Palette Color Lookup Table applies to the index values in the range
+   * [0, n] that are obtained by scaling stored pixel values between the lower
+   * and upper value of interest (VOI) defined by the window center and width.
+   */
+  const minIndexValue = 0
+  const maxIndexValue = colormap.length - 1
+
+  // Calculate the actual data range
+  const minDataValue = windowCenter - windowWidth / 2
+  const maxDataValue = windowCenter + windowWidth / 2
+
+  const indexExpression = [
+    'clamp',
+    [
+      'round',
+      [
+        '+',
+        [
+          '*',
+          [
+            '/',
+            [
+              '-',
+              ['band', 1],
+              minDataValue
+            ],
+            [
+              '-',
+              maxDataValue,
+              minDataValue
+            ]
+          ],
+          maxIndexValue
+        ],
+        minIndexValue
+      ]
+    ],
+    minIndexValue,
+    maxIndexValue
+  ]
+
+  const expression = [
+    'palette',
+    indexExpression,
+    colormap
+  ]
+
+  const variables = {
+    windowCenter,
+    windowWidth
+  }
+
+  return { color: expression, variables }
+}
+
+/**
+ * Build OpenLayers style expression for coloring a WebGL TileLayer.
+ *
+ * @param {Object} styleOptions - Style options
+ * @param {number} styleOptions.windowCenter - Center of the window used for contrast stretching
+ * @param {number} styleOptions.windowWidth - Width of the window used for contrast stretching
  * @param {number[]} styleOptions.color - RGB color triplet
  *
  * @returns {Object} color style expression and corresponding variables
@@ -5205,8 +5278,10 @@ class VolumeImageViewer {
 
         const intercept = item.RealWorldValueIntercept
         const slope = item.RealWorldValueSlope
-        const lowerBound = firstValueMapped * slope + intercept
-        const upperBound = lastValueMapped * slope + intercept
+        const bound1 = firstValueMapped * slope + intercept
+        const bound2 = lastValueMapped * slope + intercept
+        const lowerBound = Math.min(bound1, bound2)
+        const upperBound = Math.max(bound1, bound2)
 
         if (i === 0) {
           range[0] = lowerBound
@@ -5217,7 +5292,7 @@ class VolumeImageViewer {
         }
       })
 
-      // TODO: include real world values in legend
+      // Store real world value range for legend display
       if (isNaN(range[0]) || isNaN(range[1])) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
@@ -5288,6 +5363,7 @@ class VolumeImageViewer {
         defaultStyle: defaultMappingStyle,
         minStoredValue,
         maxStoredValue,
+        realWorldValueRange: range, // Store real world value range for legend
         minZoomLevel,
         maxZoomLevel,
         loaderParams: {
@@ -5319,7 +5395,7 @@ class VolumeImageViewer {
         opacity: 1,
         preload: this[_options].preload ? 1 : 0,
         transition: 0,
-        style: _getColorPaletteStyleForTileLayer({
+        style: _getColorPaletteStyleForParametricMappingTileLayer({
           windowCenter,
           windowWidth,
           colormap: mapping.style.paletteColorLookupTable.data
@@ -5511,6 +5587,19 @@ class VolumeImageViewer {
     overlayElement.style.fontWeight = '600'
     overlayElement.style.fontSize = '12px'
     overlayElement.style.textAlign = 'center'
+
+    // Add real world value range display below the title
+    if (mapping.realWorldValueRange) {
+      const rangeElement = document.createElement('div')
+      const minValue = mapping.realWorldValueRange[0].toFixed(2)
+      const maxValue = mapping.realWorldValueRange[1].toFixed(2)
+      rangeElement.textContent = `${minValue} - ${maxValue}`
+      rangeElement.style.fontSize = '10px'
+      rangeElement.style.fontWeight = '400'
+      rangeElement.style.marginTop = '2px'
+      rangeElement.style.color = 'rgba(0, 0, 0, 0.7)'
+      overlayElement.appendChild(rangeElement)
+    }
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
