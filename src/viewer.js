@@ -5001,8 +5001,7 @@ class VolumeImageViewer {
       segment.style.paletteColorLookupTable = paletteColorLookupTable
 
       /** Ensure the palette color lookup table has data */
-      if (!segment.style.paletteColorLookupTable.data) {
-        console.warn(`Palette color lookup table for segment ${segmentUID} has no data, skipping style update`)
+        console.warn(`Palette color lookup table for segment ${segmentUID} has no data. Ensure the palette was created using createSegmentPaletteColorLookupTable or contains valid data property. Skipping style update.`)
         return
       }
 
