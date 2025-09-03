@@ -4920,41 +4920,6 @@ class VolumeImageViewer {
   }
 
   /**
-   * Create a palette color lookup table for a segment.
-   *
-   * @param {string} segmentUID - Unique tracking identifier of segment
-   * @param {number[]} segmentColor - RGB color triplet [r, g, b]
-   * @returns {color.PaletteColorLookupTable} Palette color lookup table
-   * @private
-   */
-  _createSegmentPaletteColorLookupTable (segmentUID, segmentColor) {
-    /** Create a simple palette with the segment color
-     * For binary segments, we typically have 2 values: background (0) and segment (1) */
-    const paletteData = [
-      [0, 0, 0], /** Background (black/transparent) */
-      segmentColor /** Segment color */
-    ]
-
-    const palette = buildPaletteColorLookupTable({
-      data: paletteData,
-      firstValueMapped: 0
-    })
-
-    return palette
-  }
-
-  /**
-   * Create a palette color lookup table for a segment.
-   *
-   * @param {string} segmentUID - Unique tracking identifier of segment
-   * @param {number[]} segmentColor - RGB color triplet [r, g, b]
-   * @returns {color.PaletteColorLookupTable} Palette color lookup table
-   */
-  createSegmentPaletteColorLookupTable (segmentUID, segmentColor) {
-    return this._createSegmentPaletteColorLookupTable(segmentUID, segmentColor)
-  }
-
-  /**
    * Set the style of a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of segment
@@ -5001,7 +4966,8 @@ class VolumeImageViewer {
       segment.style.paletteColorLookupTable = paletteColorLookupTable
 
       /** Ensure the palette color lookup table has data */
-        console.warn(`Palette color lookup table for segment ${segmentUID} has no data. Ensure the palette was created using createSegmentPaletteColorLookupTable or contains valid data property. Skipping style update.`)
+      if (!paletteColorLookupTable.data) {
+        console.warn(`Palette color lookup table for segment ${segmentUID} has no data. Ensure the palette contains valid data property. Skipping style update.`)
         return
       }
 
