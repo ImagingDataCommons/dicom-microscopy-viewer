@@ -4692,7 +4692,7 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const [fittedPyramid, minZoomLevel, maxZoomLevel, hasMatchingLevels] = _fitImagePyramid(
+    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
       pyramid,
       this[_pyramid]
     )
