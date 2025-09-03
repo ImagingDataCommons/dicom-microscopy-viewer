@@ -786,6 +786,8 @@ const _container = Symbol('container')
 const _highResSources = Symbol('highResSources')
 const _pointsSources = Symbol('pointsSources')
 const _clustersSources = Symbol('clustersSources')
+const _segmentationInterpolate = Symbol('segmentationInterpolate')
+const _segmentationTileGrid = Symbol('segmentationTileGrid')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -845,6 +847,7 @@ class VolumeImageViewer {
     this[_highResSources] = {}
     this[_pointsSources] = {}
     this[_clustersSources] = {}
+    this[_segmentationInterpolate] = false
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
@@ -2339,6 +2342,33 @@ class VolumeImageViewer {
   }
 
   /**
+   * Toggle segmentation interpolation.
+   *
+   * @returns {void}
+   */
+  toggleSegmentationInterpolation () {
+    console.debug('toggle segmentation interpolation:', this[_segmentationInterpolate])
+    this[_segmentationInterpolate] = !this[_segmentationInterpolate]
+    
+    const segments = Object.values(this[_segments])
+
+    segments.forEach(segment => {
+      segment.layer.setSource(new DataTileSource({
+        tileGrid: this[_segmentationTileGrid],
+        projection: this[_projection],
+        wrapX: false,
+        bandCount: 1,
+        interpolate: this[_segmentationInterpolate]
+      }))
+      if (segment.layer.getVisible() === true) {
+        this.showSegment(segment.segment.uid);
+      } else {
+        this.hideSegment(segment.segment.uid);
+      }
+    })
+  }
+
+  /**
    * Show an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
@@ -2505,6 +2535,7 @@ class VolumeImageViewer {
     window.getICCProfiles = this.getICCProfiles.bind(this)
     window.cleanup = this.cleanup.bind(this)
     window.zoomToROI = this.zoomToROI.bind(this)
+    window.toggleSegmentationInterpolation = this.toggleSegmentationInterpolation.bind(this)
 
     if (container == null) {
       console.error('container must be provided for rendering images')
@@ -4673,6 +4704,7 @@ class VolumeImageViewer {
       sizes: fittedPyramid.gridSizes,
       tileSizes: fittedPyramid.tileSizes
     })
+    this[_segmentationTileGrid] = tileGrid
 
     let minStoredValue = 0
     let maxStoredValue = 255
@@ -4750,7 +4782,7 @@ class VolumeImageViewer {
         wrapX: false,
         bandCount: 1,
         /** Avoid interpolation for single resolution (avoid blocky pixels) */
-        interpolate: hasMatchingLevels === true
+        interpolate: this[_segmentationInterpolate]
       })
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of segment "${segmentUID}"`, event.tile?.error_?.message || event)
