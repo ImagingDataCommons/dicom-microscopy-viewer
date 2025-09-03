@@ -5015,7 +5015,7 @@ class VolumeImageViewer {
         windowCenter,
         windowWidth,
         colormap: [
-          [...segment.style.paletteColorLookupTable.data.at(0), defaultSegmentStyle.backgroundOpacity],
+          [...segment.style.paletteColorLookupTable.data[0], defaultSegmentStyle.backgroundOpacity],
           ...segment.style.paletteColorLookupTable.data.slice(1)
         ]
       })
