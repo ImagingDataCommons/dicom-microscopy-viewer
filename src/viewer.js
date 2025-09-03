@@ -1711,7 +1711,6 @@ class VolumeImageViewer {
                   this[_affine]
                 )
               )
-
               publish(
                 this[_map].getTargetElement(),
                 EVENT.ROI_DOUBLE_CLICKED,
@@ -2954,7 +2953,9 @@ class VolumeImageViewer {
       evaluations: featureProperties.evaluations
     }
     const uid = feature.getId()
-    return new ROI({ scoord3d, properties, uid })
+    if (uid) {
+      return new ROI({ scoord3d, properties, uid })
+    }
   }
 
   /**
@@ -3283,7 +3284,6 @@ class VolumeImageViewer {
       console.warn(`Could not find a ROI with UID "${uid}".`)
       return
     }
-
     return this._getROIFromFeature(
       feature,
       this[_pyramid].metadata,
@@ -4085,14 +4085,16 @@ class VolumeImageViewer {
               this[_pyramid].metadata,
               this[_affine]
             )
-            const annotationGroupUID = feature.get('annotationGroupUID')
-            const extendedROI = getExtendedROI({ feature, roi, metadata, annotationGroup: this[_annotationGroups][annotationGroupUID] })
-            publish(
-              container,
-              EVENT.ROI_SELECTED,
-              extendedROI
-            )
-            return true
+            if (roi) {
+              const annotationGroupUID = feature.get('annotationGroupUID')
+              const extendedROI = getExtendedROI({ feature, roi, metadata, annotationGroup: this[_annotationGroups][annotationGroupUID] })
+              publish(
+                container,
+                EVENT.ROI_SELECTED,
+                extendedROI
+              )
+              return true
+            }
           }
           return false
         },
@@ -4683,6 +4685,11 @@ class VolumeImageViewer {
         minStoredValue,
         maxStoredValue
       )
+
+      /** Store window center and width in segment style for later use */
+      segment.style.windowCenter = windowCenter
+      segment.style.windowWidth = windowWidth
+
       segment.layer = new TileLayer({
         source,
         extent: this[_pyramid].extent,
@@ -4914,6 +4921,7 @@ class VolumeImageViewer {
    * @param {string} segmentUID - Unique tracking identifier of segment
    * @param {Object} styleOptions - Style options
    * @param {number} [styleOptions.opacity] - Opacity
+   * @param {color.PaletteColorLookupTable} [styleOptions.paletteColorLookupTable] - Palette color lookup table
    */
   setSegmentStyle (segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
@@ -4926,9 +4934,54 @@ class VolumeImageViewer {
     }
 
     const segment = this[_segments][segmentUID]
+
+    /** Update opacity if provided */
     if (styleOptions.opacity != null) {
       segment.style.opacity = styleOptions.opacity
       segment.layer.setOpacity(styleOptions.opacity)
+    }
+
+    /** Update palette color lookup table if provided */
+    if (styleOptions.paletteColorLookupTable != null) {
+      let paletteColorLookupTable = styleOptions.paletteColorLookupTable
+
+      /** If the palette is a plain object (not a PaletteColorLookupTable instance),
+       * convert it to a proper PaletteColorLookupTable instance */
+      if (!paletteColorLookupTable.data && paletteColorLookupTable.redData) {
+        paletteColorLookupTable = new PaletteColorLookupTable({
+          uid: paletteColorLookupTable.uid,
+          redDescriptor: paletteColorLookupTable.redDescriptor,
+          greenDescriptor: paletteColorLookupTable.greenDescriptor,
+          blueDescriptor: paletteColorLookupTable.blueDescriptor,
+          redData: paletteColorLookupTable.redData,
+          greenData: paletteColorLookupTable.greenData,
+          blueData: paletteColorLookupTable.blueData
+        })
+      }
+
+      segment.style.paletteColorLookupTable = paletteColorLookupTable
+
+      /** Ensure the palette color lookup table has data */
+      if (!paletteColorLookupTable.data) {
+        console.warn(`Palette color lookup table for segment ${segmentUID} has no data. Ensure the palette contains valid data property. Skipping style update.`)
+        return
+      }
+
+      /** Update the layer style with the new palette */
+      const windowCenter = segment.style.windowCenter || 128
+      const windowWidth = segment.style.windowWidth || 256
+      const defaultSegmentStyle = segment.defaultStyle
+
+      const newStyle = _getColorPaletteStyleForTileLayer({
+        windowCenter,
+        windowWidth,
+        colormap: [
+          [...segment.style.paletteColorLookupTable.data[0], defaultSegmentStyle.backgroundOpacity],
+          ...segment.style.paletteColorLookupTable.data.slice(1)
+        ]
+      })
+
+      segment.layer.setStyle(newStyle)
     }
 
     if (segment.segmentationType === 'FRACTIONAL') {

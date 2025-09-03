@@ -333,29 +333,17 @@ class PaletteColorLookupTable {
       const redLUT = (
         this[_attrs].redData
           ? new this[_attrs].DataType(this[_attrs].redData)
-          : this._expandSegmentedLUTData(
-            this[_attrs].redSegmentedData,
-            this[_attrs].numberOfEntries,
-            this[_attrs].bitsPerEntry
-          )
+          : this._expandSegmentedLUTData(this[_attrs].redSegmentedData)
       )
       const greenLUT = (
         this[_attrs].greenData
           ? new this[_attrs].DataType(this[_attrs].greenData)
-          : this._expandSegmentedLUTData(
-            this[_attrs].greenSegmentedData,
-            this[_attrs].numberOfEntries,
-            this[_attrs].bitsPerEntry
-          )
+          : this._expandSegmentedLUTData(this[_attrs].greenSegmentedData)
       )
       const blueLUT = (
         this[_attrs].blueData
           ? new this[_attrs].DataType(this[_attrs].blueData)
-          : this._expandSegmentedLUTData(
-            this[_attrs].blueSegmentedData,
-            this[_attrs].numberOfEntries,
-            this[_attrs].bitsPerEntry
-          )
+          : this._expandSegmentedLUTData(this[_attrs].blueSegmentedData)
       )
       const uniqueNumberOfEntries = new Set([
         redLUT.length,
