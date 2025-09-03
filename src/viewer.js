@@ -631,6 +631,79 @@ function _getColorPaletteStyleForTileLayer ({
  * @param {Object} styleOptions - Style options
  * @param {number} styleOptions.windowCenter - Center of the window used for contrast stretching
  * @param {number} styleOptions.windowWidth - Width of the window used for contrast stretching
+ * @param {number[][]} styleOptions.colormap - RGB color triplets
+ *
+ * @returns {Object} color style expression and corresponding variables
+ *
+ * @private
+ */
+function _getColorPaletteStyleForParametricMappingTileLayer ({
+  windowCenter,
+  windowWidth,
+  colormap
+}) {
+  /*
+   * The Palette Color Lookup Table applies to the index values in the range
+   * [0, n] that are obtained by scaling stored pixel values between the lower
+   * and upper value of interest (VOI) defined by the window center and width.
+   */
+  const minIndexValue = 0
+  const maxIndexValue = colormap.length - 1
+
+  // Calculate the actual data range
+  const minDataValue = windowCenter - windowWidth / 2
+  const maxDataValue = windowCenter + windowWidth / 2
+
+  const indexExpression = [
+    'clamp',
+    [
+      'round',
+      [
+        '+',
+        [
+          '*',
+          [
+            '/',
+            [
+              '-',
+              ['band', 1],
+              minDataValue
+            ],
+            [
+              '-',
+              maxDataValue,
+              minDataValue
+            ]
+          ],
+          maxIndexValue
+        ],
+        minIndexValue
+      ]
+    ],
+    minIndexValue,
+    maxIndexValue
+  ]
+
+  const expression = [
+    'palette',
+    indexExpression,
+    colormap
+  ]
+
+  const variables = {
+    windowCenter,
+    windowWidth
+  }
+
+  return { color: expression, variables }
+}
+
+/**
+ * Build OpenLayers style expression for coloring a WebGL TileLayer.
+ *
+ * @param {Object} styleOptions - Style options
+ * @param {number} styleOptions.windowCenter - Center of the window used for contrast stretching
+ * @param {number} styleOptions.windowWidth - Width of the window used for contrast stretching
  * @param {number[]} styleOptions.color - RGB color triplet
  *
  * @returns {Object} color style expression and corresponding variables
@@ -713,6 +786,8 @@ const _container = Symbol('container')
 const _highResSources = Symbol('highResSources')
 const _pointsSources = Symbol('pointsSources')
 const _clustersSources = Symbol('clustersSources')
+const _segmentationInterpolate = Symbol('segmentationInterpolate')
+const _segmentationTileGrid = Symbol('segmentationTileGrid')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -772,6 +847,7 @@ class VolumeImageViewer {
     this[_highResSources] = {}
     this[_pointsSources] = {}
     this[_clustersSources] = {}
+    this[_segmentationInterpolate] = false
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
@@ -1715,7 +1791,6 @@ class VolumeImageViewer {
                   this[_affine]
                 )
               )
-
               publish(
                 this[_map].getTargetElement(),
                 EVENT.ROI_DOUBLE_CLICKED,
@@ -2267,6 +2342,33 @@ class VolumeImageViewer {
   }
 
   /**
+   * Toggle segmentation interpolation.
+   *
+   * @returns {void}
+   */
+  toggleSegmentationInterpolation () {
+    console.debug('toggle segmentation interpolation:', this[_segmentationInterpolate])
+    this[_segmentationInterpolate] = !this[_segmentationInterpolate]
+
+    const segments = Object.values(this[_segments])
+
+    segments.forEach(segment => {
+      segment.layer.setSource(new DataTileSource({
+        tileGrid: this[_segmentationTileGrid],
+        projection: this[_projection],
+        wrapX: false,
+        bandCount: 1,
+        interpolate: this[_segmentationInterpolate]
+      }))
+      if (segment.layer.getVisible() === true) {
+        this.showSegment(segment.segment.uid)
+      } else {
+        this.hideSegment(segment.segment.uid)
+      }
+    })
+  }
+
+  /**
    * Show an optical path.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
@@ -2433,6 +2535,7 @@ class VolumeImageViewer {
     window.getICCProfiles = this.getICCProfiles.bind(this)
     window.cleanup = this.cleanup.bind(this)
     window.zoomToROI = this.zoomToROI.bind(this)
+    window.toggleSegmentationInterpolation = this.toggleSegmentationInterpolation.bind(this)
 
     if (container == null) {
       console.error('container must be provided for rendering images')
@@ -2958,7 +3061,9 @@ class VolumeImageViewer {
       evaluations: featureProperties.evaluations
     }
     const uid = feature.getId()
-    return new ROI({ scoord3d, properties, uid })
+    if (uid) {
+      return new ROI({ scoord3d, properties, uid })
+    }
   }
 
   /**
@@ -3287,7 +3392,6 @@ class VolumeImageViewer {
       console.warn(`Could not find a ROI with UID "${uid}".`)
       return
     }
-
     return this._getROIFromFeature(
       feature,
       this[_pyramid].metadata,
@@ -4089,14 +4193,16 @@ class VolumeImageViewer {
               this[_pyramid].metadata,
               this[_affine]
             )
-            const annotationGroupUID = feature.get('annotationGroupUID')
-            const extendedROI = getExtendedROI({ feature, roi, metadata, annotationGroup: this[_annotationGroups][annotationGroupUID] })
-            publish(
-              container,
-              EVENT.ROI_SELECTED,
-              extendedROI
-            )
-            return true
+            if (roi) {
+              const annotationGroupUID = feature.get('annotationGroupUID')
+              const extendedROI = getExtendedROI({ feature, roi, metadata, annotationGroup: this[_annotationGroups][annotationGroupUID] })
+              publish(
+                container,
+                EVENT.ROI_SELECTED,
+                extendedROI
+              )
+              return true
+            }
           }
           return false
         },
@@ -4586,7 +4692,7 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const [fittedPyramid, minZoomLevel, maxZoomLevel, hasMatchingLevels] = _fitImagePyramid(
+    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
       pyramid,
       this[_pyramid]
     )
@@ -4598,6 +4704,7 @@ class VolumeImageViewer {
       sizes: fittedPyramid.gridSizes,
       tileSizes: fittedPyramid.tileSizes
     })
+    this[_segmentationTileGrid] = tileGrid
 
     let minStoredValue = 0
     let maxStoredValue = 255
@@ -4675,7 +4782,7 @@ class VolumeImageViewer {
         wrapX: false,
         bandCount: 1,
         /** Avoid interpolation for single resolution (avoid blocky pixels) */
-        interpolate: hasMatchingLevels === true
+        interpolate: this[_segmentationInterpolate]
       })
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of segment "${segmentUID}"`, event.tile?.error_?.message || event)
@@ -4687,6 +4794,11 @@ class VolumeImageViewer {
         minStoredValue,
         maxStoredValue
       )
+
+      /** Store window center and width in segment style for later use */
+      segment.style.windowCenter = windowCenter
+      segment.style.windowWidth = windowWidth
+
       segment.layer = new TileLayer({
         source,
         extent: this[_pyramid].extent,
@@ -4918,6 +5030,7 @@ class VolumeImageViewer {
    * @param {string} segmentUID - Unique tracking identifier of segment
    * @param {Object} styleOptions - Style options
    * @param {number} [styleOptions.opacity] - Opacity
+   * @param {color.PaletteColorLookupTable} [styleOptions.paletteColorLookupTable] - Palette color lookup table
    */
   setSegmentStyle (segmentUID, styleOptions = {}) {
     if (!(segmentUID in this[_segments])) {
@@ -4930,9 +5043,54 @@ class VolumeImageViewer {
     }
 
     const segment = this[_segments][segmentUID]
+
+    /** Update opacity if provided */
     if (styleOptions.opacity != null) {
       segment.style.opacity = styleOptions.opacity
       segment.layer.setOpacity(styleOptions.opacity)
+    }
+
+    /** Update palette color lookup table if provided */
+    if (styleOptions.paletteColorLookupTable != null) {
+      let paletteColorLookupTable = styleOptions.paletteColorLookupTable
+
+      /** If the palette is a plain object (not a PaletteColorLookupTable instance),
+       * convert it to a proper PaletteColorLookupTable instance */
+      if (!paletteColorLookupTable.data && paletteColorLookupTable.redData) {
+        paletteColorLookupTable = new PaletteColorLookupTable({
+          uid: paletteColorLookupTable.uid,
+          redDescriptor: paletteColorLookupTable.redDescriptor,
+          greenDescriptor: paletteColorLookupTable.greenDescriptor,
+          blueDescriptor: paletteColorLookupTable.blueDescriptor,
+          redData: paletteColorLookupTable.redData,
+          greenData: paletteColorLookupTable.greenData,
+          blueData: paletteColorLookupTable.blueData
+        })
+      }
+
+      segment.style.paletteColorLookupTable = paletteColorLookupTable
+
+      /** Ensure the palette color lookup table has data */
+      if (!paletteColorLookupTable.data) {
+        console.warn(`Palette color lookup table for segment ${segmentUID} has no data. Ensure the palette contains valid data property. Skipping style update.`)
+        return
+      }
+
+      /** Update the layer style with the new palette */
+      const windowCenter = segment.style.windowCenter || 128
+      const windowWidth = segment.style.windowWidth || 256
+      const defaultSegmentStyle = segment.defaultStyle
+
+      const newStyle = _getColorPaletteStyleForTileLayer({
+        windowCenter,
+        windowWidth,
+        colormap: [
+          [...segment.style.paletteColorLookupTable.data[0], defaultSegmentStyle.backgroundOpacity],
+          ...segment.style.paletteColorLookupTable.data.slice(1)
+        ]
+      })
+
+      segment.layer.setStyle(newStyle)
     }
 
     if (segment.segmentationType === 'FRACTIONAL') {
@@ -5152,8 +5310,10 @@ class VolumeImageViewer {
 
         const intercept = item.RealWorldValueIntercept
         const slope = item.RealWorldValueSlope
-        const lowerBound = firstValueMapped * slope + intercept
-        const upperBound = lastValueMapped * slope + intercept
+        const bound1 = firstValueMapped * slope + intercept
+        const bound2 = lastValueMapped * slope + intercept
+        const lowerBound = Math.min(bound1, bound2)
+        const upperBound = Math.max(bound1, bound2)
 
         if (i === 0) {
           range[0] = lowerBound
@@ -5164,7 +5324,7 @@ class VolumeImageViewer {
         }
       })
 
-      // TODO: include real world values in legend
+      // Store real world value range for legend display
       if (isNaN(range[0]) || isNaN(range[1])) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
@@ -5235,6 +5395,7 @@ class VolumeImageViewer {
         defaultStyle: defaultMappingStyle,
         minStoredValue,
         maxStoredValue,
+        realWorldValueRange: range, // Store real world value range for legend
         minZoomLevel,
         maxZoomLevel,
         loaderParams: {
@@ -5266,7 +5427,7 @@ class VolumeImageViewer {
         opacity: 1,
         preload: this[_options].preload ? 1 : 0,
         transition: 0,
-        style: _getColorPaletteStyleForTileLayer({
+        style: _getColorPaletteStyleForParametricMappingTileLayer({
           windowCenter,
           windowWidth,
           colormap: mapping.style.paletteColorLookupTable.data
@@ -5458,6 +5619,19 @@ class VolumeImageViewer {
     overlayElement.style.fontWeight = '600'
     overlayElement.style.fontSize = '12px'
     overlayElement.style.textAlign = 'center'
+
+    // Add real world value range display below the title
+    if (mapping.realWorldValueRange) {
+      const rangeElement = document.createElement('div')
+      const minValue = mapping.realWorldValueRange[0].toFixed(2)
+      const maxValue = mapping.realWorldValueRange[1].toFixed(2)
+      rangeElement.textContent = `${minValue} - ${maxValue}`
+      rangeElement.style.fontSize = '10px'
+      rangeElement.style.fontWeight = '400'
+      rangeElement.style.marginTop = '2px'
+      rangeElement.style.color = 'rgba(0, 0, 0, 0.7)'
+      overlayElement.appendChild(rangeElement)
+    }
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
