@@ -572,40 +572,36 @@ function _getColorPaletteStyleForTileLayer ({
    */
   const minIndexValue = 0
   const maxIndexValue = colormap.length - 1
+
+  // Calculate the actual data range
+  const minDataValue = windowCenter - windowWidth / 2
+  const maxDataValue = windowCenter + windowWidth / 2
+
   const indexExpression = [
     'clamp',
     [
-      '+',
+      'round',
       [
-        '*',
+        '+',
         [
-          '+',
+          '*',
           [
             '/',
             [
               '-',
               ['band', 1],
-              [
-                '-',
-                ['var', 'windowCenter'],
-                0.5
-              ]
+              minDataValue
             ],
             [
               '-',
-              ['var', 'windowWidth'],
-              1
+              maxDataValue,
+              minDataValue
             ]
           ],
-          0.5
+          maxIndexValue
         ],
-        [
-          '-',
-          maxIndexValue,
-          minIndexValue
-        ]
-      ],
-      minIndexValue
+        minIndexValue
+      ]
     ],
     minIndexValue,
     maxIndexValue
@@ -5152,8 +5148,10 @@ class VolumeImageViewer {
 
         const intercept = item.RealWorldValueIntercept
         const slope = item.RealWorldValueSlope
-        const lowerBound = firstValueMapped * slope + intercept
-        const upperBound = lastValueMapped * slope + intercept
+        const bound1 = firstValueMapped * slope + intercept
+        const bound2 = lastValueMapped * slope + intercept
+        const lowerBound = Math.min(bound1, bound2)
+        const upperBound = Math.max(bound1, bound2)
 
         if (i === 0) {
           range[0] = lowerBound
@@ -5164,7 +5162,7 @@ class VolumeImageViewer {
         }
       })
 
-      // TODO: include real world values in legend
+      // Store real world value range for legend display
       if (isNaN(range[0]) || isNaN(range[1])) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
@@ -5235,6 +5233,7 @@ class VolumeImageViewer {
         defaultStyle: defaultMappingStyle,
         minStoredValue,
         maxStoredValue,
+        realWorldValueRange: range, // Store real world value range for legend
         minZoomLevel,
         maxZoomLevel,
         loaderParams: {
@@ -5458,6 +5457,19 @@ class VolumeImageViewer {
     overlayElement.style.fontWeight = '600'
     overlayElement.style.fontSize = '12px'
     overlayElement.style.textAlign = 'center'
+
+    // Add real world value range display below the title
+    if (mapping.realWorldValueRange) {
+      const rangeElement = document.createElement('div')
+      const minValue = mapping.realWorldValueRange[0].toFixed(2)
+      const maxValue = mapping.realWorldValueRange[1].toFixed(2)
+      rangeElement.textContent = `${minValue} - ${maxValue}`
+      rangeElement.style.fontSize = '10px'
+      rangeElement.style.fontWeight = '400'
+      rangeElement.style.marginTop = '2px'
+      rangeElement.style.color = 'rgba(0, 0, 0, 0.7)'
+      overlayElement.appendChild(rangeElement)
+    }
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
