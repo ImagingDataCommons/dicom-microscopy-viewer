@@ -1715,7 +1715,6 @@ class VolumeImageViewer {
                   this[_affine]
                 )
               )
-
               publish(
                 this[_map].getTargetElement(),
                 EVENT.ROI_DOUBLE_CLICKED,
@@ -2958,7 +2957,9 @@ class VolumeImageViewer {
       evaluations: featureProperties.evaluations
     }
     const uid = feature.getId()
-    return new ROI({ scoord3d, properties, uid })
+    if (uid) {
+      return new ROI({ scoord3d, properties, uid })
+    }
   }
 
   /**
@@ -3287,7 +3288,6 @@ class VolumeImageViewer {
       console.warn(`Could not find a ROI with UID "${uid}".`)
       return
     }
-
     return this._getROIFromFeature(
       feature,
       this[_pyramid].metadata,
@@ -4089,14 +4089,16 @@ class VolumeImageViewer {
               this[_pyramid].metadata,
               this[_affine]
             )
-            const annotationGroupUID = feature.get('annotationGroupUID')
-            const extendedROI = getExtendedROI({ feature, roi, metadata, annotationGroup: this[_annotationGroups][annotationGroupUID] })
-            publish(
-              container,
-              EVENT.ROI_SELECTED,
-              extendedROI
-            )
-            return true
+            if (roi) {
+              const annotationGroupUID = feature.get('annotationGroupUID')
+              const extendedROI = getExtendedROI({ feature, roi, metadata, annotationGroup: this[_annotationGroups][annotationGroupUID] })
+              publish(
+                container,
+                EVENT.ROI_SELECTED,
+                extendedROI
+              )
+              return true
+            }
           }
           return false
         },
