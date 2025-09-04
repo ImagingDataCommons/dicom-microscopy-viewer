@@ -847,7 +847,7 @@ class VolumeImageViewer {
     this[_highResSources] = {}
     this[_pointsSources] = {}
     this[_clustersSources] = {}
-    this[_segmentationInterpolate] = false
+    this[_segmentationInterpolate] = true
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
@@ -3350,7 +3350,6 @@ class VolumeImageViewer {
    * @returns {roi.ROI[]} Array of regions of interest.
    */
   getAllROIs () {
-    console.info('get all ROIs')
     const rois = []
     this[_features].forEach((item) => {
       rois.push(this.getROI(item.getId()))
@@ -3386,7 +3385,6 @@ class VolumeImageViewer {
    * @returns {roi.ROI} Region of interest.
    */
   getROI (uid) {
-    console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
     if (feature == null) {
       console.warn(`Could not find a ROI with UID "${uid}".`)
@@ -4795,10 +4793,6 @@ class VolumeImageViewer {
         maxStoredValue
       )
 
-      /** Store window center and width in segment style for later use */
-      segment.style.windowCenter = windowCenter
-      segment.style.windowWidth = windowWidth
-
       segment.layer = new TileLayer({
         source,
         extent: this[_pyramid].extent,
@@ -5043,15 +5037,17 @@ class VolumeImageViewer {
     }
 
     const segment = this[_segments][segmentUID]
-
-    /** Update opacity if provided */
     if (styleOptions.opacity != null) {
       segment.style.opacity = styleOptions.opacity
       segment.layer.setOpacity(styleOptions.opacity)
     }
 
     /** Update palette color lookup table if provided */
-    if (styleOptions.paletteColorLookupTable != null) {
+    if (styleOptions.paletteColorLookupTable != null && segment.segmentationType !== 'FRACTIONAL') {
+      /** Store window center and width in segment style for later use */
+      segment.style.windowCenter = windowCenter
+      segment.style.windowWidth = windowWidth
+
       let paletteColorLookupTable = styleOptions.paletteColorLookupTable
 
       /** If the palette is a plain object (not a PaletteColorLookupTable instance),
