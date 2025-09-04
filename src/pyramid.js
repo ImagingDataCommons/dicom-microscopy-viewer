@@ -146,7 +146,7 @@ function _computeImagePyramid ({ metadata }) {
       rawMetadata['00280008'].Value[0] += numberOfFrames
       if ('PerFrameFunctionalGroupsSequence' in metadata[index]) {
         rawMetadata['52009230'].Value.push(
-          ...metadata[i].PerFrameFunctionalGroupsSequence
+          ...metadata[index].PerFrameFunctionalGroupsSequence
         )
       }
       if (!('SOPInstanceUIDOfConcatenationSource' in metadata[i])) {
@@ -615,13 +615,14 @@ function _fitImagePyramid (pyramid, refPyramid) {
     console.warn('No matching pyramid levels found, handling fixed pixel spacing case...')
 
     const refBaseLevel = refPyramid.metadata[refPyramid.metadata.length - 1]
-    const refBaseTotalPixelMatrixColumns = refBaseLevel.TotalPixelMatrixColumns
 
     for (let j = 0; j < pyramid.metadata.length; j++) {
-      const imageLevel = pyramid.metadata[j]
-      const totalPixelMatrixColumns = imageLevel.TotalPixelMatrixColumns
+      const segmentation = pyramid.metadata[j]
+      const refBasePixelSpacing = getPixelSpacing(refBaseLevel)
+      const segPixelSpacing = getPixelSpacing(segmentation)
 
-      const resolution = refBaseTotalPixelMatrixColumns / totalPixelMatrixColumns
+      /** Calculate resolution based on ratio of pixel spacings */
+      const resolution = segPixelSpacing[0] / refBasePixelSpacing[0]
       const roundedResolution = Math.round(resolution)
 
       /** Handle resolution conflicts similar to _computeImagePyramid */
@@ -676,7 +677,9 @@ function _fitImagePyramid (pyramid, refPyramid) {
     }
   }
 
-  return [fittedPyramid, minZoom, maxZoom]
+  const hasMatchingLevels = matchingLevelIndices.length > 0
+
+  return [fittedPyramid, minZoom, maxZoom, hasMatchingLevels]
 }
 
 export {
