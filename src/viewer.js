@@ -788,6 +788,7 @@ const _pointsSources = Symbol('pointsSources')
 const _clustersSources = Symbol('clustersSources')
 const _segmentationInterpolate = Symbol('segmentationInterpolate')
 const _segmentationTileGrid = Symbol('segmentationTileGrid')
+const _mapViewResolutions = Symbol('mapViewResolutions')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -847,7 +848,7 @@ class VolumeImageViewer {
     this[_highResSources] = {}
     this[_pointsSources] = {}
     this[_clustersSources] = {}
-    this[_segmentationInterpolate] = false
+    this[_segmentationInterpolate] = true
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
@@ -1171,7 +1172,7 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
-    let mapViewResolutions =
+    this[_mapViewResolutions] =
       this[_options].useTileGridResolutions === false ||
       this[_options].skipThumbnails === true
         ? undefined
@@ -1184,11 +1185,11 @@ class VolumeImageViewer {
      * not what we want for a thumbnail image.
      */
     if (!this[_metadata].find((image) => image.ImageType[2] === ImageFlavors.THUMBNAIL) && this[_metadata].length > 1) {
-      mapViewResolutions = undefined
+      this[_mapViewResolutions] = undefined
     }
 
     if (has(this[_options], 'mapViewResolutions')) {
-      mapViewResolutions = this[_options].mapViewResolutions
+      this[_mapViewResolutions] = this[_options].mapViewResolutions
     }
 
     const view = new View({
@@ -1196,7 +1197,7 @@ class VolumeImageViewer {
       projection: this[_projection],
       rotation: this[_rotation],
       constrainOnlyCenter: false,
-      resolutions: mapViewResolutions,
+      resolutions: this[_mapViewResolutions],
       smoothResolutionConstraint: true,
       showFullExtent: true,
       extent: this[_pyramid].extent
@@ -3350,7 +3351,6 @@ class VolumeImageViewer {
    * @returns {roi.ROI[]} Array of regions of interest.
    */
   getAllROIs () {
-    console.info('get all ROIs')
     const rois = []
     this[_features].forEach((item) => {
       rois.push(this.getROI(item.getId()))
@@ -3386,7 +3386,6 @@ class VolumeImageViewer {
    * @returns {roi.ROI} Region of interest.
    */
   getROI (uid) {
-    console.info(`get ROI ${uid}`)
     const feature = this[_drawingSource].getFeatureById(uid)
     if (feature == null) {
       console.warn(`Could not find a ROI with UID "${uid}".`)
@@ -3764,8 +3763,16 @@ class VolumeImageViewer {
     const view = map.getView()
     const maxZoom = view.getMaxZoom()
     const isHighResolution = () => {
-      const zoom = view.getZoom()
-      return zoom >= (this[_annotationOptions].maxZoom || maxZoom)
+      const isZoomUnlimited = this[_mapViewResolutions] === undefined
+      const highestResolution = this[_tileGrid].getResolutions()[0]
+      const updatedMaxZoom = isZoomUnlimited ? highestResolution : (this[_annotationOptions].maxZoom || maxZoom)
+      const zoom = isZoomUnlimited ? (view.getZoom() * this[_tileGrid].getResolutions().length) : view.getZoom()
+      console.debug('Zoom:', zoom)
+      console.debug('Max Zoom:', updatedMaxZoom)
+      console.debug('Original Max Zoom:', maxZoom)
+      console.debug('Highest Resolution:', highestResolution)
+      console.debug('Resolutions:', this[_tileGrid].getResolutions().length)
+      return zoom >= updatedMaxZoom
     }
 
     /**
@@ -4795,10 +4802,6 @@ class VolumeImageViewer {
         maxStoredValue
       )
 
-      /** Store window center and width in segment style for later use */
-      segment.style.windowCenter = windowCenter
-      segment.style.windowWidth = windowWidth
-
       segment.layer = new TileLayer({
         source,
         extent: this[_pyramid].extent,
@@ -5043,15 +5046,21 @@ class VolumeImageViewer {
     }
 
     const segment = this[_segments][segmentUID]
-
-    /** Update opacity if provided */
     if (styleOptions.opacity != null) {
       segment.style.opacity = styleOptions.opacity
       segment.layer.setOpacity(styleOptions.opacity)
     }
 
     /** Update palette color lookup table if provided */
-    if (styleOptions.paletteColorLookupTable != null) {
+    if (styleOptions.paletteColorLookupTable != null && segment.segmentationType !== 'FRACTIONAL') {
+      /** Calculate window center and width from segment's limit values or use defaults */
+      const windowCenter = segment.style.windowCenter || 128
+      const windowWidth = segment.style.windowWidth || 256
+
+      /** Store window center and width in segment style for later use */
+      segment.style.windowCenter = windowCenter
+      segment.style.windowWidth = windowWidth
+
       let paletteColorLookupTable = styleOptions.paletteColorLookupTable
 
       /** If the palette is a plain object (not a PaletteColorLookupTable instance),
@@ -5077,8 +5086,6 @@ class VolumeImageViewer {
       }
 
       /** Update the layer style with the new palette */
-      const windowCenter = segment.style.windowCenter || 128
-      const windowWidth = segment.style.windowWidth || 256
       const defaultSegmentStyle = segment.defaultStyle
 
       const newStyle = _getColorPaletteStyleForTileLayer({
