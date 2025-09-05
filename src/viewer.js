@@ -5053,6 +5053,10 @@ class VolumeImageViewer {
 
     /** Update palette color lookup table if provided */
     if (styleOptions.paletteColorLookupTable != null && segment.segmentationType !== 'FRACTIONAL') {
+      /** Calculate window center and width from segment's limit values or use defaults */
+      const windowCenter = segment.style.windowCenter || 128
+      const windowWidth = segment.style.windowWidth || 256
+
       /** Store window center and width in segment style for later use */
       segment.style.windowCenter = windowCenter
       segment.style.windowWidth = windowWidth
@@ -5082,8 +5086,6 @@ class VolumeImageViewer {
       }
 
       /** Update the layer style with the new palette */
-      const windowCenter = segment.style.windowCenter || 128
-      const windowWidth = segment.style.windowWidth || 256
       const defaultSegmentStyle = segment.defaultStyle
 
       const newStyle = _getColorPaletteStyleForTileLayer({
