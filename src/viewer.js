@@ -788,6 +788,7 @@ const _pointsSources = Symbol('pointsSources')
 const _clustersSources = Symbol('clustersSources')
 const _segmentationInterpolate = Symbol('segmentationInterpolate')
 const _segmentationTileGrid = Symbol('segmentationTileGrid')
+const _mapViewResolutions = Symbol('mapViewResolutions')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -1171,7 +1172,7 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
-    let mapViewResolutions =
+    this[_mapViewResolutions] =
       this[_options].useTileGridResolutions === false ||
       this[_options].skipThumbnails === true
         ? undefined
@@ -1184,11 +1185,11 @@ class VolumeImageViewer {
      * not what we want for a thumbnail image.
      */
     if (!this[_metadata].find((image) => image.ImageType[2] === ImageFlavors.THUMBNAIL) && this[_metadata].length > 1) {
-      mapViewResolutions = undefined
+      this[_mapViewResolutions] = undefined
     }
 
     if (has(this[_options], 'mapViewResolutions')) {
-      mapViewResolutions = this[_options].mapViewResolutions
+      this[_mapViewResolutions] = this[_options].mapViewResolutions
     }
 
     const view = new View({
@@ -1196,7 +1197,7 @@ class VolumeImageViewer {
       projection: this[_projection],
       rotation: this[_rotation],
       constrainOnlyCenter: false,
-      resolutions: mapViewResolutions,
+      resolutions: this[_mapViewResolutions],
       smoothResolutionConstraint: true,
       showFullExtent: true,
       extent: this[_pyramid].extent
@@ -3762,8 +3763,16 @@ class VolumeImageViewer {
     const view = map.getView()
     const maxZoom = view.getMaxZoom()
     const isHighResolution = () => {
-      const zoom = view.getZoom()
-      return zoom >= (this[_annotationOptions].maxZoom || maxZoom)
+      const isZoomUnlimited = this[_mapViewResolutions] === undefined
+      const highestResolution = this[_tileGrid].getResolutions()[0]
+      const updatedMaxZoom = isZoomUnlimited ? highestResolution : (this[_annotationOptions].maxZoom || maxZoom)
+      const zoom = isZoomUnlimited ? (view.getZoom() * this[_tileGrid].getResolutions().length) : view.getZoom()
+      console.debug('Zoom:', zoom)
+      console.debug('Max Zoom:', updatedMaxZoom)
+      console.debug('Original Max Zoom:', maxZoom)
+      console.debug('Highest Resolution:', highestResolution)
+      console.debug('Resolutions:', this[_tileGrid].getResolutions().length)
+      return zoom >= updatedMaxZoom
     }
 
     /**
