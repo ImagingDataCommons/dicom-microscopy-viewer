@@ -4820,9 +4820,11 @@ class VolumeImageViewer {
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
         minResolution: (
-          minZoomLevel > 0
-            ? this[_pyramid].resolutions[minZoomLevel]
-            : undefined
+          this[_mapViewResolutions] === undefined
+            ? undefined
+            : (minZoomLevel > 0
+                ? this[_pyramid].resolutions[minZoomLevel]
+                : undefined)
         )
       })
       segment.layer.on('error', (event) => {
