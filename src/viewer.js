@@ -848,7 +848,7 @@ class VolumeImageViewer {
     this[_highResSources] = {}
     this[_pointsSources] = {}
     this[_clustersSources] = {}
-    this[_segmentationInterpolate] = true
+    this[_segmentationInterpolate] = false
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
