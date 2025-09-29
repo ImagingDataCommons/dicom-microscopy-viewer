@@ -848,7 +848,7 @@ class VolumeImageViewer {
     this[_highResSources] = {}
     this[_pointsSources] = {}
     this[_clustersSources] = {}
-    this[_segmentationInterpolate] = true
+    this[_segmentationInterpolate] = false
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
@@ -4820,9 +4820,11 @@ class VolumeImageViewer {
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
         minResolution: (
-          minZoomLevel > 0
-            ? this[_pyramid].resolutions[minZoomLevel]
-            : undefined
+          this[_mapViewResolutions] === undefined
+            ? undefined
+            : (minZoomLevel > 0
+                ? this[_pyramid].resolutions[minZoomLevel]
+                : undefined)
         )
       })
       segment.layer.on('error', (event) => {
