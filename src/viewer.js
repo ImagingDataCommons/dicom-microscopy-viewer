@@ -2361,6 +2361,8 @@ class VolumeImageViewer {
         bandCount: 1,
         interpolate: this[_segmentationInterpolate]
       }))
+      // Reset hasLoader flag since we created a new source
+      segment.hasLoader = false
       if (segment.layer.getVisible() === true) {
         this.showSegment(segment.segment.uid)
       } else {
