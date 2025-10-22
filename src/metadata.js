@@ -276,7 +276,7 @@ function formatMetadata (metadata) {
     const dataset = {}
     const bulkdataReferences = {}
     Object.keys(elements).forEach(tag => {
-      const keyword = tagToKeyword[tag]
+      const keyword = tagToKeyword[tag] || tag
       const vr = elements[tag].vr
       if ('BulkDataURI' in elements[tag]) {
         bulkdataReferences[keyword] = elements[tag]
