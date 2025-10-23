@@ -3753,6 +3753,29 @@ class VolumeImageViewer {
       color: this[_options].primaryColor
     }
 
+    // Helper function to extract color from annotation group metadata
+    const extractAnnotationGroupColor = (annotationGroupItem) => {
+      if (annotationGroupItem.RecommendedDisplayCIELabValue &&
+          Array.isArray(annotationGroupItem.RecommendedDisplayCIELabValue)) {
+        try {
+          // Convert CIELab to RGB using dcmjs
+          const labValues = annotationGroupItem.RecommendedDisplayCIELabValue
+          if (labValues.length >= 3) {
+            const rgb = dcmjs.data.Colors.dicomlab2RGB(labValues)
+            // Convert from 0-1 range to 0-255 range and round to integers
+            return [
+              Math.max(0, Math.min(255, Math.round(rgb[0] * 255))),
+              Math.max(0, Math.min(255, Math.round(rgb[1] * 255))),
+              Math.max(0, Math.min(255, Math.round(rgb[2] * 255)))
+            ]
+          }
+        } catch (error) {
+          console.warn('Failed to convert CIELab to RGB for annotation group:', error)
+        }
+      }
+      return null
+    }
+
     // We need to bind those variables to constants for the loader function
     const client = _getClient(
       this[_clients],
@@ -3783,6 +3806,14 @@ class VolumeImageViewer {
      */
     metadata.AnnotationGroupSequence.forEach((item) => {
       const annotationGroupUID = item.AnnotationGroupUID
+
+      // Extract color from metadata if available
+      const extractedColor = extractAnnotationGroupColor(item)
+      const annotationGroupStyle = {
+        opacity: defaultAnnotationGroupStyle.opacity,
+        color: extractedColor || defaultAnnotationGroupStyle.color
+      }
+
       const annotationGroup = {
         annotationGroup: new AnnotationGroup({
           uid: annotationGroupUID,
@@ -3801,8 +3832,8 @@ class VolumeImageViewer {
           referencedSeriesInstanceUID: metadata.ReferencedSeriesSequence[0].SeriesInstanceUID,
           referencedSOPInstanceUID: metadata.ReferencedImageSequence[0].ReferencedSOPInstanceUID
         }),
-        style: { ...defaultAnnotationGroupStyle },
-        defaultStyle: defaultAnnotationGroupStyle,
+        style: { ...annotationGroupStyle },
+        defaultStyle: annotationGroupStyle,
         metadata
       }
 
