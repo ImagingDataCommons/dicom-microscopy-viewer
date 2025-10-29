@@ -364,13 +364,13 @@ class PaletteColorLookupTable {
       ]
       const maxInput = Math.max(...maxValues)
       const maxOutput = 255
-      
+
       // Apply gamma correction to compensate for display gamma (brightens mid-tones)
       // When a linear intensity value i (0 to 1) is looked up, we actually want to look up
       // the color at position i^gamma where gamma = 1/2.2 ≈ 0.4545
       // This pre-brightens the colors for mid-tones
-      const gammaInverse = 1.0 / 2.2  // ≈ 0.4545
-      
+      const gammaInverse = 1.0 / 2.2 // ≈ 0.4545
+
       if (this[_attrs].bitsPerEntry === 16 && maxInput > 255) {
         /*
          * Only palettes with 256 entries and 8 bit per entry are supported for
@@ -384,7 +384,7 @@ class PaletteColorLookupTable {
           const normalizedPos = i / (n - 1)
           const gammaCorrectedPos = Math.pow(normalizedPos, gammaInverse)
           const lutIndex = Math.round(gammaCorrectedPos * (this[_attrs].numberOfEntries - 1))
-          
+
           this[_attrs].data[i] = [
             Math.round(rescale(redLUT[lutIndex], 0, maxInput, 0, maxOutput)),
             Math.round(rescale(greenLUT[lutIndex], 0, maxInput, 0, maxOutput)),
@@ -399,7 +399,7 @@ class PaletteColorLookupTable {
           const normalizedPos = i / (this[_attrs].numberOfEntries - 1)
           const gammaCorrectedPos = Math.pow(normalizedPos, gammaInverse)
           const lutIndex = Math.round(gammaCorrectedPos * (this[_attrs].numberOfEntries - 1))
-          
+
           this[_attrs].data[i] = [redLUT[lutIndex], greenLUT[lutIndex], blueLUT[lutIndex]]
         }
       }
