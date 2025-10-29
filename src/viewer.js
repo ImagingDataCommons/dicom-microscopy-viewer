@@ -788,6 +788,7 @@ const _pointsSources = Symbol('pointsSources')
 const _clustersSources = Symbol('clustersSources')
 const _segmentationInterpolate = Symbol('segmentationInterpolate')
 const _segmentationTileGrid = Symbol('segmentationTileGrid')
+const _parametricMapInterpolate = Symbol('parametricMapInterpolate')
 const _mapViewResolutions = Symbol('mapViewResolutions')
 
 /**
@@ -849,6 +850,7 @@ class VolumeImageViewer {
     this[_pointsSources] = {}
     this[_clustersSources] = {}
     this[_segmentationInterpolate] = false
+    this[_parametricMapInterpolate] = true
 
     this._onBulkAnnotationsFeaturesLoadStart = this._onBulkAnnotationsFeaturesLoadStart.bind(this)
     this._onBulkAnnotationsFeaturesLoadEnd = this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
@@ -2367,6 +2369,43 @@ class VolumeImageViewer {
         this.showSegment(segment.segment.uid)
       } else {
         this.hideSegment(segment.segment.uid)
+      }
+    })
+  }
+
+  /**
+   * Toggle parametric map interpolation.
+   *
+   * @returns {void}
+   */
+  toggleParametricMapInterpolation () {
+    console.debug('toggle parametric map interpolation:', this[_parametricMapInterpolate])
+    this[_parametricMapInterpolate] = !this[_parametricMapInterpolate]
+
+    const mappings = Object.values(this[_mappings])
+
+    mappings.forEach(mapping => {
+      const tileGrid = new TileGrid({
+        extent: mapping.loaderParams.pyramid.extent,
+        origins: mapping.loaderParams.pyramid.origins,
+        resolutions: mapping.loaderParams.pyramid.resolutions,
+        sizes: mapping.loaderParams.pyramid.gridSizes,
+        tileSizes: mapping.loaderParams.pyramid.tileSizes
+      })
+
+      mapping.layer.setSource(new DataTileSource({
+        tileGrid,
+        projection: this[_projection],
+        wrapX: false,
+        bandCount: 1,
+        interpolate: this[_parametricMapInterpolate]
+      }))
+      // Reset hasLoader flag since we created a new source
+      mapping.hasLoader = false
+      if (mapping.layer.getVisible() === true) {
+        this.showParameterMapping(mapping.mapping.uid)
+      } else {
+        this.hideParameterMapping(mapping.mapping.uid)
       }
     })
   }
@@ -5453,7 +5492,7 @@ class VolumeImageViewer {
         projection: this[_projection],
         wrapX: false,
         bandCount: 1,
-        interpolate: true
+        interpolate: this[_parametricMapInterpolate]
       })
       source.on('tileloaderror', (event) => {
         console.error(`error loading tile of mapping "${mappingUID}"`, event.tile?.error_?.message || event)
