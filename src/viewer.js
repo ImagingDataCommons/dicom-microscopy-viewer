@@ -1745,12 +1745,14 @@ class VolumeImageViewer {
           const correctFeature = feature.values_?.features?.[0] || feature
           if (correctFeature?.getId()) {
             featureCounter++
+            const annotationGroupUID = correctFeature.get('annotationGroupUID')
             publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
               feature: this._getROIFromFeature(
                 correctFeature,
                 this[_pyramid].metadata,
                 this[_affine]
               ),
+              annotationGroupUID: annotationGroupUID || null,
               event
             })
           }
@@ -1764,6 +1766,7 @@ class VolumeImageViewer {
       if (!featureCounter) {
         publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
           feature: null,
+          annotationGroupUID: null,
           event
         })
       }
