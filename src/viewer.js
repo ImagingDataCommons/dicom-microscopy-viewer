@@ -5040,66 +5040,124 @@ class VolumeImageViewer {
   }
 
   /**
+   * Create a horizontal legend overlay with color bar, title, and numeric range.
+   *
+   * @private
+   * @param {HTMLElement} overlayElement - The overlay element to populate
+   * @param {string} title - The title/label to display
+   * @param {Array<Array<number>>} colors - Array of RGB color values from LUT
+   * @param {number} minValue - Minimum value for the range display
+   * @param {number} maxValue - Maximum value for the range display
+   * @param {boolean} [useRealWorldValues=false] - Whether to format as real world values (decimals)
+   */
+  _createHorizontalLegendOverlay (overlayElement, title, colors, minValue, maxValue, useRealWorldValues = false) {
+    // Clear existing content
+    overlayElement.innerHTML = ''
+
+    // Create single row: [min] [color bar] [max] [label on far right]
+    const row = document.createElement('div')
+    row.style.display = 'flex'
+    row.style.flexDirection = 'row'
+    row.style.alignItems = 'center'
+    row.style.gap = '8px'
+
+    // Create min value element
+    const minElement = document.createElement('div')
+    if (useRealWorldValues) {
+      minElement.textContent = minValue.toFixed(2)
+    } else {
+      minElement.textContent = minValue.toString()
+    }
+    minElement.style.fontSize = '10px'
+    minElement.style.fontWeight = '600'
+    minElement.style.color = 'rgba(0, 0, 0, 0.9)'
+    minElement.style.whiteSpace = 'nowrap'
+
+    // Create horizontal color bar canvas
+    const canvas = document.createElement('canvas')
+    const context = canvas.getContext('2d')
+    const width = 200
+    const height = 20
+    context.canvas.width = width
+    context.canvas.height = height
+
+    // Draw colors horizontally (left to right: min to max)
+    for (let i = 0; i < colors.length; i++) {
+      const color = colors[i]
+      const r = color[0]
+      const g = color[1]
+      const b = color[2]
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`
+      context.fillRect((width / colors.length) * i, 0, Math.ceil(width / colors.length), height)
+    }
+
+    // Create max value element
+    const maxElement = document.createElement('div')
+    if (useRealWorldValues) {
+      maxElement.textContent = maxValue.toFixed(2)
+    } else {
+      maxElement.textContent = maxValue.toString()
+    }
+    maxElement.style.fontSize = '10px'
+    maxElement.style.fontWeight = '600'
+    maxElement.style.color = 'rgba(0, 0, 0, 0.9)'
+    maxElement.style.whiteSpace = 'nowrap'
+
+    // Create title element (on far right)
+    const titleElement = document.createElement('div')
+    titleElement.textContent = title
+    titleElement.style.fontSize = '12px'
+    titleElement.style.fontWeight = '600'
+    titleElement.style.color = 'black'
+    titleElement.style.whiteSpace = 'nowrap'
+    titleElement.style.marginLeft = 'auto'
+
+    // Assemble row: min, color bar, max, label (on far right)
+    row.appendChild(minElement)
+    row.appendChild(canvas)
+    row.appendChild(maxElement)
+    row.appendChild(titleElement)
+
+    // Style overlay element
+    overlayElement.style.display = 'flex'
+    overlayElement.style.flexDirection = 'row'
+    overlayElement.style.alignItems = 'center'
+    overlayElement.style.padding = '4px'
+    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, 0.9)'
+    overlayElement.style.borderRadius = '4px'
+    overlayElement.style.margin = '1px'
+    overlayElement.style.marginTop = '8px'
+    overlayElement.style.marginLeft = '4px'
+
+    overlayElement.appendChild(row)
+  }
+
+  /**
    * Add segment overlay. The overlay shows the color palette of the segment.
    *
    * @param {Object} segment - The segment for which to show the overlay
    */
   addSegmentOverlay () {
-    let title = 'Fractional Segments'
-    const padding = Math.round((16 - title.length) / 2)
-    title = title.padStart(title.length + padding)
-    title = title.padEnd(title.length + 2 * padding)
+    const title = 'Fractional Segments'
 
-    const overlayElement = this.segmentOverlay.getElement()
-
-    overlayElement.innerHTML = title
-    overlayElement.style = {}
-    overlayElement.style.display = 'flex'
-    overlayElement.style.flexDirection = 'column'
-    overlayElement.style.justifyContent = 'center'
-    overlayElement.style.padding = '4px'
-    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
-    overlayElement.style.borderRadius = '4px'
-    overlayElement.style.margin = '1px'
-    overlayElement.style.color = 'black'
-    overlayElement.style.fontWeight = '600'
-    overlayElement.style.fontSize = '12px'
-    overlayElement.style.textAlign = 'center'
-
-    const canvas = document.createElement('canvas')
-    const context = canvas.getContext('2d')
-    const height = 120
-    const width = 15
-    context.canvas.height = height
-    context.canvas.width = width
-
-    const colors = this.paletteColorLookupTable.data
-    for (let j = 0; j < colors.length; j++) {
-      const color = colors[colors.length - j - 1]
-      const r = color[0]
-      const g = color[1]
-      const b = color[2]
-      context.fillStyle = `rgb(${r}, ${g}, ${b})`
-      context.fillRect(0, height / colors.length * j, width, 1)
+    // Get min/max values from the first visible fractional segment
+    let minValue = 0
+    let maxValue = 255
+    const segments = Object.values(this[_segments])
+    const fractionalSegment = segments.find(seg => seg.segmentationType === 'FRACTIONAL' && seg.layer.getVisible())
+    if (fractionalSegment) {
+      minValue = fractionalSegment.minStoredValue
+      maxValue = fractionalSegment.maxStoredValue
     }
 
-    const upperBound = document.createElement('div')
-    upperBound.innerHTML = '255'
+    const overlayElement = this.segmentOverlay.getElement()
+    const colors = this.paletteColorLookupTable.data
 
-    const lowerBound = document.createElement('div')
-    lowerBound.innerHTML = '0'
+    this._createHorizontalLegendOverlay(overlayElement, title, colors, minValue, maxValue, false)
 
     const parentElement = overlayElement.parentNode
     parentElement.style.display = 'block'
     parentElement.style.paddingLeft = '5px'
-
-    while (parentElement.children.length > 1) {
-      parentElement.lastChild.remove()
-    }
-
-    parentElement.appendChild(upperBound)
-    parentElement.appendChild(canvas)
-    parentElement.appendChild(lowerBound)
 
     this[_map].addOverlay(this.segmentOverlay)
   }
@@ -5473,7 +5531,7 @@ class VolumeImageViewer {
         pyramid,
         overlay: new Overlay({
           element: document.createElement('div'),
-          offset: [5 + 100 * index + 2, 5]
+          offset: [5, 5 + 50 * index]
         }),
         style: { ...defaultMappingStyle },
         defaultStyle: defaultMappingStyle,
@@ -5684,56 +5742,22 @@ class VolumeImageViewer {
       mapping.layer.updateStyleVariables(styleVariables)
     }
 
-    let title = mapping.mapping.label
-    const padding = Math.round((16 - title.length) / 2)
-    title = title.padStart(title.length + padding)
-    title = title.padEnd(title.length + 2 * padding)
+    const title = mapping.mapping.label
+
+    // Determine min/max values: prefer real world value range if available
+    let minValue = mapping.minStoredValue
+    let maxValue = mapping.maxStoredValue
+    let useRealWorldValues = false
+    if (mapping.realWorldValueRange) {
+      minValue = mapping.realWorldValueRange[0]
+      maxValue = mapping.realWorldValueRange[1]
+      useRealWorldValues = true
+    }
 
     const overlayElement = mapping.overlay.getElement()
-    overlayElement.innerHTML = title
-    overlayElement.style = {}
-    overlayElement.style.display = 'flex'
-    overlayElement.style.flexDirection = 'column'
-    overlayElement.style.justifyContent = 'center'
-    overlayElement.style.padding = '4px'
-    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, .5)'
-    overlayElement.style.borderRadius = '4px'
-    overlayElement.style.margin = '1px'
-    overlayElement.style.color = 'black'
-    overlayElement.style.fontWeight = '600'
-    overlayElement.style.fontSize = '12px'
-    overlayElement.style.textAlign = 'center'
-
-    // Add real world value range display below the title
-    if (mapping.realWorldValueRange) {
-      const rangeElement = document.createElement('div')
-      const minValue = mapping.realWorldValueRange[0].toFixed(2)
-      const maxValue = mapping.realWorldValueRange[1].toFixed(2)
-      rangeElement.textContent = `${minValue} - ${maxValue}`
-      rangeElement.style.fontSize = '10px'
-      rangeElement.style.fontWeight = '400'
-      rangeElement.style.marginTop = '2px'
-      rangeElement.style.color = 'rgba(0, 0, 0, 0.7)'
-      overlayElement.appendChild(rangeElement)
-    }
-
-    const canvas = document.createElement('canvas')
-    const context = canvas.getContext('2d')
-    const height = 30
-    const width = 15
-    context.canvas.height = height
-    context.canvas.width = width
-
     const colors = mapping.style.paletteColorLookupTable.data
-    for (let j = 0; j < colors.length; j++) {
-      const color = colors[colors.length - j - 1]
-      const r = color[0]
-      const g = color[1]
-      const b = color[2]
-      context.fillStyle = `rgb(${r}, ${g}, ${b})`
-      context.fillRect(0, height / colors.length * j, width, 1)
-    }
-    overlayElement.appendChild(canvas)
+
+    this._createHorizontalLegendOverlay(overlayElement, title, colors, minValue, maxValue, useRealWorldValues)
 
     const parentElement = overlayElement.parentNode
     parentElement.style.display = 'inline'
