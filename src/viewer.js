@@ -1762,7 +1762,7 @@ class VolumeImageViewer {
       },
       {
         hitTolerance: 1,
-        layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
+        layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector) && layer.getVisible()
       })
 
       // If no feature found at pixel boundary, check if coordinate is inside any polygon/circle
@@ -1771,7 +1771,8 @@ class VolumeImageViewer {
         const layers = this[_map].getLayers().getArray()
 
         for (const layer of layers) {
-          if (layer instanceof VectorLayer || layer instanceof WebGLVector) {
+          // Only check visible layers
+          if ((layer instanceof VectorLayer || layer instanceof WebGLVector) && layer.getVisible()) {
             const source = layer.getSource()
             if (source) {
               const features = source.getFeatures()
@@ -1782,7 +1783,21 @@ class VolumeImageViewer {
                   const geometry = correctFeature.getGeometry()
 
                   // Check if coordinate is inside polygon or circle geometry
+                  let isInside = false
                   if (geometry instanceof PolygonGeometry && geometry.intersectsCoordinate(coordinate)) {
+                    isInside = true
+                  } else if (geometry instanceof CircleGeometry) {
+                    const center = geometry.getCenter()
+                    const radius = geometry.getRadius()
+                    const dx = coordinate[0] - center[0]
+                    const dy = coordinate[1] - center[1]
+                    const distance = Math.sqrt(dx * dx + dy * dy)
+                    if (distance <= radius) {
+                      isInside = true
+                    }
+                  }
+
+                  if (isInside) {
                     featureCounter++
                     const annotationGroupUID = correctFeature.get('annotationGroupUID')
                     publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
@@ -1794,33 +1809,9 @@ class VolumeImageViewer {
                       annotationGroupUID: annotationGroupUID || null,
                       event
                     })
-                    break
-                  } else if (geometry instanceof CircleGeometry) {
-                    const center = geometry.getCenter()
-                    const radius = geometry.getRadius()
-                    const dx = coordinate[0] - center[0]
-                    const dy = coordinate[1] - center[1]
-                    const distance = Math.sqrt(dx * dx + dy * dy)
-
-                    if (distance <= radius) {
-                      featureCounter++
-                      const annotationGroupUID = correctFeature.get('annotationGroupUID')
-                      publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
-                        feature: this._getROIFromFeature(
-                          correctFeature,
-                          this[_pyramid].metadata,
-                          this[_affine]
-                        ),
-                        annotationGroupUID: annotationGroupUID || null,
-                        event
-                      })
-                      break
-                    }
                   }
                 }
               }
-
-              if (featureCounter) break
             }
           }
         }
