@@ -1739,37 +1739,33 @@ class VolumeImageViewer {
      * @private
      */
     this[_map].on('pointermove', (event) => {
-      let featureCounter = 0
-      this[_map].forEachFeatureAtPixel(event.pixel, (feature) => {
+      const features = this[_map].getFeaturesAtPixel(event.pixel, {
+        hitTolerance: 1,
+        layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
+      })
+
+      const featuresWithROIs = []
+      for (const feature of features) {
         if (feature !== null && feature.getId() !== undefined) {
           const correctFeature = feature.values_?.features?.[0] || feature
           if (correctFeature?.getId()) {
-            featureCounter++
             const annotationGroupUID = correctFeature.get('annotationGroupUID')
-            publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+            featuresWithROIs.push({
               feature: this._getROIFromFeature(
                 correctFeature,
                 this[_pyramid].metadata,
                 this[_affine]
               ),
-              annotationGroupUID: annotationGroupUID || null,
-              event
+              annotationGroupUID: annotationGroupUID || null
             })
           }
         }
-      },
-      {
-        hitTolerance: 1,
-        layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
-      })
-
-      if (!featureCounter) {
-        publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
-          feature: null,
-          annotationGroupUID: null,
-          event
-        })
       }
+
+      publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+        features: featuresWithROIs,
+        event
+      })
     })
 
     /**
@@ -4411,7 +4407,9 @@ class VolumeImageViewer {
       return pointsStyle
     }
 
-    if (graphicType === 'POLYGON') {
+    // For area-based annotations (POLYGON, RECTANGLE, ELLIPSE), add a transparent fill
+    // to enable hit detection in the filled area, not just on boundaries
+    if (graphicType === 'POLYGON' || graphicType === 'RECTANGLE' || graphicType === 'ELLIPSE') {
       return new Style({
         stroke: new Stroke({
           color,
@@ -5177,7 +5175,7 @@ class VolumeImageViewer {
       segment.layer.setStyle(newStyle)
     }
 
-    if (segment.segmentationType === 'FRACTIONAL') {
+    if (segment.q === 'FRACTIONAL') {
       this.addSegmentOverlay()
     }
   }
