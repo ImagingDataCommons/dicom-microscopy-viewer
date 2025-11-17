@@ -20,6 +20,8 @@ import Translate from 'ol/interaction/Translate'
 import Style from 'ol/style/Style'
 import Stroke from 'ol/style/Stroke'
 import Circle from 'ol/style/Circle'
+import PolygonGeometry from 'ol/geom/Polygon'
+import CircleGeometry from 'ol/geom/Circle'
 import Static from 'ol/source/ImageStatic'
 import Cluster from 'ol/source/Cluster'
 import Overlay from 'ol/Overlay'
@@ -1762,6 +1764,67 @@ class VolumeImageViewer {
         hitTolerance: 1,
         layerFilter: (layer) => (layer instanceof VectorLayer || layer instanceof WebGLVector)
       })
+
+      // If no feature found at pixel boundary, check if coordinate is inside any polygon/circle
+      if (!featureCounter) {
+        const coordinate = this[_map].getCoordinateFromPixel(event.pixel)
+        const layers = this[_map].getLayers().getArray()
+
+        for (const layer of layers) {
+          if (layer instanceof VectorLayer || layer instanceof WebGLVector) {
+            const source = layer.getSource()
+            if (source) {
+              const features = source.getFeatures()
+
+              for (const feature of features) {
+                const correctFeature = feature.values_?.features?.[0] || feature
+                if (correctFeature?.getId()) {
+                  const geometry = correctFeature.getGeometry()
+
+                  // Check if coordinate is inside polygon or circle geometry
+                  if (geometry instanceof PolygonGeometry && geometry.intersectsCoordinate(coordinate)) {
+                    featureCounter++
+                    const annotationGroupUID = correctFeature.get('annotationGroupUID')
+                    publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+                      feature: this._getROIFromFeature(
+                        correctFeature,
+                        this[_pyramid].metadata,
+                        this[_affine]
+                      ),
+                      annotationGroupUID: annotationGroupUID || null,
+                      event
+                    })
+                    break
+                  } else if (geometry instanceof CircleGeometry) {
+                    const center = geometry.getCenter()
+                    const radius = geometry.getRadius()
+                    const dx = coordinate[0] - center[0]
+                    const dy = coordinate[1] - center[1]
+                    const distance = Math.sqrt(dx * dx + dy * dy)
+
+                    if (distance <= radius) {
+                      featureCounter++
+                      const annotationGroupUID = correctFeature.get('annotationGroupUID')
+                      publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+                        feature: this._getROIFromFeature(
+                          correctFeature,
+                          this[_pyramid].metadata,
+                          this[_affine]
+                        ),
+                        annotationGroupUID: annotationGroupUID || null,
+                        event
+                      })
+                      break
+                    }
+                  }
+                }
+              }
+
+              if (featureCounter) break
+            }
+          }
+        }
+      }
 
       if (!featureCounter) {
         publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {

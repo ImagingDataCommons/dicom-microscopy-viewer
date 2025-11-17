@@ -74,3 +74,4 @@ dist/
 *.swp
 bun.lock
 *workspace
+package-lock.json
