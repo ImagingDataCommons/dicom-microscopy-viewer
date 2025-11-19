@@ -5233,7 +5233,7 @@ class VolumeImageViewer {
       segment.layer.setStyle(newStyle)
     }
 
-    if (segment.q === 'FRACTIONAL') {
+    if (segment.segmentationType === 'FRACTIONAL') {
       this.addSegmentOverlay()
     }
   }
