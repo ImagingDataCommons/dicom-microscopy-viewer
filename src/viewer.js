@@ -830,11 +830,6 @@ class VolumeImageViewer {
    * intercepting errors
    * @param {number[]} [options.mapViewResolutions] Map's view list of
    * resolutions.
-   * @param {boolean} [options.useTileGridResolutions=true] If false,
-   * zoom will not be limited and the image will fit the viewport extent (no clipping).
-   * Note: This option will be ignored if there are no thumbnail images available or its just one image.
-   * If you set skipThumbnails to true, this option is not needed.
-   * @param {boolean} [options.skipThumbnails=false] If true, thumbnail images will not be loaded as part of the pyramid.
    */
   constructor (options) {
     this[_options] = options
@@ -903,10 +898,6 @@ class VolumeImageViewer {
 
     if (this[_options].errorInterceptor == null) {
       this[_options].errorInterceptor = error => error
-    }
-
-    if (this[_options].useTileGridResolutions == null) {
-      this[_options].useTileGridResolutions = true
     }
 
     if (this[_options].debug == null) {
@@ -1174,21 +1165,7 @@ class VolumeImageViewer {
       tileSizes: this[_pyramid].tileSizes
     })
 
-    this[_mapViewResolutions] =
-      this[_options].useTileGridResolutions === false ||
-      this[_options].skipThumbnails === true
-        ? undefined
-        : this[_tileGrid].getResolutions()
-
-    /**
-     * If there are no thumbnail images, dont use any resolutions so we can create a thumbnail image by
-     * loading the the tiles of the lowest resolution and show the entire extent.
-     * Using resolutions will cause the viewer to clip the image to the extent of the viewport. This is
-     * not what we want for a thumbnail image.
-     */
-    if (!this[_metadata].find((image) => image.ImageType[2] === ImageFlavors.THUMBNAIL) && this[_metadata].length > 1) {
-      this[_mapViewResolutions] = undefined
-    }
+    this[_mapViewResolutions] = this[_tileGrid].getResolutions()
 
     if (has(this[_options], 'mapViewResolutions')) {
       this[_mapViewResolutions] = this[_options].mapViewResolutions
@@ -3826,10 +3803,9 @@ class VolumeImageViewer {
     const view = map.getView()
     const maxZoom = view.getMaxZoom()
     const isHighResolution = () => {
-      const isZoomUnlimited = this[_mapViewResolutions] === undefined
       const highestResolution = this[_tileGrid].getResolutions()[0]
-      const updatedMaxZoom = isZoomUnlimited ? highestResolution : (this[_annotationOptions].maxZoom || maxZoom)
-      const zoom = isZoomUnlimited ? (view.getZoom() * this[_tileGrid].getResolutions().length) : view.getZoom()
+      const updatedMaxZoom = (this[_annotationOptions].maxZoom || maxZoom)
+      const zoom = view.getZoom()
       console.debug('Zoom:', zoom)
       console.debug('Max Zoom:', updatedMaxZoom)
       console.debug('Original Max Zoom:', maxZoom)
@@ -4892,13 +4868,7 @@ class VolumeImageViewer {
         }),
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
-        minResolution: (
-          this[_mapViewResolutions] === undefined
-            ? undefined
-            : (minZoomLevel > 0
-                ? this[_pyramid].resolutions[minZoomLevel]
-                : undefined)
-        )
+        minResolution: minZoomLevel > 0 ? this[_pyramid].resolutions[minZoomLevel] : undefined
       })
       segment.layer.on('error', (event) => {
         console.error(`error rendering segment "${segmentUID}"`, event)
