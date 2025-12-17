@@ -2362,7 +2362,6 @@ class VolumeImageViewer {
         bandCount: 1,
         interpolate: this[_segmentationInterpolate]
       }))
-      // Reset hasLoader flag since we created a new source
       segment.hasLoader = false
       if (segment.layer.getVisible() === true) {
         this.showSegment(segment.segment.uid)
@@ -4980,12 +4979,14 @@ class VolumeImageViewer {
         }
       } catch (error) {
         console.error(`Failed to set loader for segment "${segmentUID}":`, error)
-        return
       }
     }
 
+    segment.layer.setVisible(true)
+    this.setSegmentStyle(segmentUID, styleOptions)
+
     if (!segment.hasLoader) {
-      console.debug(`Skipping show segment "${segmentUID}" - loader not set (container may not be available yet)`)
+      console.debug(`Showing segment "${segmentUID}" - loader not set yet (container may not be available yet)`)
       return
     }
 
@@ -5000,9 +5001,6 @@ class VolumeImageViewer {
         view.animate({ zoom: segment.minZoomLevel })
       }
     }
-
-    segment.layer.setVisible(true)
-    this.setSegmentStyle(segmentUID, styleOptions)
   }
 
   /**
