@@ -2362,7 +2362,6 @@ class VolumeImageViewer {
         bandCount: 1,
         interpolate: this[_segmentationInterpolate]
       }))
-      // Reset hasLoader flag since we created a new source
       segment.hasLoader = false
       if (segment.layer.getVisible() === true) {
         this.showSegment(segment.segment.uid)
@@ -4964,15 +4963,31 @@ class VolumeImageViewer {
     const segment = this[_segments][segmentUID]
     console.info(`show segment ${segmentUID}`)
 
-    const container = this[_map].getTargetElement()
+    const container = this[_map].getTargetElement() || this[_container]
+
     if (container && !segment.hasLoader) {
-      const loader = _createTileLoadFunction({
-        targetElement: container,
-        iccProfiles: [],
-        ...segment.loaderParams
-      })
-      const source = segment.layer.getSource()
-      source.setLoader(loader)
+      try {
+        const loader = _createTileLoadFunction({
+          targetElement: container,
+          iccProfiles: [],
+          ...segment.loaderParams
+        })
+        const source = segment.layer.getSource()
+        if (source) {
+          source.setLoader(loader)
+          segment.hasLoader = true
+        }
+      } catch (error) {
+        console.error(`Failed to set loader for segment "${segmentUID}":`, error)
+      }
+    }
+
+    segment.layer.setVisible(true)
+    this.setSegmentStyle(segmentUID, styleOptions)
+
+    if (!segment.hasLoader) {
+      console.debug(`Showing segment "${segmentUID}" - loader not set yet (container may not be available yet)`)
+      return
     }
 
     if (shouldZoomIn) {
@@ -4986,9 +5001,6 @@ class VolumeImageViewer {
         view.animate({ zoom: segment.minZoomLevel })
       }
     }
-
-    segment.layer.setVisible(true)
-    this.setSegmentStyle(segmentUID, styleOptions)
   }
 
   /**
