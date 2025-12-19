@@ -826,6 +826,10 @@ class VolumeImageViewer {
    * @param {number[]} [options.highlightColor=[140, 184, 198]] - Color that
    * should be used to highlight things that get selected by the user
    * @param {object} [options.annotationOptions] - Annotation options
+   * @param {number} [options.annotationOptions.clusteringPixelSizeThreshold] -
+   * Pixel size threshold in millimeters. When the current pixel size is smaller
+   * than or equal to this threshold, clustering is disabled (high resolution mode).
+   * Defaults to undefined, which falls back to zoom-based detection.
    * @param {errorInterceptor} [options.errorInterceptor] - Callback for
    * intercepting errors
    * @param {number[]} [options.mapViewResolutions] Map's view list of
@@ -899,6 +903,10 @@ class VolumeImageViewer {
 
     if (this[_options].annotationOptions) {
       this[_annotationOptions] = this[_options].annotationOptions
+    }
+
+    if (this[_annotationOptions].clusteringPixelSizeThreshold === undefined) {
+      this[_annotationOptions].clusteringPixelSizeThreshold = 0.001
     }
 
     if (this[_options].errorInterceptor == null) {
@@ -3823,18 +3831,36 @@ class VolumeImageViewer {
     const affine = this[_affine]
     const map = this[_map]
     const view = map.getView()
-    const maxZoom = view.getMaxZoom()
     const isHighResolution = () => {
-      const isZoomUnlimited = this[_mapViewResolutions] === undefined
-      const highestResolution = this[_tileGrid].getResolutions()[0]
-      const updatedMaxZoom = isZoomUnlimited ? highestResolution : (this[_annotationOptions].maxZoom || maxZoom)
-      const zoom = isZoomUnlimited ? (view.getZoom() * this[_tileGrid].getResolutions().length) : view.getZoom()
-      console.debug('Zoom:', zoom)
-      console.debug('Max Zoom:', updatedMaxZoom)
-      console.debug('Original Max Zoom:', maxZoom)
-      console.debug('Highest Resolution:', highestResolution)
-      console.debug('Resolutions:', this[_tileGrid].getResolutions().length)
-      return zoom >= updatedMaxZoom
+      const clusteringPixelSizeThreshold = this[_annotationOptions]?.clusteringPixelSizeThreshold
+      if (clusteringPixelSizeThreshold !== undefined) {
+        const currentResolution = view.getResolution()
+        const resolutions = this[_tileGrid].getResolutions()
+
+        /** Find the closest pyramid level based on current resolution */
+        let closestLevelIndex = 0
+        let minDiff = Math.abs(resolutions[0] - currentResolution)
+        for (let i = 1; i < resolutions.length; i++) {
+          const diff = Math.abs(resolutions[i] - currentResolution)
+          if (diff < minDiff) {
+            minDiff = diff
+            closestLevelIndex = i
+          }
+        }
+
+        /** Get pixel spacing for the current pyramid level */
+        const currentPixelSpacing = this[_pyramid].pixelSpacings[closestLevelIndex]
+        /** Use the smaller of the two pixel spacing values (typically they're similar) */
+        const currentPixelSize = Math.min(currentPixelSpacing[0], currentPixelSpacing[1])
+
+        console.debug('Current Resolution:', currentResolution)
+        console.debug('Closest Level Index:', closestLevelIndex)
+        console.debug('Current Pixel Size (mm):', currentPixelSize)
+        console.debug('Clustering Threshold (mm):', clusteringPixelSizeThreshold)
+
+        /** Return true (high resolution) when pixel size is <= threshold (smaller pixels = higher resolution) */
+        return currentPixelSize <= clusteringPixelSizeThreshold
+      }
     }
 
     /**
@@ -4531,6 +4557,65 @@ class VolumeImageViewer {
 
     const annotationGroup = this[_annotationGroups][annotationGroupUID]
     return annotationGroup.activeLayer().getVisible()
+  }
+
+  /**
+   * Update annotation options.
+   *
+   * @param {Object} options - Annotation options
+   * @param {number} [options.clusteringPixelSizeThreshold] - Pixel size threshold
+   * in millimeters. When the current pixel size is smaller than or equal to this
+   * threshold, clustering is disabled (high resolution mode). Set to undefined
+   * to use zoom-based detection.
+   * @returns {void}
+   */
+  setAnnotationOptions (options = {}) {
+    if ('clusteringPixelSizeThreshold' in options) {
+      if (options.clusteringPixelSizeThreshold !== undefined) {
+        this[_annotationOptions].clusteringPixelSizeThreshold = options.clusteringPixelSizeThreshold
+      } else {
+        delete this[_annotationOptions].clusteringPixelSizeThreshold
+      }
+
+      // Trigger layer visibility update for all annotation groups
+      const view = this[_map].getView()
+      const isHighResolution = () => {
+        const clusteringPixelSizeThreshold = this[_annotationOptions]?.clusteringPixelSizeThreshold
+        if (clusteringPixelSizeThreshold !== undefined) {
+          const currentResolution = view.getResolution()
+          const resolutions = this[_tileGrid].getResolutions()
+
+          let closestLevelIndex = 0
+          let minDiff = Math.abs(resolutions[0] - currentResolution)
+          for (let i = 1; i < resolutions.length; i++) {
+            const diff = Math.abs(resolutions[i] - currentResolution)
+            if (diff < minDiff) {
+              minDiff = diff
+              closestLevelIndex = i
+            }
+          }
+
+          const currentPixelSpacing = this[_pyramid].pixelSpacings[closestLevelIndex]
+          const currentPixelSize = Math.min(currentPixelSpacing[0], currentPixelSpacing[1])
+          return currentPixelSize <= clusteringPixelSizeThreshold
+        }
+        // Fallback to zoom-based detection
+        const isZoomUnlimited = this[_mapViewResolutions] === undefined
+        const highestResolution = this[_tileGrid].getResolutions()[0]
+        const updatedMaxZoom = isZoomUnlimited ? highestResolution : (this[_annotationOptions].maxZoom || view.getMaxZoom())
+        const zoom = isZoomUnlimited ? (view.getZoom() * this[_tileGrid].getResolutions().length) : view.getZoom()
+        return zoom >= updatedMaxZoom
+      }
+
+      // Update visibility for all annotation groups
+      Object.values(this[_annotationGroups]).forEach((annotationGroup) => {
+        if (annotationGroup.layers && annotationGroup.layers.length >= 2) {
+          const isHighRes = isHighResolution()
+          annotationGroup.layers[0].setVisible(isHighRes)
+          annotationGroup.layers[1].setVisible(!isHighRes)
+        }
+      })
+    }
   }
 
   /**
