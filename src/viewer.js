@@ -4577,7 +4577,6 @@ class VolumeImageViewer {
         delete this[_annotationOptions].clusteringPixelSizeThreshold
       }
 
-      // Trigger layer visibility update for all annotation groups
       const view = this[_map].getView()
       const isHighResolution = () => {
         const clusteringPixelSizeThreshold = this[_annotationOptions]?.clusteringPixelSizeThreshold
@@ -4599,7 +4598,10 @@ class VolumeImageViewer {
           const currentPixelSize = Math.min(currentPixelSpacing[0], currentPixelSpacing[1])
           return currentPixelSize <= clusteringPixelSizeThreshold
         }
-        // Fallback to zoom-based detection
+
+        /**
+         * Fallback to zoom-based detection
+         */
         const isZoomUnlimited = this[_mapViewResolutions] === undefined
         const highestResolution = this[_tileGrid].getResolutions()[0]
         const updatedMaxZoom = isZoomUnlimited ? highestResolution : (this[_annotationOptions].maxZoom || view.getMaxZoom())
@@ -4607,7 +4609,9 @@ class VolumeImageViewer {
         return zoom >= updatedMaxZoom
       }
 
-      // Update visibility for all annotation groups
+      /**
+       * Update visibility for all annotation groups
+       */
       Object.values(this[_annotationGroups]).forEach((annotationGroup) => {
         if (annotationGroup.layers && annotationGroup.layers.length >= 2) {
           const isHighRes = isHighResolution()
