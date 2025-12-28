@@ -3826,15 +3826,36 @@ class VolumeImageViewer {
     const maxZoom = view.getMaxZoom()
     const isHighResolution = () => {
       const isZoomUnlimited = this[_mapViewResolutions] === undefined
-      const highestResolution = this[_tileGrid].getResolutions()[0]
-      const updatedMaxZoom = isZoomUnlimited ? highestResolution : (this[_annotationOptions].maxZoom || maxZoom)
-      const zoom = isZoomUnlimited ? (view.getZoom() * this[_tileGrid].getResolutions().length) : view.getZoom()
-      console.debug('Zoom:', zoom)
-      console.debug('Max Zoom:', updatedMaxZoom)
-      console.debug('Original Max Zoom:', maxZoom)
-      console.debug('Highest Resolution:', highestResolution)
-      console.debug('Resolutions:', this[_tileGrid].getResolutions().length)
-      return zoom >= updatedMaxZoom
+      const resolutions = this[_tileGrid].getResolutions()
+      const highestResolution = resolutions[0] // Largest resolution value (lowest zoom)
+      if (isZoomUnlimited) {
+        // When zoom is unlimited, we need to determine which resolution level corresponds to "high resolution"
+        // Use the resolution at the original max zoom level, or the smallest resolution if maxZoom is not available
+        const targetMaxZoom = this[_annotationOptions].maxZoom || maxZoom
+        const targetResolutionIndex = targetMaxZoom != null && targetMaxZoom < resolutions.length
+          ? targetMaxZoom
+          : resolutions.length - 1
+        const targetResolution = resolutions[targetResolutionIndex]
+        // In OpenLayers, smaller resolution = higher zoom (more detail)
+        // If current resolution <= target resolution, we're at or above the high resolution threshold
+        const currentResolution = view.getResolution()
+        console.debug('Zoom: unlimited')
+        console.debug('Current Resolution:', currentResolution)
+        console.debug('Target Resolution (at maxZoom):', targetResolution)
+        console.debug('Target Max Zoom Index:', targetResolutionIndex)
+        console.debug('Highest Resolution (lowest zoom):', highestResolution)
+        console.debug('Resolutions:', resolutions.length)
+        return currentResolution <= targetResolution
+      } else {
+        const updatedMaxZoom = this[_annotationOptions].maxZoom || maxZoom
+        const zoom = view.getZoom()
+        console.debug('Zoom:', zoom)
+        console.debug('Max Zoom:', updatedMaxZoom)
+        console.debug('Original Max Zoom:', maxZoom)
+        console.debug('Highest Resolution:', highestResolution)
+        console.debug('Resolutions:', resolutions.length)
+        return zoom >= updatedMaxZoom
+      }
     }
 
     /**
