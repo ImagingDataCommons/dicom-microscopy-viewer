@@ -3865,6 +3865,20 @@ class VolumeImageViewer {
         /** Return true (high resolution) when pixel size is <= threshold (smaller pixels = higher resolution) */
         return currentPixelSize <= clusteringPixelSizeThreshold
       }
+
+      /**
+       * When clusteringPixelSizeThreshold is undefined, it means clustering is disabled.
+       * In this case, always use high-res layer (return true).
+       *
+       * Note: This handles both cases:
+       * 1. Clustering was explicitly disabled (threshold set to undefined)
+       * 2. Clustering was never configured (threshold never set)
+       *
+       * In both cases, we want to use high-res layer, so return true.
+       * The zoom-based fallback in setAnnotationOptions is for backward compatibility
+       * but here we simplify to always use high-res when threshold is undefined.
+       */
+      return true
     }
 
     /**
@@ -4863,7 +4877,9 @@ class VolumeImageViewer {
       if (options.clusteringPixelSizeThreshold !== undefined) {
         this[_annotationOptions].clusteringPixelSizeThreshold = options.clusteringPixelSizeThreshold
       } else {
-        delete this[_annotationOptions].clusteringPixelSizeThreshold
+        if (this[_annotationOptions].clusteringPixelSizeThreshold !== undefined) {
+          delete this[_annotationOptions].clusteringPixelSizeThreshold
+        }
       }
 
       const view = this[_map].getView()
@@ -4900,12 +4916,36 @@ class VolumeImageViewer {
 
       /**
        * Update visibility for all annotation groups
+       * Only update if the annotation group is currently visible to avoid triggering unnecessary loads
        */
       Object.values(this[_annotationGroups]).forEach((annotationGroup) => {
         if (annotationGroup.layers && annotationGroup.layers.length >= 2) {
-          const isHighRes = isHighResolution()
-          annotationGroup.layers[0].setVisible(isHighRes)
-          annotationGroup.layers[1].setVisible(!isHighRes)
+          /** Check if annotation group is currently visible (at least one layer is visible) */
+          const isCurrentlyVisible = annotationGroup.layers.some(layer => layer.getVisible() === true)
+
+          /**
+           * Only update visibility if the annotation group is already visible
+           * If it's not visible, just update the config and let moveend handler take care of it
+           */
+          if (isCurrentlyVisible) {
+            /** When clustering is disabled (undefined), always use high-res layer */
+            const clusteringPixelSizeThreshold = this[_annotationOptions]?.clusteringPixelSizeThreshold
+            let shouldShowHighRes
+            if (clusteringPixelSizeThreshold === undefined) {
+              shouldShowHighRes = true
+            } else {
+              shouldShowHighRes = isHighResolution()
+            }
+
+            /** Only update visibility if it's actually changing to avoid triggering unnecessary loads */
+            const currentlyHighResVisible = annotationGroup.layers[0].getVisible()
+            if (currentlyHighResVisible !== shouldShowHighRes) {
+              annotationGroup.layers[0].setVisible(shouldShowHighRes)
+              annotationGroup.layers[1].setVisible(!shouldShowHighRes)
+            }
+          }
+          // If annotation group is not visible, don't touch layers - just let the config update
+          // The moveend handler will apply the correct layer when the group becomes visible
         }
       })
     }
