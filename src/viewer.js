@@ -1016,20 +1016,16 @@ class VolumeImageViewer {
     const filterImagesByResolution = (metadata) => {
       const pyramidBaseMetadata = metadata[metadata.length - 1]
       const filteredMetadata = metadata.filter(image => {
-        const hasThumbnailEquivalentVolumeImage = metadata.some(
-          (img) =>
-            hasImageFlavor(img, ImageFlavors.VOLUME) &&
-            pyramidBaseMetadata.TotalPixelMatrixColumns / img.TotalPixelMatrixColumns ===
-              pyramidBaseMetadata.TotalPixelMatrixColumns / image.TotalPixelMatrixColumns
-        )
-        if (
-          hasThumbnailEquivalentVolumeImage && 
-          hasImageFlavor(image, ImageFlavors.THUMBNAIL) &&
-          this[_options].skipThumbnails === true
-        ) {
+        if (hasImageFlavor(image, ImageFlavors.THUMBNAIL) && this[_options].skipThumbnails === true) {
           return false
         }
         if (hasImageFlavor(image, ImageFlavors.THUMBNAIL)) {
+          const hasThumbnailEquivalentVolumeImage = metadata.some(
+            (img) =>
+              hasImageFlavor(img, ImageFlavors.VOLUME) &&
+              pyramidBaseMetadata.TotalPixelMatrixColumns / img.TotalPixelMatrixColumns ===
+                pyramidBaseMetadata.TotalPixelMatrixColumns / image.TotalPixelMatrixColumns
+          )
           if (hasThumbnailEquivalentVolumeImage) {
             console.debug('Thumbnail image has equivalent volume image resolution, skipping thumbnail.', image.SOPInstanceUID)
             return false
