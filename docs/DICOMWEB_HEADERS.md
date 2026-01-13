@@ -134,6 +134,47 @@ const client = new DICOMwebClient.api.DICOMwebClient({
 });
 ```
 
+## Accept Header
+
+The `Accept` header is **automatically managed** by the dicomweb-client library and does not need to be manually configured. The library sets appropriate `Accept` headers based on the type of request:
+
+### Automatic Accept Header Management
+
+The dicomweb-client automatically sets the `Accept` header based on the operation:
+
+- **Metadata requests** → `application/dicom+json`
+- **Frame retrieval** → Multipart with image media types (e.g., `multipart/related; type="image/jpeg"`)
+- **Bulk data** → `application/octet-stream` or appropriate media type
+- **PDF retrieval** → `application/pdf`
+
+You can optionally specify preferred media types when retrieving frames:
+
+```javascript
+// Request frames with specific transfer syntaxes
+const retrieveOptions = {
+  studyInstanceUID: '1.2.3.4',
+  seriesInstanceUID: '1.2.3.5',
+  sopInstanceUID: '1.2.3.6',
+  frameNumbers: [1, 2, 3],
+  mediaTypes: [
+    { mediaType: 'image/jpeg', transferSyntaxUID: '1.2.840.10008.1.2.4.50' },
+    { mediaType: 'image/jp2', transferSyntaxUID: '1.2.840.10008.1.2.4.90' }
+  ]
+};
+
+client.retrieveInstanceFrames(retrieveOptions).then((frames) => {
+  // Process frames
+});
+```
+
+The dicomweb-client will build the appropriate `Accept` header from the `mediaTypes` array. If no `mediaTypes` are specified, it will default to requesting `application/octet-stream`.
+
+### Accept Header Priority
+
+When you specify custom headers in the client constructor, your custom headers are **merged** with the automatic `Accept` headers. The automatic `Accept` header for each specific request type takes precedence over any `Accept` header you might set in the constructor's `headers` option.
+
+**Note:** You typically don't need to set an `Accept` header manually, as the library handles this automatically based on the DICOMweb standard requirements.
+
 ## How Headers are Used Internally
 
 Once you pass the configured client to the viewer, it's used internally by:
@@ -143,7 +184,7 @@ Once you pass the configured client to the viewer, it's used internally by:
 3. **Annotation Loader** (src/annotation.js) - Uses the client to fetch bulk annotation data
 4. **Utility Functions** (src/utils.js) - Uses `_fetchBulkdata()` which calls the client
 
-The headers are automatically included in all HTTP requests made by the dicomweb-client to the DICOMweb server.
+The headers (both custom and automatic) are automatically included in all HTTP requests made by the dicomweb-client to the DICOMweb server.
 
 ## Important Notes
 
