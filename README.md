@@ -23,6 +23,8 @@ It leverages the [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client)
 
 Documentation of the JavaScript Application Programming Interface (API) is available online at [imagingdatacommons.github.io/dicom-microscopy-viewer](https://imagingdatacommons.github.io/dicom-microscopy-viewer/).
 
+For information about configuring DICOMweb request headers (e.g., for authentication), see [DICOMweb Headers Configuration](docs/DICOMWEB_HEADERS.md).
+
 ## Getting started
 
 Note that the *dicom-microscopy-viewer* package is **not** a viewer application, it is a library to build viewer applications.
