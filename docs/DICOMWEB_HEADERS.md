@@ -136,38 +136,71 @@ const client = new DICOMwebClient.api.DICOMwebClient({
 
 ## Accept Header
 
-The `Accept` header is **automatically managed** by the dicomweb-client library and does not need to be manually configured. The library sets appropriate `Accept` headers based on the type of request:
+The `Accept` header is **automatically managed** by the dicomweb-client library and does not need to be manually configured. The library sets appropriate `Accept` headers based on the type of request.
 
-### Automatic Accept Header Management
+### Frame Retrieval Accept Header Logic
 
-The dicomweb-client automatically sets the `Accept` header based on the operation:
+For frame retrieval specifically, the logic is as follows:
 
-- **Metadata requests** → `application/dicom+json`
-- **Frame retrieval** → Multipart with image media types (e.g., `multipart/related; type="image/jpeg"`)
-- **Bulk data** → `application/octet-stream` or appropriate media type
-- **PDF retrieval** → `application/pdf`
+#### 1. Media Types Configuration (dicom-microscopy-viewer)
 
-You can optionally specify preferred media types when retrieving frames:
+The viewer constructs a list of acceptable media types in **`src/pyramid.js`** (lines 457-493):
 
 ```javascript
-// Request frames with specific transfer syntaxes
-const retrieveOptions = {
-  studyInstanceUID: '1.2.3.4',
-  seriesInstanceUID: '1.2.3.5',
-  sopInstanceUID: '1.2.3.6',
-  frameNumbers: [1, 2, 3],
-  mediaTypes: [
-    { mediaType: 'image/jpeg', transferSyntaxUID: '1.2.840.10008.1.2.4.50' },
-    { mediaType: 'image/jp2', transferSyntaxUID: '1.2.840.10008.1.2.4.90' }
-  ]
-};
-
-client.retrieveInstanceFrames(retrieveOptions).then((frames) => {
-  // Process frames
-});
+const mediaTypes = [
+  { mediaType: 'image/jls', transferSyntaxUID: '1.2.840.10008.1.2.4.80' },  // JPEG-LS Lossless
+  { mediaType: 'image/jls', transferSyntaxUID: '1.2.840.10008.1.2.4.81' },  // JPEG-LS Lossy
+  { mediaType: 'image/jp2', transferSyntaxUID: '1.2.840.10008.1.2.4.90' },  // JPEG 2000 Lossless
+  { mediaType: 'image/jp2', transferSyntaxUID: '1.2.840.10008.1.2.4.91' },  // JPEG 2000 Lossy
+  { mediaType: 'image/jpx', transferSyntaxUID: '1.2.840.10008.1.2.4.92' },  // JPEG 2000 Part 2 Lossless
+  { mediaType: 'image/jpx', transferSyntaxUID: '1.2.840.10008.1.2.4.93' },  // JPEG 2000 Part 2 Lossy
+  { mediaType: 'application/octet-stream', transferSyntaxUID: '*' }         // Wildcard for any encoding
+]
+// JPEG baseline is added conditionally if bitsAllocated <= 8
+if (bitsAllocated <= 8) {
+  mediaTypes.push({ mediaType: 'image/jpeg', transferSyntaxUID: '1.2.840.10008.1.2.4.50' })
+}
 ```
 
-The dicomweb-client will build the appropriate `Accept` header from the `mediaTypes` array. If no `mediaTypes` are specified, it will default to requesting `application/octet-stream`.
+These media types are then passed to `client.retrieveInstanceFrames()` at **line 512**.
+
+#### 2. Accept Header Construction (dicomweb-client)
+
+The dicomweb-client processes the `mediaTypes` array in its `retrieveInstanceFrames()` method:
+
+**Location:** `node_modules/dicomweb-client/build/dicomweb-client.js` (around lines 1240-1270)
+
+**Logic flow:**
+
+1. **If no mediaTypes are provided:** Returns frames as `application/octet-stream`
+2. **If mediaTypes span multiple types** (e.g., both `image/*` and `application/*`):
+   - Uses a comprehensive supported media types map (lines 1245-1262)
+   - Calls `_buildMultipartAcceptHeaderFieldValue()` to construct the Accept header
+   - Returns: `Accept: multipart/related; type="image/jpeg"; transfer-syntax=1.2.840.10008.1.2.4.50, multipart/related; type="image/jp2"; transfer-syntax=1.2.840.10008.1.2.4.90, ...`
+3. **If all mediaTypes share a common type:**
+   - Routes to specialized methods (`_httpGetMultipartImage`, `_httpGetMultipartVideo`, etc.)
+
+#### 3. Multipart Accept Header Building
+
+The `_buildMultipartAcceptHeaderFieldValue()` static method (**lines 1744-1802**) constructs the final Accept header:
+
+```javascript
+// For each media type in the array:
+"multipart/related; type=\"{mediaType}\"; transfer-syntax={transferSyntaxUID}"
+```
+
+Example result:
+```
+Accept: multipart/related; type="image/jls"; transfer-syntax=1.2.840.10008.1.2.4.80, multipart/related; type="image/jp2"; transfer-syntax=1.2.840.10008.1.2.4.90, multipart/related; type="application/octet-stream"; transfer-syntax=*
+```
+
+This tells the DICOMweb server which encodings the client can accept, with the server returning frames in one of the requested formats.
+
+### Other Request Types
+
+- **Metadata requests** (`retrieveSeriesMetadata`) → `Accept: application/dicom+json`
+- **Bulk data** (`retrieveBulkData`) → `Accept: application/octet-stream` or multipart
+- **PDF retrieval** → `Accept: application/pdf`
 
 ### Accept Header Priority
 
