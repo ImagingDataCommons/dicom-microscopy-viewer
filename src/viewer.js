@@ -37,10 +37,9 @@ import TileDebug from 'ol/source/TileDebug'
 import { default as VectorEventType } from 'ol/source/VectorEventType'// eslint-disable-line
 import { ZoomSlider, Zoom } from 'ol/control'
 import { getCenter, createEmpty, extend, getHeight, getWidth } from 'ol/extent'
-import Point from 'ol/geom/Point'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import dcmjs from 'dcmjs'
-import { has } from 'lodash'
+import { has, debounce } from 'lodash'
 import { CustomError, errorTypes } from './customError'
 
 import {
@@ -99,12 +98,9 @@ import {
   getPointFeature,
   getPolygonFeature,
   getFeaturesFromBulkAnnotations,
-  getFeaturesFromBulkAnnotationsAsync,
   getRectangleFeature,
   getEllipseFeature
 } from './bulkAnnotations/utils'
-import { getAnnotationProcessingQueue } from './utils/annotationProcessingQueue'
-import { getPerformanceMonitor } from './utils/performanceMonitor'
 
 import Enums from './enums'
 import _AnnotationManager from './annotations/_AnnotationManager'
@@ -3980,21 +3976,7 @@ class VolumeImageViewer {
       const bulkAnnotationsLoader = function (featureFunction, success, failure) {
         console.info('load bulk annotations layer')
 
-        /**
-         * Check if features already exist in this specific source
-         */
-        const existingFeatures = this.getFeatures()
-        if (existingFeatures.length > 0) {
-          console.info(`Skipping annotation processing - ${existingFeatures.length} features already loaded in this source`)
-          if (success) {
-            success(existingFeatures)
-          }
-          return
-        }
-
-        const processBulkAnnotations = async (retrievedBulkdata) => {
-          const perfMonitor = getPerformanceMonitor()
-          perfMonitor.start(`process-annotations-${annotationGroupUID}`)
+        const processBulkAnnotations = (retrievedBulkdata) => {
           console.info('process bulk annotations', retrievedBulkdata)
           areAnnotationsLoaded = true
 
@@ -4004,374 +3986,108 @@ class VolumeImageViewer {
           console.debug('graphic index:', graphicIndex?.length)
           console.debug('measurements:', measurements?.length)
 
-          // Compute statistics in web worker if measurements exist
-          if (measurements && measurements.length > 0) {
-            console.info(
-              'compute statistics for measurement values ' +
-              `of annotation group "${annotationGroupUID}" (using web worker)`
-            )
-
-            try {
-              /**
-               * Use web worker for statistics computation
-               */
-              const statsTask = webWorkerManager.addTask(
-                'annotationStatisticsTask',
-                { measurements },
-                0 // Normal priority
-              )
-
-              const statsResult = await statsTask.promise
-              if (statsResult && statsResult.properties) {
-                this.setProperties(statsResult.properties, true)
-              } else {
-                console.warn('Failed to compute statistics in web worker, falling back to synchronous computation')
-                /**
-                 * Fallback to synchronous computation
-                 */
-                const properties = {}
-                measurements.forEach((measurementItem, measurementIndex) => {
-                  const min = measurementItem.values.reduce(
-                    (a, b) => Math.min(a, b),
-                    Infinity
-                  )
-                  const max = measurementItem.values.reduce(
-                    (a, b) => Math.max(a, b),
-                    -Infinity
-                  )
-                  const key = `measurementValue${measurementIndex.toString()}`
-                  properties[key] = { min, max }
-                })
-                this.setProperties(properties, true)
-              }
-            } catch (error) {
-              console.error('Error computing statistics in web worker:', error)
-              /**
-               * Fallback to synchronous computation
-               */
-              const properties = {}
-              measurements.forEach((measurementItem, measurementIndex) => {
-                const min = measurementItem.values.reduce(
-                  (a, b) => Math.min(a, b),
-                  Infinity
-                )
-                const max = measurementItem.values.reduce(
-                  (a, b) => Math.max(a, b),
-                  -Infinity
-                )
-                const key = `measurementValue${measurementIndex.toString()}`
-                properties[key] = { min, max }
-              })
-              this.setProperties(properties, true)
-            }
-          }
-
-          /**
-           * Determine chunk size based on number of annotations
-           * Use smaller chunks for very large datasets to maintain responsiveness
-           */
-          const chunkSize = numberOfAnnotations > 5000 ? 100 : numberOfAnnotations > 1000 ? 200 : 500
-
-          /**
-           * Use async feature creation for large datasets, sync for small ones
-           */
-          const useAsync = numberOfAnnotations > 500
-
-          /**
-           * Get container for event publishing
-           */
-          const container = this[_map]?.getTargetElement()
-
-          if (useAsync) {
-            console.info(
-              `processing ${numberOfAnnotations} annotations asynchronously ` +
-              `(chunk size: ${chunkSize})`
-            )
-
-            try {
-              /**
-               * Process features in chunks
-               */
-              const features = await getFeaturesFromBulkAnnotationsAsync({
-                graphicType,
-                graphicData,
-                graphicIndex,
-                measurements,
-                commonZCoordinate,
-                coordinateDimensionality,
-                numberOfAnnotations,
-                annotationGroupUID,
-                annotationGroup,
-                pyramid,
-                affine,
-                affineInverse,
-                view,
-                featureFunction,
-                isHighResolution: isHighResolution(),
-                chunkSize,
-                onProgress: (processed, total) => {
-                  if (processed % (chunkSize * 5) === 0 || processed === total) {
-                    console.debug(`processed ${processed}/${total} annotations`)
-                  }
-                  /**
-                   * Publish progress event to both container and window
-                   * Container dispatch allows bubbling, window dispatch ensures component receives it
-                   */
-                  const progressData = {
-                    annotationGroupUID,
-                    processed,
-                    total,
-                    percentage: Math.round((processed / total) * 100)
-                  }
-                  if (container) {
-                    publish(container, EVENT.ANNOTATION_PROCESSING_PROGRESS, progressData)
-                  }
-                  /**
-                   * Also dispatch to window to ensure the component receives it
-                   */
-                  if (typeof window !== 'undefined') {
-                    publish(window, EVENT.ANNOTATION_PROCESSING_PROGRESS, progressData)
-                  }
-                },
-                onChunkComplete: (chunkFeatures) => {
-                  /**
-                   * Add features incrementally as chunks complete with debouncing
-                   * This prevents UI jank from too many rapid feature additions
-                   */
-                  if (chunkFeatures.length > 0) {
-                    /**
-                     * Initialize pending features array if needed
-                     */
-                    if (!this._pendingFeatures) {
-                      this._pendingFeatures = []
-                    }
-                    /**
-                     * Clear existing timeout to debounce
-                     */
-                    if (this._addFeaturesTimeout) {
-                      clearTimeout(this._addFeaturesTimeout)
-                    }
-                    /**
-                     * Add features to pending queue
-                     */
-                    this._pendingFeatures.push(...chunkFeatures)
-                    /**
-                     * Debounce the actual addition to batch multiple chunks
-                     */
-                    this._addFeaturesTimeout = setTimeout(() => {
-                      if (this._pendingFeatures && this._pendingFeatures.length > 0) {
-                        const featuresToAdd = this._pendingFeatures
-                        this._pendingFeatures = null
-                        this._addFeaturesTimeout = null
-                        this.addFeatures(featuresToAdd)
-                      }
-                    }, 16) // ~60fps debounce (16ms = ~60fps)
-                  }
-                }
-              })
-
-              const duration = perfMonitor.end(`process-annotations-${annotationGroupUID}`)
-              console.info(
-                `add n=${features.length} annotations ` +
-                `for annotation group "${annotationGroupUID}"` +
-                (duration ? ` (${duration.toFixed(2)}ms)` : '')
-              )
-              success(features)
-            } catch (error) {
-              console.error('Error processing annotations asynchronously:', error)
-              errorInterceptor(
-                new CustomError(
-                  errorTypes.VISUALIZATION,
-                  `Failed to process annotations: ${error.message}`
-                )
-              )
-              failure()
-            }
-          } else {
-            /**
-             * Use synchronous processing for small datasets
+          console.info(
+            'compute statistics for measurement values ' +
+            `of annotation group "${annotationGroupUID}"`
+          )
+          const properties = {}
+          measurements.forEach((measurementItem, measurementIndex) => {
+            /*
+             * Ideally, we would compute quantiles, but that is an expensive
+             * operation. For now, just compute mininum and maximum.
              */
-            console.info(
-              `processing ${numberOfAnnotations} annotations synchronously`
+            const min = measurementItem.values.reduce(
+              (a, b) => Math.min(a, b),
+              Infinity
             )
-
-            const features = getFeaturesFromBulkAnnotations({
-              graphicType,
-              graphicData,
-              graphicIndex,
-              measurements,
-              commonZCoordinate,
-              coordinateDimensionality,
-              numberOfAnnotations,
-              annotationGroupUID,
-              annotationGroup,
-              metadataItem,
-              pyramid,
-              affine,
-              affineInverse,
-              view,
-              featureFunction,
-              isHighResolution: isHighResolution()
-            })
-
-            const duration = perfMonitor.end(`process-annotations-${annotationGroupUID}`)
-            console.info(
-              `add n=${features.length} annotations ` +
-              `for annotation group "${annotationGroupUID}"` +
-              (duration ? ` (${duration.toFixed(2)}ms)` : '')
+            const max = measurementItem.values.reduce(
+              (a, b) => Math.max(a, b),
+              -Infinity
             )
-            this.addFeatures(features)
-            success(features)
-          }
+            const key = `measurementValue${measurementIndex.toString()}`
+            properties[key] = { min, max }
+          })
+          this.setProperties(properties, true)
 
+          const features = getFeaturesFromBulkAnnotations({
+            graphicType,
+            graphicData,
+            graphicIndex,
+            measurements,
+            commonZCoordinate,
+            coordinateDimensionality,
+            numberOfAnnotations,
+            annotationGroupUID,
+            annotationGroup,
+            metadataItem,
+            pyramid,
+            affine,
+            affineInverse,
+            view,
+            featureFunction,
+            isHighResolution: isHighResolution()
+          })
+
+          console.info(
+            `add n=${features.length} annotations ` +
+            `for annotation group "${annotationGroupUID}"`
+          )
+          this.addFeatures(features)
+          success(features)
           console.info('number of annotations:', numberOfAnnotations)
         }
 
         const cachedBulkAnnotations = getCachedBulkAnnotations(annotationGroupUID)
         if (cachedBulkAnnotations) {
-          console.info('use cached bulk annotations')
-          /**
-           * Use queue for processing cached annotations
-           */
-          const queue = getAnnotationProcessingQueue()
-          queue.addTask({
-            id: `process-cached-${annotationGroupUID}`,
-            priority: 1, // Higher priority for cached data
-            processor: async () => {
-              return await processBulkAnnotations(cachedBulkAnnotations)
-            },
-            retries: 0, // No retries for cached data
-            onError: (error) => {
-              console.error('Failed to process cached bulk annotations', error)
-              const customError = new CustomError(
-                errorTypes.VISUALIZATION,
-                `Failed to process cached bulk annotations: ${error.message}`
-              )
-              errorInterceptor(customError)
-              failure()
-            }
-          }).then(() => {
-            /**
-             * Success is already handled in processBulkAnnotations
-             */
-          }).catch((error) => {
-            /**
-             * Error already handled in onError
-             */
-            console.debug('Annotation processing error (already handled):', error)
+          try {
+            console.info('use cached bulk annotations')
+            processBulkAnnotations(cachedBulkAnnotations)
+          } catch (error) {
+            console.error('Failed to process cached bulk annotations', error)
+            const customError = new CustomError(
+              errorTypes.VISUALIZATION,
+              `Failed to process cached bulk annotations: ${error.message}`
+            )
+            errorInterceptor(customError)
             failure()
-          })
+          }
         } else {
-          /**
-           * Use queue for fetching and processing annotations
-           */
-          const queue = getAnnotationProcessingQueue()
-          queue.addTask({
-            id: `fetch-and-process-${annotationGroupUID}`,
-            /**
-             * Normal priority for fetching
-             */
-            priority: 0,
-            processor: async () => {
-              /**
-               * Fetch data with retry logic
-               */
-              const fetchWithRetry = async (fetchFn, maxRetries = 2) => {
-                let lastError
-                for (let attempt = 0; attempt <= maxRetries; attempt++) {
-                  try {
-                    return await fetchFn()
-                  } catch (error) {
-                    lastError = error
-                    if (attempt < maxRetries) {
-                      /**
-                       * Exponential backoff, max 5s
-                       */
-                      const delay = Math.min(1000 * Math.pow(2, attempt), 5000)
-                      console.warn(`Fetch attempt ${attempt + 1} failed, retrying in ${delay}ms...`, error)
-                      await new Promise(resolve => setTimeout(resolve, delay))
-                    }
-                  }
-                }
-                throw lastError
-              }
-
-              /**
-               * Publish retrieval progress events
-               */
-              const container = this[_map]?.getTargetElement()
-              const publishRetrievalProgress = (isLoading, description) => {
-                const progressData = {
-                  annotationGroupUID,
-                  isLoading,
-                  description
-                }
-                if (container) {
-                  publish(container, EVENT.ANNOTATION_RETRIEVAL_PROGRESS, progressData)
-                }
-                if (typeof window !== 'undefined') {
-                  publish(window, EVENT.ANNOTATION_RETRIEVAL_PROGRESS, progressData)
-                }
-              }
-
-              /**
-               * Start retrieval - show loading indicator
-               */
-              publishRetrievalProgress(true, 'Retrieving annotations...')
-
-              /**
-               * Fetch data with retry logic
-               */
-              const graphicDataPromise = fetchWithRetry(async () => {
-                return await _fetchGraphicData({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
-              })
-
-              const graphicIndexPromise = fetchWithRetry(async () => {
-                return await _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
-              })
-
-              const [graphicData, graphicIndex] = await Promise.all([graphicDataPromise, graphicIndexPromise])
-
-              /**
-               * Retrieval complete - hide loading indicator
-               */
-              publishRetrievalProgress(false, 'Annotation retrieval complete')
-
-              /**
-               * measurements placeholder
-               */
-              const retrievedBulkdata = [graphicData, graphicIndex, []]
-
-              console.info('retrieve and cache bulk annotations')
-              cacheBulkAnnotations(annotationGroupUID, retrievedBulkdata)
-
-              /**
-               * Process the fetched data
-               */
-              return await processBulkAnnotations(retrievedBulkdata)
-            },
-            /**
-             * Allow one retry for the entire fetch+process operation
-             */
-            retries: 1,
-            onError: (error) => {
-              console.error('Failed to retrieve and process bulk annotations', error)
-              const customError = new CustomError(
-                errorTypes.VISUALIZATION,
-                `Failed to retrieve and process bulk annotations: ${error.message}`
-              )
-              errorInterceptor(customError)
-              failure()
+          const promises = [
+            _fetchGraphicData({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client }),
+            _fetchGraphicIndex({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
+            // TODO: Only fetch measurements if required
+            // _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
+          ]
+          Promise.allSettled(promises).then(results => {
+            const errors = {
+              0: 'Failed to retrieve point coordiante data of annotation group',
+              1: 'Failed to retrieve point index list of annotation group'
+              // 2: 'Failed to fetch measurements of annotation group'
             }
-          }).then(() => {
-            /**
-             * Success is already handled in processBulkAnnotations
-             */
-          }).catch((error) => {
-            /**
-             * Error already handled in onError
-             */
-            console.debug('Annotation processing error (already handled):', error)
+            const retrievedBulkdata = [[], [], []]
+            results.forEach((result, index) => {
+              if (result.status === 'fulfilled') {
+                retrievedBulkdata[index] = result.value
+              } else {
+                console.error(errors[index], result.reason)
+                const customError = new CustomError(
+                  errorTypes.VISUALIZATION,
+                  errors[index] + ': ' + result.reason
+                )
+                errorInterceptor(customError)
+                failure()
+              }
+            })
+            console.info('retrieve and cache bulk annotations')
+            cacheBulkAnnotations(annotationGroupUID, retrievedBulkdata)
+            processBulkAnnotations(retrievedBulkdata)
+          }).catch(error => {
+            console.error('Failed to retrieve and cache bulk annotations', error)
+            const customError = new CustomError(
+              errorTypes.VISUALIZATION,
+              `Failed to retrieve and cache bulk annotations: ${error.message}`
+            )
+            errorInterceptor(customError)
             failure()
           })
         }
@@ -4415,7 +4131,25 @@ class VolumeImageViewer {
         }
       }
 
+      const getHighResFeatureFunc = (graphicType) => {
+        switch (graphicType) {
+          case 'POINT':
+            return getPointFeature
+          case 'POLYGON':
+          case 'POLYLINE':
+            return getPolygonFeature
+          case 'RECTANGLE':
+            return getRectangleFeature
+          case 'ELLIPSE':
+            return getEllipseFeature
+          default:
+            console.warn(`Unsupported graphic type "${graphicType}"`)
+            return getPolygonFeature
+        }
+      }
+
       const highResLoader = getGraphicTypeLoader(graphicType)
+      const highResFeatureFunc = getHighResFeatureFunc(graphicType)
 
       const pointsSource = new VectorSource({
         loader: pointsLoader,
@@ -4429,52 +4163,10 @@ class VolumeImageViewer {
         rotateWithView: true,
         overlaps: false
       })
-      /**
-       * For non-POINT annotations, use highResSource for clustering so both layers share the same source.
-       * For POINT annotations, use pointsSource for clustering.
-       */
       const clustersSource = new Cluster({
         distance: 100,
         minDistance: 0,
-        source: graphicType === 'POINT' ? pointsSource : highResSource,
-        /**
-         * For non-POINT geometries, extract a point for clustering.
-         * For POINT geometries, use default behavior.
-         */
-        geometryFunction: graphicType === 'POINT'
-          ? undefined
-          : (feature) => {
-              const geometry = feature.getGeometry()
-              if (!geometry) return null
-              const geomType = geometry.getType()
-              /**
-               * For polygons, use interior point; for polylines, use first coordinate
-               */
-              if (geomType === 'Polygon') {
-                return geometry.getInteriorPoint()
-              } else if (geomType === 'LineString' || geomType === 'MultiLineString') {
-                const coords = geometry.getFirstCoordinate()
-                return new Point(coords)
-              } else if (geomType === 'MultiPolygon') {
-                /**
-                 * For MultiPolygon, get interior point of first polygon
-                 */
-                const polygons = geometry.getPolygons()
-                if (polygons.length > 0) {
-                  return polygons[0].getInteriorPoint()
-                }
-                return null
-              }
-              /**
-               * Fallback: try to get a point from the geometry
-               */
-              try {
-                const coords = geometry.getFirstCoordinate()
-                return coords ? new Point(coords) : null
-              } catch (e) {
-                return null
-              }
-            }
+        source: pointsSource
       })
 
       pointsSource.on('featuresloadstart', this._onBulkAnnotationsFeaturesLoadStart)
@@ -4486,6 +4178,25 @@ class VolumeImageViewer {
       clustersSource.on('featuresloadstart', this._onBulkAnnotationsFeaturesLoadStart)
       clustersSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
       clustersSource.on('featuresloaderror', this._onBulkAnnotationsFeaturesLoadError)
+
+      /**
+       * Reload annotations when panning.
+       * The annotations will be drawn inside the viewport area for better performance.
+       */
+      const debouncedUpdate = debounce(() => {
+        console.info('change:center event')
+        const isVisible = annotationGroup.activeLayer().getVisible()
+        if (isVisible && graphicType !== 'POINT' && areAnnotationsLoaded === true && isHighResolution()) {
+          console.info('load high resolution bulk annotations')
+          bulkAnnotationsLoader.call(
+            highResSource,
+            highResFeatureFunc,
+            this._onBulkAnnotationsFeaturesLoadEnd,
+            this._onBulkAnnotationsFeaturesLoadError
+          )
+        }
+      }, 500)
+      view.on('change:center', debouncedUpdate)
 
       const getHighResLayer = ({ pointsSource, highResSource, annotationGroup }) => {
         return graphicType === 'POINT'

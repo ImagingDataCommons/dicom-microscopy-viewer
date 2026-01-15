@@ -12,31 +12,21 @@ import {
   getPixelSpacing
 } from '../scoord3dUtils'
 import { buildTransform, mapPixelCoordToSlideCoord } from '../utils'
-import { processInChunks } from '../utils/asyncProcessor'
 
 /**
  * Get viewport bounding box
  *
  * @param {*} view
- * @param {*} pyramid
- * @param {*} affine - Base affine transformation, or cachedAffine for pyramid-level specific
- * @param {*} annotationGroup - Optional annotation group for pyramid-level specific calculation
  * @returns
  */
-export const getViewportBoundingBox = ({ view, pyramid, affine, annotationGroup }) => {
+export const getViewportBoundingBox = ({ view, pyramid, affine }) => {
   const visibleExtent = view.calculateExtent()
   const topLeft = getTopLeft(visibleExtent)
   const bottomRight = getBottomRight(visibleExtent)
-
-  // Use pyramid-level specific affine if annotationGroup is provided
-  const transformAffine = annotationGroup
-    ? getAffineBasedOnPyramidLevel({ affine, pyramid, annotationGroup })
-    : affine
-
   const scoord3DCoords = _geometryCoordinates2scoord3dCoordinates(
     [topLeft, bottomRight],
     pyramid,
-    transformAffine
+    affine
   )
   return {
     topLeft: scoord3DCoords[0],
@@ -77,7 +67,7 @@ export const isCoordinateInsideBoundingBox = (
  * @param {Object} options.annotationGroup - The annotation group metadata.
  * @returns {Array} - The affine transformation matrix.
  */
-export const getAffineBasedOnPyramidLevel = ({ affine, pyramid, annotationGroup }) => {
+const getAffineBasedOnPyramidLevel = ({ affine, pyramid, annotationGroup }) => {
   const { ReferencedSOPInstanceUID } = annotationGroup.metadata.ReferencedImageSequence[0]
   const currentPyramidMetadata = pyramid.find(p => p.SOPInstanceUID === ReferencedSOPInstanceUID)
   if (currentPyramidMetadata && currentPyramidMetadata.ImageOrientationSlide) {
@@ -432,12 +422,6 @@ export const getPointFeature = ({
 
 const HIGH_RES_GRAPHIC_TYPES = ['POLYLINE', 'POLYGON', 'ELLIPSE', 'RECTANGLE']
 
-/**
- * Get features from bulk annotations synchronously (for backward compatibility)
- *
- * @param {Object} params - Parameters
- * @returns {Array<Feature>} Array of features
- */
 export const getFeaturesFromBulkAnnotations = ({
   graphicType,
   graphicData,
@@ -460,19 +444,12 @@ export const getFeaturesFromBulkAnnotations = ({
   console.info('create features from bulk annotations')
   console.info('coordinate dimensionality:', coordinateDimensionality)
 
+  const { topLeft, bottomRight } = getViewportBoundingBox({ view, pyramid, affine })
+
   const cachedAffine = getAffineBasedOnPyramidLevel({
     affine,
     pyramid,
     annotationGroup
-  })
-
-  // Calculate viewport bounding box using the same affine as annotations for coordinate system consistency
-  // For '2D' annotations, use cachedAffine; for '3D', use base affine (coordinates already in slide coords)
-  const boundingBoxAffine = annotationCoordinateType === '2D' ? cachedAffine : affine
-  const { topLeft, bottomRight } = getViewportBoundingBox({
-    view,
-    pyramid,
-    affine: boundingBoxAffine
   })
 
   const features = []
@@ -548,158 +525,13 @@ export const getFeaturesFromBulkAnnotations = ({
   return features
 }
 
-/**
- * Get features from bulk annotations asynchronously with chunked processing
- * This version processes annotations in chunks to avoid blocking the main thread
- *
- * @param {Object} params - Parameters
- * @param {number} [params.chunkSize=200] - Number of annotations to process per chunk
- * @param {function} [params.onProgress] - Progress callback: (processed, total) => void
- * @param {function} [params.onChunkComplete] - Called after each chunk: (features, startIndex, endIndex) => void
- * @returns {Promise<Array<Feature>>} Promise that resolves with all features
- */
-export const getFeaturesFromBulkAnnotationsAsync = ({
-  graphicType,
-  graphicData,
-  graphicIndex,
-  measurements,
-  commonZCoordinate,
-  coordinateDimensionality,
-  numberOfAnnotations,
-  annotationGroupUID,
-  annotationGroup,
-  pyramid,
-  affine,
-  affineInverse,
-  view,
-  featureFunction,
-  isHighResolution,
-  chunkSize = 200,
-  onProgress,
-  onChunkComplete
-}) => {
-  const annotationCoordinateType = annotationGroup.metadata.AnnotationCoordinateType
-
-  console.info('create features from bulk annotations (async)')
-  console.info('coordinate dimensionality:', coordinateDimensionality)
-  console.info('number of annotations:', numberOfAnnotations)
-  console.info('chunk size:', chunkSize)
-
-  const cachedAffine = getAffineBasedOnPyramidLevel({
-    affine,
-    pyramid,
-    annotationGroup
-  })
-
-  // Calculate viewport bounding box using the same affine as annotations for coordinate system consistency
-  // For '2D' annotations, use cachedAffine; for '3D', use base affine (coordinates already in slide coords)
-  const boundingBoxAffine = annotationCoordinateType === '2D' ? cachedAffine : affine
-  const { topLeft, bottomRight } = getViewportBoundingBox({
-    view,
-    pyramid,
-    affine: boundingBoxAffine
-  })
-
-  // Create array of annotation indices to process
-  const annotationIndices = []
-  for (let i = 0; i < numberOfAnnotations; i++) {
-    annotationIndices.push(i)
-  }
-
-  // Process annotations in chunks
-  return processInChunks(
-    annotationIndices,
-    (annotationIndex) => {
-      // Viewport filtering for high-resolution graphic types
-      if (isHighResolution && HIGH_RES_GRAPHIC_TYPES.includes(graphicType)) {
-        const length = coordinateDimensionality * 4
-        const offset = ['POLYGON', 'POLYLINE'].includes(graphicType) ? graphicIndex[annotationIndex] - 1 : annotationIndex * length
-
-        let firstCoordinate = _getCoordinates(
-          graphicData,
-          offset,
-          commonZCoordinate
-        )
-
-        if (!firstCoordinate || !firstCoordinate[0] || !firstCoordinate[1]) {
-          return null
-        }
-
-        if (annotationCoordinateType === '2D') {
-          firstCoordinate = mapPixelCoordToSlideCoord({
-            point: [firstCoordinate[0], firstCoordinate[1]],
-            affine: cachedAffine
-          })
-        }
-
-        if (!isCoordinateInsideBoundingBox(
-          firstCoordinate,
-          topLeft,
-          bottomRight
-        )) {
-          return null
-        }
-      }
-
-      // Create feature
-      const feature = featureFunction({
-        graphicType,
-        graphicIndex,
-        graphicData,
-        numberOfAnnotations,
-        annotationIndex,
-        annotationGroup,
-        pyramid,
-        affine,
-        affineInverse,
-        commonZCoordinate,
-        coordinateDimensionality,
-        annotationCoordinateType
-      })
-
-      feature.setId(annotationGroupUID + '-' + annotationIndex)
-      feature.set('annotationGroupUID', annotationGroupUID, true)
-
-      measurements.forEach((measurement, measurementIndex) => {
-        const key = 'measurementValue' + measurementIndex
-        const value = measurement.values[annotationIndex]
-        /**
-         * Needed for the WebGL renderer. This is required for the point layer which uses webgl
-         * so it might not be required for other layers e.g. vector layer.
-         */
-        feature.set(key, value, true)
-      })
-
-      return feature
-    },
-    {
-      chunkSize,
-      onProgress,
-      onChunkComplete: (chunkFeatures, startIndex, endIndex) => {
-        // Filter out null values (skipped annotations)
-        const validFeatures = chunkFeatures.filter(f => f !== null)
-        if (onChunkComplete && validFeatures.length > 0) {
-          onChunkComplete(validFeatures, startIndex, endIndex)
-        }
-      }
-    }
-  ).then(features => {
-    // Filter out null values from the final result
-    const validFeatures = features.filter(f => f !== null)
-    console.debug('num of features:', validFeatures.length)
-    return validFeatures
-  })
-}
-
 export default {
   getFeaturesFromBulkAnnotations,
-  getFeaturesFromBulkAnnotationsAsync,
   getPointFeature,
   getCircleFeature,
   getEllipseFeature,
   getRectangleFeature,
   getPolygonFeature,
   isCoordinateInsideBoundingBox,
-  getViewportBoundingBox,
-  getAffineBasedOnPyramidLevel
+  getViewportBoundingBox
 }
