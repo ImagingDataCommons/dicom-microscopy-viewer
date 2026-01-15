@@ -364,7 +364,7 @@ class Ellipse extends Scoord3D {
       const dot = firstAxis[0] * secondAxis[0] + firstAxis[1] * secondAxis[1]
       const normalizedDot = dot / (firstAxisNorm * secondAxisNorm)
       if (Math.abs(normalizedDot) > ORTHO_EPS) {
-        throw new Error('Ellipse axes must be perpendicular');
+        throw new Error('Ellipse axes must be perpendicular')
       }
     }
     let coordinates = options.coordinates
