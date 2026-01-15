@@ -358,11 +358,11 @@ class Ellipse extends Scoord3D {
     // An ellipse with one or both axes as the zero vector is legitimate.
     // This might typically occur when an ellipse is first created in a viewer.
     // Only check for perpendicular axes if both axes are not zero.
-    const ZERO_EPS = 1e-6;
+    const ZERO_EPS = 1e-6
     if (firstAxisNorm > ZERO_EPS && secondAxisNorm > ZERO_EPS) {
-      const ORTHO_EPS = 1e-6;
-      const dot = firstAxis[0] * secondAxis[0] + firstAxis[1] * secondAxis[1];
-      const normalizedDot = dot / (firstAxisNorm * secondAxisNorm);
+      const ORTHO_EPS = 1e-6
+      const dot = firstAxis[0] * secondAxis[0] + firstAxis[1] * secondAxis[1]
+      const normalizedDot = dot / (firstAxisNorm * secondAxisNorm)
       if (Math.abs(normalizedDot) > ORTHO_EPS) {
         throw new Error('Ellipse axes must be perpendicular');
       }
