@@ -355,11 +355,17 @@ class Ellipse extends Scoord3D {
     const secondAxisNorm = Math.sqrt(
       Math.pow(secondAxis[0], 2) + Math.pow(secondAxis[1], 2)
     )
-    const dotProduct = firstAxis[0] * secondAxis[0] + firstAxis[1] * secondAxis[1]
-    const angle = Math.acos(dotProduct / (firstAxisNorm * secondAxisNorm))
-    const degrees = angle * 180 / Math.PI
-    if (degrees !== 90) {
-      throw new Error('Two axis of Ellipse must have right angle')
+    // An ellipse with one or both axes as the zero vector is legitimate.
+    // This might typically occur when an ellipse is first created in a viewer.
+    // Only check for perpendicular axes if both axes are not zero.
+    const ZERO_EPS = 1e-6
+    if (firstAxisNorm > ZERO_EPS && secondAxisNorm > ZERO_EPS) {
+      const ORTHO_EPS = 1e-6
+      const dot = firstAxis[0] * secondAxis[0] + firstAxis[1] * secondAxis[1]
+      const normalizedDot = dot / (firstAxisNorm * secondAxisNorm)
+      if (Math.abs(normalizedDot) > ORTHO_EPS) {
+        throw new Error('Ellipse axes must be perpendicular')
+      }
     }
     let coordinates = options.coordinates
     if (firstAxisNorm < secondAxisNorm) {
