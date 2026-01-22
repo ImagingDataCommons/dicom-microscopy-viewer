@@ -432,17 +432,6 @@ function _createTileLoadFunction ({
         )
       }
 
-      const jpegMediaType = 'image/jpeg'
-      const jpegTransferSyntaxUID = '1.2.840.10008.1.2.4.50'
-      const jlsMediaType = 'image/jls'
-      const jlsTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.80'
-      const jlsTransferSyntaxUID = '1.2.840.10008.1.2.4.81'
-      const jp2MediaType = 'image/jp2'
-      const jp2TransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.90'
-      const jp2TransferSyntaxUID = '1.2.840.10008.1.2.4.91'
-      const jpxMediaType = 'image/jpx'
-      const jpxTransferSyntaxUIDlossless = '1.2.840.10008.1.2.4.92'
-      const jpxTransferSyntaxUID = '1.2.840.10008.1.2.4.93'
       const octetStreamMediaType = 'application/octet-stream'
       /*
        * Use of the "*" transfer syntax is a hack to work around standard
@@ -457,40 +446,10 @@ function _createTileLoadFunction ({
       const mediaTypes = []
       mediaTypes.push(...[
         {
-          mediaType: jlsMediaType,
-          transferSyntaxUID: jlsTransferSyntaxUIDlossless
-        },
-        {
-          mediaType: jlsMediaType,
-          transferSyntaxUID: jlsTransferSyntaxUID
-        },
-        {
-          mediaType: jp2MediaType,
-          transferSyntaxUID: jp2TransferSyntaxUIDlossless
-        },
-        {
-          mediaType: jp2MediaType,
-          transferSyntaxUID: jp2TransferSyntaxUID
-        },
-        {
-          mediaType: jpxMediaType,
-          transferSyntaxUID: jpxTransferSyntaxUIDlossless
-        },
-        {
-          mediaType: jpxMediaType,
-          transferSyntaxUID: jpxTransferSyntaxUID
-        },
-        {
           mediaType: octetStreamMediaType,
           transferSyntaxUID: octetStreamTransferSyntaxUID
         }
       ])
-      if (bitsAllocated <= 8) {
-        mediaTypes.push({
-          mediaType: jpegMediaType,
-          transferSyntaxUID: jpegTransferSyntaxUID
-        })
-      }
 
       const frameInfo = {
         studyInstanceUID,
