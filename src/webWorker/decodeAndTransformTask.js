@@ -27,7 +27,8 @@ function _handler (data, doneCallback) {
     frame,
     sopInstanceUID,
     metadata,
-    iccProfiles
+    iccProfiles,
+    iccOutputType = "srgb" // "srgb" or "display-p3"
   } = data.data
 
   _checkImageTypeAndDecode(
@@ -43,7 +44,7 @@ function _handler (data, doneCallback) {
     if (iccProfiles?.length) {
       // Only instantiate the transformer once and cache it for reuse.
       if (transformerColor === undefined) {
-        transformerColor = new ColorTransformer(metadata, iccProfiles)
+        transformerColor = new ColorTransformer(metadata, iccProfiles, iccOutputType)
       }
       // Apply ICC color transform
       transformerColor.transform(

@@ -10,7 +10,8 @@ function _processDecodeAndTransformTask (
   samplesPerPixel,
   sopInstanceUID,
   metadata,
-  iccProfiles
+  iccProfiles,
+  iccOutputType = "srgb" // "srgb" or "display-p3"
 ) {
   const priority = undefined
   const transferList = undefined
@@ -26,7 +27,8 @@ function _processDecodeAndTransformTask (
       samplesPerPixel,
       sopInstanceUID,
       metadata,
-      iccProfiles
+      iccProfiles,
+      iccOutputType
     },
     priority,
     transferList
@@ -42,7 +44,8 @@ async function _decodeAndTransformFrame ({
   samplesPerPixel,
   sopInstanceUID,
   metadata, // metadata of all images (different resolution levels)
-  iccProfiles // ICC profiles for all images
+  iccProfiles, // ICC profiles for all images
+  iccOutputType = "srgb" // "srgb" or "display-p3"
 }) {
   const result = await _processDecodeAndTransformTask(
     frame,
@@ -53,7 +56,8 @@ async function _decodeAndTransformFrame ({
     samplesPerPixel,
     sopInstanceUID,
     metadata,
-    iccProfiles
+    iccProfiles,
+    iccOutputType
   )
 
   const signed = pixelRepresentation === 1

@@ -10,8 +10,10 @@ export default class ColorTransformer extends Transformer {
    * @param {Array<metadata.VLWholeSlideMicroscopyImage>} - Metadata of each
    * image
    * @param {Array<TypedArray>} - ICC profiles of each image
+   * @param {number} [iccOutputType="srgb"] - ICC output type
+   *     ("srgb": sRGB (default), "display-p3": Display-P3, "adobe-rgb": Adobe RGB (1998), "romm-rgb": ROMM RGB).
    */
-  constructor (metadata, iccProfiles) {
+  constructor (metadata, iccProfiles, iccOutputType = "srgb") {
     super()
     if (metadata.length !== iccProfiles.length) {
       throw new Error(
@@ -23,6 +25,7 @@ export default class ColorTransformer extends Transformer {
     this.iccProfiles = iccProfiles
     this.codec = null
     this.transformers = {}
+    this.iccOutputTypeString = iccOutputType;
   }
 
   _initialize () {
@@ -50,11 +53,31 @@ export default class ColorTransformer extends Transformer {
           const samplesPerPixel = this.metadata[index].SamplesPerPixel
           const planarConfiguration = this.metadata[index].PlanarConfiguration
           const sopInstanceUID = this.metadata[index].SOPInstanceUID
+
           const profile = inlineBinaryToUint8Array(this.iccProfiles[index])
           if (!profile) {
             console.warn('Unable to convert icc profile: ', this.iccProfiles[index])
             return
           }
+
+          // Determine ICC output type using the exposed enum
+          let iccOutputType
+          switch (this.iccOutputTypeString) {
+            case "display-p3":
+              iccOutputType = this.codec.DcmIccOutputType.DISPLAY_P3
+              break
+            case "adobe-rgb":
+              iccOutputType = this.codec.DcmIccOutputType.ADOBE_RGB
+              break
+            case "romm-rgb":
+              iccOutputType = this.codec.DcmIccOutputType.ROMM_RGB
+              break
+            case "srgb":
+            default:
+              iccOutputType = this.codec.DcmIccOutputType.SRGB
+              break
+          }
+
           this.transformers[sopInstanceUID] = new this.codec.ColorManager(
             {
               columns,
@@ -63,7 +86,8 @@ export default class ColorTransformer extends Transformer {
               samplesPerPixel,
               planarConfiguration
             },
-            profile
+            profile,
+            iccOutputType
           )
         }
         resolve(this.transformers)
