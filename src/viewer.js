@@ -826,10 +826,11 @@ class VolumeImageViewer {
    * @param {number[]} [options.highlightColor=[140, 184, 198]] - Color that
    * should be used to highlight things that get selected by the user
    * @param {object} [options.annotationOptions] - Annotation options
-   * @param {number} [options.annotationOptions.clusteringPixelSizeThreshold] -
+   * @param {number} [options.annotationOptions.clusteringPixelSizeThreshold=0.001] -
    * Pixel size threshold in millimeters. When the current pixel size is smaller
    * than or equal to this threshold, clustering is disabled (high resolution mode).
-   * Defaults to undefined, which falls back to zoom-based detection.
+   * Defaults to 0.001 (clustering enabled by default). Set to undefined to always
+   * use the high-resolution layer (disable clustering).
    * @param {errorInterceptor} [options.errorInterceptor] - Callback for
    * intercepting errors
    * @param {number[]} [options.mapViewResolutions] Map's view list of
@@ -3751,6 +3752,53 @@ class VolumeImageViewer {
   }
 
   /**
+   * Compute whether the current view is in high-resolution mode based on pixel size vs threshold.
+   * When clusteringPixelSizeThreshold is undefined, returns true (always high-res, clustering disabled).
+   * Validates resolutions, currentResolution, and pixelSpacings to avoid NaN/TypeError.
+   *
+   * @param {import('ol/View').default} view - OpenLayers map view
+   * @returns {boolean} true if high-resolution layer should be shown
+   * @private
+   */
+  _computeIsHighResolution (view) {
+    const clusteringPixelSizeThreshold = this[_annotationOptions]?.clusteringPixelSizeThreshold
+    if (clusteringPixelSizeThreshold === undefined) {
+      return true
+    }
+
+    const currentResolution = view.getResolution()
+    if (typeof currentResolution !== 'number' || !Number.isFinite(currentResolution) || currentResolution <= 0) {
+      return true
+    }
+
+    const resolutions = this[_tileGrid].getResolutions()
+    if (!resolutions || resolutions.length === 0) {
+      return true
+    }
+
+    let closestLevelIndex = 0
+    if (resolutions.length >= 2) {
+      let minDiff = Math.abs(resolutions[0] - currentResolution)
+      for (let i = 1; i < resolutions.length; i++) {
+        const diff = Math.abs(resolutions[i] - currentResolution)
+        if (diff < minDiff) {
+          minDiff = diff
+          closestLevelIndex = i
+        }
+      }
+    }
+
+    const pixelSpacings = this[_pyramid].pixelSpacings
+    const currentPixelSpacing = pixelSpacings?.[closestLevelIndex]
+    if (!currentPixelSpacing || currentPixelSpacing.length < 2) {
+      return true
+    }
+
+    const currentPixelSize = Math.min(currentPixelSpacing[0], currentPixelSpacing[1])
+    return currentPixelSize <= clusteringPixelSizeThreshold
+  }
+
+  /**
    * Handle the start of a bulk annotations features load event.
    * @private
    */
@@ -3831,51 +3879,7 @@ class VolumeImageViewer {
     const affine = this[_affine]
     const map = this[_map]
     const view = map.getView()
-    const isHighResolution = () => {
-      const clusteringPixelSizeThreshold = this[_annotationOptions]?.clusteringPixelSizeThreshold
-      if (clusteringPixelSizeThreshold !== undefined) {
-        const currentResolution = view.getResolution()
-        const resolutions = this[_tileGrid].getResolutions()
-
-        /** Find the closest pyramid level based on current resolution */
-        let closestLevelIndex = 0
-        let minDiff = Math.abs(resolutions[0] - currentResolution)
-        for (let i = 1; i < resolutions.length; i++) {
-          const diff = Math.abs(resolutions[i] - currentResolution)
-          if (diff < minDiff) {
-            minDiff = diff
-            closestLevelIndex = i
-          }
-        }
-
-        /** Get pixel spacing for the current pyramid level */
-        const currentPixelSpacing = this[_pyramid].pixelSpacings[closestLevelIndex]
-        /** Use the smaller of the two pixel spacing values (typically they're similar) */
-        const currentPixelSize = Math.min(currentPixelSpacing[0], currentPixelSpacing[1])
-
-        console.debug('Current Resolution:', currentResolution)
-        console.debug('Closest Level Index:', closestLevelIndex)
-        console.debug('Current Pixel Size (mm):', currentPixelSize)
-        console.debug('Clustering Threshold (mm):', clusteringPixelSizeThreshold)
-
-        /** Return true (high resolution) when pixel size is <= threshold (smaller pixels = higher resolution) */
-        return currentPixelSize <= clusteringPixelSizeThreshold
-      }
-
-      /**
-       * When clusteringPixelSizeThreshold is undefined, it means clustering is disabled.
-       * In this case, always use high-res layer (return true).
-       *
-       * Note: This handles both cases:
-       * 1. Clustering was explicitly disabled (threshold set to undefined)
-       * 2. Clustering was never configured (threshold never set)
-       *
-       * In both cases, we want to use high-res layer, so return true.
-       * The zoom-based fallback in setAnnotationOptions is for backward compatibility
-       * but here we simplify to always use high-res when threshold is undefined.
-       */
-      return true
-    }
+    const isHighResolution = () => this._computeIsHighResolution(view)
 
     /**
      * Groups of annotations sharing common characteristics, such as graphic type,
@@ -4580,7 +4584,7 @@ class VolumeImageViewer {
    * @param {number} [options.clusteringPixelSizeThreshold] - Pixel size threshold
    * in millimeters. When the current pixel size is smaller than or equal to this
    * threshold, clustering is disabled (high resolution mode). Set to undefined
-   * to use zoom-based detection.
+   * to always use high-resolution layer (disable clustering).
    * @returns {void}
    */
   setAnnotationOptions (options = {}) {
@@ -4594,70 +4598,37 @@ class VolumeImageViewer {
       }
 
       const view = this[_map].getView()
-      const isHighResolution = () => {
-        const clusteringPixelSizeThreshold = this[_annotationOptions]?.clusteringPixelSizeThreshold
-        if (clusteringPixelSizeThreshold !== undefined) {
-          const currentResolution = view.getResolution()
-          const resolutions = this[_tileGrid].getResolutions()
-
-          let closestLevelIndex = 0
-          let minDiff = Math.abs(resolutions[0] - currentResolution)
-          for (let i = 1; i < resolutions.length; i++) {
-            const diff = Math.abs(resolutions[i] - currentResolution)
-            if (diff < minDiff) {
-              minDiff = diff
-              closestLevelIndex = i
-            }
-          }
-
-          const currentPixelSpacing = this[_pyramid].pixelSpacings[closestLevelIndex]
-          const currentPixelSize = Math.min(currentPixelSpacing[0], currentPixelSpacing[1])
-          return currentPixelSize <= clusteringPixelSizeThreshold
-        }
-
-        /**
-         * Fallback to zoom-based detection
-         */
-        const isZoomUnlimited = this[_mapViewResolutions] === undefined
-        const highestResolution = this[_tileGrid].getResolutions()[0]
-        const updatedMaxZoom = isZoomUnlimited ? highestResolution : (this[_annotationOptions].maxZoom || view.getMaxZoom())
-        const zoom = isZoomUnlimited ? (view.getZoom() * this[_tileGrid].getResolutions().length) : view.getZoom()
-        return zoom >= updatedMaxZoom
-      }
 
       /**
        * Update visibility for all annotation groups
        * Only update if the annotation group is currently visible to avoid triggering unnecessary loads
        */
       Object.values(this[_annotationGroups]).forEach((annotationGroup) => {
-        if (annotationGroup.layers && annotationGroup.layers.length >= 2) {
-          /** Check if annotation group is currently visible (at least one layer is visible) */
-          const isCurrentlyVisible = annotationGroup.layers.some(layer => layer.getVisible() === true)
-
-          /**
-           * Only update visibility if the annotation group is already visible
-           * If it's not visible, just update the config and let moveend handler take care of it
-           */
-          if (isCurrentlyVisible) {
-            /** When clustering is disabled (undefined), always use high-res layer */
-            const clusteringPixelSizeThreshold = this[_annotationOptions]?.clusteringPixelSizeThreshold
-            let shouldShowHighRes
-            if (clusteringPixelSizeThreshold === undefined) {
-              shouldShowHighRes = true
-            } else {
-              shouldShowHighRes = isHighResolution()
-            }
-
-            /** Only update visibility if it's actually changing to avoid triggering unnecessary loads */
-            const currentlyHighResVisible = annotationGroup.layers[0].getVisible()
-            if (currentlyHighResVisible !== shouldShowHighRes) {
-              annotationGroup.layers[0].setVisible(shouldShowHighRes)
-              annotationGroup.layers[1].setVisible(!shouldShowHighRes)
-            }
-          }
-          // If annotation group is not visible, don't touch layers - just let the config update
-          // The moveend handler will apply the correct layer when the group becomes visible
+        const layers = annotationGroup.layers
+        if (!layers || layers.length < 2 || layers[0] == null || layers[1] == null) {
+          return
         }
+
+        /** Check if annotation group is currently visible (at least one layer is visible) */
+        const isCurrentlyVisible = layers.some(layer => layer && layer.getVisible() === true)
+
+        /**
+         * Only update visibility if the annotation group is already visible
+         * If it's not visible, just update the config and let moveend handler take care of it
+         */
+        if (isCurrentlyVisible) {
+          /** When clustering is disabled (undefined), always use high-res layer; otherwise use shared helper */
+          const shouldShowHighRes = this._computeIsHighResolution(view)
+
+          /** Only update visibility if it's actually changing to avoid triggering unnecessary loads */
+          const currentlyHighResVisible = layers[0].getVisible()
+          if (currentlyHighResVisible !== shouldShowHighRes) {
+            layers[0].setVisible(shouldShowHighRes)
+            layers[1].setVisible(!shouldShowHighRes)
+          }
+        }
+        // If annotation group is not visible, don't touch layers - just let the config update
+        // The moveend handler will apply the correct layer when the group becomes visible
       })
     }
   }

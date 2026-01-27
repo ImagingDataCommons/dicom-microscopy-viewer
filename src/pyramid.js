@@ -440,6 +440,9 @@ function _createTileLoadFunction ({
        * stored data set (uncompressed or compressed). The decoder can then not
        * rely on the media type specified by the "Content-Type" header in the
        * response message, but will need to determine it from the payload.
+       * Only application/octet-stream with "*" is requested here; decoders
+       * determine the actual compression format (e.g. JPEG, JPEG-LS, JPEG 2000)
+       * from the payload when processing the frames.
        */
       const octetStreamTransferSyntaxUID = '*'
 
