@@ -4,7 +4,11 @@ node_js:
 
 sudo: false
 
+before_install:
+  - curl -fsSL https://bun.sh/install | bash
+  - export BUN_INSTALL="$HOME/.bun" && export PATH="$BUN_INSTALL/bin:$PATH"
+
 script:
-  - npm install
-  - npm run build
-  - npm test
+  - bun install --frozen-lockfile
+  - bun run build
+  - bun run test

@@ -11,7 +11,7 @@ const _UUID_NAMESPACE = 'c4f09b11-bac0-4f3a-8dc1-9f0046637383'
  *
  * @private
  */
-function _generateUID ({ value } = {}) {
+function _generateUID({ value } = {}) {
   /**
    * A UUID can be represented as a single integer value.
    * http://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_B.2.html
@@ -29,9 +29,9 @@ function _generateUID ({ value } = {}) {
   } else {
     uuid = createUUIDv4()
   }
-  const hex = '0x' + uuid.replace(/-/g, '')
+  const hex = `0x${uuid.replace(/-/g, '')}`
   const decimal = BigInt(hex)
-  return '2.25.' + decimal.toString()
+  return `2.25.${decimal.toString()}`
 }
 
 /**
@@ -44,7 +44,7 @@ function _generateUID ({ value } = {}) {
  *
  * @memberof utils
  */
-function createRotationMatrix (options) {
+function createRotationMatrix(options) {
   if (!('orientation' in options)) {
     throw new Error('Option "orientation" is required.')
   }
@@ -54,7 +54,7 @@ function createRotationMatrix (options) {
   return [
     [rowDirection[0], columnDirection[0]],
     [rowDirection[1], columnDirection[1]],
-    [rowDirection[2], columnDirection[3]]
+    [rowDirection[2], columnDirection[3]],
   ]
 }
 
@@ -71,16 +71,9 @@ function createRotationMatrix (options) {
  *
  * @memberof utils
  */
-function rescale (
-  value,
-  minInput,
-  maxInput,
-  minOutput,
-  maxOutput
-) {
+function rescale(value, minInput, maxInput, minOutput, maxOutput) {
   return (
-    (value - minInput) * (maxOutput - minOutput) /
-    (maxInput - minInput) +
+    ((value - minInput) * (maxOutput - minOutput)) / (maxInput - minInput) +
     minOutput
   )
 }
@@ -95,7 +88,7 @@ function rescale (
  *
  * @memberof utils
  */
-function createWindow (lowerBound, upperBound) {
+function createWindow(lowerBound, upperBound) {
   const windowCenter = (lowerBound + upperBound) / 2
   const windowWidth = upperBound - lowerBound
   return [windowCenter, windowWidth]
@@ -112,7 +105,7 @@ function createWindow (lowerBound, upperBound) {
  *
  * @memberof utils
  */
-function computeRotation (options) {
+function computeRotation(options) {
   const rot = createRotationMatrix({ orientation: options.orientation })
   const angle = Math.atan2(-rot[0][1], rot[0][0])
   let inDegrees = false
@@ -139,7 +132,7 @@ function computeRotation (options) {
  *
  * @memberof utils
  */
-function buildTransform ({ offset, orientation, spacing }) {
+function buildTransform({ offset, orientation, spacing }) {
   // X and Y Offset in Slide Coordinate System
   if (offset == null) {
     throw new Error('Option "offset" is required.')
@@ -176,12 +169,12 @@ function buildTransform ({ offset, orientation, spacing }) {
   const affine = [
     [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
     [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
-    [0, 0, 1]
+    [0, 0, 1],
   ]
   const correction = [
     [1.0, 0.0, -0.5],
     [0.0, 1.0, -0.5],
-    [0.0, 0.0, 1.0]
+    [0.0, 0.0, 1.0],
   ]
   return multiply(affine, correction)
 }
@@ -198,7 +191,7 @@ function buildTransform ({ offset, orientation, spacing }) {
  *
  * @memberof utils
  */
-function applyTransform ({ coordinate, affine }) {
+function applyTransform({ coordinate, affine }) {
   if (coordinate == null) {
     throw new Error('Option "coordinate" is required.')
   }
@@ -246,7 +239,7 @@ function applyTransform ({ coordinate, affine }) {
  *
  * @memberof utils
  */
-function buildInverseTransform ({ offset, orientation, spacing }) {
+function buildInverseTransform({ offset, orientation, spacing }) {
   // X and Y Offset in Slide Coordinate System
   if (offset == null) {
     throw new Error('Option "offset" is required.')
@@ -283,12 +276,12 @@ function buildInverseTransform ({ offset, orientation, spacing }) {
   const affine = inv([
     [orientation[0] * spacing[1], orientation[3] * spacing[0], offset[0]],
     [orientation[1] * spacing[1], orientation[4] * spacing[0], offset[1]],
-    [0, 0, 1]
+    [0, 0, 1],
   ])
   const correction = [
     [1.0, 0.0, 0.5],
     [0.0, 1.0, 0.5],
-    [0.0, 0.0, 1.0]
+    [0.0, 0.0, 1.0],
   ]
   return multiply(correction, affine)
 }
@@ -305,7 +298,7 @@ function buildInverseTransform ({ offset, orientation, spacing }) {
  *
  * @memberof utils
  */
-function applyInverseTransform ({ coordinate, affine }) {
+function applyInverseTransform({ coordinate, affine }) {
   if (coordinate == null) {
     throw new Error('Option "coordinate" is required.')
   }
@@ -356,7 +349,13 @@ function applyInverseTransform ({ coordinate, affine }) {
  *
  * @memberof utils
  */
-function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing, affine: defaultAffine }) {
+function mapPixelCoordToSlideCoord({
+  point,
+  offset,
+  orientation,
+  spacing,
+  affine: defaultAffine,
+}) {
   if (point == null) {
     throw new Error('Option "point" is required.')
   }
@@ -367,11 +366,13 @@ function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing, affin
     throw new Error('Option "point" must be an array with 2 elements.')
   }
 
-  const affine = defaultAffine || buildTransform({
-    orientation,
-    offset,
-    spacing
-  })
+  const affine =
+    defaultAffine ||
+    buildTransform({
+      orientation,
+      offset,
+      spacing,
+    })
   return applyTransform({ coordinate: point, affine })
 }
 
@@ -389,7 +390,7 @@ function mapPixelCoordToSlideCoord ({ point, offset, orientation, spacing, affin
  *
  * @memberof utils
  */
-function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
+function mapSlideCoordToPixelCoord({ point, offset, orientation, spacing }) {
   if (point == null) {
     throw new Error('Option "point" is required.')
   }
@@ -403,7 +404,7 @@ function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
   const affine = buildInverseTransform({
     orientation,
     offset,
-    spacing
+    spacing,
   })
 
   return applyInverseTransform({ coordinate: point, affine })
@@ -420,7 +421,7 @@ function mapSlideCoordToPixelCoord ({ point, offset, orientation, spacing }) {
  *
  * @memberof utils
  */
-function are2DArraysAlmostEqual (a, b, eps = 1.e-5) {
+function are2DArraysAlmostEqual(a, b, eps = 1e-5) {
   if (a === b) return true
   if (a == null || b == null) return false
   if (a.length !== b.length) return false
@@ -447,7 +448,7 @@ function are2DArraysAlmostEqual (a, b, eps = 1.e-5) {
  *
  * @memberof utils
  */
-function are1DArraysAlmostEqual (a, b, eps = 1.e-5) {
+function are1DArraysAlmostEqual(a, b, eps = 1e-5) {
   if (a == null || b == null) return false
   if (a.length !== b.length) return false
 
@@ -470,7 +471,7 @@ function are1DArraysAlmostEqual (a, b, eps = 1.e-5) {
  *
  * @memberof utils
  */
-function areNumbersAlmostEqual (a, b, eps = 1.e-6) {
+function areNumbersAlmostEqual(a, b, eps = 1e-6) {
   return Math.abs(a - b) < eps
 }
 
@@ -483,7 +484,7 @@ function areNumbersAlmostEqual (a, b, eps = 1.e-6) {
  *
  * @private
  */
-function _getUnitSuffix (view) {
+function _getUnitSuffix(view) {
   const UnitsEnum = { METERS: 'm' }
   const DEFAULT_DPI = 25.4 / 0.28
 
@@ -497,7 +498,7 @@ function _getUnitSuffix (view) {
     projection,
     resolution,
     center,
-    pointResolutionUnits
+    pointResolutionUnits,
   )
 
   const DEFAULT_MIN_WIDTH = 65
@@ -574,18 +575,16 @@ const areCodedConceptsEqual = (codedConcept1, codedConcept2) => {
  * @memberof utils
  */
 const doContentItemsMatch = (contentItem1, contentItem2) => {
-  const contentItem1NameCodedConcept = getContentItemNameCodedConcept(
-    contentItem1
-  )
-  const contentItem2NameCodedConcept = getContentItemNameCodedConcept(
-    contentItem2
-  )
+  const contentItem1NameCodedConcept =
+    getContentItemNameCodedConcept(contentItem1)
+  const contentItem2NameCodedConcept =
+    getContentItemNameCodedConcept(contentItem2)
   return contentItem1NameCodedConcept.equals
     ? contentItem1NameCodedConcept.equals(contentItem2NameCodedConcept)
     : areCodedConceptsEqual(
-      contentItem1NameCodedConcept,
-      contentItem2NameCodedConcept
-    )
+        contentItem1NameCodedConcept,
+        contentItem2NameCodedConcept,
+      )
 }
 
 /**
@@ -600,9 +599,9 @@ const doContentItemsMatch = (contentItem1, contentItem2) => {
  *
  * @private
  */
-async function _fetchBulkdata ({ client, reference, options }) {
+async function _fetchBulkdata({ client, reference, options }) {
   const retrieveOptions = { BulkDataURI: reference.BulkDataURI, ...options }
-  return await client.retrieveBulkData(retrieveOptions).then(data => {
+  return await client.retrieveBulkData(retrieveOptions).then((data) => {
     const byteArray = new Uint8Array(data[0])
     if (reference.vr === 'OB') {
       return byteArray
@@ -610,37 +609,37 @@ async function _fetchBulkdata ({ client, reference, options }) {
       return new Uint16Array(
         byteArray.buffer,
         byteArray.byteOffset,
-        byteArray.byteLength / 2
+        byteArray.byteLength / 2,
       )
     } else if (reference.vr === 'OL') {
       return new Int32Array(
         byteArray.buffer,
         byteArray.byteOffset,
-        byteArray.byteLength / 4
+        byteArray.byteLength / 4,
       )
     } else if (reference.vr === 'OV') {
       // There is no Int64Array, so we represent data as Float64Array instead
       return new Float64Array(
         byteArray.buffer,
         byteArray.byteOffset,
-        byteArray.byteLength / 8
+        byteArray.byteLength / 8,
       )
     } else if (reference.vr === 'OF') {
       return new Float32Array(
         byteArray.buffer,
         byteArray.byteOffset,
-        byteArray.byteLength / 4
+        byteArray.byteLength / 4,
       )
     } else if (reference.vr === 'OD') {
       return new Float64Array(
         byteArray.buffer,
         byteArray.byteOffset,
-        byteArray.byteLength / 8
+        byteArray.byteLength / 8,
       )
     } else {
       throw new Error(
         `Unexpected Value Representation "${reference.vr}" for ` +
-        `bulkdata element with URI "${reference.BulkDataURI}".`
+          `bulkdata element with URI "${reference.BulkDataURI}".`,
       )
     }
   })
@@ -654,21 +653,23 @@ async function _fetchBulkdata ({ client, reference, options }) {
  *
  * @private
  */
-function rgb2hex (values) {
+function rgb2hex(values) {
   const r = values[0]
   const g = values[1]
   const b = values[2]
-  return '#' + (0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1)
+  return `#${(0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
 }
 
-function throttle (mainFunction, delay) {
+function throttle(mainFunction, delay) {
   let timerFlag = null // Variable to keep track of the timer
 
   // Returning a throttled version
   return (...args) => {
-    if (timerFlag === null) { // If there is no timer currently running
+    if (timerFlag === null) {
+      // If there is no timer currently running
       mainFunction(...args) // Execute the main function
-      timerFlag = setTimeout(() => { // Set a timer to clear the timerFlag after the specified delay
+      timerFlag = setTimeout(() => {
+        // Set a timer to clear the timerFlag after the specified delay
         timerFlag = null // Clear the timerFlag to allow the main function to be executed again
       }, delay)
     }
@@ -695,5 +696,5 @@ export {
   getContentItemNameCodedConcept,
   rgb2hex,
   rescale,
-  throttle
+  throttle,
 }

@@ -4,31 +4,31 @@ export const InternalProperties = {
   Marker: 'marker',
   Label: 'label',
   Measurements: 'measurements',
-  Evaluations: 'evaluations'
+  Evaluations: 'evaluations',
 }
 
 export const Marker = {
-  Arrow: 'arrow'
+  Arrow: 'arrow',
 }
 
 export const Markup = {
   Measurement: 'measurement',
-  TextEvaluation: 'text'
+  TextEvaluation: 'text',
 }
 
 export const FeatureEvents = {
   CHANGE: 'change',
   GEOMETRY_CHANGE: 'change:geometry',
-  PROPERTY_CHANGE: 'propertychange'
+  PROPERTY_CHANGE: 'propertychange',
 }
 
 export const MapEvents = {
   POINTER_MOVE: 'pointermove',
-  POINTER_UP: 'pointerup'
+  POINTER_UP: 'pointerup',
 }
 
 export const HTMLElementEvents = {
-  MOUSE_DOWN: 'mousedown'
+  MOUSE_DOWN: 'mousedown',
 }
 
 export const InteractionEvents = {
@@ -38,15 +38,15 @@ export const InteractionEvents = {
   TRANSLATE_START: 'translatestart',
   TRANSLATE_END: 'translateend',
   MODIFY_START: 'modifystart',
-  MODIFY_END: 'modifyend'
+  MODIFY_END: 'modifyend',
 }
 
 export const FeatureGeometryEvents = {
-  CHANGE: 'change'
+  CHANGE: 'change',
 }
 
 export const RelationshipTypes = {
-  HAS_OBS_CONTEXT: 'HAS OBS CONTEXT'
+  HAS_OBS_CONTEXT: 'HAS OBS CONTEXT',
 }
 
 export const SOPClassUIDs = {
@@ -54,7 +54,7 @@ export const SOPClassUIDs = {
   MICROSCOPY_BULK_SIMPLE_ANNOTATIONS: '1.2.840.10008.5.1.4.1.1.91.1',
   PARAMETRIC_MAP: '1.2.840.10008.5.1.4.1.1.30',
   SEGMENTATION: '1.2.840.10008.5.1.4.1.1.66.4',
-  VL_WHOLE_SLIDE_MICROSCOPY_IMAGE: '1.2.840.10008.5.1.4.1.1.77.1.6'
+  VL_WHOLE_SLIDE_MICROSCOPY_IMAGE: '1.2.840.10008.5.1.4.1.1.77.1.6',
 }
 
 export default {
@@ -67,5 +67,5 @@ export default {
   HTMLElementEvents,
   InternalProperties,
   MapEvents,
-  SOPClassUIDs
+  SOPClassUIDs,
 }

@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.48.17",
+  "version": "0.48.18",
   "license": "MIT",
   "author": "ImagingDataCommons",
   "homepage": "https://github.com/imagingdatacommons/dicom-microscopy-viewer#readme",
@@ -18,27 +18,12 @@
     "dicomweb",
     "microscopy"
   ],
+  "packageManager": "bun@latest",
   "main": "./src/dicom-microscopy-viewer.js",
   "exports": {
     ".": "./dist/dicomMicroscopyViewer.bundle.min.js",
     "./dist/dynamic-import/dicomMicroscopyViewer.min.js": "./dist/dynamic-import/dicomMicroscopyViewer.min.js",
     "./dynamic-import": "./dist/dynamic-import/dicomMicroscopyViewer.min.js"
-  },
-  "standard": {
-    "ignore": [
-      "/build/*",
-      "/docs/*",
-      "/examples/simple_viewer/scripts/metadata.js",
-      "/examples/simple_viewer/scripts/dicomdict.js",
-      "/src/annotations/_AnnotationManager.test.js",
-      "/src/annotations/markups/_MarkupManager.test.js",
-      "/src/dictionary.js",
-      "/src/__mocks__/*",
-      "/test/*"
-    ],
-    "env": [
-      "jest"
-    ]
   },
   "devDependencies": {
     "@babel/core": "^7.17",
@@ -46,7 +31,7 @@
     "@babel/plugin-transform-runtime": "^7.15.0",
     "@babel/preset-env": "^7.16",
     "@babel/runtime-corejs3": "^7.15.4",
-    "babel-eslint": "10.1.0",
+    "@biomejs/biome": "^2.0.0",
     "babel-jest": "27.5",
     "babel-loader": "^8.2.3",
     "babel-plugin-transform-import-meta": "^2.3.3",
@@ -59,12 +44,12 @@
     "jest-canvas-mock": "^2.3",
     "jsdoc": "^4.0.2",
     "open-cli": "^7.0.1",
-    "standard": "^17.0",
     "terser-webpack-plugin": "^5.2.2",
     "webpack": "^5.94.0",
     "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.2"
+    "webpack-dev-server": "^4.15.2",
+    "husky": "^9.1.7"
   },
   "dependencies": {
     "@cornerstonejs/codec-charls": "^1.2.3",
@@ -86,18 +71,20 @@
   },
   "scripts": {
     "test": "jest --silent",
-    "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
-    "prepublishOnly": "npm run build",
-    "generateStaticSite": "npm run build && cp -R ./dist ./examples",
+    "build": "bun run webpack:bundle && bun run webpack:dynamic-import",
+    "prepublishOnly": "bun run build",
+    "generateStaticSite": "bun run build && cp -R ./dist ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
-    "fmt": "standard 'src/**/*.js' --fix",
-    "lint": "standard 'src/**/*.js'",
-    "lint:fix": "standard --fix src/**/*.js",
+    "fmt": "biome format --write .",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write --unsafe .",
     "clean": "rm -rf ./dist ./node_modules",
     "clean:dist": "rm -rf ./dist",
     "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
     "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
-    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle"
+    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle",
+    "prepare": "husky"
   }
 }

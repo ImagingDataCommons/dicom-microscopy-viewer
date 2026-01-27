@@ -1,15 +1,15 @@
+import { getBottomRight, getTopLeft } from 'ol/extent'
+import Feature from 'ol/Feature'
+import CircleGeometry from 'ol/geom/Circle.js'
+import LineStringGeometry from 'ol/geom/LineString'
 import PointGeometry from 'ol/geom/Point'
 import PolygonGeometry from 'ol/geom/Polygon'
-import LineStringGeometry from 'ol/geom/LineString'
-import CircleGeometry from 'ol/geom/Circle.js'
-import Feature from 'ol/Feature'
-import { getTopLeft, getBottomRight } from 'ol/extent'
 
 import { _getCoordinates, _getPoint } from '../annotation'
 import {
-  _scoord3dCoordinates2geometryCoordinates,
   _geometryCoordinates2scoord3dCoordinates,
-  getPixelSpacing
+  _scoord3dCoordinates2geometryCoordinates,
+  getPixelSpacing,
 } from '../scoord3dUtils'
 import { buildTransform, mapPixelCoordToSlideCoord } from '../utils'
 
@@ -26,11 +26,11 @@ export const getViewportBoundingBox = ({ view, pyramid, affine }) => {
   const scoord3DCoords = _geometryCoordinates2scoord3dCoordinates(
     [topLeft, bottomRight],
     pyramid,
-    affine
+    affine,
   )
   return {
     topLeft: scoord3DCoords[0],
-    bottomRight: scoord3DCoords[1]
+    bottomRight: scoord3DCoords[1],
   }
 }
 
@@ -45,17 +45,19 @@ export const getViewportBoundingBox = ({ view, pyramid, affine }) => {
 export const isCoordinateInsideBoundingBox = (
   coordinate,
   topLeft,
-  bottomRight
+  bottomRight,
 ) => {
   const minX = Math.min(topLeft[0], bottomRight[0])
   const maxX = Math.max(topLeft[0], bottomRight[0])
   const minY = Math.min(topLeft[1], bottomRight[1])
   const maxY = Math.max(topLeft[1], bottomRight[1])
 
-  return coordinate[0] >= minX &&
-          coordinate[0] <= maxX &&
-          coordinate[1] >= minY &&
-          coordinate[1] <= maxY
+  return (
+    coordinate[0] >= minX &&
+    coordinate[0] <= maxX &&
+    coordinate[1] >= minY &&
+    coordinate[1] <= maxY
+  )
 }
 
 /**
@@ -68,20 +70,23 @@ export const isCoordinateInsideBoundingBox = (
  * @returns {Array} - The affine transformation matrix.
  */
 const getAffineBasedOnPyramidLevel = ({ affine, pyramid, annotationGroup }) => {
-  const { ReferencedSOPInstanceUID } = annotationGroup.metadata.ReferencedImageSequence[0]
-  const currentPyramidMetadata = pyramid.find(p => p.SOPInstanceUID === ReferencedSOPInstanceUID)
-  if (currentPyramidMetadata && currentPyramidMetadata.ImageOrientationSlide) {
+  const { ReferencedSOPInstanceUID } =
+    annotationGroup.metadata.ReferencedImageSequence[0]
+  const currentPyramidMetadata = pyramid.find(
+    (p) => p.SOPInstanceUID === ReferencedSOPInstanceUID,
+  )
+  if (currentPyramidMetadata?.ImageOrientationSlide) {
     const orientation = currentPyramidMetadata.ImageOrientationSlide
     const spacing = getPixelSpacing(currentPyramidMetadata)
     const origin = currentPyramidMetadata.TotalPixelMatrixOriginSequence[0]
     const offset = [
       Number(origin.XOffsetInSlideCoordinateSystem),
-      Number(origin.YOffsetInSlideCoordinateSystem)
+      Number(origin.YOffsetInSlideCoordinateSystem),
     ]
     return buildTransform({
       offset,
       orientation,
-      spacing
+      spacing,
     })
   }
   return affine
@@ -102,7 +107,7 @@ export const getCircleFeature = ({
   commonZCoordinate,
   coordinateDimensionality,
   annotationCoordinateType,
-  annotationGroup
+  annotationGroup,
 }) => {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
@@ -117,14 +122,14 @@ export const getCircleFeature = ({
         affine: getAffineBasedOnPyramidLevel({
           affine,
           pyramid,
-          annotationGroup
-        })
+          annotationGroup,
+        }),
       })
     }
 
     coordinate = _scoord3dCoordinates2geometryCoordinates(
       coordinate,
-      affineInverse
+      affineInverse,
     )
 
     coordinates.push(coordinate)
@@ -139,23 +144,20 @@ export const getCircleFeature = ({
     [
       (point1[0] + point2[0]) / parseFloat(2),
       (point1[1] + point2[1]) / parseFloat(2),
-      0
+      0,
     ],
-    point2
+    point2,
   ]
 
   /** To flat coordinates */
-  coords = [
-    ...coords[0].slice(0, 2),
-    ...coords[1].slice(0, 2)
-  ]
+  coords = [...coords[0].slice(0, 2), ...coords[1].slice(0, 2)]
 
   /**
    * flat coordinates in combination with opt_layout and no
    * opt_radius are also accepted and internally it calculates the Radius
    */
   return new Feature({
-    geometry: new CircleGeometry(coords, null, 'XY')
+    geometry: new CircleGeometry(coords, null, 'XY'),
   })
 }
 
@@ -174,7 +176,7 @@ export const getEllipseFeature = ({
   commonZCoordinate,
   coordinateDimensionality,
   annotationCoordinateType,
-  annotationGroup
+  annotationGroup,
 }) => {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
@@ -189,14 +191,14 @@ export const getEllipseFeature = ({
         affine: getAffineBasedOnPyramidLevel({
           affine,
           pyramid,
-          annotationGroup
-        })
+          annotationGroup,
+        }),
       })
     }
 
     coordinate = _scoord3dCoordinates2geometryCoordinates(
       coordinate,
-      affineInverse
+      affineInverse,
     )
 
     coordinates.push(coordinate)
@@ -204,13 +206,29 @@ export const getEllipseFeature = ({
     j += coordinateDimensionality - 1
   }
 
-  function calculateEllipsePoints (majorAxisStart, majorAxisEnd, minorAxisStart, minorAxisEnd) {
+  function calculateEllipsePoints(
+    majorAxisStart,
+    majorAxisEnd,
+    minorAxisStart,
+    minorAxisEnd,
+  ) {
     // Calculate semi-major and semi-minor axis lengths
-    const semiMajorAxis = Math.sqrt(Math.pow(majorAxisEnd[0] - majorAxisStart[0], 2) + Math.pow(majorAxisEnd[1] - majorAxisStart[1], 2)) / 2
-    const semiMinorAxis = Math.sqrt(Math.pow(minorAxisEnd[0] - minorAxisStart[0], 2) + Math.pow(minorAxisEnd[1] - minorAxisStart[1], 2)) / 2
+    const semiMajorAxis =
+      Math.sqrt(
+        (majorAxisEnd[0] - majorAxisStart[0]) ** 2 +
+          (majorAxisEnd[1] - majorAxisStart[1]) ** 2,
+      ) / 2
+    const semiMinorAxis =
+      Math.sqrt(
+        (minorAxisEnd[0] - minorAxisStart[0]) ** 2 +
+          (minorAxisEnd[1] - minorAxisStart[1]) ** 2,
+      ) / 2
 
     // Calculate rotation angle in radians
-    const rotationAngle = Math.atan2(majorAxisEnd[1] - majorAxisStart[1], majorAxisEnd[0] - majorAxisStart[0])
+    const rotationAngle = Math.atan2(
+      majorAxisEnd[1] - majorAxisStart[1],
+      majorAxisEnd[0] - majorAxisStart[0],
+    )
 
     // Generate points on the ellipse
     const ellipsePoints = []
@@ -242,10 +260,15 @@ export const getEllipseFeature = ({
   const minorAxisFirstEndpoint = coordinates[2]
   const minorAxisSecondEndpoint = coordinates[3]
 
-  const points = calculateEllipsePoints(majorAxisFirstEndpoint, majorAxisSecondEndpoint, minorAxisFirstEndpoint, minorAxisSecondEndpoint)
+  const points = calculateEllipsePoints(
+    majorAxisFirstEndpoint,
+    majorAxisSecondEndpoint,
+    minorAxisFirstEndpoint,
+    minorAxisSecondEndpoint,
+  )
 
   return new Feature({
-    geometry: new PolygonGeometry([points])
+    geometry: new PolygonGeometry([points]),
   })
 }
 
@@ -264,7 +287,7 @@ export const getRectangleFeature = ({
   commonZCoordinate,
   coordinateDimensionality,
   annotationCoordinateType,
-  annotationGroup
+  annotationGroup,
 }) => {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
@@ -278,14 +301,14 @@ export const getRectangleFeature = ({
         affine: getAffineBasedOnPyramidLevel({
           affine,
           pyramid,
-          annotationGroup
-        })
+          annotationGroup,
+        }),
       })
     }
 
     coordinate = _scoord3dCoordinates2geometryCoordinates(
       coordinate,
-      affineInverse
+      affineInverse,
     )
 
     coordinates.push(coordinate)
@@ -294,7 +317,7 @@ export const getRectangleFeature = ({
   }
 
   return new Feature({
-    geometry: new PolygonGeometry([coordinates])
+    geometry: new PolygonGeometry([coordinates]),
   })
 }
 
@@ -316,11 +339,12 @@ export const getPolygonFeature = ({
   commonZCoordinate,
   coordinateDimensionality,
   annotationGroup,
-  annotationCoordinateType
+  annotationCoordinateType,
 }) => {
   const offset = graphicIndex[annotationIndex] - 1
 
-  const Geometry = graphicType === 'POLYLINE' ? LineStringGeometry : PolygonGeometry
+  const Geometry =
+    graphicType === 'POLYLINE' ? LineStringGeometry : PolygonGeometry
 
   let annotationLength
   if (annotationIndex < numberOfAnnotations - 1) {
@@ -332,7 +356,11 @@ export const getPolygonFeature = ({
   const polygonCoordinates = []
   const roof = offset + annotationLength
   for (let j = offset; j < roof; j++) {
-    let coordinate = _getCoordinates(graphicData, j === (offset + annotationLength - 1) ? offset : j, commonZCoordinate)
+    let coordinate = _getCoordinates(
+      graphicData,
+      j === offset + annotationLength - 1 ? offset : j,
+      commonZCoordinate,
+    )
 
     if (!coordinate || !coordinate[0] || !coordinate[1]) {
       continue
@@ -344,14 +372,14 @@ export const getPolygonFeature = ({
         affine: getAffineBasedOnPyramidLevel({
           affine,
           pyramid,
-          annotationGroup
-        })
+          annotationGroup,
+        }),
       })
     }
 
     coordinate = _scoord3dCoordinates2geometryCoordinates(
       coordinate,
-      affineInverse
+      affineInverse,
     )
 
     polygonCoordinates.push(coordinate)
@@ -361,7 +389,9 @@ export const getPolygonFeature = ({
   }
 
   return new Feature({
-    geometry: new Geometry(graphicType === 'POLYLINE' ? polygonCoordinates : [polygonCoordinates])
+    geometry: new Geometry(
+      graphicType === 'POLYLINE' ? polygonCoordinates : [polygonCoordinates],
+    ),
   })
 }
 
@@ -382,7 +412,7 @@ export const getPointFeature = ({
   commonZCoordinate,
   coordinateDimensionality,
   annotationGroup,
-  annotationCoordinateType
+  annotationCoordinateType,
 }) => {
   let coordinate
   if (graphicIndex) {
@@ -395,7 +425,7 @@ export const getPointFeature = ({
       coordinateDimensionality,
       commonZCoordinate,
       annotationIndex,
-      numberOfAnnotations
+      numberOfAnnotations,
     )
   }
 
@@ -405,18 +435,18 @@ export const getPointFeature = ({
       affine: getAffineBasedOnPyramidLevel({
         affine,
         pyramid,
-        annotationGroup
-      })
+        annotationGroup,
+      }),
     })
   }
 
   coordinate = _scoord3dCoordinates2geometryCoordinates(
     coordinate,
-    affineInverse
+    affineInverse,
   )
 
   return new Feature({
-    geometry: new PointGeometry(coordinate)
+    geometry: new PointGeometry(coordinate),
   })
 }
 
@@ -437,19 +467,24 @@ export const getFeaturesFromBulkAnnotations = ({
   affineInverse,
   view,
   featureFunction,
-  isHighResolution
+  isHighResolution,
 }) => {
-  const annotationCoordinateType = annotationGroup.metadata.AnnotationCoordinateType
+  const annotationCoordinateType =
+    annotationGroup.metadata.AnnotationCoordinateType
 
   console.info('create features from bulk annotations')
   console.info('coordinate dimensionality:', coordinateDimensionality)
 
-  const { topLeft, bottomRight } = getViewportBoundingBox({ view, pyramid, affine })
+  const { topLeft, bottomRight } = getViewportBoundingBox({
+    view,
+    pyramid,
+    affine,
+  })
 
   const cachedAffine = getAffineBasedOnPyramidLevel({
     affine,
     pyramid,
-    annotationGroup
+    annotationGroup,
   })
 
   const features = []
@@ -461,12 +496,14 @@ export const getFeaturesFromBulkAnnotations = ({
   ) {
     if (isHighResolution && HIGH_RES_GRAPHIC_TYPES.includes(graphicType)) {
       const length = coordinateDimensionality * 4
-      const offset = ['POLYGON', 'POLYLINE'].includes(graphicType) ? graphicIndex[annotationIndex] - 1 : annotationIndex * length
+      const offset = ['POLYGON', 'POLYLINE'].includes(graphicType)
+        ? graphicIndex[annotationIndex] - 1
+        : annotationIndex * length
 
       let firstCoordinate = _getCoordinates(
         graphicData,
         offset,
-        commonZCoordinate
+        commonZCoordinate,
       )
 
       if (!firstCoordinate || !firstCoordinate[0] || !firstCoordinate[1]) {
@@ -476,15 +513,13 @@ export const getFeaturesFromBulkAnnotations = ({
       if (annotationCoordinateType === '2D') {
         firstCoordinate = mapPixelCoordToSlideCoord({
           point: [firstCoordinate[0], firstCoordinate[1]],
-          affine: cachedAffine
+          affine: cachedAffine,
         })
       }
 
-      if (!isCoordinateInsideBoundingBox(
-        firstCoordinate,
-        topLeft,
-        bottomRight
-      )) {
+      if (
+        !isCoordinateInsideBoundingBox(firstCoordinate, topLeft, bottomRight)
+      ) {
         continue
       }
     }
@@ -501,14 +536,14 @@ export const getFeaturesFromBulkAnnotations = ({
       affineInverse,
       commonZCoordinate,
       coordinateDimensionality,
-      annotationCoordinateType
+      annotationCoordinateType,
     })
 
-    feature.setId(annotationGroupUID + '-' + annotationIndex)
+    feature.setId(`${annotationGroupUID}-${annotationIndex}`)
     feature.set('annotationGroupUID', annotationGroupUID, true)
 
     measurements.forEach((measurement, measurementIndex) => {
-      const key = 'measurementValue' + measurementIndex
+      const key = `measurementValue${measurementIndex}`
       const value = measurement.values[annotationIndex]
       /**
        * Needed for the WebGL renderer. This is required for the point layer which uses webgl
@@ -533,5 +568,5 @@ export default {
   getRectangleFeature,
   getPolygonFeature,
   isCoordinateInsideBoundingBox,
-  getViewportBoundingBox
+  getViewportBoundingBox,
 }

@@ -1,9 +1,9 @@
-import openJpegFactory from '@cornerstonejs/codec-openjpeg/decodewasmjs'
 import openjpegWasm from '@cornerstonejs/codec-openjpeg/decodewasm'
+import openJpegFactory from '@cornerstonejs/codec-openjpeg/decodewasmjs'
 import Decoder from './decoderAbstract.js'
 
 export default class JPEG2000Decoder extends Decoder {
-  _initialize () {
+  _initialize() {
     if (this.codec) {
       return Promise.resolve()
     }
@@ -14,7 +14,7 @@ export default class JPEG2000Decoder extends Decoder {
           return openjpegWasm
         }
         return f
-      }
+      },
     })
 
     return new Promise((resolve, reject) => {

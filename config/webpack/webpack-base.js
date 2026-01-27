@@ -1,4 +1,4 @@
-const path = require('path')
+const path = require('node:path')
 const webpack = require('webpack')
 const rootPath = process.cwd()
 const context = path.join(rootPath, 'src')
@@ -54,4 +54,4 @@ module.exports = {
     ],
   },
   plugins: [new webpack.ProgressPlugin()],
-};
+}

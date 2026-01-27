@@ -1,9 +1,9 @@
-import charlsFactory from '@cornerstonejs/codec-charls/decodewasmjs'
 import charlsWasm from '@cornerstonejs/codec-charls/decodewasm'
+import charlsFactory from '@cornerstonejs/codec-charls/decodewasmjs'
 import Decoder from './decoderAbstract.js'
 
 export default class JPEGLSDecoder extends Decoder {
-  _initialize () {
+  _initialize() {
     if (this.codec) {
       return Promise.resolve()
     }
@@ -14,7 +14,7 @@ export default class JPEGLSDecoder extends Decoder {
           return charlsWasm
         }
         return f
-      }
+      },
     })
 
     return new Promise((resolve, reject) => {

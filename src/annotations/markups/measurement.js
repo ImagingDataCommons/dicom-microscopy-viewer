@@ -1,9 +1,6 @@
 import Enums from '../../enums'
+import { _getFeatureArea, _getFeatureLength } from '../../scoord3dUtils.js'
 import { _getUnitSuffix } from '../../utils'
-import {
-  _getFeatureArea,
-  _getFeatureLength
-} from '../../scoord3dUtils.js'
 
 /**
  * Format measure output.
@@ -55,7 +52,7 @@ const MeasurementMarkup = ({ map, pyramid, affine, markupManager }) => {
         const unitSuffix = _getUnitSuffix(view)
         markupManager.create({
           feature,
-          value: _format(feature, unitSuffix, pyramid, affine)
+          value: _format(feature, unitSuffix, pyramid, affine),
         })
       }
     },
@@ -74,13 +71,13 @@ const MeasurementMarkup = ({ map, pyramid, affine, markupManager }) => {
         const unitSuffix = _getUnitSuffix(view)
         markupManager.create({
           feature,
-          value: _format(feature, unitSuffix, pyramid, affine)
+          value: _format(feature, unitSuffix, pyramid, affine),
         })
       }
     },
-    onUpdate: (feature) => {},
-    onDrawEnd: ({ feature }) => {},
-    onDrawAbort: ({ feature }) => {}
+    onUpdate: (_feature) => {},
+    onDrawEnd: ({ feature: _feature }) => {},
+    onDrawAbort: ({ feature: _feature }) => {},
   }
 }
 

@@ -12,15 +12,16 @@ const publish = (el, type, payload = null) => {
 
   const detail = {
     payload,
-    time: new Date()
+    time: new Date(),
   }
 
   // This check is needed to polyfill CustomEvent on IE11-
   if (typeof window.CustomEvent === 'function') {
-    event = new CustomEvent(type, {// eslint-disable-line
+    event = new CustomEvent(type, {
+      // eslint-disable-line
       detail,
       bubbles: true,
-      cancelable: true
+      cancelable: true,
     })
   } else {
     event = document.createEvent('CustomEvent')

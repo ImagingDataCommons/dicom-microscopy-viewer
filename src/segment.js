@@ -27,7 +27,7 @@ class Segment {
    * @param {string|undefined} options.paletteColorLookupTableUID - Palette
    * Color Lookup Table UID
    */
-  constructor ({
+  constructor({
     uid,
     number,
     label,
@@ -38,7 +38,7 @@ class Segment {
     studyInstanceUID,
     seriesInstanceUID,
     sopInstanceUIDs,
-    paletteColorLookupTableUID
+    paletteColorLookupTableUID,
   }) {
     this[_attrs] = {}
     if (uid === undefined) {
@@ -102,7 +102,7 @@ class Segment {
    *
    * @type string
    */
-  get uid () {
+  get uid() {
     return this[_attrs].uid
   }
 
@@ -111,7 +111,7 @@ class Segment {
    *
    * @type number
    */
-  get number () {
+  get number() {
     return this[_attrs].number
   }
 
@@ -120,7 +120,7 @@ class Segment {
    *
    * @type string
    */
-  get label () {
+  get label() {
     return this[_attrs].label
   }
 
@@ -129,7 +129,7 @@ class Segment {
    *
    * @type string
    */
-  get algorithmName () {
+  get algorithmName() {
     return this[_attrs].algorithmName
   }
 
@@ -138,7 +138,7 @@ class Segment {
    *
    * @type object
    */
-  get algorithmType () {
+  get algorithmType() {
     return this[_attrs].algorithmType
   }
 
@@ -147,7 +147,7 @@ class Segment {
    *
    * @type object
    */
-  get propertyCategory () {
+  get propertyCategory() {
     return this[_attrs].propertyCategory
   }
 
@@ -156,7 +156,7 @@ class Segment {
    *
    * @type object
    */
-  get propertyType () {
+  get propertyType() {
     return this[_attrs].propertyType
   }
 
@@ -165,7 +165,7 @@ class Segment {
    *
    * @type string
    */
-  get studyInstanceUID () {
+  get studyInstanceUID() {
     return this[_attrs].studyInstanceUID
   }
 
@@ -174,7 +174,7 @@ class Segment {
    *
    * @type string
    */
-  get seriesInstanceUID () {
+  get seriesInstanceUID() {
     return this[_attrs].seriesInstanceUID
   }
 
@@ -183,7 +183,7 @@ class Segment {
    *
    * @type string[]
    */
-  get sopInstanceUIDs () {
+  get sopInstanceUIDs() {
     return this[_attrs].sopInstanceUIDs
   }
 
@@ -192,7 +192,7 @@ class Segment {
    *
    * @type string
    */
-  get paletteColorLookupTableUID () {
+  get paletteColorLookupTableUID() {
     return this[_attrs].paletteColorLookupTableUID
   }
 }
