@@ -10,23 +10,22 @@ jobs:
   build:
     name: Build and run tests
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
-        node-version: ["18.x", "24.x"]
+        bun-version: ["1.0", "1.1"]
 
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up Node ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - name: Set up Bun ${{ matrix.bun-version }}
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: "yarn"
+          bun-version: ${{ matrix.bun-version }}
       - name: Install dependencies
-        run: yarn
+        run: bun install --frozen-lockfile
       - name: Build package in production mode
-        run: yarn build
+        run: bun run build
       - name: Lint with standard
-        run: yarn lint
+        run: bun run lint
       - name: Test with jest
-        run: yarn test
+        run: bun run test

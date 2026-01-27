@@ -18,6 +18,7 @@
     "dicomweb",
     "microscopy"
   ],
+  "packageManager": "bun@1.1.38",
   "main": "./src/dicom-microscopy-viewer.js",
   "exports": {
     ".": "./dist/dicomMicroscopyViewer.bundle.min.js",
@@ -86,9 +87,9 @@
   },
   "scripts": {
     "test": "jest --silent",
-    "build": "npm run webpack:bundle && npm run webpack:dynamic-import",
-    "prepublishOnly": "npm run build",
-    "generateStaticSite": "npm run build && cp -R ./dist ./examples",
+    "build": "bun run webpack:bundle && bun run webpack:dynamic-import",
+    "prepublishOnly": "bun run build",
+    "generateStaticSite": "bun run build && cp -R ./dist ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
     "fmt": "standard 'src/**/*.js' --fix",
     "lint": "standard 'src/**/*.js'",
