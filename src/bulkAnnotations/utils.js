@@ -1,14 +1,14 @@
+import { getBottomRight, getTopLeft } from 'ol/extent'
+import Feature from 'ol/Feature'
+import CircleGeometry from 'ol/geom/Circle.js'
+import LineStringGeometry from 'ol/geom/LineString'
 import PointGeometry from 'ol/geom/Point'
 import PolygonGeometry from 'ol/geom/Polygon'
-import LineStringGeometry from 'ol/geom/LineString'
-import CircleGeometry from 'ol/geom/Circle.js'
-import Feature from 'ol/Feature'
-import { getTopLeft, getBottomRight } from 'ol/extent'
 
 import { _getCoordinates, _getPoint } from '../annotation'
 import {
-  _scoord3dCoordinates2geometryCoordinates,
   _geometryCoordinates2scoord3dCoordinates,
+  _scoord3dCoordinates2geometryCoordinates,
   getPixelSpacing,
 } from '../scoord3dUtils'
 import { buildTransform, mapPixelCoordToSlideCoord } from '../utils'
@@ -75,7 +75,7 @@ const getAffineBasedOnPyramidLevel = ({ affine, pyramid, annotationGroup }) => {
   const currentPyramidMetadata = pyramid.find(
     (p) => p.SOPInstanceUID === ReferencedSOPInstanceUID,
   )
-  if (currentPyramidMetadata && currentPyramidMetadata.ImageOrientationSlide) {
+  if (currentPyramidMetadata?.ImageOrientationSlide) {
     const orientation = currentPyramidMetadata.ImageOrientationSlide
     const spacing = getPixelSpacing(currentPyramidMetadata)
     const origin = currentPyramidMetadata.TotalPixelMatrixOriginSequence[0]
@@ -215,13 +215,13 @@ export const getEllipseFeature = ({
     // Calculate semi-major and semi-minor axis lengths
     const semiMajorAxis =
       Math.sqrt(
-        Math.pow(majorAxisEnd[0] - majorAxisStart[0], 2) +
-          Math.pow(majorAxisEnd[1] - majorAxisStart[1], 2),
+        (majorAxisEnd[0] - majorAxisStart[0]) ** 2 +
+          (majorAxisEnd[1] - majorAxisStart[1]) ** 2,
       ) / 2
     const semiMinorAxis =
       Math.sqrt(
-        Math.pow(minorAxisEnd[0] - minorAxisStart[0], 2) +
-          Math.pow(minorAxisEnd[1] - minorAxisStart[1], 2),
+        (minorAxisEnd[0] - minorAxisStart[0]) ** 2 +
+          (minorAxisEnd[1] - minorAxisStart[1]) ** 2,
       ) / 2
 
     // Calculate rotation angle in radians
@@ -539,11 +539,11 @@ export const getFeaturesFromBulkAnnotations = ({
       annotationCoordinateType,
     })
 
-    feature.setId(annotationGroupUID + '-' + annotationIndex)
+    feature.setId(`${annotationGroupUID}-${annotationIndex}`)
     feature.set('annotationGroupUID', annotationGroupUID, true)
 
     measurements.forEach((measurement, measurementIndex) => {
-      const key = 'measurementValue' + measurementIndex
+      const key = `measurementValue${measurementIndex}`
       const value = measurement.values[annotationIndex]
       /**
        * Needed for the WebGL renderer. This is required for the point layer which uses webgl

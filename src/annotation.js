@@ -536,8 +536,8 @@ async function _fetchMeasurementIndices({
 async function _fetchMeasurements({
   metadataItem,
   bulkdataItem,
-  metadata,
-  annotationGroupIndex,
+  metadata: _metadata,
+  annotationGroupIndex: _annotationGroupIndex,
   client,
 }) {
   const measurements = []
@@ -672,7 +672,7 @@ function _getCommonZCoordinate(metadataItem) {
  */
 function _getCoordinates(graphicData, offset, commonZCoordinate) {
   const point = [graphicData[offset], graphicData[offset + 1]]
-  if (isNaN(commonZCoordinate)) {
+  if (Number.isNaN(commonZCoordinate)) {
     point.push(graphicData[offset + 2])
   } else {
     point.push(commonZCoordinate)
@@ -696,11 +696,11 @@ function _getCoordinates(graphicData, offset, commonZCoordinate) {
  */
 function _getPoint(
   graphicData,
-  graphicIndex,
+  _graphicIndex,
   coordinateDimensionality,
   commonZCoordinate,
   annotationIndex,
-  numberOfAnnotations,
+  _numberOfAnnotations,
 ) {
   const length = coordinateDimensionality
   const offset = annotationIndex * length
@@ -723,11 +723,11 @@ function _getPoint(
  */
 function _getRectangleCentroid(
   graphicData,
-  graphicIndex,
+  _graphicIndex,
   coordinateDimensionality,
   commonZCoordinate,
   annotationIndex,
-  numberOfAnnotations,
+  _numberOfAnnotations,
 ) {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
@@ -763,11 +763,11 @@ function _getRectangleCentroid(
  */
 function _getEllipseCentroid(
   graphicData,
-  graphicIndex,
+  _graphicIndex,
   coordinateDimensionality,
   commonZCoordinate,
   annotationIndex,
-  numberOfAnnotations,
+  _numberOfAnnotations,
 ) {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length

@@ -1,6 +1,6 @@
 import Enums from '../../enums'
-import { _getUnitSuffix } from '../../utils'
 import { _getFeatureArea, _getFeatureLength } from '../../scoord3dUtils.js'
+import { _getUnitSuffix } from '../../utils'
 
 /**
  * Format measure output.
@@ -75,9 +75,9 @@ const MeasurementMarkup = ({ map, pyramid, affine, markupManager }) => {
         })
       }
     },
-    onUpdate: (feature) => {},
-    onDrawEnd: ({ feature }) => {},
-    onDrawAbort: ({ feature }) => {},
+    onUpdate: (_feature) => {},
+    onDrawEnd: ({ feature: _feature }) => {},
+    onDrawAbort: ({ feature: _feature }) => {},
   }
 }
 

@@ -1,8 +1,8 @@
-import JPEG2000Decoder from './decoders/decoderJPEG2000.js'
-import JPEGLSDecoder from './decoders/decoderJPEGLS.js'
-import JPEGDecoder from './decoders/decoderJPEGBaseline8Bit.js'
-import ColorTransformer from './transformers/transformerICC.js'
 import imageType from 'image-type'
+import JPEG2000Decoder from './decoders/decoderJPEG2000.js'
+import JPEGDecoder from './decoders/decoderJPEGBaseline8Bit.js'
+import JPEGLSDecoder from './decoders/decoderJPEGLS.js'
+import ColorTransformer from './transformers/transformerICC.js'
 
 const decoderJPEG2000 = new JPEG2000Decoder()
 const decoderJPEGLS = new JPEGLSDecoder()
@@ -93,9 +93,7 @@ async function _checkImageTypeAndDecode({
   let byteArray = new Uint8Array(frame)
   const imageTypeObject = imageType(byteArray)
 
-  const toHex = function (value) {
-    return value.toString(16).padStart(2, '0').toUpperCase()
-  }
+  const toHex = (value) => value.toString(16).padStart(2, '0').toUpperCase()
 
   let mediaType
   if (imageTypeObject == null) {

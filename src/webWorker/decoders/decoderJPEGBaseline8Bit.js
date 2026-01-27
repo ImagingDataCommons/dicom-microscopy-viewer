@@ -1,5 +1,5 @@
-import libjpegTurboFactory from '@cornerstonejs/codec-libjpeg-turbo-8bit/decodewasmjs'
 import libjpegTurboWasm from '@cornerstonejs/codec-libjpeg-turbo-8bit/decodewasm'
+import libjpegTurboFactory from '@cornerstonejs/codec-libjpeg-turbo-8bit/decodewasmjs'
 import Decoder from './decoderAbstract.js'
 
 export default class JPEGDecoder extends Decoder {

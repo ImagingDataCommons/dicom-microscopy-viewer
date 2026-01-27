@@ -1,4 +1,4 @@
-const path = require('path')
+const path = require('node:path')
 const merge = require('./merge')
 const rootPath = process.cwd()
 const baseConfig = require('./webpack-base')

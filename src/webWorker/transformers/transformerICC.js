@@ -1,7 +1,7 @@
 import dicomiccFactory from 'dicomicc/dist/dicomiccwasm.js'
 import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm'
-import Transformer from './transformerAbstract.js'
 import { inlineBinaryToUint8Array } from './inlineBinaryToUint8Array.js'
+import Transformer from './transformerAbstract.js'
 
 export default class ColorTransformer extends Transformer {
   /**
@@ -96,12 +96,12 @@ export default class ColorTransformer extends Transformer {
       if (transformer) {
         transformedFrame = transformer.transform(decodedFrame)
       } else {
-        transformedFrame = new Promise(function (resolve) {
+        transformedFrame = new Promise((resolve) => {
           resolve(decodedFrame)
         })
       }
     } else {
-      transformedFrame = new Promise(function (resolve) {
+      transformedFrame = new Promise((resolve) => {
         resolve(decodedFrame)
       })
     }

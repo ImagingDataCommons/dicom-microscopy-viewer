@@ -1,13 +1,12 @@
 import dcmjs from 'dcmjs'
-
-import _MarkupManager from './markups/_MarkupManager'
-
 /** Enums */
 import Enums from '../enums'
+/** Utils */
+import { areCodedConceptsEqual, getContentItemNameCodedConcept } from '../utils'
 
 /** Markers */
 import ArrowMarker, { _format as arrowFormat } from './markers/arrow'
-
+import _MarkupManager from './markups/_MarkupManager'
 /** Markups */
 import MeasurementMarkup, {
   _format as measurementFormat,
@@ -15,9 +14,6 @@ import MeasurementMarkup, {
 import TextEvaluationMarkup, {
   _format as textFormat,
 } from './markups/textEvaluation'
-
-/** Utils */
-import { areCodedConceptsEqual, getContentItemNameCodedConcept } from '../utils'
 
 const { Marker, Markup } = Enums
 
@@ -59,7 +55,7 @@ class _AnnotationManager {
   _addMeasurementsAndEvaluationsProperties(feature) {
     const { measurements, evaluations } = feature.getProperties()
 
-    if (measurements && measurements.length) {
+    if (measurements?.length) {
       return measurements.some((measurement) => {
         // eslint-disable-line
         const SUPPORTED_MEASUREMENTS_CODED_CONCEPTS = [
@@ -82,11 +78,13 @@ class _AnnotationManager {
           )
         ) {
           feature.set(Enums.InternalProperties.Markup, Enums.Markup.Measurement)
+          return true
         }
+        return false
       })
     }
 
-    if (evaluations && evaluations.length) {
+    if (evaluations?.length) {
       return evaluations.some((evaluation) => {
         // eslint-disable-line
         const SUPPORTED_EVALUATIONS_CODED_CONCEPTS = [
@@ -107,7 +105,9 @@ class _AnnotationManager {
             Enums.InternalProperties.Markup,
             Enums.Markup.TextEvaluation,
           )
+          return true
         }
+        return false
       })
     }
   }

@@ -29,9 +29,9 @@ function _generateUID({ value } = {}) {
   } else {
     uuid = createUUIDv4()
   }
-  const hex = '0x' + uuid.replace(/-/g, '')
+  const hex = `0x${uuid.replace(/-/g, '')}`
   const decimal = BigInt(hex)
-  return '2.25.' + decimal.toString()
+  return `2.25.${decimal.toString()}`
 }
 
 /**
@@ -657,7 +657,7 @@ function rgb2hex(values) {
   const r = values[0]
   const g = values[1]
   const b = values[2]
-  return '#' + (0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1)
+  return `#${(0x1000000 + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
 }
 
 function throttle(mainFunction, delay) {

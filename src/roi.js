@@ -1,5 +1,5 @@
-import { _generateUID } from './utils.js'
 import Enums from './enums'
+import { _generateUID } from './utils.js'
 
 const _uid = Symbol('uid')
 const _scoord3d = Symbol('scoord3d')

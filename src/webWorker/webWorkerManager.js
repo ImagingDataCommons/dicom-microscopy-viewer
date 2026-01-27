@@ -47,10 +47,10 @@ function startTaskOnWebWorker() {
       // get the highest priority task
       const task = tasks.shift()
 
-      task.start = new Date().getTime()
+      task.start = Date.now()
 
       // update stats with how long this task was delayed (waiting in queue)
-      const end = new Date().getTime()
+      const end = Date.now()
 
       statistics.totalTimeDelayedInMS += end - task.added
 
@@ -98,7 +98,7 @@ function handleMessageFromWorker(msg) {
     webWorkers[msg.data.workerIndex].status = 'ready'
     statistics.numTasksCompleted++
 
-    const end = new Date().getTime()
+    const end = Date.now()
 
     statistics.totalTaskTimeInMS += end - start
 
@@ -148,7 +148,7 @@ function spawnWebWorker() {
     // Warning: Magic incancation for Webpack that depends on the line EXACTLY
     // as written.  Don't assume this will work in the future, it barely works now.
     workerUrl = new URL('./dataLoader.worker.min.js', import.meta.url)
-  } catch (e) {
+  } catch (_e) {
     // This is the fallback that will usually happen
     workerUrl = new URL('./dataLoader.worker.min.js', getMicroscopyHref())
   }
@@ -263,7 +263,7 @@ function addTask(taskType, data, priority = 0, transferList) {
     taskId,
     taskType,
     status: 'ready',
-    added: new Date().getTime(),
+    added: Date.now(),
     data,
     deferred,
     priority,

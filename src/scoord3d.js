@@ -357,12 +357,8 @@ class Ellipse extends Scoord3D {
       options.coordinates[2][0] - options.coordinates[3][0],
       options.coordinates[2][1] - options.coordinates[3][1],
     ]
-    const firstAxisNorm = Math.sqrt(
-      Math.pow(firstAxis[0], 2) + Math.pow(firstAxis[1], 2),
-    )
-    const secondAxisNorm = Math.sqrt(
-      Math.pow(secondAxis[0], 2) + Math.pow(secondAxis[1], 2),
-    )
+    const firstAxisNorm = Math.sqrt(firstAxis[0] ** 2 + firstAxis[1] ** 2)
+    const secondAxisNorm = Math.sqrt(secondAxis[0] ** 2 + secondAxis[1] ** 2)
     // An ellipse with one or both axes as the zero vector is legitimate.
     // This might typically occur when an ellipse is first created in a viewer.
     // Only check for perpendicular axes if both axes are not zero.

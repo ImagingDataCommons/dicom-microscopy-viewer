@@ -1,14 +1,14 @@
 import * as dwc from 'dicomweb-client'
 
 import { _decodeAndTransformFrame } from './decode.js'
-import EVENT from './events'
 import publish from './eventPublisher'
+import EVENT from './events'
 import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import {
+  _fetchBulkdata,
   are1DArraysAlmostEqual,
   are2DArraysAlmostEqual,
-  _fetchBulkdata,
 } from './utils.js'
 
 /**
@@ -366,13 +366,13 @@ function _createEmptyTile({
   }
 
   // Fill white in case of color and black in case of monochrome.
-  let fillValue = Math.pow(2, bitsAllocated) - 1
+  let fillValue = 2 ** bitsAllocated - 1
   if (photometricInterpretation === 'MONOCHROME2') {
     if (bitsAllocated <= 16) {
       fillValue = 0
     } else {
       // Float pixel data
-      fillValue = -(Math.pow(2, bitsAllocated) - 1) / 2
+      fillValue = -(2 ** bitsAllocated - 1) / 2
     }
   }
   for (let i = 0; i < pixelArray.length; i++) {
@@ -389,7 +389,7 @@ function _createTileLoadFunction({
   targetElement,
 }) {
   return async (z, y, x) => {
-    let index = x + 1 + '-' + (y + 1)
+    let index = `${x + 1}-${y + 1}`
     index += `-${channel}`
 
     if (pyramid.metadata[z] === undefined) {

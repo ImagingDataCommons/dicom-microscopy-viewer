@@ -1,19 +1,19 @@
 import Circle from 'ol/geom/Circle'
-import DragPan from 'ol/interaction/DragPan'
 import LineString from 'ol/geom/LineString'
-import Overlay from 'ol/Overlay'
+import DragPan from 'ol/interaction/DragPan'
 import VectorLayer from 'ol/layer/Vector'
+import Overlay from 'ol/Overlay'
 import 'ol/ol.css'
-import VectorSource from 'ol/source/Vector'
-import Style from 'ol/style/Style'
-import Stroke from 'ol/style/Stroke'
 import Collection from 'ol/Collection'
 import Feature from 'ol/Feature'
 import { fromCircle } from 'ol/geom/Polygon'
+import VectorSource from 'ol/source/Vector'
+import Stroke from 'ol/style/Stroke'
+import Style from 'ol/style/Style'
 
 import Enums from '../../enums'
-import { _getUnitSuffix } from '../../utils'
 import { coordinateWithOffset } from '../../scoord3dUtils'
+import { _getUnitSuffix } from '../../utils'
 import defaultStyles from '../styles'
 
 /**
@@ -45,8 +45,7 @@ const _getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
     (coordinates) => {
       const closest = overlay.getPosition()
       const distanceNew =
-        Math.pow(closest[0] - coordinates[0], 2) +
-        Math.pow(closest[1] - coordinates[1], 2)
+        (closest[0] - coordinates[0]) ** 2 + (closest[1] - coordinates[1]) ** 2
       if (distanceNew < distanceSq) {
         distanceSq = distanceNew
         result = [coordinates, closest]
@@ -57,8 +56,7 @@ const _getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
   const coordinates = overlay.getPosition()
   const closest = geometry.getClosestPoint(coordinates)
   const distanceNew =
-    Math.pow(closest[0] - coordinates[0], 2) +
-    Math.pow(closest[1] - coordinates[1], 2)
+    (closest[0] - coordinates[0]) ** 2 + (closest[1] - coordinates[1]) ** 2
   if (distanceNew < distanceSq) {
     distanceSq = distanceNew
     result = [closest, coordinates]
@@ -362,7 +360,7 @@ class _MarkupManager {
    */
   _styleTooltip(feature) {
     const styleOptions = feature.get(Enums.InternalProperties.StyleOptions)
-    if (styleOptions && styleOptions.stroke) {
+    if (styleOptions?.stroke) {
       const { color } = styleOptions.stroke
       const tooltipColor = color || defaultStyles.stroke.color
       const links = this._links.getArray()
@@ -518,6 +516,7 @@ class _MarkupManager {
         feature.setGeometry(line)
         return true
       }
+      return false
     })
 
     if (!updated) {

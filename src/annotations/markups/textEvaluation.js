@@ -1,7 +1,7 @@
+import Circle from 'ol/style/Circle'
 import Fill from 'ol/style/Fill'
 import Stroke from 'ol/style/Stroke'
 import Style from 'ol/style/Style'
-import Circle from 'ol/style/Circle'
 
 import Enums from '../../enums'
 
@@ -141,7 +141,7 @@ const TextEvaluationMarkup = ({ markupManager }) => {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },
-    onDrawAbort: ({ feature }) => {},
+    onDrawAbort: ({ feature: _feature }) => {},
   }
 }
 

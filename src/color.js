@@ -158,7 +158,7 @@ class PaletteColorLookupTable {
     }
     const n = [...firstDescriptorValues][0]
     if (n === 0) {
-      this[_attrs].numberOfEntries = Math.pow(2, 16)
+      this[_attrs].numberOfEntries = 2 ** 16
     } else {
       this[_attrs].numberOfEntries = n
     }
@@ -245,7 +245,7 @@ class PaletteColorLookupTable {
         'Either Segmented Blue Palette Color Lookup Data or Blue Palette ' +
           'Color Lookup Data must be provided, but not both.',
       )
-    } else if (blueSegmentedData != null && blueData != null) {
+    } else if (blueSegmentedData == null && blueData == null) {
       throw new Error(
         'Either Segmented Blue Palette Color Lookup Data or Blue Palette ' +
           'Color Lookup Data must be provided.',
@@ -377,7 +377,7 @@ class PaletteColorLookupTable {
           // Apply gamma correction: for palette position i, look up the color
           // that would be at the gamma-corrected position
           const normalizedPos = i / (n - 1)
-          const gammaCorrectedPos = Math.pow(normalizedPos, gammaInverse)
+          const gammaCorrectedPos = normalizedPos ** gammaInverse
           const lutIndex = Math.round(
             gammaCorrectedPos * (this[_attrs].numberOfEntries - 1),
           )
@@ -394,7 +394,7 @@ class PaletteColorLookupTable {
           // Apply gamma correction: for palette position i, look up the color
           // that would be at the gamma-corrected position
           const normalizedPos = i / (this[_attrs].numberOfEntries - 1)
-          const gammaCorrectedPos = Math.pow(normalizedPos, gammaInverse)
+          const gammaCorrectedPos = normalizedPos ** gammaInverse
           const lutIndex = Math.round(
             gammaCorrectedPos * (this[_attrs].numberOfEntries - 1),
           )

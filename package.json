@@ -48,7 +48,8 @@
     "webpack": "^5.94.0",
     "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.2"
+    "webpack-dev-server": "^4.15.2",
+    "husky": "^9.1.7"
   },
   "dependencies": {
     "@cornerstonejs/codec-charls": "^1.2.3",
@@ -83,6 +84,7 @@
     "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",
     "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
-    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle"
+    "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle",
+    "prepare": "husky"
   }
 }

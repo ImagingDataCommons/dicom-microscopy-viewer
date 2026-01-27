@@ -1,47 +1,47 @@
-import EVENTS from './events.js'
 import { AnnotationGroup } from './annotation.js'
-import { ParameterMapping } from './mapping.js'
 import {
+  buildPaletteColorLookupTable,
   ColormapNames,
   createColormap,
   PaletteColorLookupTable,
-  buildPaletteColorLookupTable,
 } from './color.js'
+import EVENTS from './events.js'
+import { ParameterMapping } from './mapping.js'
 import {
   Comprehensive3DSR,
+  formatMetadata,
+  groupColorInstances,
+  groupMonochromeInstances,
   MicroscopyBulkSimpleAnnotations,
   ParametricMap,
   Segmentation,
   VLWholeSlideMicroscopyImage,
-  formatMetadata,
-  groupMonochromeInstances,
-  groupColorInstances,
 } from './metadata.js'
+import { OpticalPath } from './opticalPath.js'
 import { ROI } from './roi.js'
 import {
-  Point,
-  Multipoint,
-  Polyline,
-  Polygon,
-  Ellipsoid,
   Ellipse,
+  Ellipsoid,
+  Multipoint,
+  Point,
+  Polygon,
+  Polyline,
 } from './scoord3d.js'
+import { Segment } from './segment.js'
 import {
   applyInverseTransform,
   applyTransform,
   buildInverseTransform,
   buildTransform,
   computeRotation,
-  mapSlideCoordToPixelCoord,
   mapPixelCoordToSlideCoord,
+  mapSlideCoordToPixelCoord,
 } from './utils.js'
 import {
   LabelImageViewer,
   OverviewImageViewer,
   VolumeImageViewer,
 } from './viewer.js'
-import { OpticalPath } from './opticalPath.js'
-import { Segment } from './segment.js'
 
 /**
  * Namespace for annotations of DICOM Micrsocopy Bulk Simple Annotations

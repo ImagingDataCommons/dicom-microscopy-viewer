@@ -1,5 +1,5 @@
-import openJpegFactory from '@cornerstonejs/codec-openjpeg/decodewasmjs'
 import openjpegWasm from '@cornerstonejs/codec-openjpeg/decodewasm'
+import openJpegFactory from '@cornerstonejs/codec-openjpeg/decodewasmjs'
 import Decoder from './decoderAbstract.js'
 
 export default class JPEG2000Decoder extends Decoder {

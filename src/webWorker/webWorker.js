@@ -88,7 +88,7 @@ function loadWebWorkerTask(data) {
  *
  * @private
  */
-self.onmessage = function (msg) {
+self.onmessage = (msg) => {
   if (!msg.data.taskType) {
     console.info(msg.data)
     return
@@ -115,7 +115,7 @@ self.onmessage = function (msg) {
     try {
       taskHandlers[msg.data.taskType]._handler(
         msg.data,
-        function (result, transferList) {
+        (result, transferList) => {
           self.postMessage(
             {
               taskType: msg.data.taskType,

@@ -1,9 +1,9 @@
-import Enums from './enums'
-import { Point, Polyline, Polygon, Ellipse } from './scoord3d.js'
 import CircleGeometry from 'ol/geom/Circle'
-import PolygonGeometry, { fromCircle } from 'ol/geom/Polygon'
-import PointGeometry from 'ol/geom/Point'
 import LineStringGeometry from 'ol/geom/LineString'
+import PointGeometry from 'ol/geom/Point'
+import PolygonGeometry, { fromCircle } from 'ol/geom/Polygon'
+import Enums from './enums'
+import { Ellipse, Point, Polygon, Polyline } from './scoord3d.js'
 
 import { applyInverseTransform, applyTransform } from './utils.js'
 
@@ -165,7 +165,7 @@ function getPixelSpacing(metadata) {
  */
 function _geometryCoordinates2scoord3dCoordinates(
   coordinates,
-  pyramid,
+  _pyramid,
   affine,
 ) {
   let transform = false
@@ -259,7 +259,7 @@ function _getFeatureLength(feature, pyramid, affine) {
 
   if (type === 'LineString') {
     const coordinates = geometry.getCoordinates()
-    if (coordinates && coordinates.length) {
+    if (coordinates?.length) {
       const scoord3dCoordinates = coordinates.map((c) =>
         _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine),
       )
@@ -300,7 +300,7 @@ function _getFeatureArea(feature, pyramid, affine) {
 
   if (type === 'Polygon') {
     const coordinates = geometry.getCoordinates()
-    if (coordinates && coordinates.length) {
+    if (coordinates?.length) {
       const scoord3dCoordinates = geometry.getCoordinates()[0].map((c) => {
         return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
       })

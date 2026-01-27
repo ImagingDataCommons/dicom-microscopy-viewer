@@ -1,8 +1,8 @@
-import Style from 'ol/style/Style'
-import Stroke from 'ol/style/Stroke'
-import Point from 'ol/geom/Point'
 import LineString from 'ol/geom/LineString'
+import Point from 'ol/geom/Point'
 import Icon from 'ol/style/Icon'
+import Stroke from 'ol/style/Stroke'
+import Style from 'ol/style/Style'
 
 import Enums from '../../enums'
 import defaultStyles from '../styles'
@@ -36,12 +36,11 @@ const _applyStyles = (feature, map) => {
     const rotation = 120
     const point = geometry.getCoordinates()
     const styleOptions = feature.get(Enums.InternalProperties.StyleOptions)
-    const color =
-      styleOptions && styleOptions.stroke && styleOptions.stroke.color
-        ? styleOptions.stroke.color
-        : defaultStyles.stroke.color
+    const color = styleOptions?.stroke?.color
+      ? styleOptions.stroke.color
+      : defaultStyles.stroke.color
 
-    feature.setStyle((feature, resolution) => {
+    feature.setStyle((_feature, resolution) => {
       const view = map.getView()
       const currentZoomLevel = view.getZoom()
       const zoomResolution = view.getResolutionForZoom(currentZoomLevel)
@@ -174,8 +173,8 @@ const ArrowMarker = ({ map, markupManager }) => {
         _applyStyles(feature, map)
       }
     },
-    onDrawEnd: ({ feature }) => {},
-    onDrawAbort: ({ feature }) => {},
+    onDrawEnd: ({ feature: _feature }) => {},
+    onDrawAbort: ({ feature: _feature }) => {},
   }
 }
 

@@ -1,5 +1,5 @@
-import { Circle as CircleStyle, Fill, Stroke, Style, Text } from 'ol/style.js'
 import { createEmpty, extend, getHeight, getWidth } from 'ol/extent.js'
+import { Circle as CircleStyle, Fill, Stroke, Style, Text } from 'ol/style.js'
 
 const textFill = new Fill({ color: '#fff' })
 const textStroke = new Stroke({

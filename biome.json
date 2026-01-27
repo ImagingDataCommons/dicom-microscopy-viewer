@@ -9,15 +9,15 @@
     "includes": [
       "src/**/*.js",
       "config/**/*.js",
-      "!src/__mocks__/**",
+      "!src/__mocks__",
       "!src/annotations/_AnnotationManager.test.js",
       "!src/annotations/markups/_MarkupManager.test.js",
       "!src/dictionary.js",
       "!src/**/*.test.js",
-      "!!dist/**",
-      "!!docs/**",
-      "!!build/**",
-      "!!test/**"
+      "!!dist",
+      "!!docs",
+      "!!build",
+      "!!test"
     ]
   },
   "formatter": {

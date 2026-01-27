@@ -67,7 +67,7 @@ class OpticalPath {
       throw new Error('Illumination type must be specified for optical path.')
     }
     this[_attrs].illuminationType = illuminationType
-
+    this[_attrs].illuminationColor = illuminationColor
     this[_attrs].illuminationWaveLength = illuminationWaveLength
 
     if (studyInstanceUID == null) {

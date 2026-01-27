@@ -357,7 +357,7 @@ function groupMonochromeInstances(images) {
       img.PhotometricInterpretation === 'MONOCHROME2' &&
       (img.ImageType[2] === 'VOLUME' || img.ImageType[2] === 'THUMBNAIL')
     ) {
-      img.OpticalPathSequence.forEach((opticalPathItem, opticalPathIndex) => {
+      img.OpticalPathSequence.forEach((opticalPathItem, _opticalPathIndex) => {
         const id = opticalPathItem.OpticalPathIdentifier
         if (id in channels) {
           channels[id].push(img)

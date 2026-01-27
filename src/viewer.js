@@ -1,91 +1,77 @@
 import 'ol/ol.css'
+import dcmjs from 'dcmjs'
+import { debounce, has } from 'lodash'
 import Collection from 'ol/Collection'
-import Draw, { createBox } from 'ol/interaction/Draw'
-import EVENT from './events'
-import publish from './eventPublisher'
-import Feature from 'ol/Feature'
-import Fill from 'ol/style/Fill'
+import { Zoom, ZoomSlider } from 'ol/control'
 import FullScreen from 'ol/control/FullScreen'
-import Icon from 'ol/style/Icon'
-import ImageLayer from 'ol/layer/Image'
-import Map from 'ol/Map'
-import Modify from 'ol/interaction/Modify'
 import MousePosition from 'ol/control/MousePosition'
 import OverviewMap from 'ol/control/OverviewMap'
-import Projection from 'ol/proj/Projection'
 import ScaleLine from 'ol/control/ScaleLine'
+import { createEmpty, extend, getCenter, getHeight, getWidth } from 'ol/extent'
+import Feature from 'ol/Feature'
+import { defaults as defaultInteractions } from 'ol/interaction'
+import DragPan from 'ol/interaction/DragPan'
+import DragZoom from 'ol/interaction/DragZoom'
+import Draw, { createBox } from 'ol/interaction/Draw'
+import Modify from 'ol/interaction/Modify'
 import Select from 'ol/interaction/Select'
 import Snap from 'ol/interaction/Snap'
 import Translate from 'ol/interaction/Translate'
-import Style from 'ol/style/Style'
-import Stroke from 'ol/style/Stroke'
-import Circle from 'ol/style/Circle'
-import Static from 'ol/source/ImageStatic'
-import Cluster from 'ol/source/Cluster'
-import Overlay from 'ol/Overlay'
-import WebGLVector from 'ol/layer/WebGLVector'
-import TileLayer from 'ol/layer/WebGLTile'
-import DataTileSource from 'ol/source/DataTile'
-import TileGrid from 'ol/tilegrid/TileGrid'
-import VectorSource from 'ol/source/Vector'
+import ImageLayer from 'ol/layer/Image'
 import VectorLayer from 'ol/layer/Vector'
-import View from 'ol/View'
-import DragPan from 'ol/interaction/DragPan'
-import DragZoom from 'ol/interaction/DragZoom'
-import WebGLHelper from 'ol/webgl/Helper'
+import TileLayer from 'ol/layer/WebGLTile'
+import WebGLVector from 'ol/layer/WebGLVector'
+import OlMap from 'ol/Map'
+import Overlay from 'ol/Overlay'
+import Projection from 'ol/proj/Projection'
+import Cluster from 'ol/source/Cluster'
+import DataTileSource from 'ol/source/DataTile'
+import Static from 'ol/source/ImageStatic'
 import TileDebug from 'ol/source/TileDebug'
+import VectorSource from 'ol/source/Vector'
 import { default as VectorEventType } from 'ol/source/VectorEventType' // eslint-disable-line
-import { ZoomSlider, Zoom } from 'ol/control'
-import { getCenter, createEmpty, extend, getHeight, getWidth } from 'ol/extent'
-import { defaults as defaultInteractions } from 'ol/interaction'
-import dcmjs from 'dcmjs'
-import { has, debounce } from 'lodash'
-import { CustomError, errorTypes } from './customError'
-
+import Circle from 'ol/style/Circle'
+import Fill from 'ol/style/Fill'
+import Icon from 'ol/style/Icon'
+import Stroke from 'ol/style/Stroke'
+import Style from 'ol/style/Style'
+import TileGrid from 'ol/tilegrid/TileGrid'
+import View from 'ol/View'
+import WebGLHelper from 'ol/webgl/Helper'
 import {
-  AnnotationGroup,
   _fetchGraphicData,
   _fetchGraphicIndex,
   // _fetchMeasurements,
   _getCommonZCoordinate,
   _getCoordinateDimensionality,
+  AnnotationGroup,
 } from './annotation.js'
+import _AnnotationManager from './annotations/_AnnotationManager'
+import getExtendedROI from './bulkAnnotations/getExtendedROI'
 import {
+  getEllipseFeature,
+  getFeaturesFromBulkAnnotations,
+  getPointFeature,
+  getPolygonFeature,
+  getRectangleFeature,
+} from './bulkAnnotations/utils'
+import { getClusterStyleFunc } from './clusterStyles.js'
+import {
+  buildPaletteColorLookupTable,
   ColormapNames,
   createColormap,
   PaletteColorLookupTable,
-  buildPaletteColorLookupTable,
 } from './color.js'
+import { CustomError, errorTypes } from './customError'
+import Enums from './enums'
+import publish from './eventPublisher'
+import EVENT from './events'
+import { _groupFramesPerMapping, ParameterMapping } from './mapping.js'
 import {
-  groupMonochromeInstances,
   groupColorInstances,
+  groupMonochromeInstances,
   VLWholeSlideMicroscopyImage,
 } from './metadata.js'
-import { ParameterMapping, _groupFramesPerMapping } from './mapping.js'
-import { ROI } from './roi.js'
-import { Segment } from './segment.js'
-import {
-  areCodedConceptsEqual,
-  applyTransform,
-  buildInverseTransform,
-  buildTransform,
-  computeRotation,
-  getContentItemNameCodedConcept,
-  _generateUID,
-  _getUnitSuffix,
-  doContentItemsMatch,
-  createWindow,
-  rgb2hex,
-} from './utils.js'
-import {
-  _scoord3dCoordinates2geometryCoordinates,
-  _scoord3d2Geometry,
-  getPixelSpacing,
-  _geometry2Scoord3d,
-  _geometryCoordinates2scoord3dCoordinates,
-  _getFeatureLength,
-  _getFeatureArea,
-} from './scoord3dUtils'
 import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
@@ -94,19 +80,31 @@ import {
   _fitImagePyramid,
   _getIccProfiles,
 } from './pyramid.js'
+import { ROI } from './roi.js'
 import {
-  getPointFeature,
-  getPolygonFeature,
-  getFeaturesFromBulkAnnotations,
-  getRectangleFeature,
-  getEllipseFeature,
-} from './bulkAnnotations/utils'
-
-import Enums from './enums'
-import _AnnotationManager from './annotations/_AnnotationManager'
+  _geometry2Scoord3d,
+  _geometryCoordinates2scoord3dCoordinates,
+  _getFeatureArea,
+  _getFeatureLength,
+  _scoord3d2Geometry,
+  _scoord3dCoordinates2geometryCoordinates,
+  getPixelSpacing,
+} from './scoord3dUtils'
+import { Segment } from './segment.js'
+import {
+  _generateUID,
+  _getUnitSuffix,
+  applyTransform,
+  areCodedConceptsEqual,
+  buildInverseTransform,
+  buildTransform,
+  computeRotation,
+  createWindow,
+  doContentItemsMatch,
+  getContentItemNameCodedConcept,
+  rgb2hex,
+} from './utils.js'
 import webWorkerManager from './webWorker/webWorkerManager.js'
-import getExtendedROI from './bulkAnnotations/getExtendedROI'
-import { getClusterStyleFunc } from './clusterStyles.js'
 
 /**
  * Dispose all map layers to free up memory.
@@ -1131,7 +1129,7 @@ class VolumeImageViewer {
       units: 'm',
       global: true,
       extent: this[_pyramid].extent,
-      getPointResolution: (pixelRes, point) => {
+      getPointResolution: (pixelRes, _point) => {
         /*
          * DICOM Pixel Spacing has millimeter unit while the projection has
          * meter unit.
@@ -1204,7 +1202,7 @@ class VolumeImageViewer {
         console.info(`channel "${opticalPathIdentifier}"`, pyramid)
         const bitsAllocated = info.metadata[0].BitsAllocated
         const minStoredValue = 0
-        const maxStoredValue = Math.pow(2, bitsAllocated) - 1
+        const maxStoredValue = 2 ** bitsAllocated - 1
 
         let paletteColorLookupTableUID
         let paletteColorLookupTable
@@ -1583,7 +1581,7 @@ class VolumeImageViewer {
 
     layers.push(this[_drawingLayer])
 
-    this[_map] = new Map({
+    this[_map] = new OlMap({
       layers,
       view,
       controls: [],
@@ -3125,7 +3123,7 @@ class VolumeImageViewer {
       this.removeROI(uid)
       const roiError = new CustomError(
         errorTypes.VISUALIZATION,
-        'Unable to get ROI: ' + error.message,
+        `Unable to get ROI: ${error.message}`,
       )
       throw this[_options].errorInterceptor(roiError || error)
     }
@@ -3319,7 +3317,7 @@ class VolumeImageViewer {
    *
    * @param {Object} options - Snap options.
    */
-  activateSnapInteraction(options = {}) {
+  activateSnapInteraction(_options = {}) {
     this.deactivateSnapInteraction()
     console.info('activate "snap" interaction')
     this[_interactions].snap = new Snap({
@@ -3361,7 +3359,7 @@ class VolumeImageViewer {
 
     const modifyOptions = {
       features: this[_features],
-      insertVertexCondition: (event) => true,
+      insertVertexCondition: (_event) => true,
     }
 
     /**
@@ -3874,7 +3872,7 @@ class VolumeImageViewer {
       'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
         `of series "${metadata.SeriesInstanceUID}"`,
     )
-
+    q
     const defaultAnnotationGroupStyle = {
       opacity: 1.0,
       color: this[_options].primaryColor,
@@ -4020,8 +4018,9 @@ class VolumeImageViewer {
       const commonZCoordinate = _getCommonZCoordinate(metadataItem)
       let areAnnotationsLoaded = false
 
-      const cacheBulkAnnotations = (id, data) =>
-        (this[_retrievedBulkdata][id] = data)
+      const cacheBulkAnnotations = (id, data) => {
+        this[_retrievedBulkdata][id] = data
+      }
       const getCachedBulkAnnotations = (id) => this[_retrievedBulkdata][id]
 
       const errorInterceptor = this[_options].errorInterceptor
@@ -4143,7 +4142,7 @@ class VolumeImageViewer {
                   console.error(errors[index], result.reason)
                   const customError = new CustomError(
                     errorTypes.VISUALIZATION,
-                    errors[index] + ': ' + result.reason,
+                    `${errors[index]}: ${result.reason}`,
                   )
                   errorInterceptor(customError)
                   failure()
@@ -4176,28 +4175,40 @@ class VolumeImageViewer {
        *
        * In the loader function "this" is bound to the vector source.
        */
-      function pointsLoader(extent, resolution, projection, success, failure) {
+      function pointsLoader(
+        _extent,
+        _resolution,
+        _projection,
+        success,
+        failure,
+      ) {
         bulkAnnotationsLoader.call(this, getPointFeature, success, failure)
       }
       function polygonsLoader(
-        extent,
-        resolution,
-        projection,
+        _extent,
+        _resolution,
+        _projection,
         success,
         failure,
       ) {
         bulkAnnotationsLoader.call(this, getPolygonFeature, success, failure)
       }
       function rectanglesLoader(
-        extent,
-        resolution,
-        projection,
+        _extent,
+        _resolution,
+        _projection,
         success,
         failure,
       ) {
         bulkAnnotationsLoader.call(this, getRectangleFeature, success, failure)
       }
-      function ellipseLoader(extent, resolution, projection, success, failure) {
+      function ellipseLoader(
+        _extent,
+        _resolution,
+        _projection,
+        success,
+        failure,
+      ) {
         bulkAnnotationsLoader.call(this, getEllipseFeature, success, failure)
       }
 
@@ -4382,9 +4393,9 @@ class VolumeImageViewer {
                 /** Calculate the extent of the cluster members */
                 if (clusterMembers && clusterMembers.length > 1) {
                   const extent = createEmpty()
-                  clusterMembers.forEach((feature) =>
-                    extend(extent, feature.getGeometry().getExtent()),
-                  )
+                  clusterMembers.forEach((feature) => {
+                    extend(extent, feature.getGeometry().getExtent())
+                  })
                   /** Zoom to the extent of the cluster members */
                   mapView.fit(extent, {
                     duration: 500,
@@ -5050,7 +5061,7 @@ class VolumeImageViewer {
       maxStoredValue = 1
     }
 
-    refSegmentation.SegmentSequence.forEach((item, index) => {
+    refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment #${segmentNumber}`)
       let segmentUID = _generateUID({
@@ -5068,7 +5079,7 @@ class VolumeImageViewer {
 
       const colormap = createColormap({
         name: ColormapNames.VIRIDIS,
-        bins: Math.pow(2, 8),
+        bins: 2 ** 8,
       })
 
       const defaultSegmentStyle = {
@@ -5782,7 +5793,7 @@ class VolumeImageViewer {
       })
 
       // Store real world value range for legend display
-      if (isNaN(range[0]) || isNaN(range[1])) {
+      if (Number.isNaN(range[0]) || Number.isNaN(range[1])) {
         const error = new CustomError(
           errorTypes.ENCODINGANDDECODING,
           'Could not determine range of real world values.',
@@ -5793,28 +5804,28 @@ class VolumeImageViewer {
       let colormap
       const isFloatPixelData = refInstance.BitsAllocated > 16
       let minStoredValue = 0
-      let maxStoredValue = Math.pow(2, refInstance.BitsAllocated) - 1
+      let maxStoredValue = 2 ** refInstance.BitsAllocated - 1
 
       if (isFloatPixelData) {
-        minStoredValue = -(Math.pow(2, refInstance.BitsAllocated) - 1) / 2
-        maxStoredValue = (Math.pow(2, refInstance.BitsAllocated) - 1) / 2
+        minStoredValue = -(2 ** refInstance.BitsAllocated - 1) / 2
+        maxStoredValue = (2 ** refInstance.BitsAllocated - 1) / 2
       }
 
       if (refInstance.PixelPresentation === 'MONOCHROME') {
         colormap = createColormap({
           name: ColormapNames.MAGMA,
-          bins: Math.pow(2, 8),
+          bins: 2 ** 8,
         })
       } else {
         if (range[0] < 0 && range[1] > 0) {
           colormap = createColormap({
             name: ColormapNames.BLUE_RED,
-            bins: Math.pow(2, 8),
+            bins: 2 ** 8,
           })
         } else {
           colormap = createColormap({
             name: ColormapNames.HOT,
-            bins: Math.pow(2, 8),
+            bins: 2 ** 8,
           })
         }
       }
@@ -6239,7 +6250,7 @@ class _NonVolumeImageViewer {
       -1, // max Y
     ]
 
-    const imageLoadFunction = (image, src) => {
+    const imageLoadFunction = (image, _src) => {
       console.info(`load ${imageFlavor} image`)
       const mediaType = 'image/png'
       const queryParams = {}
@@ -6282,7 +6293,7 @@ class _NonVolumeImageViewer {
       code: 'DICOM',
       units: 'metric',
       extent,
-      getPointResolution: (pixelRes, point) => {
+      getPointResolution: (pixelRes, _point) => {
         /*
          * DICOM Pixel Spacing has millimeter unit while the projection has
          * meter unit.
@@ -6320,7 +6331,7 @@ class _NonVolumeImageViewer {
     })
 
     // Creates the map with the defined layers and view and renders it.
-    this[_map] = new Map({
+    this[_map] = new OlMap({
       layers: [this[_imageLayer]],
       view,
       controls: [],

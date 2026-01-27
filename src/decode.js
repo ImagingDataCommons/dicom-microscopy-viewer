@@ -1,5 +1,5 @@
-import webWorkerManager from './webWorker/webWorkerManager.js'
 import dcmjs from 'dcmjs'
+import webWorkerManager from './webWorker/webWorkerManager.js'
 
 function _processDecodeAndTransformTask(
   frame,
