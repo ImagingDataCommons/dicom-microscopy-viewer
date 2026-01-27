@@ -18,7 +18,7 @@
     "dicomweb",
     "microscopy"
   ],
-  "packageManager": "bun@1.1.38",
+  "packageManager": "bun@latest",
   "main": "./src/dicom-microscopy-viewer.js",
   "exports": {
     ".": "./dist/dicomMicroscopyViewer.bundle.min.js",
