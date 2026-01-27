@@ -44,7 +44,7 @@ class OpticalPath {
    * @param {string[]} options.sopInstanceUIDs - SOP Instance UIDs of VL Whole Slide Microscopy Image instances
    * @param {string|undefined} options.paletteColorLookupTableUID - Palette Color Lookup Table UID
    */
-  constructor ({
+  constructor({
     identifier,
     description,
     illuminationType,
@@ -54,7 +54,7 @@ class OpticalPath {
     studyInstanceUID,
     seriesInstanceUID,
     sopInstanceUIDs,
-    paletteColorLookupTableUID
+    paletteColorLookupTableUID,
   }) {
     this[_attrs] = {}
     if (identifier == null) {
@@ -87,7 +87,7 @@ class OpticalPath {
 
     if (isMonochromatic == null) {
       throw new Error(
-        'Whether optical path is monochromatic must be specified.'
+        'Whether optical path is monochromatic must be specified.',
       )
     }
     this[_attrs].isMonochromatic = isMonochromatic
@@ -102,7 +102,7 @@ class OpticalPath {
    *
    * @type string
    */
-  get identifier () {
+  get identifier() {
     return this[_attrs].identifier
   }
 
@@ -111,7 +111,7 @@ class OpticalPath {
    *
    * @type string
    */
-  get description () {
+  get description() {
     return this[_attrs].description
   }
 
@@ -120,7 +120,7 @@ class OpticalPath {
    *
    * @type object
    */
-  get illuminationType () {
+  get illuminationType() {
     return this[_attrs].illuminationType
   }
 
@@ -129,7 +129,7 @@ class OpticalPath {
    *
    * @type object
    */
-  get illuminationColor () {
+  get illuminationColor() {
     return this[_attrs].illuminationColor
   }
 
@@ -138,7 +138,7 @@ class OpticalPath {
    *
    * @type string | undefined
    */
-  get illuminationWaveLength () {
+  get illuminationWaveLength() {
     return this[_attrs].illuminationWaveLength
   }
 
@@ -147,7 +147,7 @@ class OpticalPath {
    *
    * @type string
    */
-  get studyInstanceUID () {
+  get studyInstanceUID() {
     return this[_attrs].studyInstanceUID
   }
 
@@ -156,7 +156,7 @@ class OpticalPath {
    *
    * @type string
    */
-  get seriesInstanceUID () {
+  get seriesInstanceUID() {
     return this[_attrs].seriesInstanceUID
   }
 
@@ -165,7 +165,7 @@ class OpticalPath {
    *
    * @type string[]
    */
-  get sopInstanceUIDs () {
+  get sopInstanceUIDs() {
     return this[_attrs].sopInstanceUIDs
   }
 
@@ -174,7 +174,7 @@ class OpticalPath {
    *
    * @type string
    */
-  get paletteColorLookupTableUID () {
+  get paletteColorLookupTableUID() {
     return this[_attrs].paletteColorLookupTableUID
   }
 
@@ -183,7 +183,7 @@ class OpticalPath {
    *
    * @type boolean
    */
-  get isMonochromatic () {
+  get isMonochromatic() {
     return this[_attrs].isMonochromatic
   }
 
@@ -192,7 +192,7 @@ class OpticalPath {
    *
    * @type boolean
    */
-  get isColorable () {
+  get isColorable() {
     return this[_attrs].isMonochromatic
   }
 }

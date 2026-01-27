@@ -11,12 +11,12 @@ export default class ColorTransformer extends Transformer {
    * image
    * @param {Array<TypedArray>} - ICC profiles of each image
    */
-  constructor (metadata, iccProfiles) {
+  constructor(metadata, iccProfiles) {
     super()
     if (metadata.length !== iccProfiles.length) {
       throw new Error(
         'Argument "metadata" and "iccProfiles" must have same length: ' +
-        `${metadata.length} versus ${iccProfiles.length}`
+          `${metadata.length} versus ${iccProfiles.length}`,
       )
     }
     this.metadata = metadata
@@ -25,7 +25,7 @@ export default class ColorTransformer extends Transformer {
     this.transformers = {}
   }
 
-  _initialize () {
+  _initialize() {
     if (this.codec) {
       return Promise.resolve()
     }
@@ -36,7 +36,7 @@ export default class ColorTransformer extends Transformer {
           return dicomiccWASM
         }
         return f
-      }
+      },
     })
 
     return new Promise((resolve, reject) => {
@@ -52,7 +52,10 @@ export default class ColorTransformer extends Transformer {
           const sopInstanceUID = this.metadata[index].SOPInstanceUID
           const profile = inlineBinaryToUint8Array(this.iccProfiles[index])
           if (!profile) {
-            console.warn('Unable to convert icc profile: ', this.iccProfiles[index])
+            console.warn(
+              'Unable to convert icc profile: ',
+              this.iccProfiles[index],
+            )
             return
           }
           this.transformers[sopInstanceUID] = new this.codec.ColorManager(
@@ -61,9 +64,9 @@ export default class ColorTransformer extends Transformer {
               rows,
               bitsPerSample,
               samplesPerPixel,
-              planarConfiguration
+              planarConfiguration,
             },
-            profile
+            profile,
           )
         }
         resolve(this.transformers)
@@ -82,7 +85,7 @@ export default class ColorTransformer extends Transformer {
    *
    * @returns {Promise<Buffer>} transformed buffer
    */
-  async transform (sopInstanceUID, decodedFrame) {
+  async transform(sopInstanceUID, decodedFrame) {
     if (this.codec == null) {
       await this._initialize()
     }

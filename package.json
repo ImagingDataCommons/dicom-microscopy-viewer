@@ -25,29 +25,13 @@
     "./dist/dynamic-import/dicomMicroscopyViewer.min.js": "./dist/dynamic-import/dicomMicroscopyViewer.min.js",
     "./dynamic-import": "./dist/dynamic-import/dicomMicroscopyViewer.min.js"
   },
-  "standard": {
-    "ignore": [
-      "/build/*",
-      "/docs/*",
-      "/examples/simple_viewer/scripts/metadata.js",
-      "/examples/simple_viewer/scripts/dicomdict.js",
-      "/src/annotations/_AnnotationManager.test.js",
-      "/src/annotations/markups/_MarkupManager.test.js",
-      "/src/dictionary.js",
-      "/src/__mocks__/*",
-      "/test/*"
-    ],
-    "env": [
-      "jest"
-    ]
-  },
   "devDependencies": {
     "@babel/core": "^7.17",
     "@babel/plugin-proposal-object-rest-spread": "^7.14.7",
     "@babel/plugin-transform-runtime": "^7.15.0",
     "@babel/preset-env": "^7.16",
     "@babel/runtime-corejs3": "^7.15.4",
-    "babel-eslint": "10.1.0",
+    "@biomejs/biome": "^2.0.0",
     "babel-jest": "27.5",
     "babel-loader": "^8.2.3",
     "babel-plugin-transform-import-meta": "^2.3.3",
@@ -60,7 +44,6 @@
     "jest-canvas-mock": "^2.3",
     "jsdoc": "^4.0.2",
     "open-cli": "^7.0.1",
-    "standard": "^17.0",
     "terser-webpack-plugin": "^5.2.2",
     "webpack": "^5.94.0",
     "webpack-bundle-analyzer": "^4.10.2",
@@ -91,9 +74,10 @@
     "prepublishOnly": "bun run build",
     "generateStaticSite": "bun run build && cp -R ./dist ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
-    "fmt": "standard 'src/**/*.js' --fix",
-    "lint": "standard 'src/**/*.js'",
-    "lint:fix": "standard --fix src/**/*.js",
+    "fmt": "biome format --write .",
+    "format": "biome format --write .",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write --unsafe .",
     "clean": "rm -rf ./dist ./node_modules",
     "clean:dist": "rm -rf ./dist",
     "webpack:dynamic-import": "webpack --progress --config ./config/webpack/webpack-dynamic-import",

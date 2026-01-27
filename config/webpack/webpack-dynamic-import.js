@@ -12,7 +12,7 @@ const wasmRule = {
   generator: {
     filename: '[name][ext]',
   },
-};
+}
 
 const prodConfig = {
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
@@ -25,7 +25,7 @@ const prodConfig = {
     globalObject: 'self',
     filename: '[name].min.js',
     publicPath: 'auto',
-    chunkFilename: '[name].worker.min.js'
+    chunkFilename: '[name].worker.min.js',
   },
   module: {
     rules: [wasmRule],
@@ -41,6 +41,6 @@ const prodConfig = {
   experiments: {
     asyncWebAssembly: true,
   },
-};
+}
 
 module.exports = merge(baseConfig, prodConfig)

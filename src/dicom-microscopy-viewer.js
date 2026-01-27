@@ -5,7 +5,7 @@ import {
   ColormapNames,
   createColormap,
   PaletteColorLookupTable,
-  buildPaletteColorLookupTable
+  buildPaletteColorLookupTable,
 } from './color.js'
 import {
   Comprehensive3DSR,
@@ -15,7 +15,7 @@ import {
   VLWholeSlideMicroscopyImage,
   formatMetadata,
   groupMonochromeInstances,
-  groupColorInstances
+  groupColorInstances,
 } from './metadata.js'
 import { ROI } from './roi.js'
 import {
@@ -24,7 +24,7 @@ import {
   Polyline,
   Polygon,
   Ellipsoid,
-  Ellipse
+  Ellipse,
 } from './scoord3d.js'
 import {
   applyInverseTransform,
@@ -33,19 +33,15 @@ import {
   buildTransform,
   computeRotation,
   mapSlideCoordToPixelCoord,
-  mapPixelCoordToSlideCoord
+  mapPixelCoordToSlideCoord,
 } from './utils.js'
 import {
   LabelImageViewer,
   OverviewImageViewer,
-  VolumeImageViewer
+  VolumeImageViewer,
 } from './viewer.js'
-import {
-  OpticalPath
-} from './opticalPath.js'
-import {
-  Segment
-} from './segment.js'
+import { OpticalPath } from './opticalPath.js'
+import { Segment } from './segment.js'
 
 /**
  * Namespace for annotations of DICOM Micrsocopy Bulk Simple Annotations
@@ -54,7 +50,7 @@ import {
  * @namespace annotation
  */
 const annotation = {
-  AnnotationGroup
+  AnnotationGroup,
 }
 
 /**
@@ -64,7 +60,7 @@ const annotation = {
  * @deprecated use the viewer namespace instead
  */
 const api = {
-  VLWholeSlideMicroscopyImageViewer: VolumeImageViewer
+  VLWholeSlideMicroscopyImageViewer: VolumeImageViewer,
 }
 
 /**
@@ -75,7 +71,7 @@ const api = {
 const viewer = {
   LabelImageViewer,
   OverviewImageViewer,
-  VolumeImageViewer
+  VolumeImageViewer,
 }
 
 /**
@@ -84,7 +80,7 @@ const viewer = {
  * @namespace mapping
  */
 const mapping = {
-  ParameterMapping
+  ParameterMapping,
 }
 
 /**
@@ -100,7 +96,7 @@ const metadata = {
   ParametricMap,
   Segmentation,
   VLWholeSlideMicroscopyImage,
-  Comprehensive3DSR
+  Comprehensive3DSR,
 }
 
 /**
@@ -112,7 +108,7 @@ const color = {
   ColormapNames,
   createColormap,
   PaletteColorLookupTable,
-  buildPaletteColorLookupTable
+  buildPaletteColorLookupTable,
 }
 
 /**
@@ -121,7 +117,7 @@ const color = {
  * @namespace opticalPath
  */
 const opticalPath = {
-  OpticalPath
+  OpticalPath,
 }
 
 /**
@@ -135,7 +131,7 @@ const scoord3d = {
   Polyline,
   Polygon,
   Ellipsoid,
-  Ellipse
+  Ellipse,
 }
 
 /**
@@ -144,7 +140,7 @@ const scoord3d = {
  * @namespace roi
  */
 const roi = {
-  ROI
+  ROI,
 }
 
 /**
@@ -153,7 +149,7 @@ const roi = {
  * @namespace segment
  */
 const segment = {
-  Segment
+  Segment,
 }
 
 /**
@@ -162,7 +158,7 @@ const segment = {
  * @namespace events
  */
 const events = {
-  EVENTS
+  EVENTS,
 }
 
 /**
@@ -177,7 +173,7 @@ const utils = {
   buildTransform,
   computeRotation,
   mapSlideCoordToPixelCoord,
-  mapPixelCoordToSlideCoord
+  mapPixelCoordToSlideCoord,
 }
 
 export {
@@ -192,5 +188,5 @@ export {
   scoord3d,
   segment,
   utils,
-  viewer
+  viewer,
 }

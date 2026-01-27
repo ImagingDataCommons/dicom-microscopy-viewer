@@ -11,14 +11,15 @@ import dcmjs from 'dcmjs'
  */
 const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
   const annotationGroupUID = feature.get('annotationGroupUID')
-  const annotationGroupMetadata = metadata.AnnotationGroupSequence.find(
-    (item) => item.AnnotationGroupUID === annotationGroupUID
-  ) || annotationGroup
+  const annotationGroupMetadata =
+    metadata.AnnotationGroupSequence.find(
+      (item) => item.AnnotationGroupUID === annotationGroupUID,
+    ) || annotationGroup
 
   if (annotationGroupUID == null || annotationGroupMetadata == null) {
     throw new Error(
       'Could not obtain information of annotation from ' +
-        `annotation group "${annotationGroupUID}".`
+        `annotation group "${annotationGroupUID}".`,
     )
   }
 
@@ -30,15 +31,15 @@ const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
         name: new dcmjs.sr.coding.CodedConcept({
           value: '276214006',
           meaning: 'Finding category',
-          schemeDesignator: 'SCT'
+          schemeDesignator: 'SCT',
         }),
         value: new dcmjs.sr.coding.CodedConcept({
           value: findingCategory.CodeValue,
           meaning: findingCategory.CodeMeaning,
-          schemeDesignator: findingCategory.CodingSchemeDesignator
+          schemeDesignator: findingCategory.CodingSchemeDesignator,
         }),
-        relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
-      })
+        relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD,
+      }),
     )
   }
 
@@ -50,15 +51,15 @@ const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
         name: new dcmjs.sr.coding.CodedConcept({
           value: '121071',
           meaning: 'Finding',
-          schemeDesignator: 'DCM'
+          schemeDesignator: 'DCM',
         }),
         value: new dcmjs.sr.coding.CodedConcept({
           value: findingType.CodeValue,
           meaning: findingType.CodeMeaning,
-          schemeDesignator: findingType.CodingSchemeDesignator
+          schemeDesignator: findingType.CodingSchemeDesignator,
         }),
-        relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD
-      })
+        relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.HAS_CONCEPT_MOD,
+      }),
     )
   }
 
@@ -79,14 +80,14 @@ const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
           name: new dcmjs.sr.coding.CodedConcept({
             value: name.CodeValue,
             meaning: name.CodeMeaning,
-            schemeDesignator: name.CodingSchemeDesignator
+            schemeDesignator: name.CodingSchemeDesignator,
           }),
           unit: new dcmjs.sr.coding.CodedConcept({
             value: unit.CodeValue,
             meaning: unit.CodeMeaning,
-            schemeDesignator: unit.CodingSchemeDesignator
+            schemeDesignator: unit.CodingSchemeDesignator,
           }),
-          relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.CONTAINS
+          relationshipType: dcmjs.sr.valueTypes.RelationshipTypes.CONTAINS,
         })
         if (measurementItem.ReferencedImageSequence != null) {
           const ref = measurementItem.ReferencedImageSequence[0]
@@ -94,10 +95,10 @@ const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
             name: new dcmjs.sr.coding.CodedConcept({
               value: '121112',
               meaning: 'Source of Measurement',
-              schemeDesignator: 'DCM'
+              schemeDesignator: 'DCM',
             }),
             referencedSOPClassUID: ref.ReferencedSOPClassUID,
-            referencedSOPInstanceUID: ref.ReferencedSOPInstanceUID
+            referencedSOPInstanceUID: ref.ReferencedSOPInstanceUID,
           })
           if (ref.ReferencedOpticalPathIdentifier != null) {
             image.ReferencedSOPSequence[0].ReferencedOpticalPathIdentifier =
@@ -106,7 +107,7 @@ const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
           measurement.ContentSequence = [image]
         }
         roi.addMeasurement(measurement)
-      }
+      },
     )
   }
 

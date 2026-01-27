@@ -19,13 +19,13 @@ class Transformation {
    * @param {number} options.intercept - Intercept of linear function
    * @param {number} options.slope - Slope of linear function
    */
-  constructor ({
+  constructor({
     label,
     firstValueMapped,
     lastValueMapped,
     lut,
     intercept,
-    slope
+    slope,
   }) {
     if (label === undefined) {
       throw new Error('LUT Label is required.')
@@ -44,7 +44,7 @@ class Transformation {
     if ((intercept === undefined || slope === undefined) && lut === undefined) {
       throw new Error(
         'Either LUT Data or Real World Value Slope and ' +
-        'Real World Value Intercept must be provided.'
+          'Real World Value Intercept must be provided.',
       )
     }
     if (slope === undefined) {
@@ -87,7 +87,7 @@ class ParameterMapping {
    * @param {string|undefined} options.paletteColorLookupTableUID - Palette
    * Color Lookup Table UID
    */
-  constructor ({
+  constructor({
     uid,
     number,
     label,
@@ -95,7 +95,7 @@ class ParameterMapping {
     studyInstanceUID,
     seriesInstanceUID,
     sopInstanceUIDs,
-    paletteColorLookupTableUID
+    paletteColorLookupTableUID,
   }) {
     this[_attrs] = {}
     if (uid === undefined) {
@@ -144,7 +144,7 @@ class ParameterMapping {
    *
    * @type string
    */
-  get uid () {
+  get uid() {
     return this[_attrs].uid
   }
 
@@ -153,7 +153,7 @@ class ParameterMapping {
    *
    * @type number
    */
-  get number () {
+  get number() {
     return this[_attrs].number
   }
 
@@ -162,7 +162,7 @@ class ParameterMapping {
    *
    * @type string
    */
-  get label () {
+  get label() {
     return this[_attrs].label
   }
 
@@ -171,7 +171,7 @@ class ParameterMapping {
    *
    * @type string
    */
-  get description () {
+  get description() {
     return this[_attrs].description
   }
 
@@ -180,7 +180,7 @@ class ParameterMapping {
    *
    * @type string
    */
-  get studyInstanceUID () {
+  get studyInstanceUID() {
     return this[_attrs].studyInstanceUID
   }
 
@@ -189,7 +189,7 @@ class ParameterMapping {
    *
    * @type string
    */
-  get seriesInstanceUID () {
+  get seriesInstanceUID() {
     return this[_attrs].seriesInstanceUID
   }
 
@@ -198,7 +198,7 @@ class ParameterMapping {
    *
    * @type string[]
    */
-  get sopInstanceUIDs () {
+  get sopInstanceUIDs() {
     return this[_attrs].sopInstanceUIDs
   }
 
@@ -207,23 +207,23 @@ class ParameterMapping {
    *
    * @type string
    */
-  get paletteColorLookupTableUID () {
+  get paletteColorLookupTableUID() {
     return this[_attrs].paletteColorLookupTableUID
   }
 }
 
-function _groupFramesPerMapping (metadata) {
+function _groupFramesPerMapping(metadata) {
   const mappings = {}
   const sharedItem = metadata.SharedFunctionalGroupsSequence[0]
   if (sharedItem.RealWorldValueMappingSequence !== undefined) {
     const labels = sharedItem.RealWorldValueMappingSequence.map(
-      item => item.LUTLabel
+      (item) => item.LUTLabel,
     )
     const key = labels.join('-')
     const numFrames = Number(metadata.NumberOfFrames)
     mappings[key] = {
-      frameNumbers: [...Array(numFrames).keys()].map(index => index + 1),
-      realWorldValueMappings: sharedItem.RealWorldValueMappingSequence
+      frameNumbers: [...Array(numFrames).keys()].map((index) => index + 1),
+      realWorldValueMappings: sharedItem.RealWorldValueMappingSequence,
     }
   } else {
     // Dimension Organization TILED_FULL is not defined for Parametric Map
@@ -231,7 +231,7 @@ function _groupFramesPerMapping (metadata) {
       metadata.PerFrameFunctionalGroupsSequence.forEach((frameItem, i) => {
         if (frameItem.RealWorldValueMappingSequence !== undefined) {
           const labels = frameItem.RealWorldValueMappingSequence.map(
-            item => item.LUTLabel
+            (item) => item.LUTLabel,
           )
           const key = labels.join('-')
           if (key in mappings) {
@@ -239,7 +239,7 @@ function _groupFramesPerMapping (metadata) {
           } else {
             mappings[key] = {
               frameNumbers: [i + 1],
-              realWorldValueMappings: frameItem.RealWorldValueMappingSequence
+              realWorldValueMappings: frameItem.RealWorldValueMappingSequence,
             }
           }
         }
@@ -252,7 +252,7 @@ function _groupFramesPerMapping (metadata) {
   const mappingNumberToDescriptions = {}
   Object.values(mappings).forEach((mapping, mappingIndex) => {
     const mappingNumber = mappingIndex + 1
-    mapping.frameNumbers.forEach(frameNumber => {
+    mapping.frameNumbers.forEach((frameNumber) => {
       frameNumberToMappingNumber[frameNumber] = mappingNumber
       if (mappingNumber in mappingNumberToFrameNumbers) {
         mappingNumberToFrameNumbers[mappingNumber].push(frameNumber)
@@ -266,12 +266,8 @@ function _groupFramesPerMapping (metadata) {
   return {
     frameNumberToMappingNumber,
     mappingNumberToFrameNumbers,
-    mappingNumberToDescriptions
+    mappingNumberToDescriptions,
   }
 }
 
-export {
-  _groupFramesPerMapping,
-  ParameterMapping,
-  Transformation
-}
+export { _groupFramesPerMapping, ParameterMapping, Transformation }

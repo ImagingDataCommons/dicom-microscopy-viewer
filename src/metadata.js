@@ -5,7 +5,7 @@ import { _groupFramesPerMapping } from './mapping'
 const _metadata = Symbol('metadata')
 const _bulkdataReferences = Symbol('bulkdataReferences')
 
-function _base64ToUint8Array (value) {
+function _base64ToUint8Array(value) {
   const blob = window.atob(value)
   const array = new Uint8Array(blob.length)
 
@@ -16,7 +16,7 @@ function _base64ToUint8Array (value) {
   return array
 }
 
-function _base64ToUint16Array (value) {
+function _base64ToUint16Array(value) {
   const blob = window.atob(value)
   const n = Uint16Array.BYTES_PER_ELEMENT
   const length = blob.length / n
@@ -36,7 +36,7 @@ function _base64ToUint16Array (value) {
   return array
 }
 
-function _base64ToUint32Array (value) {
+function _base64ToUint32Array(value) {
   const blob = window.atob(value)
   const n = Uint32Array.BYTES_PER_ELEMENT
   const length = blob.length / n
@@ -56,7 +56,7 @@ function _base64ToUint32Array (value) {
   return array
 }
 
-function _base64ToFloat32Array (value) {
+function _base64ToFloat32Array(value) {
   const blob = window.atob(value)
   const n = Float32Array.BYTES_PER_ELEMENT
   const length = blob.length / n
@@ -76,7 +76,7 @@ function _base64ToFloat32Array (value) {
   return array
 }
 
-function _base64ToFloat64Array (value) {
+function _base64ToFloat64Array(value) {
   const blob = window.atob(value)
   const n = Float64Array.BYTES_PER_ELEMENT
   const length = blob.length / n
@@ -102,7 +102,7 @@ function _base64ToFloat64Array (value) {
  * @returns {Object} Mapping of pyramid tile position (Row-Column) to frame URI
  * @private
  */
-function getFrameMapping (metadata) {
+function getFrameMapping(metadata) {
   const rows = metadata.Rows
   const columns = metadata.Columns
   const totalPixelMatrixColumns = metadata.TotalPixelMatrixColumns
@@ -122,10 +122,8 @@ function getFrameMapping (metadata) {
     throw new Error('Images with multiple focal planes are not yet supported.')
   }
 
-  const {
-    mappingNumberToFrameNumbers,
-    frameNumberToMappingNumber
-  } = _groupFramesPerMapping(metadata)
+  const { mappingNumberToFrameNumbers, frameNumberToMappingNumber } =
+    _groupFramesPerMapping(metadata)
   let numberOfChannels = 0
   let numberOfOpticalPaths = 0
   let numberOfSegments = 0
@@ -150,9 +148,8 @@ function getFrameMapping (metadata) {
    * The values "TILED_SPARSE" and "TILED_FULL" were introduced in the 2018
    * edition of the standard. Older datasets are equivalent to "TILED_SPARSE".
    */
-  const dimensionOrganizationType = (
+  const dimensionOrganizationType =
     metadata.DimensionOrganizationType || 'TILED_SPARSE'
-  )
   if (dimensionOrganizationType === 'TILED_FULL') {
     let number = 1
     // Forth, along "channels"
@@ -180,7 +177,7 @@ function getFrameMapping (metadata) {
               channelIdentifier = String(frameNumberToMappingNumber[number])
             } else {
               throw new Error(
-                `Could not determine channel of frame #${number}.`
+                `Could not determine channel of frame #${number}.`,
               )
             }
             const key = `${r + 1}-${c + 1}-${channelIdentifier}`
@@ -196,7 +193,8 @@ function getFrameMapping (metadata) {
     for (let j = 0; j < numberOfFrames; j++) {
       const planePositions = perframeFuncGroups[j].PlanePositionSlideSequence[0]
       const rowPosition = planePositions.RowPositionInTotalImagePixelMatrix
-      const columnPosition = planePositions.ColumnPositionInTotalImagePixelMatrix
+      const columnPosition =
+        planePositions.ColumnPositionInTotalImagePixelMatrix
       const rowIndex = Math.ceil(rowPosition / rows)
       const colIndex = Math.ceil(columnPosition / columns)
       const number = j + 1
@@ -204,42 +202,36 @@ function getFrameMapping (metadata) {
       if (numberOfOpticalPaths === 1) {
         try {
           channelIdentifier = String(
-            sharedFuncGroups[0]
-              .OpticalPathIdentificationSequence[0]
-              .OpticalPathIdentifier
+            sharedFuncGroups[0].OpticalPathIdentificationSequence[0]
+              .OpticalPathIdentifier,
           )
         } catch {
           channelIdentifier = String(
-            perframeFuncGroups[j]
-              .OpticalPathIdentificationSequence[0]
-              .OpticalPathIdentifier
+            perframeFuncGroups[j].OpticalPathIdentificationSequence[0]
+              .OpticalPathIdentifier,
           )
         }
       } else if (numberOfOpticalPaths > 1) {
         channelIdentifier = String(
-          perframeFuncGroups[j]
-            .OpticalPathIdentificationSequence[0]
-            .OpticalPathIdentifier
+          perframeFuncGroups[j].OpticalPathIdentificationSequence[0]
+            .OpticalPathIdentifier,
         )
       } else if (numberOfSegments === 1) {
         try {
           channelIdentifier = String(
-            sharedFuncGroups[0]
-              .SegmentIdentificationSequence[0]
-              .ReferencedSegmentNumber
+            sharedFuncGroups[0].SegmentIdentificationSequence[0]
+              .ReferencedSegmentNumber,
           )
         } catch {
           channelIdentifier = String(
-            perframeFuncGroups[j]
-              .SegmentIdentificationSequence[0]
-              .ReferencedSegmentNumber
+            perframeFuncGroups[j].SegmentIdentificationSequence[0]
+              .ReferencedSegmentNumber,
           )
         }
       } else if (numberOfSegments > 1) {
         channelIdentifier = String(
-          perframeFuncGroups[j]
-            .SegmentIdentificationSequence[0]
-            .ReferencedSegmentNumber
+          perframeFuncGroups[j].SegmentIdentificationSequence[0]
+            .ReferencedSegmentNumber,
         )
       } else if (numberOfMappings > 0) {
         channelIdentifier = String(frameNumberToMappingNumber[number])
@@ -253,7 +245,7 @@ function getFrameMapping (metadata) {
   }
   return {
     frameMapping,
-    numberOfChannels
+    numberOfChannels,
   }
 }
 
@@ -271,11 +263,11 @@ function getFrameMapping (metadata) {
  *
  * @memberof metadata
  */
-function formatMetadata (metadata) {
+function formatMetadata(metadata) {
   const loadJSONDataset = (elements) => {
     const dataset = {}
     const bulkdataReferences = {}
-    Object.keys(elements).forEach(tag => {
+    Object.keys(elements).forEach((tag) => {
       const keyword = tagToKeyword[tag] || tag
       const vr = elements[tag].vr
       if ('BulkDataURI' in elements[tag]) {
@@ -285,12 +277,12 @@ function formatMetadata (metadata) {
         if (vr === 'SQ') {
           dataset[keyword] = []
           const mappings = []
-          value.forEach(item => {
+          value.forEach((item) => {
             const loaded = loadJSONDataset(item)
             dataset[keyword].push(loaded.dataset)
             mappings.push(loaded.bulkdataReferences)
           })
-          if (mappings.some(item => Object.keys(item).length > 0)) {
+          if (mappings.some((item) => Object.keys(item).length > 0)) {
             bulkdataReferences[keyword] = mappings
           }
         } else {
@@ -303,7 +295,7 @@ function formatMetadata (metadata) {
             }
           } else {
             if (vr === 'DS' || vr === 'IS') {
-              dataset[keyword] = value.map(v => Number(v))
+              dataset[keyword] = value.map((v) => Number(v))
             } else {
               dataset[keyword] = value
             }
@@ -341,7 +333,7 @@ function formatMetadata (metadata) {
   if (dataset === undefined) {
     throw new Error('Could not format metadata: ', metadata)
   }
-  if (!('NumberOfFrames' in dataset) && (dataset.Modality === 'SM')) {
+  if (!('NumberOfFrames' in dataset) && dataset.Modality === 'SM') {
     dataset.NumberOfFrames = 1
   }
 
@@ -357,9 +349,9 @@ function formatMetadata (metadata) {
  * @returns {Object} Groups of DICOM VL Whole Slide Microscopy Image instances
  * @memberof metadata
  */
-function groupMonochromeInstances (images) {
+function groupMonochromeInstances(images) {
   const channels = {}
-  images.forEach(img => {
+  images.forEach((img) => {
     if (
       img.SamplesPerPixel === 1 &&
       img.PhotometricInterpretation === 'MONOCHROME2' &&
@@ -387,16 +379,14 @@ function groupMonochromeInstances (images) {
  * @returns {Object} Groups of DICOM VL Whole Slide Microscopy Image instances
  * @memberof metadata
  */
-function groupColorInstances (images) {
+function groupColorInstances(images) {
   const channels = {}
-  images.forEach(img => {
+  images.forEach((img) => {
     if (
       img.SamplesPerPixel !== 1 &&
       (img.ImageType[2] === 'THUMBNAIL' || img.ImageType[2] === 'VOLUME') &&
-      (
-        img.PhotometricInterpretation === 'RGB' ||
-        img.PhotometricInterpretation.includes('YBR')
-      )
+      (img.PhotometricInterpretation === 'RGB' ||
+        img.PhotometricInterpretation.includes('YBR'))
     ) {
       const id = img.OpticalPathSequence[0].OpticalPathIdentifier
       if (id in channels) {
@@ -421,10 +411,10 @@ class SOPClass {
    * @param {Object} options
    * @param {Object} options.metadata - Metadata of a DICOM SOP instance in DICOM JSON format
    */
-  constructor ({ metadata }) {
+  constructor({ metadata }) {
     if (metadata == null) {
       throw new Error(
-        'Cannot construct SOP Instance because no metadata was provided.'
+        'Cannot construct SOP Instance because no metadata was provided.',
       )
     }
     const { dataset, bulkdataReferences } = formatMetadata(metadata)
@@ -441,7 +431,7 @@ class SOPClass {
    *
    * @returns {Object} metadata in DICOM JSON format
    */
-  get json () {
+  get json() {
     return this[_metadata]
   }
 
@@ -450,7 +440,7 @@ class SOPClass {
    *
    * @returns {Object} bulkdata references in DICOM JSON format
    */
-  get bulkdataReferences () {
+  get bulkdataReferences() {
     return this[_bulkdataReferences]
   }
 }
@@ -467,12 +457,12 @@ class VLWholeSlideMicroscopyImage extends SOPClass {
    * @param {Object} options
    * @param {Object} options.metadata - Metadata of a VL Whole Slide Microscopy Image in DICOM JSON format
    */
-  constructor ({ metadata }) {
+  constructor({ metadata }) {
     super({ metadata })
     if (this.SOPClassUID !== SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE) {
       throw new Error(
         'Cannot construct VL Whole Slide Microscopy Image instance ' +
-        `given dataset with SOP Class UID "${this.SOPClassUID}"`
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
       )
     }
   }
@@ -490,12 +480,12 @@ class Comprehensive3DSR extends SOPClass {
    * @param {Object} options
    * @param {Object} options.metadata - Metadata of DICOM Structured Report instance in DICOM JSON format
    */
-  constructor ({ metadata }) {
+  constructor({ metadata }) {
     super({ metadata })
     if (this.SOPClassUID !== SOPClassUIDs.COMPREHENSIVE_3D_SR) {
       throw new Error(
         'Cannot construct Comprehensive 3D SR instance ' +
-          `given dataset with SOP Class UID "${this.SOPClassUID}"`
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
       )
     }
   }
@@ -513,12 +503,12 @@ class MicroscopyBulkSimpleAnnotations extends SOPClass {
    * @param {Object} options
    * @param {Object} options.metadata - Metadata of a DICOM Microscopy Bulk Simple Annotations instance in DICOM JSON format
    */
-  constructor ({ metadata }) {
+  constructor({ metadata }) {
     super({ metadata })
     if (this.SOPClassUID !== SOPClassUIDs.MICROSCOPY_BULK_SIMPLE_ANNOTATIONS) {
       throw new Error(
         'Cannot construct Microscopy Bulk Simple Annotations instance ' +
-          `given dataset with SOP Class UID "${this.SOPClassUID}"`
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
       )
     }
   }
@@ -536,12 +526,12 @@ class ParametricMap extends SOPClass {
    * @param {Object} options
    * @param {Object} options.metadata - Metadata of a DICOM Parametric Map instance in DICOM JSON format
    */
-  constructor ({ metadata }) {
+  constructor({ metadata }) {
     super({ metadata })
     if (this.SOPClassUID !== SOPClassUIDs.PARAMETRIC_MAP) {
       throw new Error(
         'Cannot construct Parametric Map instance ' +
-          `given dataset with SOP Class UID "${this.SOPClassUID}"`
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
       )
     }
   }
@@ -559,12 +549,12 @@ class Segmentation extends SOPClass {
    * @param {Object} options
    * @param {Object} options.metadata - Metadata of a DICOM Segmentation instance in DICOM JSON format
    */
-  constructor ({ metadata }) {
+  constructor({ metadata }) {
     super({ metadata })
     if (this.SOPClassUID !== SOPClassUIDs.SEGMENTATION) {
       throw new Error(
         'Cannot construct Segmentation instance ' +
-        `given dataset with SOP Class UID "${this.SOPClassUID}"`
+          `given dataset with SOP Class UID "${this.SOPClassUID}"`,
       )
     }
   }
@@ -579,5 +569,5 @@ export {
   MicroscopyBulkSimpleAnnotations,
   ParametricMap,
   Segmentation,
-  VLWholeSlideMicroscopyImage
+  VLWholeSlideMicroscopyImage,
 }

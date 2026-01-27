@@ -17,7 +17,7 @@ class ROI {
    * @param {string} options.uid - Unique idenfifier
    * @param {Object} options.properties - Properties (name-value pairs)
    */
-  constructor (options) {
+  constructor(options) {
     if (!('scoord3d' in options)) {
       throw new Error('spatial coordinates are required for ROI')
     }
@@ -57,7 +57,7 @@ class ROI {
    *
    * @type string
    */
-  get uid () {
+  get uid() {
     return this[_uid]
   }
 
@@ -66,7 +66,7 @@ class ROI {
    *
    * @type scoord3d.Scoord3D
    */
-  get scoord3d () {
+  get scoord3d() {
     return this[_scoord3d]
   }
 
@@ -75,7 +75,7 @@ class ROI {
    *
    * @type Object
    */
-  get properties () {
+  get properties() {
     return this[_properties]
   }
 
@@ -84,7 +84,7 @@ class ROI {
    *
    * @type Object[]
    */
-  get measurements () {
+  get measurements() {
     return this[_properties][Enums.InternalProperties.Measurements].slice(0)
   }
 
@@ -93,7 +93,7 @@ class ROI {
    *
    * @type Object[]
    */
-  get evaluations () {
+  get evaluations() {
     return this[_properties][Enums.InternalProperties.Evaluations].slice(0)
   }
 
@@ -102,7 +102,7 @@ class ROI {
    *
    * @param {Object} item - NUM content item representing a measurement
    */
-  addMeasurement (item) {
+  addMeasurement(item) {
     this[_properties][Enums.InternalProperties.Measurements].push(item)
   }
 
@@ -111,7 +111,7 @@ class ROI {
    *
    * @param {Object} item - CODE content item representing a qualitative evaluation
    */
-  addEvaluation (item) {
+  addEvaluation(item) {
     this[_properties][Enums.InternalProperties.Evaluations].push(item)
   }
 }

@@ -1,10 +1,10 @@
 export default class Decoder {
-  constructor () {
+  constructor() {
     this.codec = undefined
     this.decoder = undefined
   }
 
-  _initialize () {
+  _initialize() {
     return Promise.resolve()
   }
 
@@ -14,7 +14,7 @@ export default class Decoder {
    *
    * @returns {Promise<object>} decoded array and frame information
    */
-  async decode (byteArray) {
+  async decode(byteArray) {
     if (!this.codec) {
       await this._initialize()
     }
@@ -25,7 +25,7 @@ export default class Decoder {
 
     return {
       frameBuffer: this.decoder.getDecodedBuffer(),
-      frameInfo: this.decoder.getFrameInfo()
+      frameInfo: this.decoder.getFrameInfo(),
     }
   }
 }

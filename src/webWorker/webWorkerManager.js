@@ -11,7 +11,7 @@ const webWorkers = []
 
 const defaultConfig = {
   maxWebWorkers: navigator.hardwareConcurrency || 1,
-  webWorkerTaskPaths: []
+  webWorkerTaskPaths: [],
 }
 
 // limit number of web workers to avoid memory problems in certain browsers
@@ -26,13 +26,13 @@ const statistics = {
   numTasksExecuting: 0,
   numTasksCompleted: 0,
   totalTaskTimeInMS: 0,
-  totalTimeDelayedInMS: 0
+  totalTimeDelayedInMS: 0,
 }
 
 /**
  * Function to start a task on a web worker
  */
-function startTaskOnWebWorker () {
+function startTaskOnWebWorker() {
   // return immediately if no decode tasks to do
   if (!tasks.length) {
     return
@@ -61,9 +61,9 @@ function startTaskOnWebWorker () {
         {
           taskType: task.taskType,
           workerIndex: i,
-          data: task.data
+          data: task.data,
         },
-        task.transferList
+        task.transferList,
       )
       statistics.numTasksExecuting++
 
@@ -81,7 +81,7 @@ function startTaskOnWebWorker () {
  * Function to handle a message from a web worker
  * @param msg
  */
-function handleMessageFromWorker (msg) {
+function handleMessageFromWorker(msg) {
   if (msg.data.taskType === 'initialize') {
     webWorkers[msg.data.workerIndex].status = 'ready'
     startTaskOnWebWorker()
@@ -120,14 +120,14 @@ function handleMessageFromWorker (msg) {
  * However, each level can specify the full absolute path, replacing the previous
  * items, allowing for distribution of this library to a CDN.
  */
-export function getMicroscopyHref (component = 'dicom-microscopy-viewer') {
+export function getMicroscopyHref(component = 'dicom-microscopy-viewer') {
   // Work around bugs in webpack that don't update the meta url correctly
   const publicUrl = window.PUBLIC_URL || window.config?.path || '/'
   const publicLibUrl =
     window.PUBLIC_LIB_URL || window.config?.publicLibPath || './static/js/'
   const absoluteUrl = new URL(
     publicUrl,
-    `${window.location.protocol}//${window.location.host}`
+    `${window.location.protocol}//${window.location.host}`,
   ).href
   const microscopyLibUrl = publicLibUrl.replace(/\${component}/, component)
   const libUrl = new URL(microscopyLibUrl, absoluteUrl).href
@@ -137,7 +137,7 @@ export function getMicroscopyHref (component = 'dicom-microscopy-viewer') {
 /**
  * Spawns a new web worker
  */
-function spawnWebWorker () {
+function spawnWebWorker() {
   // prevent exceeding maxWebWorkers
   if (webWorkers.length >= config.maxWebWorkers) {
     return
@@ -156,13 +156,13 @@ function spawnWebWorker () {
 
   webWorkers.push({
     worker,
-    status: 'initializing'
+    status: 'initializing',
   })
   worker.addEventListener('message', handleMessageFromWorker)
   worker.postMessage({
     taskType: 'initialize',
     workerIndex: webWorkers.length - 1,
-    config
+    config,
   })
 }
 
@@ -170,7 +170,7 @@ function spawnWebWorker () {
  * Initialization function for the web worker manager - spawns web workers
  * @param configObject
  */
-function initialize (configObject) {
+function initialize(configObject) {
   configObject = configObject || defaultConfig
 
   // prevent being initialized more than once
@@ -187,7 +187,7 @@ function initialize (configObject) {
 /**
  * Terminate all running web workers.
  */
-function terminateAllWebWorkers () {
+function terminateAllWebWorkers() {
   for (let i = 0; i < webWorkers.length; i++) {
     webWorkers[i].worker.terminate()
   }
@@ -200,7 +200,7 @@ function terminateAllWebWorkers () {
  * @param sourcePath
  * @param taskConfig
  */
-function loadWebWorkerTask (sourcePath, taskConfig) {
+function loadWebWorkerTask(sourcePath, taskConfig) {
   // add it to the list of web worker tasks paths so on demand web workers
   // load this properly
   config.webWorkerTaskPaths.push(sourcePath)
@@ -209,7 +209,7 @@ function loadWebWorkerTask (sourcePath, taskConfig) {
   if (taskConfig) {
     config.taskConfiguration = Object.assign(
       config.taskConfiguration,
-      taskConfig
+      taskConfig,
     )
   }
 
@@ -219,7 +219,7 @@ function loadWebWorkerTask (sourcePath, taskConfig) {
       taskType: 'loadWebWorkerTask',
       workerIndex: webWorkers.length - 1,
       sourcePath,
-      config
+      config,
     })
   }
 }
@@ -234,7 +234,7 @@ function loadWebWorkerTask (sourcePath, taskConfig) {
  *
  * @returns {*}
  */
-function addTask (taskType, data, priority = 0, transferList) {
+function addTask(taskType, data, priority = 0, transferList) {
   if (!config) {
     initialize()
   }
@@ -243,7 +243,7 @@ function addTask (taskType, data, priority = 0, transferList) {
   const promise = new Promise((resolve, reject) => {
     deferred = {
       resolve,
-      reject
+      reject,
     }
   })
 
@@ -267,7 +267,7 @@ function addTask (taskType, data, priority = 0, transferList) {
     data,
     deferred,
     priority,
-    transferList
+    transferList,
   })
 
   // try to start a task on the web worker since we just added a new task and a web worker may be available
@@ -275,7 +275,7 @@ function addTask (taskType, data, priority = 0, transferList) {
 
   return {
     taskId,
-    promise
+    promise,
   }
 }
 
@@ -285,7 +285,7 @@ function addTask (taskType, data, priority = 0, transferList) {
  * @param priority - priority of the task (defaults to 0), > 0 is higher, < 0 is lower
  * @returns boolean - true on success, false if taskId not found
  */
-function setTaskPriority (taskId, priority = 0) {
+function setTaskPriority(taskId, priority = 0) {
   // search for this taskId
   for (let i = 0; i < tasks.length; i++) {
     if (tasks[i].taskId === taskId) {
@@ -318,7 +318,7 @@ function setTaskPriority (taskId, priority = 0) {
  * @param reason - optional reason the task was rejected
  * @returns boolean - true on success, false if taskId not found
  */
-function cancelTask (taskId, reason) {
+function cancelTask(taskId, reason) {
   // search for this taskId
   for (let i = 0; i < tasks.length; i++) {
     if (tasks[i].taskId === taskId) {
@@ -338,7 +338,7 @@ function cancelTask (taskId, reason) {
  * Function to return the statistics on running web workers
  * @returns object containing statistics
  */
-function getStatistics () {
+function getStatistics() {
   statistics.maxWebWorkers = config.maxWebWorkers
   statistics.numWebWorkers = webWorkers.length
   statistics.numTasksQueued = tasks.length
@@ -354,5 +354,5 @@ export default {
   setTaskPriority,
   cancelTask,
   webWorkers,
-  terminateAllWebWorkers
+  terminateAllWebWorkers,
 }

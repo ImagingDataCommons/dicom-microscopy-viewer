@@ -51,7 +51,7 @@ const _applyStyles = (feature, map) => {
           <svg version="1.1" width="70px" height="70px" viewBox="0 -7.101 760.428 415.101" style="enable-background:new 0 0 408 408;" xmlns="http://www.w3.org/2000/svg">
             <g>
               <path style="fill:${encodeURIComponent(
-                color
+                color,
               )};" d="M 736.978 175.952 L 96.9 178.5 L 239.7 35.7 L 204 0 L 0 204 L 204 408 L 239.7 372.3 L 96.9 229.5 L 737.197 224.191 L 736.978 175.952 Z"/>
             </g>
           </svg>
@@ -60,7 +60,7 @@ const _applyStyles = (feature, map) => {
       const icon = `
         <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="70px" height="70px" viewBox="0 0 407.436 407.436" style="enable-background:new 0 0 407.436 407.436;">
           <polygon style="fill:${encodeURIComponent(
-            color
+            color,
           )};" points="315.869,21.178 294.621,0 91.566,203.718 294.621,407.436 315.869,386.258 133.924,203.718 "/>
         </svg>
       `
@@ -81,17 +81,17 @@ const _applyStyles = (feature, map) => {
               scale: newScale /** Absolute-sized icon */,
               anchor: [0.3, 0.5],
               rotateWithView: true,
-              rotation: -rotation
-            })
+              rotation: -rotation,
+            }),
           })
 
           styles.push(
             new Style({
               stroke: new Stroke({
                 color,
-                width: 5 * newScale /** Keep scale sync with icon */
-              })
-            })
+                width: 5 * newScale /** Keep scale sync with icon */,
+              }),
+            }),
           )
 
           /** Arrow */
@@ -109,8 +109,8 @@ const _applyStyles = (feature, map) => {
           scale: newScale /** Absolute-sized icon */,
           anchor,
           rotateWithView: true,
-          rotation: -rotation
-        })
+          rotation: -rotation,
+        }),
       })
 
       return iconStyle
@@ -144,7 +144,7 @@ const ArrowMarker = ({ map, markupManager }) => {
             if (property === Enums.InternalProperties.StyleOptions) {
               _applyStyles(feature, map)
             }
-          }
+          },
         )
 
         /** Update arrow icon position on feature geometry change */
@@ -175,7 +175,7 @@ const ArrowMarker = ({ map, markupManager }) => {
       }
     },
     onDrawEnd: ({ feature }) => {},
-    onDrawAbort: ({ feature }) => {}
+    onDrawAbort: ({ feature }) => {},
   }
 }
 

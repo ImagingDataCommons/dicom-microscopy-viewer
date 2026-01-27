@@ -1,7 +1,7 @@
 import webWorkerManager from './webWorker/webWorkerManager.js'
 import dcmjs from 'dcmjs'
 
-function _processDecodeAndTransformTask (
+function _processDecodeAndTransformTask(
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -10,7 +10,7 @@ function _processDecodeAndTransformTask (
   samplesPerPixel,
   sopInstanceUID,
   metadata,
-  iccProfiles
+  iccProfiles,
 ) {
   const priority = undefined
   const transferList = undefined
@@ -26,14 +26,14 @@ function _processDecodeAndTransformTask (
       samplesPerPixel,
       sopInstanceUID,
       metadata,
-      iccProfiles
+      iccProfiles,
     },
     priority,
-    transferList
+    transferList,
   ).promise
 }
 
-async function _decodeAndTransformFrame ({
+async function _decodeAndTransformFrame({
   frame,
   bitsAllocated,
   pixelRepresentation,
@@ -42,7 +42,7 @@ async function _decodeAndTransformFrame ({
   samplesPerPixel,
   sopInstanceUID,
   metadata, // metadata of all images (different resolution levels)
-  iccProfiles // ICC profiles for all images
+  iccProfiles, // ICC profiles for all images
 }) {
   const result = await _processDecodeAndTransformTask(
     frame,
@@ -53,7 +53,7 @@ async function _decodeAndTransformFrame ({
     samplesPerPixel,
     sopInstanceUID,
     metadata,
-    iccProfiles
+    iccProfiles,
   )
 
   const signed = pixelRepresentation === 1
@@ -75,13 +75,13 @@ async function _decodeAndTransformFrame ({
         pixelArray = new Int16Array(
           byteArray.buffer,
           byteArray.byteOffset,
-          byteArray.byteLength / 2
+          byteArray.byteLength / 2,
         )
       } else {
         pixelArray = new Uint16Array(
           byteArray.buffer,
           byteArray.byteOffset,
-          byteArray.byteLength / 2
+          byteArray.byteLength / 2,
         )
       }
       break
@@ -89,25 +89,24 @@ async function _decodeAndTransformFrame ({
       pixelArray = new Float32Array(
         byteArray.buffer,
         byteArray.byteOffset,
-        byteArray.byteLength / 4
+        byteArray.byteLength / 4,
       )
       break
     case 64:
       pixelArray = new Float64Array(
         byteArray.buffer,
         byteArray.byteOffset,
-        byteArray.byteLength / 8
+        byteArray.byteLength / 8,
       )
       break
     default:
       throw new Error(
-        'The pixel bit depth ' + bitsAllocated +
-        ' is not supported by the decoder.'
+        'The pixel bit depth ' +
+          bitsAllocated +
+          ' is not supported by the decoder.',
       )
   }
   return pixelArray
 }
 
-export {
-  _decodeAndTransformFrame
-}
+export { _decodeAndTransformFrame }

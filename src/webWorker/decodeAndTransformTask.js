@@ -17,7 +17,7 @@ let transformerColor
  *
  * @private
  */
-function _handler (data, doneCallback) {
+function _handler(data, doneCallback) {
   const {
     bitsAllocated,
     columns,
@@ -27,54 +27,48 @@ function _handler (data, doneCallback) {
     frame,
     sopInstanceUID,
     metadata,
-    iccProfiles
+    iccProfiles,
   } = data.data
 
-  _checkImageTypeAndDecode(
-    {
-      bitsAllocated,
-      columns,
-      rows,
-      samplesPerPixel,
-      pixelRepresentation,
-      frame
-    }
-  ).then((decodedFrame) => {
-    if (iccProfiles?.length) {
-      // Only instantiate the transformer once and cache it for reuse.
-      if (transformerColor === undefined) {
-        transformerColor = new ColorTransformer(metadata, iccProfiles)
-      }
-      // Apply ICC color transform
-      transformerColor.transform(
-        sopInstanceUID,
-        decodedFrame
-      ).then((transformedFrame) => {
-        /*
-         * Invoke the callback with our result and pass the frameData in the
-         * transferList to move it to UI thread without making a copy.
-         */
-        doneCallback(
-          { frameData: transformedFrame.buffer },
-          [transformedFrame.buffer]
-        )
-      }).catch(
-        (error) => {
-          console.warn('Unable to transform frame', error)
-          doneCallback({ frameData: decodedFrame.buffer }, [decodedFrame.buffer])
+  _checkImageTypeAndDecode({
+    bitsAllocated,
+    columns,
+    rows,
+    samplesPerPixel,
+    pixelRepresentation,
+    frame,
+  })
+    .then((decodedFrame) => {
+      if (iccProfiles?.length) {
+        // Only instantiate the transformer once and cache it for reuse.
+        if (transformerColor === undefined) {
+          transformerColor = new ColorTransformer(metadata, iccProfiles)
         }
-      )
-    } else {
-      doneCallback(
-        { frameData: decodedFrame.buffer },
-        [decodedFrame.buffer]
-      )
-    }
-  }).catch(
-    (error) => {
+        // Apply ICC color transform
+        transformerColor
+          .transform(sopInstanceUID, decodedFrame)
+          .then((transformedFrame) => {
+            /*
+             * Invoke the callback with our result and pass the frameData in the
+             * transferList to move it to UI thread without making a copy.
+             */
+            doneCallback({ frameData: transformedFrame.buffer }, [
+              transformedFrame.buffer,
+            ])
+          })
+          .catch((error) => {
+            console.warn('Unable to transform frame', error)
+            doneCallback({ frameData: decodedFrame.buffer }, [
+              decodedFrame.buffer,
+            ])
+          })
+      } else {
+        doneCallback({ frameData: decodedFrame.buffer }, [decodedFrame.buffer])
+      }
+    })
+    .catch((error) => {
       throw new Error(`Failed to decode frame: ${error}`)
-    }
-  )
+    })
 }
 
 /** Check image type of a compressed array and returns a decoded image.
@@ -88,13 +82,13 @@ function _handler (data, doneCallback) {
  * @returns {Uint8Array} decoded array
  * @private
  */
-async function _checkImageTypeAndDecode ({
+async function _checkImageTypeAndDecode({
   bitsAllocated,
   columns,
   rows,
   samplesPerPixel,
   pixelRepresentation,
-  frame
+  frame,
 }) {
   let byteArray = new Uint8Array(frame)
   const imageTypeObject = imageType(byteArray)
@@ -133,14 +127,14 @@ async function _checkImageTypeAndDecode ({
      * both contain the JPEG Start of Image (SOI) marker and share the first
      * three bytes.
      */
-    if ((toHex(byteArray[3]) === 'F7') || (toHex(byteArray[3]) === 'E8')) {
+    if (toHex(byteArray[3]) === 'F7' || toHex(byteArray[3]) === 'E8') {
       mediaType = 'image/jls'
     } else {
       const supportedImageMediaTypes = new Set([
         'image/jpeg',
         'image/jls',
         'image/jp2',
-        'image/jpx'
+        'image/jpx',
       ])
       if (supportedImageMediaTypes.has(imageTypeObject.mime)) {
         mediaType = imageTypeObject.mime
@@ -161,28 +155,28 @@ async function _checkImageTypeAndDecode ({
   if (frameInfo.bitsPerSample !== bitsAllocated) {
     throw new Error(
       'Frame does not have expected Bits Allocated: ' +
-      `${frameInfo.bitsPerSample} instead of ${bitsAllocated}.`
+        `${frameInfo.bitsPerSample} instead of ${bitsAllocated}.`,
     )
   }
 
   if (frameInfo.height !== rows) {
     throw new Error(
       'Frame does not have expected Rows: ' +
-      `${frameInfo.height} instead of ${rows}.`
+        `${frameInfo.height} instead of ${rows}.`,
     )
   }
 
   if (frameInfo.width !== columns) {
     throw new Error(
       'Frame does not have expected Columns: ' +
-      `${frameInfo.width} instead of ${columns}.`
+        `${frameInfo.width} instead of ${columns}.`,
     )
   }
 
   if (frameInfo.componentCount !== samplesPerPixel) {
     throw new Error(
       'Frame does not have expected Samples Per Pixel: ' +
-      `${frameInfo.componentCount} instead of ${samplesPerPixel}.`
+        `${frameInfo.componentCount} instead of ${samplesPerPixel}.`,
     )
   }
 
@@ -191,7 +185,7 @@ async function _checkImageTypeAndDecode ({
     if (frameInfo.isSigned !== isSigned) {
       throw new Error(
         'Frame does not have expected Pixel Representation: ' +
-        `"${frameInfo.isSigned}" instead of "${isSigned}".`
+          `"${frameInfo.isSigned}" instead of "${isSigned}".`,
       )
     }
   }
@@ -200,7 +194,7 @@ async function _checkImageTypeAndDecode ({
   if (length !== frameBuffer.length) {
     throw new Error(
       'Frame value does not have expected length: ' +
-      `${frameBuffer.length} instead of ${length}.`
+        `${frameBuffer.length} instead of ${length}.`,
     )
   }
 
@@ -215,7 +209,7 @@ async function _checkImageTypeAndDecode ({
  * @returns {object} decoded array and frameInfo
  * @private
  */
-async function _decode (mediaType, byteArray) {
+async function _decode(mediaType, byteArray) {
   if (mediaType === 'image/jpeg') {
     return await decoderJPEG.decode(byteArray)
   } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
@@ -227,5 +221,5 @@ async function _decode (mediaType, byteArray) {
 
 export default {
   taskType: 'decodeAndTransformTask',
-  _handler
+  _handler,
 }
