@@ -3872,7 +3872,6 @@ class VolumeImageViewer {
       'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
         `of series "${metadata.SeriesInstanceUID}"`,
     )
-    q
     const defaultAnnotationGroupStyle = {
       opacity: 1.0,
       color: this[_options].primaryColor,
