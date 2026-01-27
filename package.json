@@ -3,6 +3,7 @@
   "version": "0.48.16",
   "license": "MIT",
   "author": "ImagingDataCommons",
+  "packageManager": "bun@1.1.38",
   "homepage": "https://github.com/imagingdatacommons/dicom-microscopy-viewer#readme",
   "description": "Interactive web-based viewer for DICOM Microscopy Images",
   "bugs": {
