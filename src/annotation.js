@@ -28,7 +28,7 @@ class AnnotationGroup {
    * @param {string} options.referencedSeriesInstanceUID - Referenced Series Instance UID of Annotation instances
    * @param {string} options.referencedSOPInstanceUID - Referenced SOP Instance UID of Annotation instances
    */
-  constructor ({
+  constructor({
     uid,
     number,
     label,
@@ -40,7 +40,7 @@ class AnnotationGroup {
     seriesInstanceUID,
     sopInstanceUIDs,
     referencedSeriesInstanceUID,
-    referencedSOPInstanceUID
+    referencedSOPInstanceUID,
   }) {
     this[_attrs] = {}
     if (uid == null) {
@@ -96,7 +96,7 @@ class AnnotationGroup {
    *
    * @type string
    */
-  get uid () {
+  get uid() {
     return this[_attrs].uid
   }
 
@@ -105,7 +105,7 @@ class AnnotationGroup {
    *
    * @type number
    */
-  get number () {
+  get number() {
     return this[_attrs].number
   }
 
@@ -114,7 +114,7 @@ class AnnotationGroup {
    *
    * @type string
    */
-  get label () {
+  get label() {
     return this[_attrs].label
   }
 
@@ -123,7 +123,7 @@ class AnnotationGroup {
    *
    * @type string
    */
-  get algorithmName () {
+  get algorithmName() {
     return this[_attrs].algorithmName
   }
 
@@ -132,7 +132,7 @@ class AnnotationGroup {
    *
    * @type Object
    */
-  get algorithmType () {
+  get algorithmType() {
     return this[_attrs].algorithmType
   }
 
@@ -141,7 +141,7 @@ class AnnotationGroup {
    *
    * @type Object
    */
-  get propertyCategory () {
+  get propertyCategory() {
     return this[_attrs].propertyCategory
   }
 
@@ -150,7 +150,7 @@ class AnnotationGroup {
    *
    * @type Object
    */
-  get propertyType () {
+  get propertyType() {
     return this[_attrs].propertyType
   }
 
@@ -159,7 +159,7 @@ class AnnotationGroup {
    *
    * @type string
    */
-  get studyInstanceUID () {
+  get studyInstanceUID() {
     return this[_attrs].studyInstanceUID
   }
 
@@ -168,7 +168,7 @@ class AnnotationGroup {
    *
    * @type string
    */
-  get seriesInstanceUID () {
+  get seriesInstanceUID() {
     return this[_attrs].seriesInstanceUID
   }
 
@@ -177,15 +177,15 @@ class AnnotationGroup {
    *
    * @type string[]
    */
-  get sopInstanceUIDs () {
+  get sopInstanceUIDs() {
     return this[_attrs].sopInstanceUIDs
   }
 
-  get referencedSeriesInstanceUID () {
+  get referencedSeriesInstanceUID() {
     return this[_attrs].referencedSeriesInstanceUID
   }
 
-  get referencedSOPInstanceUID () {
+  get referencedSOPInstanceUID() {
     return this[_attrs].referencedSOPInstanceUID
   }
 }
@@ -202,12 +202,12 @@ class AnnotationGroup {
  *
  * @private
  */
-async function _fetchGraphicData ({
+async function _fetchGraphicData({
   metadataItem,
   bulkdataItem,
   annotationGroupIndex,
   metadata,
-  client
+  client,
 }) {
   const uid = metadataItem.AnnotationGroupUID
   if ('PointCoordinatesData' in metadataItem) {
@@ -217,80 +217,103 @@ async function _fetchGraphicData ({
   } else {
     if (bulkdataItem == null) {
       /** Attempt to retrieve it from P10 */
-      console.warn('Could not find "PointCoordinatesData" or "DoublePointCoordinatesData" in bulkdata or metadata, attempting to retrieve from P10.')
+      console.warn(
+        'Could not find "PointCoordinatesData" or "DoublePointCoordinatesData" in bulkdata or metadata, attempting to retrieve from P10.',
+      )
       const dicomP10 = await client.retrieveInstance({
         studyInstanceUID: metadata.StudyInstanceUID,
         seriesInstanceUID: metadata.SeriesInstanceUID,
-        sopInstanceUID: metadata.SOPInstanceUID
+        sopInstanceUID: metadata.SOPInstanceUID,
       })
       const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10)
-      const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict)
+      const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(
+        dicomDict.dict,
+      )
       console.debug('p10 instance:', instance)
-      const annotationGroupSequence = instance['006A0002'] || instance.AnnotationGroupSequence
+      const annotationGroupSequence =
+        instance['006A0002'] || instance.AnnotationGroupSequence
       if (annotationGroupSequence) {
         const item = annotationGroupSequence[annotationGroupIndex]
-        const pointCoordinatesData = item.PointCoordinatesData || item['00660016']
-        const doublePointCoordinatesData = item.DoublePointCoordinatesData || item['00660016']
+        const pointCoordinatesData =
+          item.PointCoordinatesData || item['00660016']
+        const doublePointCoordinatesData =
+          item.DoublePointCoordinatesData || item['00660016']
         if (item && pointCoordinatesData) {
           console.debug('PointCoordinatesData from p10:', pointCoordinatesData)
           return new Int32Array(pointCoordinatesData[0])
         } else if (item && doublePointCoordinatesData) {
-          console.debug('DoublePointCoordinatesData from p10:', doublePointCoordinatesData)
+          console.debug(
+            'DoublePointCoordinatesData from p10:',
+            doublePointCoordinatesData,
+          )
           return new Float32Array(doublePointCoordinatesData[0])
         }
       }
-      throw new Error(
-        `Could not find bulkdata of annotation group "${uid}".`
-      )
+      throw new Error(`Could not find bulkdata of annotation group "${uid}".`)
     } else {
       const progressCallback = (progressEvent) => {
-        console.debug(`Loaded ${Math.round(progressEvent.loaded / 1024 / 1024 * 100) / 100} MB from annotation group "${uid}"`)
+        console.debug(
+          `Loaded ${Math.round((progressEvent.loaded / 1024 / 1024) * 100) / 100} MB from annotation group "${uid}"`,
+        )
       }
       const options = {
-        progressCallback: throttle(progressCallback, 1000)
+        progressCallback: throttle(progressCallback, 1000),
       }
       if ('PointCoordinatesData' in bulkdataItem) {
         console.info(`fetch point coordinate data of annotation group "${uid}"`)
         return await _fetchBulkdata({
           client,
           reference: bulkdataItem.PointCoordinatesData,
-          options
+          options,
         })
       } else if ('DoublePointCoordinatesData' in bulkdataItem) {
         console.info(`fetch point coordinate data of annotation group "${uid}"`)
         return await _fetchBulkdata({
           client,
           reference: bulkdataItem.DoublePointCoordinatesData,
-          options
+          options,
         })
       } else {
         /** Attempt to retrieve it from P10 */
-        console.warn('Could not find "PointCoordinatesData" or "DoublePointCoordinatesData" in bulkdata or metadata, attempting to retrieve from P10.')
+        console.warn(
+          'Could not find "PointCoordinatesData" or "DoublePointCoordinatesData" in bulkdata or metadata, attempting to retrieve from P10.',
+        )
         const dicomP10 = await client.retrieveInstance({
           studyInstanceUID: metadata.StudyInstanceUID,
           seriesInstanceUID: metadata.SeriesInstanceUID,
-          sopInstanceUID: metadata.SOPInstanceUID
+          sopInstanceUID: metadata.SOPInstanceUID,
         })
         const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10)
-        const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict)
+        const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(
+          dicomDict.dict,
+        )
         console.debug('p10 instance:', instance)
-        const annotationGroupSequence = instance['006A0002'] || instance.AnnotationGroupSequence
+        const annotationGroupSequence =
+          instance['006A0002'] || instance.AnnotationGroupSequence
         if (annotationGroupSequence) {
           const item = annotationGroupSequence[annotationGroupIndex]
-          const pointCoordinatesData = item.PointCoordinatesData || item['00660016']
-          const doublePointCoordinatesData = item.DoublePointCoordinatesData || item['00660016']
+          const pointCoordinatesData =
+            item.PointCoordinatesData || item['00660016']
+          const doublePointCoordinatesData =
+            item.DoublePointCoordinatesData || item['00660016']
           if (item && pointCoordinatesData) {
-            console.debug('PointCoordinatesData from p10:', pointCoordinatesData)
+            console.debug(
+              'PointCoordinatesData from p10:',
+              pointCoordinatesData,
+            )
             return new Int32Array(pointCoordinatesData[0])
           } else if (item && doublePointCoordinatesData) {
-            console.debug('DoublePointCoordinatesData from p10:', doublePointCoordinatesData)
+            console.debug(
+              'DoublePointCoordinatesData from p10:',
+              doublePointCoordinatesData,
+            )
             return new Float32Array(doublePointCoordinatesData[0])
           }
         }
         throw new Error(
           'Could not find "PointCoordinatesData" or ' +
-          '"DoublePointCoordinatesData" in bulkdata ' +
-          `of annotation group "${uid}".`
+            '"DoublePointCoordinatesData" in bulkdata ' +
+            `of annotation group "${uid}".`,
         )
       }
     }
@@ -309,12 +332,12 @@ async function _fetchGraphicData ({
  *
  * @private
  */
-async function _fetchGraphicIndex ({
+async function _fetchGraphicIndex({
   metadataItem,
   bulkdataItem,
   metadata,
   annotationGroupIndex,
-  client
+  client,
 }) {
   const uid = metadataItem.AnnotationGroupUID
   const graphicType = metadataItem.GraphicType
@@ -323,9 +346,7 @@ async function _fetchGraphicIndex ({
   } else {
     if (bulkdataItem == null) {
       if (graphicType === 'POLYGON') {
-        throw new Error(
-          `Could not find bulkdata of annotation group "${uid}".`
-        )
+        throw new Error(`Could not find bulkdata of annotation group "${uid}".`)
       } else {
         return null
       }
@@ -334,32 +355,41 @@ async function _fetchGraphicIndex ({
         console.info(`fetch point index list of annotation group "${uid}"`)
         return await _fetchBulkdata({
           client,
-          reference: bulkdataItem.LongPrimitivePointIndexList
+          reference: bulkdataItem.LongPrimitivePointIndexList,
         })
       } else {
         if (graphicType === 'POLYGON') {
           /** Attempt to retrieve it from P10 */
-          console.warn('Could not find "LongPrimitivePointIndexList" in bulkdata or metadata, attempting to retrieve from P10.')
+          console.warn(
+            'Could not find "LongPrimitivePointIndexList" in bulkdata or metadata, attempting to retrieve from P10.',
+          )
           const dicomP10 = await client.retrieveInstance({
             studyInstanceUID: metadata.StudyInstanceUID,
             seriesInstanceUID: metadata.SeriesInstanceUID,
-            sopInstanceUID: metadata.SOPInstanceUID
+            sopInstanceUID: metadata.SOPInstanceUID,
           })
           const dicomDict = dcmjs.data.DicomMessage.readFile(dicomP10)
-          const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(dicomDict.dict)
+          const instance = dcmjs.data.DicomMetaDictionary.naturalizeDataset(
+            dicomDict.dict,
+          )
           console.debug('p10 instance:', instance)
-          const annotationGroupSequence = instance['006A0002'] || instance.AnnotationGroupSequence
+          const annotationGroupSequence =
+            instance['006A0002'] || instance.AnnotationGroupSequence
           if (annotationGroupSequence) {
             const item = annotationGroupSequence[annotationGroupIndex]
-            const longPrimitivePointIndexList = item.LongPrimitivePointIndexList || item['00660040']
+            const longPrimitivePointIndexList =
+              item.LongPrimitivePointIndexList || item['00660040']
             if (item && longPrimitivePointIndexList) {
-              console.debug('LongPrimitivePointIndexList from p10', longPrimitivePointIndexList)
+              console.debug(
+                'LongPrimitivePointIndexList from p10',
+                longPrimitivePointIndexList,
+              )
               return new Int32Array(longPrimitivePointIndexList[0])
             }
           }
           throw new Error(
             'Could not find "LongPrimitivePointIndexList" ' +
-            `in bulkdata of annotation group "${uid}".`
+              `in bulkdata of annotation group "${uid}".`,
           )
         } else {
           return null
@@ -382,26 +412,25 @@ async function _fetchGraphicIndex ({
  *
  * @private
  */
-async function _fetchMeasurementValues ({
+async function _fetchMeasurementValues({
   metadataItem,
   bulkdataItem,
   index,
-  client
+  client,
 }) {
   const uid = metadataItem.AnnotationGroupUID
   const measurementMetadataItem = metadataItem.MeasurementsSequence[index]
-  const valuesMetadataItem = measurementMetadataItem.MeasurementValuesSequence[0]
+  const valuesMetadataItem =
+    measurementMetadataItem.MeasurementValuesSequence[0]
   if ('FloatingPointValues' in valuesMetadataItem) {
     return valuesMetadataItem.FloatingPointValues
   } else {
     if (bulkdataItem == null) {
-      throw new Error(
-        `Could not find bulkdata of annotation group "${uid}".`
-      )
+      throw new Error(`Could not find bulkdata of annotation group "${uid}".`)
     } else if (bulkdataItem.MeasurementsSequence == null) {
       console.warn(
         `Could not find item #${index + 1} of "MeasurementSequence" ` +
-        `in bulkdata of annotation group "${uid}".`
+          `in bulkdata of annotation group "${uid}".`,
       )
       return []
       // throw new Error(
@@ -410,24 +439,23 @@ async function _fetchMeasurementValues ({
       // )
     } else {
       const measurementBulkdataItem = bulkdataItem.MeasurementsSequence[index]
-      const valuesBulkdataItem = (
+      const valuesBulkdataItem =
         measurementBulkdataItem.MeasurementValuesSequence[0]
-      )
       if ('FloatingPointValues' in valuesBulkdataItem) {
         const nameItem = measurementMetadataItem.ConceptNameCodeSequence[0]
         const name = nameItem.CodeMeaning
         console.info(
-          `fetch measurement values for measurement #${index} "${name}"`
+          `fetch measurement values for measurement #${index} "${name}"`,
         )
         return await _fetchBulkdata({
           client,
-          reference: valuesBulkdataItem.FloatingPointValues
+          reference: valuesBulkdataItem.FloatingPointValues,
         })
       } else {
         throw new Error(
           `Could not find "FloatingPointValues" in item #${index + 1} ` +
-          'of "MeasurementSequence" in bulkdata ' +
-          `of annotation group "${uid}".`
+            'of "MeasurementSequence" in bulkdata ' +
+            `of annotation group "${uid}".`,
         )
       }
     }
@@ -447,26 +475,25 @@ async function _fetchMeasurementValues ({
  *
  * @private
  */
-async function _fetchMeasurementIndices ({
+async function _fetchMeasurementIndices({
   metadataItem,
   bulkdataItem,
   index,
-  client
+  client,
 }) {
   const uid = metadataItem.AnnotationGroupUID
   const measurementMetadataItem = metadataItem.MeasurementsSequence[index]
-  const valuesMetadataItem = measurementMetadataItem.MeasurementValuesSequence[0]
+  const valuesMetadataItem =
+    measurementMetadataItem.MeasurementValuesSequence[0]
   if ('AnnotationIndexList' in valuesMetadataItem) {
     return valuesMetadataItem.AnnotationIndexList
   } else {
     if (bulkdataItem == null) {
-      throw new Error(
-        `Could not find bulkdata of annotation group "${uid}".`
-      )
+      throw new Error(`Could not find bulkdata of annotation group "${uid}".`)
     } else if (bulkdataItem.MeasurementsSequence == null) {
       console.warn(
         `Could not find item #${index + 1} of "MeasurementSequence" ` +
-        `in bulkdata of annotation group "${uid}".`
+          `in bulkdata of annotation group "${uid}".`,
       )
       return []
       // throw new Error(
@@ -475,19 +502,17 @@ async function _fetchMeasurementIndices ({
       // )
     } else {
       const measurementBulkdataItem = bulkdataItem.MeasurementsSequence[index]
-      const valuesBulkdataItem = (
-        measurementBulkdataItem
-          .MeasurementValuesSequence[0]
-      )
+      const valuesBulkdataItem =
+        measurementBulkdataItem.MeasurementValuesSequence[0]
       if ('AnnotationIndexList' in valuesBulkdataItem) {
         const nameItem = measurementMetadataItem.ConceptNameCodeSequence[0]
         const name = nameItem.CodeMeaning
         console.info(
-          `fetch measurement indices for measurement #${index} "${name}"`
+          `fetch measurement indices for measurement #${index} "${name}"`,
         )
         return await _fetchBulkdata({
           client,
-          reference: valuesBulkdataItem.AnnotationIndexList
+          reference: valuesBulkdataItem.AnnotationIndexList,
         })
       } else {
         return null
@@ -508,12 +533,12 @@ async function _fetchMeasurementIndices ({
  *
  * @private
  */
-async function _fetchMeasurements ({
+async function _fetchMeasurements({
   metadataItem,
   bulkdataItem,
-  metadata,
-  annotationGroupIndex,
-  client
+  metadata: _metadata,
+  annotationGroupIndex: _annotationGroupIndex,
+  client,
 }) {
   const measurements = []
   if (metadataItem.MeasurementsSequence !== undefined) {
@@ -525,19 +550,19 @@ async function _fetchMeasurements ({
         metadataItem,
         bulkdataItem,
         index: i,
-        client
+        client,
       })
       const indices = await _fetchMeasurementIndices({
         metadataItem,
         bulkdataItem,
         index: i,
-        client
+        client,
       })
       measurements.push({
         name,
         unit,
         values,
-        indices
+        indices,
       })
     }
   }
@@ -557,29 +582,25 @@ async function _fetchMeasurements ({
  *
  * @private
  */
-async function _fetchMeasurement ({
+async function _fetchMeasurement({
   metadataItem,
   bulkdataItem,
   metadata,
   annotationGroupIndex,
   index,
-  client
+  client,
 }) {
   if (metadataItem.MeasurementsSequence == null) {
     throw new Error(
-      'Measurements Sequence element is not contained in metadata.'
+      'Measurements Sequence element is not contained in metadata.',
     )
   }
   if (metadataItem.MeasurementsSequence.length === 0) {
-    throw new Error(
-      'Measurements Sequence element in empty.'
-    )
+    throw new Error('Measurements Sequence element in empty.')
   }
   const item = metadataItem.MeasurementsSequence[index]
   if (item == null) {
-    throw new Error(
-      `Measurements Sequence does not contain an item #${index}.`
-    )
+    throw new Error(`Measurements Sequence does not contain an item #${index}.`)
   }
   const name = item.ConceptNameCodeSequence[0]
   const unit = item.MeasurementUnitsCodeSequence[0]
@@ -589,7 +610,7 @@ async function _fetchMeasurement ({
     metadata,
     annotationGroupIndex,
     index,
-    client
+    client,
   })
   const indices = await _fetchMeasurementIndices({
     metadataItem,
@@ -597,7 +618,7 @@ async function _fetchMeasurement ({
     metadata,
     annotationGroupIndex,
     index,
-    client
+    client,
   })
   return { name, unit, values, indices }
 }
@@ -612,7 +633,7 @@ async function _fetchMeasurement ({
  *
  * @private
  */
-function _getCoordinateDimensionality (metadataItem, annotationCoordinateType) {
+function _getCoordinateDimensionality(metadataItem, annotationCoordinateType) {
   /** TODO: Check this logic against the standard */
   if (metadataItem.CommonZCoordinateValue == null) {
     if (annotationCoordinateType === '2D') {
@@ -631,7 +652,7 @@ function _getCoordinateDimensionality (metadataItem, annotationCoordinateType) {
  *
  * @private
  */
-function _getCommonZCoordinate (metadataItem) {
+function _getCommonZCoordinate(metadataItem) {
   if (metadataItem.CommonZCoordinateValue == null) {
     return Number.NaN
   }
@@ -649,12 +670,9 @@ function _getCommonZCoordinate (metadataItem) {
  *
  * @private
  */
-function _getCoordinates (graphicData, offset, commonZCoordinate) {
-  const point = [
-    graphicData[offset],
-    graphicData[offset + 1]
-  ]
-  if (isNaN(commonZCoordinate)) {
+function _getCoordinates(graphicData, offset, commonZCoordinate) {
+  const point = [graphicData[offset], graphicData[offset + 1]]
+  if (Number.isNaN(commonZCoordinate)) {
     point.push(graphicData[offset + 2])
   } else {
     point.push(commonZCoordinate)
@@ -676,13 +694,13 @@ function _getCoordinates (graphicData, offset, commonZCoordinate) {
  *
  * @private
  */
-function _getPoint (
+function _getPoint(
   graphicData,
-  graphicIndex,
+  _graphicIndex,
   coordinateDimensionality,
   commonZCoordinate,
   annotationIndex,
-  numberOfAnnotations
+  _numberOfAnnotations,
 ) {
   const length = coordinateDimensionality
   const offset = annotationIndex * length
@@ -703,13 +721,13 @@ function _getPoint (
  *
  * @private
  */
-function _getRectangleCentroid (
+function _getRectangleCentroid(
   graphicData,
-  graphicIndex,
+  _graphicIndex,
   coordinateDimensionality,
   commonZCoordinate,
   annotationIndex,
-  numberOfAnnotations
+  _numberOfAnnotations,
 ) {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
@@ -725,7 +743,7 @@ function _getRectangleCentroid (
   return [
     topLeft[0] + (topRight[0] - topLeft[0]) / 2,
     topLeft[1] + (topLeft[1] - bottomLeft[1]) / 2,
-    0
+    0,
   ]
 }
 
@@ -743,13 +761,13 @@ function _getRectangleCentroid (
  *
  * @private
  */
-function _getEllipseCentroid (
+function _getEllipseCentroid(
   graphicData,
-  graphicIndex,
+  _graphicIndex,
   coordinateDimensionality,
   commonZCoordinate,
   annotationIndex,
-  numberOfAnnotations
+  _numberOfAnnotations,
 ) {
   const length = coordinateDimensionality * 4
   const offset = annotationIndex * length
@@ -764,7 +782,7 @@ function _getEllipseCentroid (
   return [
     (majorAxisSecondEndpoint[0] - majorAxisFirstEndpoint[0]) / 2,
     (majorAxisSecondEndpoint[1] - majorAxisFirstEndpoint[1]) / 2,
-    0
+    0,
   ]
 }
 
@@ -782,17 +800,17 @@ function _getEllipseCentroid (
  *
  * @private
  */
-function _getPolygonCentroid (
+function _getPolygonCentroid(
   graphicData,
   graphicIndex,
   coordinateDimensionality,
   commonZCoordinate,
   annotationIndex,
-  numberOfAnnotations
+  numberOfAnnotations,
 ) {
   const offset = graphicIndex[annotationIndex] - 1
   let length
-  if (annotationIndex < (numberOfAnnotations - 1)) {
+  if (annotationIndex < numberOfAnnotations - 1) {
     length = graphicIndex[annotationIndex + 1] - offset
   } else {
     length = graphicData.length
@@ -803,7 +821,7 @@ function _getPolygonCentroid (
   for (let j = offset; j < offset + length; j++) {
     const p0 = _getCoordinates(graphicData, j, commonZCoordinate)
     let p1
-    if (j === (offset + length - 1)) {
+    if (j === offset + length - 1) {
       p1 = _getCoordinates(graphicData, offset, commonZCoordinate)
     } else {
       const nextOffset = j + coordinateDimensionality
@@ -843,7 +861,7 @@ const _getCentroid = (
   coordinateDimensionality,
   commonZCoordinate,
   annotationIndex,
-  numberOfAnnotations
+  numberOfAnnotations,
 ) => {
   if (graphicType === 'POINT') {
     return _getPoint(
@@ -852,7 +870,7 @@ const _getCentroid = (
       coordinateDimensionality,
       commonZCoordinate,
       annotationIndex,
-      numberOfAnnotations
+      numberOfAnnotations,
     )
   } else if (graphicType === 'RECTANGLE') {
     return _getRectangleCentroid(
@@ -861,7 +879,7 @@ const _getCentroid = (
       coordinateDimensionality,
       commonZCoordinate,
       annotationIndex,
-      numberOfAnnotations
+      numberOfAnnotations,
     )
   } else if (graphicType === 'ELLIPSE') {
     return _getEllipseCentroid(
@@ -870,7 +888,7 @@ const _getCentroid = (
       coordinateDimensionality,
       commonZCoordinate,
       annotationIndex,
-      numberOfAnnotations
+      numberOfAnnotations,
     )
   } else if (graphicType === 'POLYGON') {
     return _getPolygonCentroid(
@@ -879,12 +897,10 @@ const _getCentroid = (
       coordinateDimensionality,
       commonZCoordinate,
       annotationIndex,
-      numberOfAnnotations
+      numberOfAnnotations,
     )
   } else {
-    throw new Error(
-      `Encountered unexpected graphic type "${graphicType}".`
-    )
+    throw new Error(`Encountered unexpected graphic type "${graphicType}".`)
   }
 }
 
@@ -898,5 +914,5 @@ export {
   _getCommonZCoordinate,
   _getCoordinateDimensionality,
   _getPoint,
-  _getCoordinates
+  _getCoordinates,
 }

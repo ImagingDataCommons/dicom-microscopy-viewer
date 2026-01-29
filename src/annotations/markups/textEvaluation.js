@@ -1,7 +1,7 @@
+import Circle from 'ol/style/Circle'
 import Fill from 'ol/style/Fill'
 import Stroke from 'ol/style/Stroke'
 import Style from 'ol/style/Style'
-import Circle from 'ol/style/Circle'
 
 import Enums from '../../enums'
 
@@ -34,14 +34,14 @@ const _applyStyle = (feature) => {
   const style = new Style({
     image: new Circle({
       fill: new Fill({
-        color: 'rgba(255,255,255,0.0)'
+        color: 'rgba(255,255,255,0.0)',
       }),
       stroke: new Stroke({
         color: 'rgba(255,255,255,0.0)',
-        width: 0
+        width: 0,
       }),
-      radius: 5
-    })
+      radius: 5,
+    }),
   })
 
   feature.setStyle(style)
@@ -85,7 +85,7 @@ const _onInteractionEventHandler = ({ feature, markupManager }) => {
     feature,
     value: _format(feature),
     isLinkable: featureHasMarker,
-    isDraggable: featureHasMarker
+    isDraggable: featureHasMarker,
   })
   _applyStyle(feature)
 }
@@ -111,7 +111,7 @@ const TextEvaluationMarkup = ({ markupManager }) => {
             if (property === Enums.InternalProperties.StyleOptions) {
               _applyStyle(feature)
             }
-          }
+          },
         )
       }
     },
@@ -141,7 +141,7 @@ const TextEvaluationMarkup = ({ markupManager }) => {
         _onInteractionEventHandler({ feature, markupManager })
       }
     },
-    onDrawAbort: ({ feature }) => {}
+    onDrawAbort: ({ feature: _feature }) => {},
   }
 }
 

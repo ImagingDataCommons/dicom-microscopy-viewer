@@ -1,10 +1,10 @@
 export default class Transformer {
-  constructor () {
+  constructor() {
     this.codec = undefined
     this.transformers = []
   }
 
-  _initialize () {
+  _initialize() {
     return Promise.resolve()
   }
 }

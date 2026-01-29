@@ -19,7 +19,7 @@ let config
  *
  * @private
  */
-function initialize (data) {
+function initialize(data) {
   // prevent initialization from happening more than once
   if (isInitialized) {
     return
@@ -43,7 +43,7 @@ function initialize (data) {
     taskType: 'initialize',
     status: 'success',
     result: {},
-    workerIndex: data.workerIndex
+    workerIndex: data.workerIndex,
   })
 
   isInitialized = true
@@ -52,15 +52,15 @@ function initialize (data) {
 /**
  * Function exposed to web worker tasks to register themselves
  * @param taskHandler
- * 
+ *
  * @private
  */
-export function registerTaskHandler (taskHandler) {
+export function registerTaskHandler(taskHandler) {
   if (taskHandlers[taskHandler.taskType]) {
     console.info(
       'attempt to register duplicate task handler "',
       taskHandler.taskType,
-      '"'
+      '"',
     )
 
     return false
@@ -74,10 +74,10 @@ export function registerTaskHandler (taskHandler) {
 /**
  * Function to load a new web worker task with updated configuration
  * @param data
- * 
+ *
  * @private
  */
-function loadWebWorkerTask (data) {
+function loadWebWorkerTask(data) {
   config = data.config
   self.importScripts(data.sourcePath)
 }
@@ -85,17 +85,17 @@ function loadWebWorkerTask (data) {
 /**
  * Web worker message handler - dispatches messages to the registered task handlers
  * @param msg
- * 
+ *
  * @private
  */
-self.onmessage = function (msg) {
+self.onmessage = (msg) => {
   if (!msg.data.taskType) {
     console.info(msg.data)
     return
   }
 
   console.info(
-    `run task "${msg.data.taskType}" on web worker #${msg.data.workerIndex}`
+    `run task "${msg.data.taskType}" on web worker #${msg.data.workerIndex}`,
   )
 
   // handle initialize message
@@ -115,17 +115,17 @@ self.onmessage = function (msg) {
     try {
       taskHandlers[msg.data.taskType]._handler(
         msg.data,
-        function (result, transferList) {
+        (result, transferList) => {
           self.postMessage(
             {
               taskType: msg.data.taskType,
               status: 'success',
               result,
-              workerIndex: msg.data.workerIndex
+              workerIndex: msg.data.workerIndex,
             },
-            transferList
+            transferList,
           )
-        }
+        },
       )
     } catch (error) {
       console.error(`task "${msg.data.taskType}" failed: ${error.message}`)
@@ -133,7 +133,7 @@ self.onmessage = function (msg) {
         taskType: msg.data.taskType,
         status: 'failed',
         result: error.message,
-        workerIndex: msg.data.workerIndex
+        workerIndex: msg.data.workerIndex,
       })
     }
 
@@ -146,7 +146,7 @@ self.onmessage = function (msg) {
   self.postMessage({
     taskType: msg.data.taskType,
     status: 'failed - no task handler registered',
-    workerIndex: msg.data.workerIndex
+    workerIndex: msg.data.workerIndex,
   })
 }
 /* eslint-enable */

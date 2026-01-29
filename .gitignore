@@ -72,5 +72,4 @@ dist/
 .env.production.local
 *~
 *.swp
-bun.lock
 *workspace

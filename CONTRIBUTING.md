@@ -14,11 +14,13 @@ Private functions shall be named with a leading underscore (e.g., `_myPrivateFun
 ## Coding style
 
 The library is implemented in JavaScript using the [6th Edition of the ECMAScript Language Specification (ES6)](https://262.ecma-international.org/6.0/) or later.
-Source code is linted using [standard](https://github.com/standard/standard) (based on [eslint](https://eslint.org/)).
+Source code is linted and formatted using [Biome](https://biomejs.dev/). Semicolons are not used at the end of statements (Biome uses `asNeeded`).
 
-Use the following command to identify potential coding style and type annotation violations:
+Use the following commands to check and fix style:
 
-    $ npm run lint
+    $ bun run lint        # check for issues
+    $ bun run lint:fix    # auto-fix issues
+    $ bun run fmt         # format code
 
 Docstrings are written in [JSDoc](https://jsdoc.app/) format:
 

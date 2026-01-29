@@ -1,10 +1,10 @@
-import { Circle as CircleStyle, Fill, Stroke, Style, Text } from 'ol/style.js'
 import { createEmpty, extend, getHeight, getWidth } from 'ol/extent.js'
+import { Circle as CircleStyle, Fill, Stroke, Style, Text } from 'ol/style.js'
 
 const textFill = new Fill({ color: '#fff' })
 const textStroke = new Stroke({
   color: 'rgba(0, 0, 0, 0.6)',
-  width: 3
+  width: 3,
 })
 const CIRCLE_RADIUS = 14
 
@@ -13,7 +13,7 @@ const CIRCLE_RADIUS = 14
  * @param {Feature} clusterMember A feature from a cluster.
  * @return {Style} An icon style for the cluster member's location.
  */
-export function clusterMemberStyle (clusterMember) {
+export function clusterMemberStyle(clusterMember) {
   return new Style({ geometry: clusterMember.getGeometry() })
 }
 
@@ -21,22 +21,24 @@ const outerCircleFill = new Fill()
 const innerCircleFill = new Fill()
 const innerCircle = new CircleStyle({
   radius: CIRCLE_RADIUS,
-  fill: innerCircleFill
+  fill: innerCircleFill,
 })
 const outerCircle = new CircleStyle({ fill: outerCircleFill })
 const outerCircleStyle = new Style({ image: outerCircle })
 const textStyle = new Text({
   fill: textFill,
-  stroke: textStroke
+  stroke: textStroke,
 })
 const innerCircleStyle = new Style({
   image: innerCircle,
-  text: textStyle
+  text: textStyle,
 })
 
-export function getClusterStyleFunc ({ color, opacity }, clusterSource) {
+export function getClusterStyleFunc({ color, opacity }, clusterSource) {
   outerCircleFill.setColor(`rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.3)`)
-  innerCircleFill.setColor(`rgba(${color[0]}, ${color[1]}, ${color[2]}, ${opacity})`)
+  innerCircleFill.setColor(
+    `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${opacity})`,
+  )
   innerCircle.setFill(innerCircleFill)
 
   const updateClustersRadius = (resolution) => {
@@ -52,7 +54,8 @@ export function getClusterStyleFunc ({ color, opacity }, clusterSource) {
         extend(extent, originalFeatures[j].getGeometry().getExtent())
       }
 
-      const radius = (0.15 * (getWidth(extent) + getHeight(extent))) / resolution
+      const radius =
+        (0.15 * (getWidth(extent) + getHeight(extent))) / resolution
       feature.set('radius', radius)
     }
   }
