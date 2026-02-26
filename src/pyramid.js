@@ -194,8 +194,6 @@ function _computeImagePyramid({ metadata }) {
   const pyramidResolutions = []
   const pyramidOrigins = []
   const pyramidPixelSpacings = []
-  const pyramidImageSizes = []
-  const pyramidPhysicalSizes = []
   const offset = [0, -1]
   const baseTotalPixelMatrixColumns =
     pyramidBaseMetadata.TotalPixelMatrixColumns
@@ -212,11 +210,6 @@ function _computeImagePyramid({ metadata }) {
     pyramidGridSizes.push([nColumns, nRows])
     pyramidPixelSpacings.push(pixelSpacing)
 
-    pyramidImageSizes.push([totalPixelMatrixColumns, totalPixelMatrixRows])
-    pyramidPhysicalSizes.push([
-      (totalPixelMatrixColumns * pixelSpacing[1]).toFixed(4),
-      (totalPixelMatrixRows * pixelSpacing[0]).toFixed(4),
-    ])
     let zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns
     const roundedZoomFactor = Math.round(zoomFactor)
     /*
@@ -243,29 +236,6 @@ function _computeImagePyramid({ metadata }) {
   pyramidGridSizes.reverse()
   pyramidOrigins.reverse()
   pyramidPixelSpacings.reverse()
-  pyramidImageSizes.reverse()
-  pyramidPhysicalSizes.reverse()
-
-  const uniquePhysicalSizes = [
-    ...new Set(pyramidPhysicalSizes.map((v) => v.toString())),
-  ].map((v) => v.split(','))
-  if (uniquePhysicalSizes.length > 1) {
-    console.warn(
-      'images of the image pyramid have different sizes: ',
-      '\nsize [mm]: ',
-      pyramidPhysicalSizes,
-      '\npixel spacing [mm]: ',
-      pyramidPixelSpacings,
-      '\nsize [pixels]: ',
-      pyramidImageSizes,
-      '\ntile size [pixels]: ',
-      pyramidTileSizes,
-      '\ntile grid size [tiles]: ',
-      pyramidGridSizes,
-      '\nresolution [factors]: ',
-      pyramidResolutions,
-    )
-  }
 
   /**
    * Frames may extend beyond the size of the total pixel matrix.
