@@ -1,5 +1,5 @@
-import dicomiccFactory from 'dicomicc/dist/dicomiccwasm.js'
-import dicomiccWASM from 'dicomicc/dist/dicomiccwasm.wasm'
+import dicomiccFactory from '@imagingdatacommons/dicomicc/dist/dicomiccwasm.js'
+import dicomiccWASM from '@imagingdatacommons/dicomicc/dist/dicomiccwasm.wasm'
 import { inlineBinaryToUint8Array } from './inlineBinaryToUint8Array.js'
 import Transformer from './transformerAbstract.js'
 
