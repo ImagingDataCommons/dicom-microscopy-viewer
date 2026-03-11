@@ -67,6 +67,7 @@ export default class ColorTransformer extends Transformer {
               planarConfiguration,
             },
             profile,
+            this.codec.DcmIccOutputType?.SRGB ?? 0,
           )
         }
         resolve(this.transformers)
