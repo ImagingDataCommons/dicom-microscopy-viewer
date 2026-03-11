@@ -9,9 +9,9 @@
         "@cornerstonejs/codec-libjpeg-turbo-8bit": "^1.2.2",
         "@cornerstonejs/codec-openjpeg": "^1.2.4",
         "@cornerstonejs/codec-openjph": "^2.4.5",
+        "@imagingdatacommons/dicomicc": "^0.2.3",
         "colormap": "^2.3",
         "dcmjs": "^0.41.0",
-        "dicomicc": "^0.1",
         "dicomweb-client": "0.10.3",
         "image-type": "^4.1",
         "mathjs": "^11.2",
@@ -298,6 +298,8 @@
     "@cornerstonejs/codec-openjph": ["@cornerstonejs/codec-openjph@2.4.7", "", {}, "sha512-qvP4q4JDib7mi9r7LqKOwqz7YZ8gjtDX4ZCezeYf8+eb7MBXCz5uXAMeVF3yz9Axw4XiIMdB/pqXkm8tqCl13w=="],
 
     "@discoveryjs/json-ext": ["@discoveryjs/json-ext@0.5.7", "", {}, "sha512-dBVuXR082gk3jsFp7Rd/JI4kytwGHecnCoTtXFb7DB6CNHp4rg5k1bhg0nWdLGLnOV71lmDzGQaLMy8iPLY0pw=="],
+
+    "@imagingdatacommons/dicomicc": ["@imagingdatacommons/dicomicc@0.2.3", "", {}, "sha512-gHRHIct+5kyTqONASiuGgjlZVEaawpwqSxfBbltLwhTVYedcA7hs0TPYJk3uR1P5RvvC2fC1lPJ0c8jhkGxtNA=="],
 
     "@istanbuljs/load-nyc-config": ["@istanbuljs/load-nyc-config@1.1.0", "", { "dependencies": { "camelcase": "^5.3.1", "find-up": "^4.1.0", "get-package-type": "^0.1.0", "js-yaml": "^3.13.1", "resolve-from": "^5.0.0" } }, "sha512-VjeHSlIzpv/NyD3N0YuHfXOPDIixcA1q2ZV98wsMqcYlPmv2n3Yb2lYP9XMElnaFVXg5A7YLTeLu6V84uQDjmQ=="],
 
@@ -726,8 +728,6 @@
     "detect-newline": ["detect-newline@3.1.0", "", {}, "sha512-TLz+x/vEXm/Y7P7wn1EJFNLxYpUD4TgMosxY6fAVJUnJMbupHBOncxyWUG9OpTaH9EBD7uFI5LfEgmMOc54DsA=="],
 
     "detect-node": ["detect-node@2.1.0", "", {}, "sha512-T0NIuQpnTvFDATNuHN5roPwSBG83rFsuO+MXXH9/3N1eFbn4wcPjttvjMLEPWJ0RGUYgQE7cGgS3tNxbqCGM7g=="],
-
-    "dicomicc": ["dicomicc@0.1.0", "", {}, "sha512-kZejPGjLQ9NsgovSyVsiAuCpq6LofNR9Erc8Tt/vQAYGYCoQnTyWDlg5D0TJJQATKul7cSr9k/q0TF8G9qdDkQ=="],
 
     "dicomweb-client": ["dicomweb-client@0.10.3", "", {}, "sha512-/fHNEAYiz8j+9TNOrNJ0k+hYqirbOT85B7vM7I4VkY8DeDQb4BDUeL3RX6huDVtn6ZQlR91dI+2tejLc5c99wA=="],
 
