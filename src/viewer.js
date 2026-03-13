@@ -1304,7 +1304,9 @@ class VolumeImageViewer {
           )
           const error = new CustomError(
             errorTypes.VISUALIZATION,
-            `error loading tile of optical path "${opticalPathIdentifier}": ${event.tile?.error_?.message || event.message}`,
+            `error loading tile of optical path "${opticalPathIdentifier}": ${
+              event.tile?.error_?.message || event.message
+            }`,
           )
           this[_options].errorInterceptor(error)
         })
@@ -1424,7 +1426,9 @@ class VolumeImageViewer {
         )
         const error = new CustomError(
           errorTypes.VISUALIZATION,
-          `error loading tile of optical path "${opticalPathIdentifier}": ${event.tile?.error_?.message || event.message}`,
+          `error loading tile of optical path "${opticalPathIdentifier}": ${
+            event.tile?.error_?.message || event.message
+          }`,
         )
         this[_options].errorInterceptor(error)
       })
@@ -3773,6 +3777,39 @@ class VolumeImageViewer {
    */
   get areROIsVisible() {
     return this[_drawingLayer].getVisible()
+  }
+
+  /**
+   * Hide an individual region of interest.
+   *
+   * @param {string} uid - Unique identifier of the region of interest
+   */
+  hideROI(uid) {
+    console.info(`hide ROI ${uid}`)
+    const feature = this[_drawingSource].getFeatureById(uid)
+    if (!feature) return
+
+    feature.setStyle(_getOpenLayersStyle({}))
+
+    this[_annotationManager].setMarkupVisibility(uid, false)
+  }
+
+  /**
+   * Show an individual region of interest.
+   *
+   * @param {string} uid - Unique identifier of the region of interest
+   */
+  showROI(uid) {
+    console.info(`show ROI ${uid}`)
+    const feature = this[_drawingSource].getFeatureById(uid)
+    if (!feature) return
+
+    const styleOptions =
+      feature.get(Enums.InternalProperties.StyleOptions) || {}
+
+    _setFeatureStyle(feature, styleOptions)
+
+    this[_annotationManager].setMarkupVisibility(uid, true)
   }
 
   /**
