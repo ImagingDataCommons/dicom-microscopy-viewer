@@ -56,20 +56,45 @@ export default class ColorTransformer extends Transformer {
 
           // Determine ICC output type using the exposed enum
           let iccOutputType
+
+          // Verify that the DcmIccOutputType enum is available
+          if (!this.codec.DcmIccOutputType) {
+            throw new Error(
+              'DcmIccOutputType enum is not available in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+            )
+          }
+
+          // Ensure that the default DcmIccOutputType.SRGB is available
+          if (this.codec.DcmIccOutputType.SRGB === undefined) {
+            throw new Error(
+              'DcmIccOutputType.SRGB is not defined in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+            )
+          }
+
           switch (this.iccOutputTypeString) {
             case 'display-p3':
-              iccOutputType = this.codec.DcmIccOutputType.DISPLAY_P3
+              iccOutputType =
+                this.codec.DcmIccOutputType.DISPLAY_P3 ??
+                this.codec.DcmIccOutputType.SRGB
               break
             case 'adobe-rgb':
-              iccOutputType = this.codec.DcmIccOutputType.ADOBE_RGB
+              iccOutputType =
+                this.codec.DcmIccOutputType.ADOBE_RGB ??
+                this.codec.DcmIccOutputType.SRGB
               break
             case 'romm-rgb':
-              iccOutputType = this.codec.DcmIccOutputType.ROMM_RGB
+              iccOutputType =
+                this.codec.DcmIccOutputType.ROMM_RGB ??
+                this.codec.DcmIccOutputType.SRGB
               break
             default:
               iccOutputType = this.codec.DcmIccOutputType.SRGB
               break
           }
+
+          console.debug(
+            `Initializing ColorTransformer for SOP Instance UID ${sopInstanceUID} with ICC output type ${this.iccOutputTypeString} (codec enum value: ${iccOutputType})`,
+          )
 
           this.transformers[sopInstanceUID] = new this.codec.ColorManager(
             {
