@@ -1,6 +1,5 @@
 import dicomiccFactory from '@imagingdatacommons/dicomicc/dist/dicomiccwasm.js'
 import dicomiccWASM from '@imagingdatacommons/dicomicc/dist/dicomiccwasm.wasm'
-import { inlineBinaryToUint8Array } from './inlineBinaryToUint8Array.js'
 import Transformer from './transformerAbstract.js'
 
 export default class ColorTransformer extends Transformer {
@@ -13,7 +12,7 @@ export default class ColorTransformer extends Transformer {
    * @param {number} [iccOutputType="srgb"] - ICC output type
    *     ("srgb": sRGB (default), "display-p3": Display-P3, "adobe-rgb": Adobe RGB (1998), "romm-rgb": ROMM RGB).
    */
-  constructor (metadata, iccProfiles, iccOutputType = "srgb") {
+  constructor(metadata, iccProfiles, iccOutputType = 'srgb') {
     super()
     if (metadata.length !== iccProfiles.length) {
       throw new Error(
@@ -25,7 +24,7 @@ export default class ColorTransformer extends Transformer {
     this.iccProfiles = iccProfiles
     this.codec = null
     this.transformers = {}
-    this.iccOutputTypeString = iccOutputType;
+    this.iccOutputTypeString = iccOutputType
   }
 
   _initialize() {
@@ -58,16 +57,15 @@ export default class ColorTransformer extends Transformer {
           // Determine ICC output type using the exposed enum
           let iccOutputType
           switch (this.iccOutputTypeString) {
-            case "display-p3":
+            case 'display-p3':
               iccOutputType = this.codec.DcmIccOutputType.DISPLAY_P3
               break
-            case "adobe-rgb":
+            case 'adobe-rgb':
               iccOutputType = this.codec.DcmIccOutputType.ADOBE_RGB
               break
-            case "romm-rgb":
+            case 'romm-rgb':
               iccOutputType = this.codec.DcmIccOutputType.ROMM_RGB
               break
-            case "srgb":
             default:
               iccOutputType = this.codec.DcmIccOutputType.SRGB
               break
@@ -82,8 +80,7 @@ export default class ColorTransformer extends Transformer {
               planarConfiguration,
             },
             profile,
-            this.codec.DcmIccOutputType?.SRGB ?? 0,
-            iccOutputType
+            iccOutputType,
           )
         }
         resolve(this.transformers)

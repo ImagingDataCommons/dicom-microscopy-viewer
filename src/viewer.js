@@ -809,7 +809,7 @@ class VolumeImageViewer {
     this[_clients] = {}
     this[_errorInterceptor] = options.errorInterceptor || ((error) => error)
     this[_isICCProfilesEnabled] = true
-    this[_iccOutputType] = "srgb"
+    this[_iccOutputType] = 'srgb'
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
@@ -1200,17 +1200,17 @@ class VolumeImageViewer {
      */
     function detectDisplayColorSpace() {
       if (typeof window !== 'undefined' && window.matchMedia) {
-        if (window.matchMedia("(color-gamut: p3)").matches) {
-          return 'display-p3';
-        } else if (window.matchMedia("(color-gamut: srgb)").matches) {
-          return 'srgb';
+        if (window.matchMedia('(color-gamut: p3)').matches) {
+          return 'display-p3'
+        } else if (window.matchMedia('(color-gamut: srgb)').matches) {
+          return 'srgb'
         }
       }
-      return 'srgb';
+      return 'srgb'
     }
 
-    this[_iccOutputType] = detectDisplayColorSpace();
-    console.log(`Detected display color space: "${this[_iccOutputType]}"`);
+    this[_iccOutputType] = detectDisplayColorSpace()
+    console.log(`Detected display color space: "${this[_iccOutputType]}"`)
 
     const layers = []
     const overviewLayers = []
@@ -1362,10 +1362,13 @@ class VolumeImageViewer {
         })
         opticalPath.layer.helper = helper
         opticalPath.layer.on('precompose', (event) => {
-          const gl = event.context;
+          const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
             gl.drawingBufferColorSpace = this[_iccOutputType]
-            console.debug("Using color space - layer:", gl.drawingBufferColorSpace)
+            console.debug(
+              'Using color space - layer:',
+              gl.drawingBufferColorSpace,
+            )
           }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
@@ -1395,7 +1398,10 @@ class VolumeImageViewer {
           const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
             gl.drawingBufferColorSpace = this[_iccOutputType]
-            console.debug("Using color space - overviewLayer:", gl.drawingBufferColorSpace)
+            console.debug(
+              'Using color space - overviewLayer:',
+              gl.drawingBufferColorSpace,
+            )
           }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
@@ -1467,10 +1473,13 @@ class VolumeImageViewer {
         cacheSize: this[_options].tilesCacheSize,
       })
       opticalPath.layer.on('precompose', (event) => {
-        const gl = event.context;
+        const gl = event.context
         if ('drawingBufferColorSpace' in gl) {
           gl.drawingBufferColorSpace = this[_iccOutputType]
-          console.debug("Using color space - layer:", gl.drawingBufferColorSpace)
+          console.debug(
+            'Using color space - layer:',
+            gl.drawingBufferColorSpace,
+          )
         }
       })
 
@@ -1492,10 +1501,13 @@ class VolumeImageViewer {
         useInterimTilesOnError: false,
       })
       opticalPath.overviewLayer.on('precompose', (event) => {
-        const gl = event.context;
+        const gl = event.context
         if ('drawingBufferColorSpace' in gl) {
           gl.drawingBufferColorSpace = this[_iccOutputType]
-          console.debug("Using color space - overviewLayer:", gl.drawingBufferColorSpace)
+          console.debug(
+            'Using color space - overviewLayer:',
+            gl.drawingBufferColorSpace,
+          )
         }
       })
 
@@ -2379,7 +2391,7 @@ class VolumeImageViewer {
           targetElement: this[_container],
           iccProfiles: profiles,
           iccOutputType: this[_iccOutputType],
-          ...item.loaderParams
+          ...item.loaderParams,
         })
         const loaderWithoutICCProfiles = _createTileLoadFunction({
           targetElement: this[_container],
@@ -2522,7 +2534,7 @@ class VolumeImageViewer {
           targetElement: container,
           iccProfiles: profiles,
           iccOutputType: this[_iccOutputType],
-          ...opticalPath.loaderParams
+          ...opticalPath.loaderParams,
         })
         const source = opticalPath.layer.getSource()
         source.setLoader(loader)
@@ -2699,9 +2711,13 @@ class VolumeImageViewer {
 
       const loader = _createTileLoadFunction({
         targetElement: container,
-        iccProfiles: this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
-        iccOutputType: this[_isICCProfilesEnabled] && profiles.length > 0 ? this[_iccOutputType] : null,
-        ...item.loaderParams
+        iccProfiles:
+          this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
+        iccOutputType:
+          this[_isICCProfilesEnabled] && profiles.length > 0
+            ? this[_iccOutputType]
+            : null,
+        ...item.loaderParams,
       })
       source.setLoader(loader)
       item.hasLoader = true
