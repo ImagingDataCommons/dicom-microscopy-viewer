@@ -9,7 +9,7 @@ export default class ColorTransformer extends Transformer {
    * @param {Array<metadata.VLWholeSlideMicroscopyImage>} - Metadata of each
    * image
    * @param {Array<TypedArray>} - ICC profiles of each image
-   * @param {number} [iccOutputType="srgb"] - ICC output type
+   * @param {string} [iccOutputType="srgb"] - ICC output type
    *     ("srgb": sRGB (default), "display-p3": Display-P3, "adobe-rgb": Adobe RGB (1998), "romm-rgb": ROMM RGB).
    */
   constructor(metadata, iccProfiles, iccOutputType = 'srgb') {

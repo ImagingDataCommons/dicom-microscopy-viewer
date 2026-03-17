@@ -741,7 +741,7 @@ const _tileGrid = Symbol('tileGrid')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 const _annotationOptions = Symbol('annotationOptions')
 const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
-const _iccOutputType = Symbol('_iccOutputType')
+const _iccOutputType = Symbol('iccOutputType')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
 const _highResSources = Symbol('highResSources')
@@ -1210,8 +1210,6 @@ class VolumeImageViewer {
     }
 
     this[_iccOutputType] = detectDisplayColorSpace()
-    console.log(`Detected display color space: "${this[_iccOutputType]}"`)
-
     const layers = []
     const overviewLayers = []
     this[_opticalPaths] = {}
@@ -1365,10 +1363,6 @@ class VolumeImageViewer {
           const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
             gl.drawingBufferColorSpace = this[_iccOutputType]
-            console.debug(
-              'Using color space - layer:',
-              gl.drawingBufferColorSpace,
-            )
           }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
@@ -1398,10 +1392,6 @@ class VolumeImageViewer {
           const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
             gl.drawingBufferColorSpace = this[_iccOutputType]
-            console.debug(
-              'Using color space - overviewLayer:',
-              gl.drawingBufferColorSpace,
-            )
           }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
@@ -1476,10 +1466,6 @@ class VolumeImageViewer {
         const gl = event.context
         if ('drawingBufferColorSpace' in gl) {
           gl.drawingBufferColorSpace = this[_iccOutputType]
-          console.debug(
-            'Using color space - layer:',
-            gl.drawingBufferColorSpace,
-          )
         }
       })
 
@@ -1504,10 +1490,6 @@ class VolumeImageViewer {
         const gl = event.context
         if ('drawingBufferColorSpace' in gl) {
           gl.drawingBufferColorSpace = this[_iccOutputType]
-          console.debug(
-            'Using color space - overviewLayer:',
-            gl.drawingBufferColorSpace,
-          )
         }
       })
 
