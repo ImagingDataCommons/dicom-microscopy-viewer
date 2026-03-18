@@ -52,7 +52,7 @@ export default class ColorTransformer extends Transformer {
           const samplesPerPixel = this.metadata[index].SamplesPerPixel
           const planarConfiguration = this.metadata[index].PlanarConfiguration
           const sopInstanceUID = this.metadata[index].SOPInstanceUID
-          const profile = this.iccProfiles[index]
+          const profile = inlineBinaryToUint8Array(this.iccProfiles[index])
 
           // Determine ICC output type using the exposed enum
           let iccOutputType
