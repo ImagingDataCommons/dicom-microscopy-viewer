@@ -2691,7 +2691,7 @@ class VolumeImageViewer {
         iccOutputType:
           this[_isICCProfilesEnabled] && profiles.length > 0
             ? this[_iccOutputType]
-            : null,
+            : undefined,
         ...item.loaderParams,
       })
       source.setLoader(loader)
