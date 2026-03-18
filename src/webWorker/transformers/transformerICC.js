@@ -78,16 +78,23 @@ export default class ColorTransformer extends Transformer {
                 this.codec.DcmIccOutputType.SRGB
               break
             case 'adobe-rgb':
+              // Reserved for future use. Currently, only SRGB and DP3 can be selected.
               iccOutputType =
                 this.codec.DcmIccOutputType.ADOBE_RGB ??
                 this.codec.DcmIccOutputType.SRGB
               break
             case 'romm-rgb':
+              // Reserved for future use. Currently, only SRGB and DP3 can be selected.
               iccOutputType =
                 this.codec.DcmIccOutputType.ROMM_RGB ??
                 this.codec.DcmIccOutputType.SRGB
               break
             default:
+              if (this.iccOutputTypeString !== 'srgb') {
+                console.warn(
+                  `Unsupported ICC output type "${this.iccOutputTypeString}". Falling back to "srgb".`,
+                )
+              }
               iccOutputType = this.codec.DcmIccOutputType.SRGB
               break
           }
