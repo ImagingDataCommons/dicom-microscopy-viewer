@@ -261,3 +261,51 @@ describe('utils.mapSlideCoordToPixelCoord', () => {
     })
   })
 })
+
+describe('test detectDisplayColorSpace function', () => {
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+  })
+
+  it('should detect display-p3 color space when supported', () => {
+    // Mock matchMedia to return true for p3 and false for srgb
+    window.matchMedia = jest.fn((query) => ({
+      matches: query === '(color-gamut: p3)',
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }))
+
+    expect(utils.detectDisplayColorSpace()).toEqual('display-p3')
+  })
+
+  it('should fall back to srgb when p3 is not supported', () => {
+    // Mock matchMedia to return false for p3
+    window.matchMedia = jest.fn((query) => ({
+      matches: query === '(color-gamut: srgb)',
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }))
+
+    expect(utils.detectDisplayColorSpace()).toEqual('srgb')
+  })
+
+  it('should default to srgb when window.matchMedia is not available', () => {
+    // Mock matchMedia to be undefined
+    window.matchMedia = undefined
+
+    expect(utils.detectDisplayColorSpace()).toEqual('srgb')
+  })
+
+})
+
