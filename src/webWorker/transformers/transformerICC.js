@@ -28,12 +28,12 @@ export default class ColorTransformer extends Transformer {
     this.iccOutputTypeString = iccOutputType
   }
 
-  _initialize() {
+  async _initialize() {
     if (this.codec) {
-      return Promise.resolve()
+      return this.transformers
     }
 
-    const dicomicc = dicomiccFactory({
+    const instance = await dicomiccFactory({
       locateFile: (f) => {
         if (f.endsWith('.wasm')) {
           return dicomiccWASM
@@ -42,83 +42,77 @@ export default class ColorTransformer extends Transformer {
       },
     })
 
-    return new Promise((resolve, reject) => {
-      dicomicc.then((instance) => {
-        this.codec = instance
+    this.codec = instance
 
-        for (let index = 0; index < this.metadata.length; index++) {
-          const columns = this.metadata[index].Columns
-          const rows = this.metadata[index].Rows
-          const bitsPerSample = this.metadata[index].BitsAllocated
-          const samplesPerPixel = this.metadata[index].SamplesPerPixel
-          const planarConfiguration = this.metadata[index].PlanarConfiguration
-          const sopInstanceUID = this.metadata[index].SOPInstanceUID
-          const profile = inlineBinaryToUint8Array(this.iccProfiles[index])
+    for (let index = 0; index < this.metadata.length; index++) {
+      const columns = this.metadata[index].Columns
+      const rows = this.metadata[index].Rows
+      const bitsPerSample = this.metadata[index].BitsAllocated
+      const samplesPerPixel = this.metadata[index].SamplesPerPixel
+      const planarConfiguration = this.metadata[index].PlanarConfiguration
+      const sopInstanceUID = this.metadata[index].SOPInstanceUID
+      const profile = inlineBinaryToUint8Array(this.iccProfiles[index])
 
-          // Determine ICC output type using the exposed enum
-          let iccOutputType
+      // Verify that the DcmIccOutputType enum is available
+      if (!this.codec.DcmIccOutputType) {
+        throw new Error(
+          'DcmIccOutputType enum is not available in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+        )
+      }
 
-          // Verify that the DcmIccOutputType enum is available
-          if (!this.codec.DcmIccOutputType) {
-            throw new Error(
-              'DcmIccOutputType enum is not available in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+      // Ensure that the default DcmIccOutputType.SRGB is available
+      if (this.codec.DcmIccOutputType.SRGB === undefined) {
+        throw new Error(
+          'DcmIccOutputType.SRGB is not defined in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+        )
+      }
+
+      switch (this.iccOutputTypeString) {
+        case 'display-p3':
+          this.iccOutputType =
+            this.codec.DcmIccOutputType.DISPLAY_P3 ??
+            this.codec.DcmIccOutputType.SRGB
+          break
+        case 'adobe-rgb':
+          // Reserved for future use. Currently, only SRGB and DP3 can be selected.
+          this.iccOutputType =
+            this.codec.DcmIccOutputType.ADOBE_RGB ??
+            this.codec.DcmIccOutputType.SRGB
+          break
+        case 'romm-rgb':
+          // Reserved for future use. Currently, only SRGB and DP3 can be selected.
+          this.iccOutputType =
+            this.codec.DcmIccOutputType.ROMM_RGB ??
+            this.codec.DcmIccOutputType.SRGB
+          break
+        default:
+          if (this.iccOutputTypeString !== 'srgb') {
+            console.warn(
+              `Unsupported ICC output type "${this.iccOutputTypeString}". Falling back to "srgb".`,
             )
           }
+          this.iccOutputType = this.codec.DcmIccOutputType.SRGB
+          break
+      }
 
-          // Ensure that the default DcmIccOutputType.SRGB is available
-          if (this.codec.DcmIccOutputType.SRGB === undefined) {
-            throw new Error(
-              'DcmIccOutputType.SRGB is not defined in the codec. Please ensure that the version of dicomicc being used supports this feature.',
-            )
-          }
+      console.debug(
+        `Initializing ColorTransformer for SOP Instance UID ${sopInstanceUID} with ICC output type ${this.iccOutputTypeString} (codec enum value: ${this.iccOutputType})`,
+      )
 
-          switch (this.iccOutputTypeString) {
-            case 'display-p3':
-              iccOutputType =
-                this.codec.DcmIccOutputType.DISPLAY_P3 ??
-                this.codec.DcmIccOutputType.SRGB
-              break
-            case 'adobe-rgb':
-              // Reserved for future use. Currently, only SRGB and DP3 can be selected.
-              iccOutputType =
-                this.codec.DcmIccOutputType.ADOBE_RGB ??
-                this.codec.DcmIccOutputType.SRGB
-              break
-            case 'romm-rgb':
-              // Reserved for future use. Currently, only SRGB and DP3 can be selected.
-              iccOutputType =
-                this.codec.DcmIccOutputType.ROMM_RGB ??
-                this.codec.DcmIccOutputType.SRGB
-              break
-            default:
-              if (this.iccOutputTypeString !== 'srgb') {
-                console.warn(
-                  `Unsupported ICC output type "${this.iccOutputTypeString}". Falling back to "srgb".`,
-                )
-              }
-              iccOutputType = this.codec.DcmIccOutputType.SRGB
-              break
-          }
+      this.transformers[sopInstanceUID] = new this.codec.ColorManager(
+        {
+          columns,
+          rows,
+          bitsPerSample,
+          samplesPerPixel,
+          planarConfiguration,
+        },
+        profile,
+        this.iccOutputType,
+      )
+    }
 
-          console.debug(
-            `Initializing ColorTransformer for SOP Instance UID ${sopInstanceUID} with ICC output type ${this.iccOutputTypeString} (codec enum value: ${iccOutputType})`,
-          )
-
-          this.transformers[sopInstanceUID] = new this.codec.ColorManager(
-            {
-              columns,
-              rows,
-              bitsPerSample,
-              samplesPerPixel,
-              planarConfiguration,
-            },
-            profile,
-            iccOutputType,
-          )
-        }
-        resolve(this.transformers)
-      }, reject)
-    })
+    return this.transformers
   }
 
   /**
