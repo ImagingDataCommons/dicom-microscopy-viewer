@@ -44,6 +44,48 @@ export default class ColorTransformer extends Transformer {
 
     this.codec = instance
 
+    // Verify that the DcmIccOutputType enum is available
+    if (!this.codec.DcmIccOutputType) {
+      throw new Error(
+        'DcmIccOutputType enum is not available in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+      )
+    }
+
+    // Ensure that the default DcmIccOutputType.SRGB is available
+    if (this.codec.DcmIccOutputType.SRGB === undefined) {
+      throw new Error(
+        'DcmIccOutputType.SRGB is not defined in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+      )
+    }
+
+    switch (this.iccOutputTypeString) {
+      case 'display-p3':
+        this.iccOutputType =
+          this.codec.DcmIccOutputType.DISPLAY_P3 ??
+          this.codec.DcmIccOutputType.SRGB
+        break
+      case 'adobe-rgb':
+        // Reserved for future use. Currently, only SRGB and DP3 can be selected.
+        this.iccOutputType =
+          this.codec.DcmIccOutputType.ADOBE_RGB ??
+          this.codec.DcmIccOutputType.SRGB
+        break
+      case 'romm-rgb':
+        // Reserved for future use. Currently, only SRGB and DP3 can be selected.
+        this.iccOutputType =
+          this.codec.DcmIccOutputType.ROMM_RGB ??
+          this.codec.DcmIccOutputType.SRGB
+        break
+      default:
+        if (this.iccOutputTypeString !== 'srgb') {
+          console.warn(
+            `Unsupported ICC output type "${this.iccOutputTypeString}". Falling back to "srgb".`,
+          )
+        }
+        this.iccOutputType = this.codec.DcmIccOutputType.SRGB
+        break
+    }
+
     for (let index = 0; index < this.metadata.length; index++) {
       const columns = this.metadata[index].Columns
       const rows = this.metadata[index].Rows
@@ -53,46 +95,14 @@ export default class ColorTransformer extends Transformer {
       const sopInstanceUID = this.metadata[index].SOPInstanceUID
       const profile = inlineBinaryToUint8Array(this.iccProfiles[index])
 
-      // Verify that the DcmIccOutputType enum is available
-      if (!this.codec.DcmIccOutputType) {
-        throw new Error(
-          'DcmIccOutputType enum is not available in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+      // If the ICC profile could not be parsed, skip creating a transformer for
+      // this SOP Instance UID so that downstream code can fall back to returning
+      // the original frame instead of failing inside the WASM codec.
+      if (!profile) {
+        console.warn(
+          `Skipping ICC color transformation for SOP Instance UID ${sopInstanceUID} because the ICC profile could not be parsed.`,
         )
-      }
-
-      // Ensure that the default DcmIccOutputType.SRGB is available
-      if (this.codec.DcmIccOutputType.SRGB === undefined) {
-        throw new Error(
-          'DcmIccOutputType.SRGB is not defined in the codec. Please ensure that the version of dicomicc being used supports this feature.',
-        )
-      }
-
-      switch (this.iccOutputTypeString) {
-        case 'display-p3':
-          this.iccOutputType =
-            this.codec.DcmIccOutputType.DISPLAY_P3 ??
-            this.codec.DcmIccOutputType.SRGB
-          break
-        case 'adobe-rgb':
-          // Reserved for future use. Currently, only SRGB and DP3 can be selected.
-          this.iccOutputType =
-            this.codec.DcmIccOutputType.ADOBE_RGB ??
-            this.codec.DcmIccOutputType.SRGB
-          break
-        case 'romm-rgb':
-          // Reserved for future use. Currently, only SRGB and DP3 can be selected.
-          this.iccOutputType =
-            this.codec.DcmIccOutputType.ROMM_RGB ??
-            this.codec.DcmIccOutputType.SRGB
-          break
-        default:
-          if (this.iccOutputTypeString !== 'srgb') {
-            console.warn(
-              `Unsupported ICC output type "${this.iccOutputTypeString}". Falling back to "srgb".`,
-            )
-          }
-          this.iccOutputType = this.codec.DcmIccOutputType.SRGB
-          break
+        continue
       }
 
       console.debug(

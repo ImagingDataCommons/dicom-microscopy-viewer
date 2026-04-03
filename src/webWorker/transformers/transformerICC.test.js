@@ -3,7 +3,7 @@ import { inlineBinaryToUint8Array } from './inlineBinaryToUint8Array.js'
 
 
 /**
- * This file is intented to test the transformerICC module in isolation. We can do this by mocking the WASM module that it depends on, 
+ * This file is intended to test the transformerICC module in isolation. We can do this by mocking the WASM module that it depends on, 
  *  which allows us to control the behavior of the codec and test how the transformer handles different scenarios, including edge cases and error conditions.
  *  This approach ensures that our tests are focused on the logic of the transformer itself, rather than being influenced by the complexities of the actual WASM implementation.
  */
