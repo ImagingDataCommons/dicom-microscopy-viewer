@@ -5090,8 +5090,6 @@ class VolumeImageViewer {
         }),
       }
 
-      this.paletteColorLookupTable = defaultSegmentStyle.paletteColorLookupTable
-
       const segment = {
         segment: new Segment({
           uid: segmentUID,
@@ -5208,10 +5206,7 @@ class VolumeImageViewer {
     disposeLayer(segment.layer)
     delete this[_segments][segmentUID]
 
-    const shouldRemoveOverlay = Object.values(this[_segments]).length === 0
-    if (shouldRemoveOverlay) {
-      this[_map].removeOverlay(this.segmentOverlay)
-    }
+    this._syncStackedDerivedLegendOverlays()
   }
 
   /**
@@ -5305,12 +5300,7 @@ class VolumeImageViewer {
     console.info(`hide segment ${segmentUID}`)
     segment.layer.setVisible(false)
 
-    const shouldRemoveOverlay = Object.values(this[_segments]).every((seg) => {
-      return !seg.layer.isVisible()
-    })
-    if (shouldRemoveOverlay) {
-      this[_map].removeOverlay(this.segmentOverlay)
-    }
+    this._syncStackedDerivedLegendOverlays()
   }
 
   /**
@@ -5334,35 +5324,154 @@ class VolumeImageViewer {
   }
 
   /**
-   * Create a horizontal legend overlay with color bar, title, and numeric range.
+   * Single viewport overlay: all visible fractional segments and parametric
+   * maps as rows in one column (property type Code Meaning / LUT label).
    *
    * @private
-   * @param {HTMLElement} overlayElement - The overlay element to populate
-   * @param {string} title - The title/label to display
-   * @param {Array<Array<number>>} colors - Array of RGB color values from LUT
-   * @param {number} minValue - Minimum value for the range display
-   * @param {number} maxValue - Maximum value for the range display
-   * @param {boolean} [useRealWorldValues=false] - Whether to format as real world values (decimals)
    */
-  _createHorizontalLegendOverlay(
-    overlayElement,
+  _syncStackedDerivedLegendOverlays() {
+    for (const uid in this[_segments]) {
+      const rec = this[_segments][uid]
+      if (rec.legendOverlay != null) {
+        if (rec.legendOverlay.getMap() != null) {
+          this[_map].removeOverlay(rec.legendOverlay)
+        }
+        rec.legendOverlay = null
+      }
+    }
+    for (const muid in this[_mappings]) {
+      const mapping = this[_mappings][muid]
+      if (mapping.overlay != null && mapping.overlay.getMap() != null) {
+        this[_map].removeOverlay(mapping.overlay)
+      }
+    }
+
+    const root = this.segmentOverlay.getElement()
+    root.innerHTML = ''
+    root.style.display = 'flex'
+    root.style.flexDirection = 'column'
+    root.style.alignItems = 'stretch'
+    root.style.gap = '10px'
+    root.style.padding = '8px'
+    root.style.backgroundColor = 'rgba(255, 255, 255, 0.94)'
+    root.style.borderRadius = '6px'
+    root.style.margin = '1px'
+    root.style.marginTop = '8px'
+    root.style.marginLeft = '4px'
+    root.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.12)'
+
+    let rowCount = 0
+
+    const segmentUids = Object.keys(this[_segments]).sort()
+    for (let s = 0; s < segmentUids.length; s++) {
+      const uid = segmentUids[s]
+      const rec = this[_segments][uid]
+      if (rec.segmentationType !== 'FRACTIONAL' || !rec.layer.getVisible()) {
+        continue
+      }
+      const data = rec.style.paletteColorLookupTable?.data
+      if (data == null || data.length === 0) {
+        continue
+      }
+      const prop = rec.segment?.propertyType
+      const title =
+        prop?.CodeMeaning != null && String(prop.CodeMeaning).trim() !== ''
+          ? prop.CodeMeaning
+          : (rec.segment?.label ?? 'Fractional')
+
+      this._appendDerivedLegendRow(
+        root,
+        title,
+        data,
+        rec.minStoredValue,
+        rec.maxStoredValue,
+        false,
+      )
+      rowCount += 1
+    }
+
+    const mappingUids = Object.keys(this[_mappings]).sort()
+    for (let m = 0; m < mappingUids.length; m++) {
+      const muid = mappingUids[m]
+      const mapping = this[_mappings][muid]
+      if (!mapping.layer.getVisible()) {
+        continue
+      }
+      const mapData = mapping.style.paletteColorLookupTable?.data
+      if (mapData == null || mapData.length === 0) {
+        continue
+      }
+
+      let minValue = mapping.minStoredValue
+      let maxValue = mapping.maxStoredValue
+      let useRealWorldValues = false
+      if (mapping.realWorldValueRange) {
+        minValue = mapping.realWorldValueRange[0]
+        maxValue = mapping.realWorldValueRange[1]
+        useRealWorldValues = true
+      }
+      const mapTitle =
+        mapping.mapping?.label != null &&
+        String(mapping.mapping.label).trim() !== ''
+          ? mapping.mapping.label
+          : 'Parametric map'
+
+      this._appendDerivedLegendRow(
+        root,
+        mapTitle,
+        mapData,
+        minValue,
+        maxValue,
+        useRealWorldValues,
+      )
+      rowCount += 1
+    }
+
+    const parentEl = root.parentNode
+    if (rowCount === 0) {
+      if (this.segmentOverlay.getMap() != null) {
+        this[_map].removeOverlay(this.segmentOverlay)
+      }
+      if (parentEl != null) {
+        parentEl.style.display = 'none'
+      }
+      return
+    }
+
+    if (parentEl != null) {
+      parentEl.style.display = 'block'
+      parentEl.style.paddingLeft = '5px'
+    }
+    this.segmentOverlay.setOffset([7, 5])
+    if (this.segmentOverlay.getMap() == null) {
+      this[_map].addOverlay(this.segmentOverlay)
+    }
+  }
+
+  /**
+   * One legend row [min] [color bar] [max] [label] inside a column panel.
+   *
+   * @private
+   */
+  _appendDerivedLegendRow(
+    column,
     title,
     colors,
     minValue,
     maxValue,
     useRealWorldValues = false,
   ) {
-    // Clear existing content
-    overlayElement.innerHTML = ''
+    if (colors == null || colors.length === 0) {
+      return
+    }
 
-    // Create single row: [min] [color bar] [max] [label on far right]
     const row = document.createElement('div')
     row.style.display = 'flex'
     row.style.flexDirection = 'row'
     row.style.alignItems = 'center'
     row.style.gap = '8px'
+    row.style.width = '100%'
 
-    // Create min value element
     const minElement = document.createElement('div')
     if (useRealWorldValues) {
       minElement.textContent = minValue.toFixed(2)
@@ -5374,7 +5483,6 @@ class VolumeImageViewer {
     minElement.style.color = 'rgba(0, 0, 0, 0.9)'
     minElement.style.whiteSpace = 'nowrap'
 
-    // Create horizontal color bar canvas
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
     const width = 200
@@ -5382,7 +5490,6 @@ class VolumeImageViewer {
     context.canvas.width = width
     context.canvas.height = height
 
-    // Draw colors horizontally (left to right: min to max)
     for (let i = 0; i < colors.length; i++) {
       const color = colors[i]
       const r = color[0]
@@ -5397,7 +5504,6 @@ class VolumeImageViewer {
       )
     }
 
-    // Create max value element
     const maxElement = document.createElement('div')
     if (useRealWorldValues) {
       maxElement.textContent = maxValue.toFixed(2)
@@ -5409,7 +5515,6 @@ class VolumeImageViewer {
     maxElement.style.color = 'rgba(0, 0, 0, 0.9)'
     maxElement.style.whiteSpace = 'nowrap'
 
-    // Create title element (on far right)
     const titleElement = document.createElement('div')
     titleElement.textContent = title
     titleElement.style.fontSize = '12px'
@@ -5418,63 +5523,18 @@ class VolumeImageViewer {
     titleElement.style.whiteSpace = 'nowrap'
     titleElement.style.marginLeft = 'auto'
 
-    // Assemble row: min, color bar, max, label (on far right)
     row.appendChild(minElement)
     row.appendChild(canvas)
     row.appendChild(maxElement)
     row.appendChild(titleElement)
-
-    // Style overlay element
-    overlayElement.style.display = 'flex'
-    overlayElement.style.flexDirection = 'row'
-    overlayElement.style.alignItems = 'center'
-    overlayElement.style.padding = '4px'
-    overlayElement.style.backgroundColor = 'rgba(255, 255, 255, 0.9)'
-    overlayElement.style.borderRadius = '4px'
-    overlayElement.style.margin = '1px'
-    overlayElement.style.marginTop = '8px'
-    overlayElement.style.marginLeft = '4px'
-
-    overlayElement.appendChild(row)
+    column.appendChild(row)
   }
 
   /**
-   * Add segment overlay. The overlay shows the color palette of the segment.
-   *
-   * @param {Object} segment - The segment for which to show the overlay
+   * Refresh stacked per-segment / per-mapping legend overlays.
    */
   addSegmentOverlay() {
-    const title = 'Fractional Segments'
-
-    // Get min/max values from the first visible fractional segment
-    let minValue = 0
-    let maxValue = 255
-    const segments = Object.values(this[_segments])
-    const fractionalSegment = segments.find(
-      (seg) => seg.segmentationType === 'FRACTIONAL' && seg.layer.getVisible(),
-    )
-    if (fractionalSegment) {
-      minValue = fractionalSegment.minStoredValue
-      maxValue = fractionalSegment.maxStoredValue
-    }
-
-    const overlayElement = this.segmentOverlay.getElement()
-    const colors = this.paletteColorLookupTable.data
-
-    this._createHorizontalLegendOverlay(
-      overlayElement,
-      title,
-      colors,
-      minValue,
-      maxValue,
-      false,
-    )
-
-    const parentElement = overlayElement.parentNode
-    parentElement.style.display = 'block'
-    parentElement.style.paddingLeft = '5px'
-
-    this[_map].addOverlay(this.segmentOverlay)
+    this._syncStackedDerivedLegendOverlays()
   }
 
   /**
@@ -5501,11 +5561,8 @@ class VolumeImageViewer {
       segment.layer.setOpacity(styleOptions.opacity)
     }
 
-    /** Update palette color lookup table if provided */
-    if (
-      styleOptions.paletteColorLookupTable != null &&
-      segment.segmentationType !== 'FRACTIONAL'
-    ) {
+    /** Update palette color lookup table if provided (including FRACTIONAL) */
+    if (styleOptions.paletteColorLookupTable != null) {
       /** Calculate window center and width from segment's limit values or use defaults */
       const windowCenter = segment.style.windowCenter || 128
       const windowWidth = segment.style.windowWidth || 256
@@ -5854,10 +5911,6 @@ class VolumeImageViewer {
           }),
         }),
         pyramid,
-        overlay: new Overlay({
-          element: document.createElement('div'),
-          offset: [5, 5 + 50 * index],
-        }),
         style: { ...defaultMappingStyle },
         defaultStyle: defaultMappingStyle,
         minStoredValue,
@@ -5939,8 +5992,8 @@ class VolumeImageViewer {
     const mapping = this[_mappings][mappingUID]
     this[_map].removeLayer(mapping.layer)
     disposeLayer(mapping.layer)
-    this[_map].removeOverlay(mapping.overlay)
     delete this[_mappings][mappingUID]
+    this._syncStackedDerivedLegendOverlays()
   }
 
   /**
@@ -6013,7 +6066,7 @@ class VolumeImageViewer {
     const mapping = this[_mappings][mappingUID]
     console.info(`hide mapping ${mappingUID}`)
     mapping.layer.setVisible(false)
-    this[_map].removeOverlay(mapping.overlay)
+    this._syncStackedDerivedLegendOverlays()
   }
 
   /**
@@ -6076,34 +6129,26 @@ class VolumeImageViewer {
       mapping.layer.updateStyleVariables(styleVariables)
     }
 
-    const title = mapping.mapping.label
-
-    // Determine min/max values: prefer real world value range if available
-    let minValue = mapping.minStoredValue
-    let maxValue = mapping.maxStoredValue
-    let useRealWorldValues = false
-    if (mapping.realWorldValueRange) {
-      minValue = mapping.realWorldValueRange[0]
-      maxValue = mapping.realWorldValueRange[1]
-      useRealWorldValues = true
+    if (
+      styleOptions.paletteColorLookupTable != null &&
+      styleOptions.paletteColorLookupTable.data != null
+    ) {
+      mapping.style.paletteColorLookupTable =
+        styleOptions.paletteColorLookupTable
+      const [palWindowCenter, palWindowWidth] = createWindow(
+        mapping.style.limitValues[0],
+        mapping.style.limitValues[1],
+      )
+      mapping.layer.setStyle(
+        _getColorPaletteStyleForParametricMappingTileLayer({
+          windowCenter: palWindowCenter,
+          windowWidth: palWindowWidth,
+          colormap: mapping.style.paletteColorLookupTable.data,
+        }),
+      )
     }
 
-    const overlayElement = mapping.overlay.getElement()
-    const colors = mapping.style.paletteColorLookupTable.data
-
-    this._createHorizontalLegendOverlay(
-      overlayElement,
-      title,
-      colors,
-      minValue,
-      maxValue,
-      useRealWorldValues,
-    )
-
-    const parentElement = overlayElement.parentNode
-    parentElement.style.display = 'inline'
-
-    this[_map].addOverlay(mapping.overlay)
+    this._syncStackedDerivedLegendOverlays()
   }
 
   /**
