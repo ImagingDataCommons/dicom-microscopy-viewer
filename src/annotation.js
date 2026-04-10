@@ -915,4 +915,9 @@ export {
   _getCoordinateDimensionality,
   _getPoint,
   _getCoordinates,
+  /** Stable public alias for non–OpenLayers consumers (e.g. Slim Viv / Deck.gl). */
+  _fetchGraphicData as fetchGraphicData,
+  _fetchGraphicIndex as fetchGraphicIndex,
+  _getCommonZCoordinate as getCommonZCoordinate,
+  _getCoordinateDimensionality as getCoordinateDimensionality,
 }

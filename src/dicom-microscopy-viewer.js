@@ -1,4 +1,20 @@
-import { AnnotationGroup } from './annotation.js'
+import {
+  AnnotationGroup,
+  fetchGraphicData,
+  fetchGraphicIndex,
+  getCommonZCoordinate,
+  getCoordinateDimensionality,
+} from './annotation.js'
+import {
+  getCircleFeature,
+  getEllipseFeature,
+  getFeaturesFromBulkAnnotations,
+  getPointFeature,
+  getPolygonFeature,
+  getRectangleFeature,
+  getViewportBoundingBox,
+  isCoordinateInsideBoundingBox,
+} from './bulkAnnotations/utils.js'
 import {
   buildPaletteColorLookupTable,
   ColormapNames,
@@ -45,12 +61,34 @@ import {
 
 /**
  * Namespace for annotations of DICOM Micrsocopy Bulk Simple Annotations
- * instances.
+ * instances. Exposes fetch/coordinate helpers for Deck.gl without using
+ * {@link viewer.VolumeImageViewer#addAnnotationGroups}.
  *
  * @namespace annotation
  */
 const annotation = {
   AnnotationGroup,
+  fetchGraphicData,
+  fetchGraphicIndex,
+  getCommonZCoordinate,
+  getCoordinateDimensionality,
+}
+
+/**
+ * Bulk Simple Annotation geometry (OpenLayers features). Same code as
+ * {@link viewer.VolumeImageViewer#addAnnotationGroups}.
+ *
+ * @namespace bulkSimpleAnnotations
+ */
+const bulkSimpleAnnotations = {
+  getFeaturesFromBulkAnnotations,
+  getPointFeature,
+  getPolygonFeature,
+  getCircleFeature,
+  getEllipseFeature,
+  getRectangleFeature,
+  getViewportBoundingBox,
+  isCoordinateInsideBoundingBox,
 }
 
 /**
@@ -179,6 +217,7 @@ const utils = {
 export {
   annotation,
   api,
+  bulkSimpleAnnotations,
   color,
   events,
   mapping,
