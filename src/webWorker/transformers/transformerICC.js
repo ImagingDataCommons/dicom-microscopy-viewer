@@ -105,10 +105,6 @@ export default class ColorTransformer extends Transformer {
         continue
       }
 
-      console.debug(
-        `Initializing ColorTransformer for SOP Instance UID ${sopInstanceUID} with ICC output type ${this.iccOutputTypeString} (codec enum value: ${this.iccOutputType})`,
-      )
-
       this.transformers[sopInstanceUID] = new this.codec.ColorManager(
         {
           columns,
