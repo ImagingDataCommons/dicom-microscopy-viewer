@@ -676,6 +676,23 @@ function throttle(mainFunction, delay) {
   }
 }
 
+/**
+ * Detect the display color space.
+ * Note: The WebGLRenderingContext only supports sRGB and Display-P3
+ * color spaces, Adobe RGB (1998) and ROMM RGB are not supported.
+ * @returns {string} 'display-p3' or 'srgb'
+ */
+function detectDisplayColorSpace() {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    if (window.matchMedia('(color-gamut: p3)').matches) {
+      return 'display-p3'
+    } else if (window.matchMedia('(color-gamut: srgb)').matches) {
+      return 'srgb'
+    }
+  }
+  return 'srgb'
+}
+
 export {
   _getUnitSuffix,
   applyInverseTransform,
@@ -697,4 +714,5 @@ export {
   rgb2hex,
   rescale,
   throttle,
+  detectDisplayColorSpace,
 }
