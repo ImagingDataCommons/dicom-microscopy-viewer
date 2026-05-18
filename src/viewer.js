@@ -750,6 +750,9 @@ const _segmentationInterpolate = Symbol('segmentationInterpolate')
 const _segmentationTileGrid = Symbol('segmentationTileGrid')
 const _parametricMapInterpolate = Symbol('parametricMapInterpolate')
 const _mapViewResolutions = Symbol('mapViewResolutions')
+const _paletteDisplayGammaCorrectionEnabled = Symbol(
+  'paletteDisplayGammaCorrectionEnabled',
+)
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -800,6 +803,8 @@ class VolumeImageViewer {
    * Note: This option will be ignored if there are no thumbnail images available or its just one image.
    * If you set skipThumbnails to true, this option is not needed.
    * @param {boolean} [options.skipThumbnails=false] If true, thumbnail images will not be loaded as part of the pyramid.
+   * @param {boolean} [options.paletteDisplayGammaCorrection=true] If true, palette
+   * color lookup applies display gamma compensation (~sRGB). Set false for linear mapping.
    */
   constructor(options) {
     this[_options] = options
@@ -816,6 +821,8 @@ class VolumeImageViewer {
     this[_clustersSources] = {}
     this[_segmentationInterpolate] = false
     this[_parametricMapInterpolate] = true
+    this[_paletteDisplayGammaCorrectionEnabled] =
+      options.paletteDisplayGammaCorrection !== false
 
     this._onBulkAnnotationsFeaturesLoadStart =
       this._onBulkAnnotationsFeaturesLoadStart.bind(this)
@@ -1228,6 +1235,8 @@ class VolumeImageViewer {
             redSegmentedData: item.SegmentedRedPaletteColorLookupTableData,
             greenSegmentedData: item.SegmentedGreenPaletteColorLookupTableData,
             blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData,
+            applyDisplayGammaCorrection:
+              this[_paletteDisplayGammaCorrectionEnabled],
           })
         }
 
@@ -2349,6 +2358,134 @@ class VolumeImageViewer {
     })
 
     this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+  }
+
+  /**
+   * Collect unique palette color lookup table instances used by the viewer.
+   *
+   * @returns {Set}
+   * @private
+   */
+  _collectPaletteColorLookupTables() {
+    const palettes = new Set()
+    const collectFromStyle = (style) => {
+      const lut = style?.paletteColorLookupTable
+      if (
+        lut != null &&
+        typeof lut.setApplyDisplayGammaCorrection === 'function'
+      ) {
+        palettes.add(lut)
+      }
+    }
+    Object.values(this[_opticalPaths]).forEach((opticalPath) => {
+      collectFromStyle(opticalPath.style)
+      collectFromStyle(opticalPath.defaultStyle)
+    })
+    Object.values(this[_segments]).forEach((segment) => {
+      collectFromStyle(segment.style)
+      collectFromStyle(segment.defaultStyle)
+    })
+    Object.values(this[_mappings]).forEach((mapping) => {
+      collectFromStyle(mapping.style)
+      collectFromStyle(mapping.defaultStyle)
+    })
+    return palettes
+  }
+
+  /**
+   * Rebuild OpenLayers styles that depend on palette LUT `.data`.
+   *
+   * @private
+   */
+  _refreshPaletteDependentLayerStyles() {
+    for (const opticalPathIdentifier in this[_opticalPaths]) {
+      const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+      if (!opticalPath.opticalPath.isMonochromatic) {
+        continue
+      }
+      if (!opticalPath.style.paletteColorLookupTable || !opticalPath.layer) {
+        continue
+      }
+      const [windowCenter, windowWidth] = createWindow(
+        opticalPath.style.limitValues[0],
+        opticalPath.style.limitValues[1],
+      )
+      const layerStyle = _getColorPaletteStyleForTileLayer({
+        windowCenter,
+        windowWidth,
+        colormap: opticalPath.style.paletteColorLookupTable.data,
+      })
+      opticalPath.layer.setStyle(layerStyle)
+      opticalPath.overviewLayer.setStyle(layerStyle)
+    }
+
+    for (const segmentUID in this[_segments]) {
+      const segment = this[_segments][segmentUID]
+      if (!segment.style.paletteColorLookupTable || !segment.layer) {
+        continue
+      }
+      const windowCenter = segment.style.windowCenter || 128
+      const windowWidth = segment.style.windowWidth || 256
+      const defaultSegmentStyle = segment.defaultStyle
+      const newStyle = _getColorPaletteStyleForTileLayer({
+        windowCenter,
+        windowWidth,
+        colormap: [
+          [
+            ...segment.style.paletteColorLookupTable.data[0],
+            defaultSegmentStyle.backgroundOpacity,
+          ],
+          ...segment.style.paletteColorLookupTable.data.slice(1),
+        ],
+      })
+      segment.layer.setStyle(newStyle)
+    }
+
+    for (const mappingUID in this[_mappings]) {
+      const mapping = this[_mappings][mappingUID]
+      if (!mapping.style.paletteColorLookupTable || !mapping.layer) {
+        continue
+      }
+      const [palWindowCenter, palWindowWidth] = createWindow(
+        mapping.style.limitValues[0],
+        mapping.style.limitValues[1],
+      )
+      mapping.layer.setStyle(
+        _getColorPaletteStyleForParametricMappingTileLayer({
+          windowCenter: palWindowCenter,
+          windowWidth: palWindowWidth,
+          colormap: mapping.style.paletteColorLookupTable.data,
+        }),
+      )
+    }
+
+    this._syncStackedDerivedLegendOverlays()
+  }
+
+  /**
+   * Enable or disable display gamma compensation for all palette color lookup
+   * tables (optical paths, segments, parametric maps).
+   *
+   * @param {boolean} enabled - Whether to apply display gamma (~sRGB) pre-compensation
+   * @returns {void}
+   */
+  setPaletteDisplayGammaCorrectionEnabled(enabled) {
+    console.info('setPaletteDisplayGammaCorrectionEnabled', enabled)
+    if (enabled === this[_paletteDisplayGammaCorrectionEnabled]) {
+      return
+    }
+    this[_paletteDisplayGammaCorrectionEnabled] = enabled
+    this._collectPaletteColorLookupTables().forEach((lut) => {
+      lut.setApplyDisplayGammaCorrection(enabled)
+    })
+    this._refreshPaletteDependentLayerStyles()
+  }
+
+  /**
+   * @returns {boolean} Whether display gamma compensation is enabled for palettes
+   */
+  getPaletteDisplayGammaCorrectionEnabled() {
+    return this[_paletteDisplayGammaCorrectionEnabled]
   }
 
   /**
@@ -5087,6 +5224,8 @@ class VolumeImageViewer {
         paletteColorLookupTable: buildPaletteColorLookupTable({
           data: colormap,
           firstValueMapped: 0,
+          applyDisplayGammaCorrection:
+            this[_paletteDisplayGammaCorrectionEnabled],
         }),
       }
 
@@ -5584,6 +5723,8 @@ class VolumeImageViewer {
           redData: paletteColorLookupTable.redData,
           greenData: paletteColorLookupTable.greenData,
           blueData: paletteColorLookupTable.blueData,
+          applyDisplayGammaCorrection:
+            this[_paletteDisplayGammaCorrectionEnabled],
         })
       }
 
@@ -5895,6 +6036,8 @@ class VolumeImageViewer {
         paletteColorLookupTable: buildPaletteColorLookupTable({
           data: colormap,
           firstValueMapped: 0,
+          applyDisplayGammaCorrection:
+            this[_paletteDisplayGammaCorrectionEnabled],
         }),
       }
 
