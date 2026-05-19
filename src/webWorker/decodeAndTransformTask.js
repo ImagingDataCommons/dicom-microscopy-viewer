@@ -1,4 +1,5 @@
 import imageType from 'image-type'
+import { logger } from '../logger.js'
 import JPEG2000Decoder from './decoders/decoderJPEG2000.js'
 import JPEGDecoder from './decoders/decoderJPEGBaseline8Bit.js'
 import JPEGLSDecoder from './decoders/decoderJPEGLS.js'
@@ -143,11 +144,11 @@ async function _checkImageTypeAndDecode({
   }
 
   if (mediaType === 'application/octet-stream') {
-    console.debug(`decode uncompressed frame with media type "${mediaType}"`)
+    logger.debug(`decode uncompressed frame with media type "${mediaType}"`)
     return byteArray
   }
 
-  console.debug(`decode compressed frame with media type "${mediaType}"`)
+  logger.debug(`decode compressed frame with media type "${mediaType}"`)
 
   const { frameBuffer, frameInfo } = await _decode(mediaType, byteArray)
   if (frameInfo.bitsPerSample !== bitsAllocated) {

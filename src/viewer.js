@@ -66,6 +66,7 @@ import { CustomError, errorTypes } from './customError'
 import Enums from './enums'
 import publish from './eventPublisher'
 import EVENT from './events'
+import { applyViewerOptions } from './logger.js'
 import { _groupFramesPerMapping, ParameterMapping } from './mapping.js'
 import {
   groupColorInstances,
@@ -778,7 +779,13 @@ class VolumeImageViewer {
    * @param {string[]} [options.controls=[]] - Names of viewer control elements
    * that should be included in the viewport
    * @param {boolean} [options.debug=false] - Whether debug features should be
-   * turned on (e.g., display of tile boundaries)
+   * turned on (e.g., display of tile boundaries). When true, also enables
+   * verbose library logging at DEBUG level unless `options.logger` is set.
+   * @param {object} [options.logger] - Per-viewer logging override. Host apps
+   * should prefer {@link setLogLevel} at startup instead.
+   * @param {string} [options.logger.level] - DEBUG, LOG, WARN, ERROR, or NONE
+   * @param {boolean} [options.logger.enableInProduction]
+   * @param {boolean} [options.logger.enableInDevelopment]
    * @param {number} [options.tilesCacheSize=1000] - Number of tiles that should
    * be cached to avoid repeated retrieval for the DICOMweb server
    * @param {number[]} [options.primaryColor=[255, 234, 0]] - Primary color of
@@ -886,6 +893,8 @@ class VolumeImageViewer {
     } else {
       this[_options].debug = true
     }
+
+    applyViewerOptions(this[_options])
 
     if (this[_options].preload == null) {
       this[_options].preload = false

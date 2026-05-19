@@ -22,6 +22,7 @@ import {
   PaletteColorLookupTable,
 } from './color.js'
 import EVENTS from './events.js'
+import { setLogLevel } from './logger.js'
 import { ParameterMapping } from './mapping.js'
 import {
   Comprehensive3DSR,
@@ -226,6 +227,7 @@ export {
   roi,
   scoord3d,
   segment,
+  setLogLevel,
   utils,
   viewer,
 }

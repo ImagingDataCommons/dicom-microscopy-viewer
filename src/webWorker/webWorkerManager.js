@@ -1,5 +1,7 @@
 /* global Worker, URL */
 
+import { getLoggerOptions } from '../logger.js'
+
 // the taskId to assign to the next task added via addTask()
 let nextTaskId = 0
 
@@ -162,7 +164,10 @@ function spawnWebWorker() {
   worker.postMessage({
     taskType: 'initialize',
     workerIndex: webWorkers.length - 1,
-    config,
+    config: {
+      ...config,
+      logger: getLoggerOptions(),
+    },
   })
 }
 

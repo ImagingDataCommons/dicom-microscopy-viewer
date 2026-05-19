@@ -3,6 +3,7 @@ import * as dwc from 'dicomweb-client'
 import { _decodeAndTransformFrame } from './decode.js'
 import publish from './eventPublisher'
 import EVENT from './events'
+import { logger } from './logger.js'
 import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import {
@@ -46,7 +47,7 @@ async function _getIccProfiles({ metadata, client, onError }) {
         )
         return null
       } else if ('BulkDataURI' in iccProfile) {
-        console.debug(
+        logger.debug(
           `fetching ICC Profile for image "${image.SOPInstanceUID}"`,
           iccProfile,
         )
@@ -402,13 +403,13 @@ function _createTileLoadFunction({
       const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
 
       if (samplesPerPixel === 1) {
-        console.info(
+        logger.debug(
           `retrieve frame ${frameNumbers} of monochrome image ` +
             `for channel "${channel}" at tile position (${x + 1}, ${y + 1}) ` +
             `at zoom level ${z}`,
         )
       } else {
-        console.info(
+        logger.debug(
           `retrieve frame ${frameNumbers} of color image ` +
             `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`,
         )

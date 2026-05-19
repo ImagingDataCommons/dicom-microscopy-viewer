@@ -1,4 +1,6 @@
 /*eslint-disable*/
+import { configureLogger, logger } from '../logger.js'
+
 // an object of task handlers
 const taskHandlers = {}
 
@@ -27,6 +29,9 @@ function initialize(data) {
 
   // save the config data
   config = data.config
+  if (config?.logger != null) {
+    configureLogger(config.logger)
+  }
 
   // Additional web worker tasks can self-register by calling self.registerTaskHandler
   self.registerTaskHandler = registerTaskHandler
@@ -94,7 +99,7 @@ self.onmessage = (msg) => {
     return
   }
 
-  console.info(
+  logger.debug(
     `run task "${msg.data.taskType}" on web worker #${msg.data.workerIndex}`,
   )
 
