@@ -8,6 +8,7 @@ const decoderJPEG2000 = new JPEG2000Decoder()
 const decoderJPEGLS = new JPEGLSDecoder()
 const decoderJPEG = new JPEGDecoder()
 let transformerColor
+let transformerColorICCOutputType
 
 /**
  * Task handler function
@@ -28,6 +29,7 @@ function _handler(data, doneCallback) {
     sopInstanceUID,
     metadata,
     iccProfiles,
+    iccOutputType = 'srgb', // "srgb" or "display-p3"
   } = data.data
 
   _checkImageTypeAndDecode({
@@ -40,9 +42,17 @@ function _handler(data, doneCallback) {
   })
     .then((decodedFrame) => {
       if (iccProfiles?.length) {
-        // Only instantiate the transformer once and cache it for reuse.
-        if (transformerColor === undefined) {
-          transformerColor = new ColorTransformer(metadata, iccProfiles)
+        // Only instantiate transformer if ICC profiles are provided and if not already instantiated with the same ICC output type
+        if (
+          transformerColor === undefined ||
+          transformerColorICCOutputType !== iccOutputType
+        ) {
+          transformerColor = new ColorTransformer(
+            metadata,
+            iccProfiles,
+            iccOutputType,
+          )
+          transformerColorICCOutputType = iccOutputType
         }
         // Apply ICC color transform
         transformerColor

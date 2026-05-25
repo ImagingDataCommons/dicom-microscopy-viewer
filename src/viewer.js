@@ -100,6 +100,7 @@ import {
   buildTransform,
   computeRotation,
   createWindow,
+  detectDisplayColorSpace,
   doContentItemsMatch,
   getContentItemNameCodedConcept,
   rgb2hex,
@@ -741,6 +742,7 @@ const _tileGrid = Symbol('tileGrid')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 const _annotationOptions = Symbol('annotationOptions')
 const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
+const _iccOutputType = Symbol('iccOutputType')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
 const _highResSources = Symbol('highResSources')
@@ -808,6 +810,7 @@ class VolumeImageViewer {
     this[_clients] = {}
     this[_errorInterceptor] = options.errorInterceptor || ((error) => error)
     this[_isICCProfilesEnabled] = true
+    this[_iccOutputType] = 'srgb'
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
@@ -1190,6 +1193,7 @@ class VolumeImageViewer {
       extent: this[_pyramid].extent,
     })
 
+    this[_iccOutputType] = detectDisplayColorSpace()
     const layers = []
     const overviewLayers = []
     this[_opticalPaths] = {}
@@ -1341,6 +1345,9 @@ class VolumeImageViewer {
         opticalPath.layer.helper = helper
         opticalPath.layer.on('precompose', (event) => {
           const gl = event.context
+          if ('drawingBufferColorSpace' in gl) {
+            gl.drawingBufferColorSpace = this[_iccOutputType]
+          }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
@@ -1367,6 +1374,9 @@ class VolumeImageViewer {
         opticalPath.overviewLayer.helper = overviewHelper
         opticalPath.overviewLayer.on('precompose', (event) => {
           const gl = event.context
+          if ('drawingBufferColorSpace' in gl) {
+            gl.drawingBufferColorSpace = this[_iccOutputType]
+          }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
@@ -1436,6 +1446,13 @@ class VolumeImageViewer {
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
       })
+      opticalPath.layer.on('precompose', (event) => {
+        const gl = event.context
+        if ('drawingBufferColorSpace' in gl) {
+          gl.drawingBufferColorSpace = this[_iccOutputType]
+        }
+      })
+
       opticalPath.layer.on('error', (event) => {
         console.error(
           `error rendering optical path "${opticalPathIdentifier}"`,
@@ -1452,6 +1469,12 @@ class VolumeImageViewer {
         extent: pyramid.extent,
         preload: 0,
         useInterimTilesOnError: false,
+      })
+      opticalPath.overviewLayer.on('precompose', (event) => {
+        const gl = event.context
+        if ('drawingBufferColorSpace' in gl) {
+          gl.drawingBufferColorSpace = this[_iccOutputType]
+        }
       })
 
       layers.push(opticalPath.layer)
@@ -2295,6 +2318,15 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get ICC output type.
+   *
+   * @returns {string} ICC output type
+   */
+  getICCOutputType() {
+    return this[_iccOutputType]
+  }
+
+  /**
    * Toggle ICC profiles.
    *
    * @returns {void}
@@ -2333,6 +2365,7 @@ class VolumeImageViewer {
         const loaderWithICCProfiles = _createTileLoadFunction({
           targetElement: this[_container],
           iccProfiles: profiles,
+          iccOutputType: this[_iccOutputType],
           ...item.loaderParams,
         })
         const loaderWithoutICCProfiles = _createTileLoadFunction({
@@ -2475,6 +2508,7 @@ class VolumeImageViewer {
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
+          iccOutputType: this[_iccOutputType],
           ...opticalPath.loaderParams,
         })
         const source = opticalPath.layer.getSource()
@@ -2654,6 +2688,10 @@ class VolumeImageViewer {
         targetElement: container,
         iccProfiles:
           this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
+        iccOutputType:
+          this[_isICCProfilesEnabled] && profiles.length > 0
+            ? this[_iccOutputType]
+            : undefined,
         ...item.loaderParams,
       })
       source.setLoader(loader)
