@@ -18,7 +18,7 @@
     "dicomweb",
     "microscopy"
   ],
-  "packageManager": "bun@latest",
+  "packageManager": "pnpm@10.34.1",
   "main": "./src/dicom-microscopy-viewer.js",
   "exports": {
     ".": "./dist/dicomMicroscopyViewer.bundle.min.js",
@@ -31,7 +31,7 @@
     "@babel/plugin-transform-runtime": "^7.15.0",
     "@babel/preset-env": "^7.16",
     "@babel/runtime-corejs3": "^7.15.4",
-    "@biomejs/biome": "^2.0.0",
+    "@biomejs/biome": "2.3.13",
     "babel-jest": "27.5",
     "babel-loader": "^8.2.3",
     "babel-plugin-transform-import-meta": "^2.3.3",
@@ -65,15 +65,11 @@
     "ol": "^10.7.0",
     "uuid": "^9.0"
   },
-  "resolutions": {
-    "minimatch": "3.1.2",
-    "braces": "3.0.3"
-  },
   "scripts": {
     "test": "jest --silent",
-    "build": "bun run webpack:bundle && bun run webpack:dynamic-import",
-    "prepublishOnly": "bun run build",
-    "generateStaticSite": "bun run build && cp -R ./dist ./examples",
+    "build": "pnpm run webpack:bundle && pnpm run webpack:dynamic-import",
+    "prepublishOnly": "pnpm run build",
+    "generateStaticSite": "pnpm run build && cp -R ./dist ./examples",
     "generateDocs": "jsdoc -c ./jsdoc_conf.json",
     "fmt": "biome format --write .",
     "format": "biome format --write .",
@@ -86,5 +82,12 @@
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
     "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle",
     "prepare": "husky"
+  },
+  "pnpm": {
+    "overrides": {
+      "braces": "3.0.3",
+      "minimatch": "3.1.5",
+      "serialize-javascript": "7.0.5"
+    }
   }
 }

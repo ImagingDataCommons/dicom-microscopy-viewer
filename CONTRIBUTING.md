@@ -18,9 +18,9 @@ Source code is linted and formatted using [Biome](https://biomejs.dev/). Semicol
 
 Use the following commands to check and fix style:
 
-    $ bun run lint        # check for issues
-    $ bun run lint:fix    # auto-fix issues
-    $ bun run fmt         # format code
+    $ pnpm run lint        # check for issues
+    $ pnpm run lint:fix    # auto-fix issues
+    $ pnpm run fmt         # format code
 
 Docstrings are written in [JSDoc](https://jsdoc.app/) format:
 

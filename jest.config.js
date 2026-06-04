@@ -12,7 +12,8 @@ module.exports = {
     "\\.(wasm)$": "<rootDir>/src/__mocks__/wasmMock.js",
   },
   transformIgnorePatterns: [
-    "node_modules/(?!(ol|@cornerstonejs|dicomicc|rbush|color-rgba|color-parse|color-name|color-space|quickselect|earcut)/)", // <- transform libraries
+    // Support pnpm's nested node_modules layout as well as a flat node_modules tree.
+    "node_modules/(?!(\\.pnpm/[^/]+/node_modules/)?(ol|@cornerstonejs|dicomicc|rbush|color-rgba|color-parse|color-name|color-space|quickselect|earcut)(/|$))",
   ],
   testMatch: ["<rootDir>/src/**/*.test.js"],
   testPathIgnorePatterns: ["<rootDir>/node_modules"],
