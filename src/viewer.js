@@ -5546,24 +5546,25 @@ class VolumeImageViewer {
     row.style.width = '100%'
 
     if (kind != null && uid != null) {
-      const toggle = document.createElement('button')
-      toggle.type = 'button'
+      /**
+       * Native checkbox so the control renders identically whether checked or
+       * not (Unicode box glyphs differ in size / emoji presentation across
+       * platforms and shift the row); it is also the correct semantics and is
+       * keyboard accessible.
+       */
+      const toggle = document.createElement('input')
+      toggle.type = 'checkbox'
+      toggle.checked = isVisible
       toggle.title = isVisible ? 'Hide overlay' : 'Show overlay'
       toggle.setAttribute('aria-label', toggle.title)
-      toggle.setAttribute('aria-pressed', isVisible ? 'true' : 'false')
-      /** Checked box = visible, empty box = hidden (single-codepoint glyphs). */
-      toggle.textContent = isVisible ? '\u2611' : '\u2610'
       toggle.style.cursor = 'pointer'
-      toggle.style.border = 'none'
-      toggle.style.background = 'transparent'
-      toggle.style.padding = '0'
-      toggle.style.margin = '0'
-      toggle.style.fontSize = '16px'
-      toggle.style.lineHeight = '1'
-      toggle.style.color = 'rgba(0, 0, 0, 0.85)'
       toggle.style.flex = '0 0 auto'
-      toggle.addEventListener('click', (event) => {
-        event.preventDefault()
+      toggle.style.width = '14px'
+      toggle.style.height = '14px'
+      toggle.style.margin = '0'
+      /** Muted check color so it does not compete with the legend colors. */
+      toggle.style.accentColor = '#8c8c8c'
+      toggle.addEventListener('change', (event) => {
         event.stopPropagation()
         this._toggleDerivedOverlayVisibility(kind, uid)
       })
