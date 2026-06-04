@@ -60,6 +60,7 @@ import {
   buildPaletteColorLookupTable,
   ColormapNames,
   createColormap,
+  createDistinctColormap,
   PaletteColorLookupTable,
 } from './color.js'
 import { CustomError, errorTypes } from './customError'
@@ -5098,6 +5099,17 @@ class VolumeImageViewer {
       maxStoredValue = 1
     }
 
+    /**
+     * Fractional segments are colorized with distinct, single-hue color maps so
+     * that multiple overlays are easy to tell apart and to match against the
+     * legend (see issue #240). Continue the hue sequence from any fractional
+     * segments that already exist so newly added series do not reuse hues.
+     */
+    const isFractional = refSegmentation.SegmentationType === 'FRACTIONAL'
+    let fractionalOrdinal = Object.values(this[_segments]).filter(
+      (existing) => existing.segmentationType === 'FRACTIONAL',
+    ).length
+
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment #${segmentNumber}`)
@@ -5114,10 +5126,15 @@ class VolumeImageViewer {
         segmentUID = item.TrackingUID
       }
 
-      const colormap = createColormap({
-        name: ColormapNames.VIRIDIS,
-        bins: 2 ** 8,
-      })
+      const colormap = isFractional
+        ? createDistinctColormap({
+            index: fractionalOrdinal++,
+            bins: 2 ** 8,
+          })
+        : createColormap({
+            name: ColormapNames.VIRIDIS,
+            bins: 2 ** 8,
+          })
 
       const defaultSegmentStyle = {
         opacity: 0.75,
@@ -5400,11 +5417,17 @@ class VolumeImageViewer {
 
     let rowCount = 0
 
+    /**
+     * Render every fractional segment / parametric map (not only the visible
+     * ones) so the in-viewport legend doubles as a visibility control: hidden
+     * overlays appear dimmed with an "off" toggle and can be re-enabled
+     * without opening the host application's side panel (see issue #240).
+     */
     const segmentUids = Object.keys(this[_segments]).sort()
     for (let s = 0; s < segmentUids.length; s++) {
       const uid = segmentUids[s]
       const rec = this[_segments][uid]
-      if (rec.segmentationType !== 'FRACTIONAL' || !rec.layer.getVisible()) {
+      if (rec.segmentationType !== 'FRACTIONAL') {
         continue
       }
       const data = rec.style.paletteColorLookupTable?.data
@@ -5417,14 +5440,14 @@ class VolumeImageViewer {
           ? prop.CodeMeaning
           : (rec.segment?.label ?? 'Fractional')
 
-      this._appendDerivedLegendRow(
-        root,
-        title,
-        data,
-        rec.minStoredValue,
-        rec.maxStoredValue,
-        false,
-      )
+      this._appendDerivedLegendRow(root, title, data, {
+        minValue: rec.minStoredValue,
+        maxValue: rec.maxStoredValue,
+        useRealWorldValues: false,
+        isVisible: rec.layer.getVisible(),
+        kind: 'segment',
+        uid,
+      })
       rowCount += 1
     }
 
@@ -5432,9 +5455,6 @@ class VolumeImageViewer {
     for (let m = 0; m < mappingUids.length; m++) {
       const muid = mappingUids[m]
       const mapping = this[_mappings][muid]
-      if (!mapping.layer.getVisible()) {
-        continue
-      }
       const mapData = mapping.style.paletteColorLookupTable?.data
       if (mapData == null || mapData.length === 0) {
         continue
@@ -5454,14 +5474,14 @@ class VolumeImageViewer {
           ? mapping.mapping.label
           : 'Parametric map'
 
-      this._appendDerivedLegendRow(
-        root,
-        mapTitle,
-        mapData,
+      this._appendDerivedLegendRow(root, mapTitle, mapData, {
         minValue,
         maxValue,
         useRealWorldValues,
-      )
+        isVisible: mapping.layer.getVisible(),
+        kind: 'mapping',
+        uid: muid,
+      })
       rowCount += 1
     }
 
@@ -5487,21 +5507,36 @@ class VolumeImageViewer {
   }
 
   /**
-   * One legend row [min] [color bar] [max] [label] inside a column panel.
+   * One legend row [toggle] [min] [color bar] [max] [label] inside a column
+   * panel. The leading toggle controls overlay visibility directly from the
+   * viewport (see issue #240).
+   *
+   * @param {HTMLElement} column - Container the row is appended to
+   * @param {string} title - Row label (property type / mapping label)
+   * @param {number[][]} colors - RGB triplets for the color bar
+   * @param {Object} options
+   * @param {number} options.minValue - Lower bound shown left of the bar
+   * @param {number} options.maxValue - Upper bound shown right of the bar
+   * @param {boolean} [options.useRealWorldValues] - Format bounds as floats
+   * @param {boolean} [options.isVisible] - Current visibility of the overlay
+   * @param {('segment'|'mapping')} [options.kind] - Overlay kind for the toggle
+   * @param {string} [options.uid] - Overlay UID for the toggle
    *
    * @private
    */
-  _appendDerivedLegendRow(
-    column,
-    title,
-    colors,
-    minValue,
-    maxValue,
-    useRealWorldValues = false,
-  ) {
+  _appendDerivedLegendRow(column, title, colors, options = {}) {
     if (colors == null || colors.length === 0) {
       return
     }
+
+    const {
+      minValue,
+      maxValue,
+      useRealWorldValues = false,
+      isVisible = true,
+      kind,
+      uid,
+    } = options
 
     const row = document.createElement('div')
     row.style.display = 'flex'
@@ -5509,6 +5544,34 @@ class VolumeImageViewer {
     row.style.alignItems = 'center'
     row.style.gap = '8px'
     row.style.width = '100%'
+
+    if (kind != null && uid != null) {
+      const toggle = document.createElement('button')
+      toggle.type = 'button'
+      toggle.title = isVisible ? 'Hide overlay' : 'Show overlay'
+      toggle.setAttribute('aria-label', toggle.title)
+      toggle.setAttribute('aria-pressed', isVisible ? 'true' : 'false')
+      /** Checked box = visible, empty box = hidden (single-codepoint glyphs). */
+      toggle.textContent = isVisible ? '\u2611' : '\u2610'
+      toggle.style.cursor = 'pointer'
+      toggle.style.border = 'none'
+      toggle.style.background = 'transparent'
+      toggle.style.padding = '0'
+      toggle.style.margin = '0'
+      toggle.style.fontSize = '16px'
+      toggle.style.lineHeight = '1'
+      toggle.style.color = 'rgba(0, 0, 0, 0.85)'
+      toggle.style.flex = '0 0 auto'
+      toggle.addEventListener('click', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        this._toggleDerivedOverlayVisibility(kind, uid)
+      })
+      row.appendChild(toggle)
+    }
+
+    /** Dim the legend content when the overlay is currently hidden. */
+    const contentOpacity = isVisible ? '1' : '0.4'
 
     const minElement = document.createElement('div')
     if (useRealWorldValues) {
@@ -5520,6 +5583,7 @@ class VolumeImageViewer {
     minElement.style.fontWeight = '600'
     minElement.style.color = 'rgba(0, 0, 0, 0.9)'
     minElement.style.whiteSpace = 'nowrap'
+    minElement.style.opacity = contentOpacity
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
@@ -5527,6 +5591,7 @@ class VolumeImageViewer {
     const height = 20
     context.canvas.width = width
     context.canvas.height = height
+    canvas.style.opacity = contentOpacity
 
     for (let i = 0; i < colors.length; i++) {
       const color = colors[i]
@@ -5552,6 +5617,7 @@ class VolumeImageViewer {
     maxElement.style.fontWeight = '600'
     maxElement.style.color = 'rgba(0, 0, 0, 0.9)'
     maxElement.style.whiteSpace = 'nowrap'
+    maxElement.style.opacity = contentOpacity
 
     const titleElement = document.createElement('div')
     titleElement.textContent = title
@@ -5560,12 +5626,62 @@ class VolumeImageViewer {
     titleElement.style.color = 'black'
     titleElement.style.whiteSpace = 'nowrap'
     titleElement.style.marginLeft = 'auto'
+    titleElement.style.opacity = contentOpacity
 
     row.appendChild(minElement)
     row.appendChild(canvas)
     row.appendChild(maxElement)
     row.appendChild(titleElement)
     column.appendChild(row)
+  }
+
+  /**
+   * Toggle the visibility of a fractional segment or parameter mapping from
+   * the in-viewport legend, and notify host applications so any external UI
+   * (e.g. a side panel) can stay in sync.
+   *
+   * @param {('segment'|'mapping')} kind - Overlay kind
+   * @param {string} uid - Overlay UID
+   *
+   * @private
+   */
+  _toggleDerivedOverlayVisibility(kind, uid) {
+    const targetElement = this[_map].getTargetElement()
+    if (kind === 'segment') {
+      if (!(uid in this[_segments])) {
+        return
+      }
+      const willBeVisible = !this[_segments][uid].layer.getVisible()
+      if (willBeVisible) {
+        this.showSegment(uid)
+      } else {
+        this.hideSegment(uid)
+      }
+      if (targetElement != null) {
+        publish(targetElement, EVENT.SEGMENT_VISIBILITY_CHANGED, {
+          segmentUID: uid,
+          isVisible: willBeVisible,
+        })
+      }
+      return
+    }
+    if (kind === 'mapping') {
+      if (!(uid in this[_mappings])) {
+        return
+      }
+      const willBeVisible = !this[_mappings][uid].layer.getVisible()
+      if (willBeVisible) {
+        this.showParameterMapping(uid)
+      } else {
+        this.hideParameterMapping(uid)
+      }
+      if (targetElement != null) {
+        publish(targetElement, EVENT.PARAMETER_MAPPING_VISIBILITY_CHANGED, {
+          mappingUID: uid,
+          isVisible: willBeVisible,
+        })
+      }
+    }
   }
 
   /**

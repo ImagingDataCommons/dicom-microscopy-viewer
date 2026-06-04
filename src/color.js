@@ -62,6 +62,114 @@ function createColormap({ name, bins }) {
 }
 
 /**
+ * Perceptually separated base hues (in degrees) used to colorize distinct
+ * overlays (fractional segments, parametric maps). The first entries are hand
+ * ordered so that the most common cases (2-6 overlays) get maximally
+ * distinguishable, easy-to-name colors; beyond the list we fall back to the
+ * golden-angle so an arbitrary number of overlays stays well separated.
+ */
+const DISTINCT_BASE_HUES = [
+  0, // red
+  210, // azure / blue
+  130, // green
+  35, // orange
+  280, // purple
+  175, // teal
+  320, // magenta / pink
+  55, // yellow
+  245, // indigo
+  150, // spring green
+]
+const GOLDEN_ANGLE_DEGREES = 137.508
+
+/**
+ * Convert an HSV color to an RGB triplet (each channel 0-255).
+ *
+ * @param {number} h - Hue in degrees [0, 360)
+ * @param {number} s - Saturation [0, 1]
+ * @param {number} v - Value / brightness [0, 1]
+ *
+ * @returns {number[]} `[r, g, b]` with each channel in [0, 255]
+ */
+function hsvToRgb(h, s, v) {
+  const c = v * s
+  const hPrime = (((h % 360) + 360) % 360) / 60
+  const x = c * (1 - Math.abs((hPrime % 2) - 1))
+  let r = 0
+  let g = 0
+  let b = 0
+  if (hPrime < 1) {
+    r = c
+    g = x
+  } else if (hPrime < 2) {
+    r = x
+    g = c
+  } else if (hPrime < 3) {
+    g = c
+    b = x
+  } else if (hPrime < 4) {
+    g = x
+    b = c
+  } else if (hPrime < 5) {
+    r = x
+    b = c
+  } else {
+    r = c
+    b = x
+  }
+  const m = v - c
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  ]
+}
+
+/**
+ * Create a perceptually distinct, single-hue color map for one overlay.
+ *
+ * Unlike the multi-hue scientific color maps (viridis, magma, inferno, hot,
+ * …) which all share a dark-purple → bright-yellow ramp and are therefore hard
+ * to tell apart and to match against a legend, this produces a ramp within a
+ * single, well-separated base hue (dark → saturated). Two overlays created
+ * with different `index` values are easy to distinguish at a glance and each
+ * legend bar maps unambiguously to its overlay. See
+ * https://github.com/ImagingDataCommons/dicom-microscopy-viewer/issues/240.
+ *
+ * @param {Object} options
+ * @param {number} options.index - Zero-based index of the overlay; selects the hue
+ * @param {number} options.bins - Number of color bins
+ *
+ * @returns {number[][]} RGB triplet for each color (low value → high value)
+ *
+ * @memberof color
+ */
+function createDistinctColormap({ index, bins }) {
+  if (!Number.isInteger(bins) || bins <= 0) {
+    throw new Error('Argument "bins" must be a positive integer.')
+  }
+  const safeIndex = Number.isInteger(index) && index >= 0 ? index : 0
+  const hue =
+    safeIndex < DISTINCT_BASE_HUES.length
+      ? DISTINCT_BASE_HUES[safeIndex]
+      : (safeIndex * GOLDEN_ANGLE_DEGREES) % 360
+
+  const colors = new Array(bins)
+  for (let i = 0; i < bins; i++) {
+    const t = bins === 1 ? 1 : i / (bins - 1)
+    /**
+     * Encode the value as brightness within the fixed hue: low values stay
+     * dark (so low-probability regions recede) and high values reach the
+     * fully saturated, easily named hue.
+     */
+    const value = 0.2 + 0.8 * t
+    const saturation = 1 - 0.15 * t
+    colors[i] = hsvToRgb(hue, saturation, value)
+  }
+  return colors
+}
+
+/**
  * Build a palette color lookup table object from a colormap.
  *
  * @param {Object} options
@@ -423,6 +531,7 @@ class PaletteColorLookupTable {
 export {
   ColormapNames,
   createColormap,
+  createDistinctColormap,
   PaletteColorLookupTable,
   buildPaletteColorLookupTable,
 }
