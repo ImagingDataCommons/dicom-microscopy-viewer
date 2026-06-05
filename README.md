@@ -113,10 +113,10 @@ Please cite the following article when using the viewer for scientific studies: 
 
 ## Installation
 
-Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-microscopy-viewer) package using the `bun` package manager:
+Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-microscopy-viewer) package using your preferred package manager:
 
 ```None
-bun add dicom-microscopy-viewer
+pnpm add dicom-microscopy-viewer
 ```
 
 ## Development & Testing
@@ -133,20 +133,20 @@ cd dicom-microscopy-viewer
 Install dependencies and build the package:
 
 ```None
-bun install
-bun run build
+pnpm install
+pnpm run build
 ```
 
 Run tests:
 
 ```None
-bun run test
+pnpm run test
 ```
 
 Build the API documentation:
 
 ```None
-bun run generateDocs
+pnpm run generateDocs
 ```
 
 ## Support
