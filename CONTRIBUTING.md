@@ -37,3 +37,12 @@ const checkValues = (options) => {}
 ```
 
 Each function or method docstring shall include the [@param tag](https://jsdoc.app/tags-param.html) and [@returns tag](https://jsdoc.app/tags-returns.html) and they shall specify the type of parameters and return values, respectively.
+
+## Local development with Slim
+
+To test DMV changes inside [Slim](https://github.com/ImagingDataCommons/slim) without publishing to npm:
+
+1. In this repository: `pnpm link --global` and `pnpm run webpack:dynamic-import:watch`
+2. In Slim: `pnpm link dicom-microscopy-viewer` and `pnpm run start`
+
+See Slim's README section *Linking Slim to a Local dicom-microscopy-viewer Library* for details and troubleshooting. Do not add `link:` entries to `package.json` — the `pnpm link` commands are sufficient.
