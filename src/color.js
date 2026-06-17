@@ -5,6 +5,79 @@ import { _generateUID, rescale } from './utils.js'
 const _attrs = Symbol('attrs')
 
 /**
+ * Normalize Palette Color Lookup Table Data to a typed array whose element
+ * size matches the number of bits per entry declared in the LUT descriptor.
+ *
+ * The Palette Color Lookup Table Data attributes have VR OW, so 8-bit LUT
+ * entries are byte-packed inside 16-bit words. Depending on how the dataset is
+ * retrieved and parsed, the data may reach us as a raw ArrayBuffer (e.g. from
+ * `dcmjs.data.DicomMessage.readFile`), as a typed array whose element size
+ * reflects the VR rather than the descriptor (e.g. a Uint16Array produced for
+ * an OW element that actually holds 8-bit entries), or as a plain array of
+ * per-entry numbers (e.g. from a US element in DICOM JSON). The descriptor's
+ * third value is authoritative for the element size, so reinterpret the
+ * underlying bytes accordingly instead of trusting the source element size.
+ *
+ * @param {ArrayBuffer|Uint8Array|Uint16Array|number[]} data - LUT data
+ * @param {Uint8ArrayConstructor|Uint16ArrayConstructor} DataType - Typed array
+ * constructor implied by the bits per entry (Uint8Array for 8, Uint16Array for
+ * 16)
+ *
+ * @returns {Uint8Array|Uint16Array|undefined} LUT data with the correct
+ * element size
+ *
+ * @private
+ */
+function _normalizeLUTData(data, DataType) {
+  if (data == null) {
+    return undefined
+  }
+  if (data instanceof ArrayBuffer) {
+    return new DataType(data)
+  }
+  if (ArrayBuffer.isView(data)) {
+    // Reinterpret the underlying bytes so that the element size matches the
+    // descriptor rather than the source typed array's element size.
+    return new DataType(
+      data.buffer,
+      data.byteOffset,
+      data.byteLength / DataType.BYTES_PER_ELEMENT,
+    )
+  }
+  // Plain array of per-entry numbers: copy element-wise.
+  return new DataType(data)
+}
+
+/**
+ * Normalize Segmented Palette Color Lookup Table Data to a Uint16Array.
+ *
+ * Segmented LUT Data has VR OW and is composed of 16-bit segment opcodes and
+ * values, so it must always be interpreted as 16-bit words regardless of how
+ * it was delivered.
+ *
+ * @param {ArrayBuffer|Uint8Array|Uint16Array|number[]} data - Segmented LUT data
+ *
+ * @returns {Uint16Array|undefined} Segmented LUT data as 16-bit words
+ *
+ * @private
+ */
+function _normalizeSegmentedLUTData(data) {
+  if (data == null) {
+    return undefined
+  }
+  if (data instanceof Uint16Array) {
+    return data
+  }
+  if (data instanceof ArrayBuffer) {
+    return new Uint16Array(data)
+  }
+  if (ArrayBuffer.isView(data)) {
+    return new Uint16Array(data.buffer, data.byteOffset, data.byteLength / 2)
+  }
+  return Uint16Array.from(data)
+}
+
+/**
  * Enumerated values for color map names.
  *
  * @memberof color
@@ -198,6 +271,22 @@ class PaletteColorLookupTable {
       )
     }
 
+    if (this[_attrs].bitsPerEntry === 8) {
+      this[_attrs].DataType = Uint8Array
+    } else {
+      this[_attrs].DataType = Uint16Array
+    }
+
+    // Interpret the LUT data using the element size implied by the descriptor
+    // (bits per entry) rather than the source representation, which may differ
+    // (e.g. 8-bit entries byte-packed inside an OW/Uint16Array).
+    redData = _normalizeLUTData(redData, this[_attrs].DataType)
+    greenData = _normalizeLUTData(greenData, this[_attrs].DataType)
+    blueData = _normalizeLUTData(blueData, this[_attrs].DataType)
+    redSegmentedData = _normalizeSegmentedLUTData(redSegmentedData)
+    greenSegmentedData = _normalizeSegmentedLUTData(greenSegmentedData)
+    blueSegmentedData = _normalizeSegmentedLUTData(blueSegmentedData)
+
     if (redSegmentedData != null && redData != null) {
       throw new Error(
         'Either Segmented Red Palette Color Lookup Data or Red Palette ' +
@@ -260,12 +349,6 @@ class PaletteColorLookupTable {
     }
     this[_attrs].blueSegmentedData = blueSegmentedData
     this[_attrs].blueData = blueData
-
-    if (this[_attrs].bitsPerEntry === 8) {
-      this[_attrs].DataType = Uint8Array
-    } else {
-      this[_attrs].DataType = Uint16Array
-    }
 
     // Will be used to cache created colormap for repeated access
     this[_attrs].data = null
