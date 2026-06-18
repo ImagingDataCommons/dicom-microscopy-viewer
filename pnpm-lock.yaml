@@ -6,6 +6,7 @@ settings:
 
 overrides:
   braces: 3.0.3
+  form-data: 3.0.5
   minimatch: 3.1.5
   serialize-javascript: 7.0.5
 
@@ -1940,8 +1941,8 @@ packages:
       debug:
         optional: true
 
-  form-data@3.0.4:
-    resolution: {integrity: sha512-f0cRzm6dkyVYV3nPoooP8XlccPQukegwhAnpoLcXy+X+A8KfpGOoXwDr9FLZd3wzgLaBGQBE3lY93Zm/i1JvIQ==}
+  form-data@3.0.5:
+    resolution: {integrity: sha512-j23EibVLnp4zNXGW7LjryXYa2X6U/M96yoOX+ybZxwkYajdxRNEqYY3zhh7y0i6kfISKS2jr+EJq1YTUDEv5+w==}
     engines: {node: '>= 6'}
 
   forwarded@0.2.0:
@@ -5923,7 +5924,7 @@ snapshots:
 
   follow-redirects@1.16.0: {}
 
-  form-data@3.0.4:
+  form-data@3.0.5:
     dependencies:
       asynckit: 0.4.0
       combined-stream: 1.0.8
@@ -6676,7 +6677,7 @@ snapshots:
       decimal.js: 10.6.0
       domexception: 2.0.1
       escodegen: 2.1.0
-      form-data: 3.0.4
+      form-data: 3.0.5
       html-encoding-sniffer: 2.0.1
       http-proxy-agent: 4.0.1
       https-proxy-agent: 5.0.1
