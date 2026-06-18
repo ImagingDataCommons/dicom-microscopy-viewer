@@ -19,6 +19,7 @@ import {
   buildPaletteColorLookupTable,
   ColormapNames,
   createColormap,
+  createDistinctColormap,
   PaletteColorLookupTable,
 } from './color.js'
 import EVENTS from './events.js'
@@ -145,6 +146,7 @@ const metadata = {
 const color = {
   ColormapNames,
   createColormap,
+  createDistinctColormap,
   PaletteColorLookupTable,
   buildPaletteColorLookupTable,
 }

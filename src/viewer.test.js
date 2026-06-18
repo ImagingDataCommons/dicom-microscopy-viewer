@@ -267,8 +267,10 @@ const testCases = [
           style: {
             opacity: 0.75,
             paletteColorLookupTable: dmv.color.buildPaletteColorLookupTable({
-              data: dmv.color.createColormap({
-                name: dmv.color.ColormapNames.VIRIDIS,
+              // Fractional segments get a distinct single-hue color map (issue
+              // #240); this is the first (index 0) fractional segment.
+              data: dmv.color.createDistinctColormap({
+                index: 0,
                 bins: 256
               }),
               firstValueMapped: 0

@@ -42,6 +42,16 @@ const EVENTS = {
   FRAME_LOADING_ENDED: `${PROJECT_NAME}_frame_loading_ended`,
   /* Triggered when the error occurs during loading of an image tile. */
   FRAME_LOADING_ERROR: `${PROJECT_NAME}_frame_loading_error`,
+  /**
+   * Triggered when a segment's visibility is toggled from within the viewer
+   * (e.g. the in-viewport legend toggle). Detail: `{ segmentUID, isVisible }`.
+   */
+  SEGMENT_VISIBILITY_CHANGED: `${PROJECT_NAME}_segment_visibility_changed`,
+  /**
+   * Triggered when a parameter mapping's visibility is toggled from within the
+   * viewer. Detail: `{ mappingUID, isVisible }`.
+   */
+  PARAMETER_MAPPING_VISIBILITY_CHANGED: `${PROJECT_NAME}_parameter_mapping_visibility_changed`,
 }
 
 export default EVENTS
