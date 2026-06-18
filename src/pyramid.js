@@ -210,23 +210,40 @@ function _computeImagePyramid({ metadata }) {
     pyramidGridSizes.push([nColumns, nRows])
     pyramidPixelSpacings.push(pixelSpacing)
 
-    let zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns
-    const roundedZoomFactor = Math.round(zoomFactor)
     /*
-     * Compute the resolution at each pyramid level, since the zoom
-     * factor may not be the same between adjacent pyramid levels.
+     * Compute the resolution (zoom factor) of this pyramid level relative to
+     * the base level from the ratio of the total pixel matrix columns.
      *
-     * Round is conditional to avoid openlayers resolutions error.
-     * The resolutions array should be composed of unique values in descending order.
+     * We intentionally do NOT round the zoom factor to the nearest integer.
+     * Most VOLUME levels are clean (power-of-two style) downsamples of the base
+     * level, so their ratio is already (very close to) an integer and rounding
+     * is harmless. However, THUMBNAIL images (and some vendor-generated levels)
+     * are not exact fractions of the base level - e.g. a thumbnail with a ratio
+     * of 57.70 would be rounded to 58, a ~0.5% scale error that stretches the
+     * level so its (upsampled) image content drifts relative to vector
+     * annotations while zooming, making annotations appear misplaced. See:
+     *   - https://github.com/ImagingDataCommons/slim/issues/318
+     *   - https://github.com/openlayers/openlayers/issues/12768
+     * Using the exact ratio keeps every level aligned to the base coordinate
+     * system, so annotations stay in the correct place.
+     *
+     * OpenLayers requires resolutions to be unique and sorted in strictly
+     * descending order. Levels are processed here from the base (finest, ratio
+     * 1) to the top (coarsest, largest ratio), so each computed zoom factor
+     * must be strictly greater than the previously pushed one. Distinct levels
+     * have distinct pixel matrix sizes and therefore distinct ratios, but we
+     * guard against floating point ties to avoid an OpenLayers error.
      */
-    if (pyramidResolutions.includes(roundedZoomFactor)) {
+    let zoomFactor = baseTotalPixelMatrixColumns / totalPixelMatrixColumns
+    const previousZoomFactor = pyramidResolutions[pyramidResolutions.length - 1]
+    if (previousZoomFactor != null && zoomFactor <= previousZoomFactor) {
       console.warn(
-        'resolution conflict rounding zoom factor (baseTotalPixelMatrixColumns / totalPixelMatrixColumns): ',
+        'zoom factor of pyramid level is not strictly greater than that of ' +
+          'the previous (finer) level; nudging it to keep OpenLayers ' +
+          'resolutions unique and strictly descending: ',
         zoomFactor,
       )
-      zoomFactor = parseFloat(zoomFactor.toFixed(2))
-    } else {
-      zoomFactor = roundedZoomFactor
+      zoomFactor = previousZoomFactor * (1 + Number.EPSILON * 4)
     }
     pyramidResolutions.push(zoomFactor)
     pyramidOrigins.push(offset)
