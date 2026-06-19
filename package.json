@@ -35,7 +35,7 @@
     "babel-jest": "27.5",
     "babel-loader": "^8.2.3",
     "babel-plugin-transform-import-meta": "^2.3.3",
-    "chai": "^4.3.4",
+    "chai": "^6.2.2",
     "clean-webpack-plugin": "^4.0.0",
     "copy-webpack-plugin": "10.2.0",
     "core-js": "^3.17.2",
