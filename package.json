@@ -30,7 +30,7 @@
     "@babel/plugin-proposal-object-rest-spread": "^7.14.7",
     "@babel/plugin-transform-runtime": "^7.15.0",
     "@babel/preset-env": "^7.16",
-    "@babel/runtime-corejs3": "^7.15.4",
+    "@babel/runtime-corejs3": "^8.0.0",
     "@biomejs/biome": "2.3.13",
     "babel-jest": "^30.4",
     "babel-loader": "^8.2.3",
