@@ -32,7 +32,7 @@
     "@babel/preset-env": "^7.16",
     "@babel/runtime-corejs3": "^7.15.4",
     "@biomejs/biome": "2.3.13",
-    "babel-jest": "27.5",
+    "babel-jest": "30.4",
     "babel-loader": "^8.2.3",
     "babel-plugin-transform-import-meta": "^2.3.3",
     "chai": "^6.2.2",
