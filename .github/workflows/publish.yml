@@ -4,12 +4,14 @@ on:
     types: [published]
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build:
     name: Build and publish to npm
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write   # ← this is the key addition
 
     steps:
       - uses: actions/checkout@v7
@@ -20,14 +22,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 24
           cache: pnpm
-          # ← no NODE_AUTH_TOKEN here
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@11
       - name: Publish to npm
         run: npm publish --access public --provenance
-        # ← no NODE_AUTH_TOKEN here either
         env:
           HUSKY: '0'
