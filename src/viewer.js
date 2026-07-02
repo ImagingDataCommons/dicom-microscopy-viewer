@@ -60,6 +60,7 @@ import {
   buildPaletteColorLookupTable,
   ColormapNames,
   createColormap,
+  createDistinctColormap,
   PaletteColorLookupTable,
 } from './color.js'
 import { CustomError, errorTypes } from './customError'
@@ -101,6 +102,7 @@ import {
   buildTransform,
   computeRotation,
   createWindow,
+  detectDisplayColorSpace,
   doContentItemsMatch,
   getContentItemNameCodedConcept,
   rgb2hex,
@@ -742,6 +744,7 @@ const _tileGrid = Symbol('tileGrid')
 const _updateOverviewMapSize = Symbol('updateOverviewMapSize')
 const _annotationOptions = Symbol('annotationOptions')
 const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
+const _iccOutputType = Symbol('iccOutputType')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
 const _highResSources = Symbol('highResSources')
@@ -815,6 +818,7 @@ class VolumeImageViewer {
     this[_clients] = {}
     this[_errorInterceptor] = options.errorInterceptor || ((error) => error)
     this[_isICCProfilesEnabled] = true
+    this[_iccOutputType] = 'srgb'
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
@@ -1199,6 +1203,7 @@ class VolumeImageViewer {
       extent: this[_pyramid].extent,
     })
 
+    this[_iccOutputType] = detectDisplayColorSpace()
     const layers = []
     const overviewLayers = []
     this[_opticalPaths] = {}
@@ -1350,6 +1355,9 @@ class VolumeImageViewer {
         opticalPath.layer.helper = helper
         opticalPath.layer.on('precompose', (event) => {
           const gl = event.context
+          if ('drawingBufferColorSpace' in gl) {
+            gl.drawingBufferColorSpace = this[_iccOutputType]
+          }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
@@ -1376,6 +1384,9 @@ class VolumeImageViewer {
         opticalPath.overviewLayer.helper = overviewHelper
         opticalPath.overviewLayer.on('precompose', (event) => {
           const gl = event.context
+          if ('drawingBufferColorSpace' in gl) {
+            gl.drawingBufferColorSpace = this[_iccOutputType]
+          }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
@@ -1445,6 +1456,13 @@ class VolumeImageViewer {
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
       })
+      opticalPath.layer.on('precompose', (event) => {
+        const gl = event.context
+        if ('drawingBufferColorSpace' in gl) {
+          gl.drawingBufferColorSpace = this[_iccOutputType]
+        }
+      })
+
       opticalPath.layer.on('error', (event) => {
         console.error(
           `error rendering optical path "${opticalPathIdentifier}"`,
@@ -1461,6 +1479,12 @@ class VolumeImageViewer {
         extent: pyramid.extent,
         preload: 0,
         useInterimTilesOnError: false,
+      })
+      opticalPath.overviewLayer.on('precompose', (event) => {
+        const gl = event.context
+        if ('drawingBufferColorSpace' in gl) {
+          gl.drawingBufferColorSpace = this[_iccOutputType]
+        }
       })
 
       layers.push(opticalPath.layer)
@@ -2304,6 +2328,15 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get ICC output type.
+   *
+   * @returns {string} ICC output type
+   */
+  getICCOutputType() {
+    return this[_iccOutputType]
+  }
+
+  /**
    * Toggle ICC profiles.
    *
    * @returns {void}
@@ -2342,6 +2375,7 @@ class VolumeImageViewer {
         const loaderWithICCProfiles = _createTileLoadFunction({
           targetElement: this[_container],
           iccProfiles: profiles,
+          iccOutputType: this[_iccOutputType],
           ...item.loaderParams,
         })
         const loaderWithoutICCProfiles = _createTileLoadFunction({
@@ -2484,6 +2518,7 @@ class VolumeImageViewer {
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
+          iccOutputType: this[_iccOutputType],
           ...opticalPath.loaderParams,
         })
         const source = opticalPath.layer.getSource()
@@ -2663,6 +2698,10 @@ class VolumeImageViewer {
         targetElement: container,
         iccProfiles:
           this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
+        iccOutputType:
+          this[_isICCProfilesEnabled] && profiles.length > 0
+            ? this[_iccOutputType]
+            : undefined,
         ...item.loaderParams,
       })
       source.setLoader(loader)
@@ -5069,6 +5108,17 @@ class VolumeImageViewer {
       maxStoredValue = 1
     }
 
+    /**
+     * Fractional segments are colorized with distinct, single-hue color maps so
+     * that multiple overlays are easy to tell apart and to match against the
+     * legend (see issue #240). Continue the hue sequence from any fractional
+     * segments that already exist so newly added series do not reuse hues.
+     */
+    const isFractional = refSegmentation.SegmentationType === 'FRACTIONAL'
+    let fractionalOrdinal = Object.values(this[_segments]).filter(
+      (existing) => existing.segmentationType === 'FRACTIONAL',
+    ).length
+
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment #${segmentNumber}`)
@@ -5085,10 +5135,15 @@ class VolumeImageViewer {
         segmentUID = item.TrackingUID
       }
 
-      const colormap = createColormap({
-        name: ColormapNames.VIRIDIS,
-        bins: 2 ** 8,
-      })
+      const colormap = isFractional
+        ? createDistinctColormap({
+            index: fractionalOrdinal++,
+            bins: 2 ** 8,
+          })
+        : createColormap({
+            name: ColormapNames.VIRIDIS,
+            bins: 2 ** 8,
+          })
 
       const defaultSegmentStyle = {
         opacity: 0.75,
@@ -5371,11 +5426,17 @@ class VolumeImageViewer {
 
     let rowCount = 0
 
+    /**
+     * Render every fractional segment / parametric map (not only the visible
+     * ones) so the in-viewport legend doubles as a visibility control: hidden
+     * overlays appear dimmed with an "off" toggle and can be re-enabled
+     * without opening the host application's side panel (see issue #240).
+     */
     const segmentUids = Object.keys(this[_segments]).sort()
     for (let s = 0; s < segmentUids.length; s++) {
       const uid = segmentUids[s]
       const rec = this[_segments][uid]
-      if (rec.segmentationType !== 'FRACTIONAL' || !rec.layer.getVisible()) {
+      if (rec.segmentationType !== 'FRACTIONAL') {
         continue
       }
       const data = rec.style.paletteColorLookupTable?.data
@@ -5388,14 +5449,14 @@ class VolumeImageViewer {
           ? prop.CodeMeaning
           : (rec.segment?.label ?? 'Fractional')
 
-      this._appendDerivedLegendRow(
-        root,
-        title,
-        data,
-        rec.minStoredValue,
-        rec.maxStoredValue,
-        false,
-      )
+      this._appendDerivedLegendRow(root, title, data, {
+        minValue: rec.minStoredValue,
+        maxValue: rec.maxStoredValue,
+        useRealWorldValues: false,
+        isVisible: rec.layer.getVisible(),
+        kind: 'segment',
+        uid,
+      })
       rowCount += 1
     }
 
@@ -5403,9 +5464,6 @@ class VolumeImageViewer {
     for (let m = 0; m < mappingUids.length; m++) {
       const muid = mappingUids[m]
       const mapping = this[_mappings][muid]
-      if (!mapping.layer.getVisible()) {
-        continue
-      }
       const mapData = mapping.style.paletteColorLookupTable?.data
       if (mapData == null || mapData.length === 0) {
         continue
@@ -5425,14 +5483,14 @@ class VolumeImageViewer {
           ? mapping.mapping.label
           : 'Parametric map'
 
-      this._appendDerivedLegendRow(
-        root,
-        mapTitle,
-        mapData,
+      this._appendDerivedLegendRow(root, mapTitle, mapData, {
         minValue,
         maxValue,
         useRealWorldValues,
-      )
+        isVisible: mapping.layer.getVisible(),
+        kind: 'mapping',
+        uid: muid,
+      })
       rowCount += 1
     }
 
@@ -5458,21 +5516,36 @@ class VolumeImageViewer {
   }
 
   /**
-   * One legend row [min] [color bar] [max] [label] inside a column panel.
+   * One legend row [toggle] [min] [color bar] [max] [label] inside a column
+   * panel. The leading toggle controls overlay visibility directly from the
+   * viewport (see issue #240).
+   *
+   * @param {HTMLElement} column - Container the row is appended to
+   * @param {string} title - Row label (property type / mapping label)
+   * @param {number[][]} colors - RGB triplets for the color bar
+   * @param {Object} options
+   * @param {number} options.minValue - Lower bound shown left of the bar
+   * @param {number} options.maxValue - Upper bound shown right of the bar
+   * @param {boolean} [options.useRealWorldValues] - Format bounds as floats
+   * @param {boolean} [options.isVisible] - Current visibility of the overlay
+   * @param {('segment'|'mapping')} [options.kind] - Overlay kind for the toggle
+   * @param {string} [options.uid] - Overlay UID for the toggle
    *
    * @private
    */
-  _appendDerivedLegendRow(
-    column,
-    title,
-    colors,
-    minValue,
-    maxValue,
-    useRealWorldValues = false,
-  ) {
+  _appendDerivedLegendRow(column, title, colors, options = {}) {
     if (colors == null || colors.length === 0) {
       return
     }
+
+    const {
+      minValue,
+      maxValue,
+      useRealWorldValues = false,
+      isVisible = true,
+      kind,
+      uid,
+    } = options
 
     const row = document.createElement('div')
     row.style.display = 'flex'
@@ -5480,6 +5553,35 @@ class VolumeImageViewer {
     row.style.alignItems = 'center'
     row.style.gap = '8px'
     row.style.width = '100%'
+
+    if (kind != null && uid != null) {
+      /**
+       * Native checkbox so the control renders identically whether checked or
+       * not (Unicode box glyphs differ in size / emoji presentation across
+       * platforms and shift the row); it is also the correct semantics and is
+       * keyboard accessible.
+       */
+      const toggle = document.createElement('input')
+      toggle.type = 'checkbox'
+      toggle.checked = isVisible
+      toggle.title = isVisible ? 'Hide overlay' : 'Show overlay'
+      toggle.setAttribute('aria-label', toggle.title)
+      toggle.style.cursor = 'pointer'
+      toggle.style.flex = '0 0 auto'
+      toggle.style.width = '14px'
+      toggle.style.height = '14px'
+      toggle.style.margin = '0'
+      /** Muted check color so it does not compete with the legend colors. */
+      toggle.style.accentColor = '#8c8c8c'
+      toggle.addEventListener('change', (event) => {
+        event.stopPropagation()
+        this._toggleDerivedOverlayVisibility(kind, uid)
+      })
+      row.appendChild(toggle)
+    }
+
+    /** Dim the legend content when the overlay is currently hidden. */
+    const contentOpacity = isVisible ? '1' : '0.4'
 
     const minElement = document.createElement('div')
     if (useRealWorldValues) {
@@ -5491,6 +5593,7 @@ class VolumeImageViewer {
     minElement.style.fontWeight = '600'
     minElement.style.color = 'rgba(0, 0, 0, 0.9)'
     minElement.style.whiteSpace = 'nowrap'
+    minElement.style.opacity = contentOpacity
 
     const canvas = document.createElement('canvas')
     const context = canvas.getContext('2d')
@@ -5498,6 +5601,7 @@ class VolumeImageViewer {
     const height = 20
     context.canvas.width = width
     context.canvas.height = height
+    canvas.style.opacity = contentOpacity
 
     for (let i = 0; i < colors.length; i++) {
       const color = colors[i]
@@ -5523,6 +5627,7 @@ class VolumeImageViewer {
     maxElement.style.fontWeight = '600'
     maxElement.style.color = 'rgba(0, 0, 0, 0.9)'
     maxElement.style.whiteSpace = 'nowrap'
+    maxElement.style.opacity = contentOpacity
 
     const titleElement = document.createElement('div')
     titleElement.textContent = title
@@ -5531,12 +5636,62 @@ class VolumeImageViewer {
     titleElement.style.color = 'black'
     titleElement.style.whiteSpace = 'nowrap'
     titleElement.style.marginLeft = 'auto'
+    titleElement.style.opacity = contentOpacity
 
     row.appendChild(minElement)
     row.appendChild(canvas)
     row.appendChild(maxElement)
     row.appendChild(titleElement)
     column.appendChild(row)
+  }
+
+  /**
+   * Toggle the visibility of a fractional segment or parameter mapping from
+   * the in-viewport legend, and notify host applications so any external UI
+   * (e.g. a side panel) can stay in sync.
+   *
+   * @param {('segment'|'mapping')} kind - Overlay kind
+   * @param {string} uid - Overlay UID
+   *
+   * @private
+   */
+  _toggleDerivedOverlayVisibility(kind, uid) {
+    const targetElement = this[_map].getTargetElement()
+    if (kind === 'segment') {
+      if (!(uid in this[_segments])) {
+        return
+      }
+      const willBeVisible = !this[_segments][uid].layer.getVisible()
+      if (willBeVisible) {
+        this.showSegment(uid)
+      } else {
+        this.hideSegment(uid)
+      }
+      if (targetElement != null) {
+        publish(targetElement, EVENT.SEGMENT_VISIBILITY_CHANGED, {
+          segmentUID: uid,
+          isVisible: willBeVisible,
+        })
+      }
+      return
+    }
+    if (kind === 'mapping') {
+      if (!(uid in this[_mappings])) {
+        return
+      }
+      const willBeVisible = !this[_mappings][uid].layer.getVisible()
+      if (willBeVisible) {
+        this.showParameterMapping(uid)
+      } else {
+        this.hideParameterMapping(uid)
+      }
+      if (targetElement != null) {
+        publish(targetElement, EVENT.PARAMETER_MAPPING_VISIBILITY_CHANGED, {
+          mappingUID: uid,
+          isVisible: willBeVisible,
+        })
+      }
+    }
   }
 
   /**

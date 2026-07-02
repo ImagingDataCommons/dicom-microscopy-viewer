@@ -10,8 +10,10 @@ export default class ColorTransformer extends Transformer {
    * @param {Array<metadata.VLWholeSlideMicroscopyImage>} - Metadata of each
    * image
    * @param {Array<TypedArray>} - ICC profiles of each image
+   * @param {string} [iccOutputType="srgb"] - ICC output type
+   *     ("srgb": sRGB (default), "display-p3": Display-P3, "adobe-rgb": Adobe RGB (1998), "romm-rgb": ROMM RGB).
    */
-  constructor(metadata, iccProfiles) {
+  constructor(metadata, iccProfiles, iccOutputType = 'srgb') {
     super()
     if (metadata.length !== iccProfiles.length) {
       throw new Error(
@@ -23,14 +25,15 @@ export default class ColorTransformer extends Transformer {
     this.iccProfiles = iccProfiles
     this.codec = null
     this.transformers = {}
+    this.iccOutputTypeString = iccOutputType
   }
 
-  _initialize() {
+  async _initialize() {
     if (this.codec) {
-      return Promise.resolve()
+      return this.transformers
     }
 
-    const dicomicc = dicomiccFactory({
+    const instance = await dicomiccFactory({
       locateFile: (f) => {
         if (f.endsWith('.wasm')) {
           return dicomiccWASM
@@ -39,40 +42,83 @@ export default class ColorTransformer extends Transformer {
       },
     })
 
-    return new Promise((resolve, reject) => {
-      dicomicc.then((instance) => {
-        this.codec = instance
+    this.codec = instance
 
-        for (let index = 0; index < this.metadata.length; index++) {
-          const columns = this.metadata[index].Columns
-          const rows = this.metadata[index].Rows
-          const bitsPerSample = this.metadata[index].BitsAllocated
-          const samplesPerPixel = this.metadata[index].SamplesPerPixel
-          const planarConfiguration = this.metadata[index].PlanarConfiguration
-          const sopInstanceUID = this.metadata[index].SOPInstanceUID
-          const profile = inlineBinaryToUint8Array(this.iccProfiles[index])
-          if (!profile) {
-            console.warn(
-              'Unable to convert icc profile: ',
-              this.iccProfiles[index],
-            )
-            return
-          }
-          this.transformers[sopInstanceUID] = new this.codec.ColorManager(
-            {
-              columns,
-              rows,
-              bitsPerSample,
-              samplesPerPixel,
-              planarConfiguration,
-            },
-            profile,
-            this.codec.DcmIccOutputType?.SRGB ?? 0,
+    // Verify that the DcmIccOutputType enum is available
+    if (!this.codec.DcmIccOutputType) {
+      throw new Error(
+        'DcmIccOutputType enum is not available in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+      )
+    }
+
+    // Ensure that the default DcmIccOutputType.SRGB is available
+    if (this.codec.DcmIccOutputType.SRGB === undefined) {
+      throw new Error(
+        'DcmIccOutputType.SRGB is not defined in the codec. Please ensure that the version of dicomicc being used supports this feature.',
+      )
+    }
+
+    switch (this.iccOutputTypeString) {
+      case 'display-p3':
+        this.iccOutputType =
+          this.codec.DcmIccOutputType.DISPLAY_P3 ??
+          this.codec.DcmIccOutputType.SRGB
+        break
+      case 'adobe-rgb':
+        // Reserved for future use. Currently, only SRGB and DP3 can be selected.
+        this.iccOutputType =
+          this.codec.DcmIccOutputType.ADOBE_RGB ??
+          this.codec.DcmIccOutputType.SRGB
+        break
+      case 'romm-rgb':
+        // Reserved for future use. Currently, only SRGB and DP3 can be selected.
+        this.iccOutputType =
+          this.codec.DcmIccOutputType.ROMM_RGB ??
+          this.codec.DcmIccOutputType.SRGB
+        break
+      default:
+        if (this.iccOutputTypeString !== 'srgb') {
+          console.warn(
+            `Unsupported ICC output type "${this.iccOutputTypeString}". Falling back to "srgb".`,
           )
         }
-        resolve(this.transformers)
-      }, reject)
-    })
+        this.iccOutputType = this.codec.DcmIccOutputType.SRGB
+        break
+    }
+
+    for (let index = 0; index < this.metadata.length; index++) {
+      const columns = this.metadata[index].Columns
+      const rows = this.metadata[index].Rows
+      const bitsPerSample = this.metadata[index].BitsAllocated
+      const samplesPerPixel = this.metadata[index].SamplesPerPixel
+      const planarConfiguration = this.metadata[index].PlanarConfiguration
+      const sopInstanceUID = this.metadata[index].SOPInstanceUID
+      const profile = inlineBinaryToUint8Array(this.iccProfiles[index])
+
+      // If the ICC profile could not be parsed, skip creating a transformer for
+      // this SOP Instance UID so that downstream code can fall back to returning
+      // the original frame instead of failing inside the WASM codec.
+      if (!profile) {
+        console.warn(
+          `Skipping ICC color transformation for SOP Instance UID ${sopInstanceUID} because the ICC profile could not be parsed.`,
+        )
+        return
+      }
+
+      this.transformers[sopInstanceUID] = new this.codec.ColorManager(
+        {
+          columns,
+          rows,
+          bitsPerSample,
+          samplesPerPixel,
+          planarConfiguration,
+        },
+        profile,
+        this.iccOutputType,
+      )
+    }
+
+    return this.transformers
   }
 
   /**
