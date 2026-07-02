@@ -64,7 +64,7 @@
     "image-type": "^4.1",
     "mathjs": "^11.2",
     "ol": "^10.7.0",
-    "uuid": "^9.0"
+    "uuid": "^14.0"
   },
   "scripts": {
     "test": "jest --silent",
