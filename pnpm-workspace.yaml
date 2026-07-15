@@ -1,0 +1,16 @@
+packages:
+  - .
+
+shamefullyHoist: true
+strictPeerDependencies: false
+
+allowBuilds:
+  core-js: true
+  core-js-pure: true
+  unrs-resolver: true
+
+overrides:
+  braces: 3.0.3
+  form-data: 3.0.5
+  minimatch: 3.1.5
+  serialize-javascript: 7.0.5
