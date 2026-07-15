@@ -1529,36 +1529,75 @@ class VolumeImageViewer {
         const viewport = this[_map].getViewport()
         const viewportHeight = viewport.clientHeight
         const viewportWidth = viewport.clientWidth
-        const viewportHeightFraction = 0.45
-        const viewportWidthFraction = 0.25
-        const targetHeight = viewportHeight * viewportHeightFraction
-        const targetWidth = viewportWidth * viewportWidthFraction
+        /**
+         * Size the overview to fit a viewport box while keeping aspect ratio.
+         * Wide/thin slides used to collapse to a few pixels of height when
+         * width was fixed at 25% of the viewport — enforce a minimum height
+         * and allow a wider overview when needed.
+         *
+         * NOTE: Slim (idc-microscopy) loads the published DMV min bundle via
+         * craco, so these local changes do not affect Slim until this package
+         * is published and bumped. Slim mirrors the same sizing in
+         * `clampOverviewMapInViewport` / `fitOverviewMapSize`.
+         */
+        const edgeInsetPx = 8
+        const topHeadroomPx = 12
+        const minOverviewHeightPx = 80
+        const preferredWidthFraction = 0.45
+        const maxHeightFraction = 0.45
+        const maxOverviewHeight = Math.max(
+          0,
+          viewportHeight - edgeInsetPx - topHeadroomPx,
+        )
+        const maxOverviewWidth = Math.max(0, viewportWidth - 2 * edgeInsetPx)
+        const preferredMaxWidth = Math.min(
+          maxOverviewWidth,
+          viewportWidth * preferredWidthFraction,
+        )
+        const targetHeight = Math.min(
+          viewportHeight * maxHeightFraction,
+          maxOverviewHeight,
+        )
         const extent = this[_projection].getExtent()
-        let height
-        let width
-        let resolution
+        const extentWidth = getWidth(extent)
+        const extentHeight = getHeight(extent)
+        const aspect = isRotated
+          ? extentHeight / extentWidth
+          : extentWidth / extentHeight
 
-        if (isRotated) {
-          if (targetWidth > targetHeight) {
-            height = targetHeight
-            width = (height * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / height
-          } else {
-            width = targetWidth
-            height = (width * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / width
-          }
-        } else {
-          if (targetHeight > targetWidth) {
-            width = targetWidth
-            height = (width * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / width
-          } else {
-            height = targetHeight
-            width = (height * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / height
+        let height = Math.min(targetHeight, maxOverviewHeight)
+        let width = height * aspect
+
+        if (width > preferredMaxWidth && preferredMaxWidth > 0) {
+          width = preferredMaxWidth
+          height = width / aspect
+        }
+
+        const minHeight = Math.min(minOverviewHeightPx, maxOverviewHeight)
+        if (height < minHeight && aspect > 0) {
+          height = minHeight
+          width = height * aspect
+          if (width > maxOverviewWidth && maxOverviewWidth > 0) {
+            width = maxOverviewWidth
+            height = width / aspect
           }
         }
+
+        if (height > maxOverviewHeight && height > 0) {
+          const scale = maxOverviewHeight / height
+          height = maxOverviewHeight
+          width *= scale
+        }
+
+        if (width > maxOverviewWidth && width > 0) {
+          const scale = maxOverviewWidth / width
+          width = maxOverviewWidth
+          height *= scale
+        }
+
+        const resolution = isRotated
+          ? extentWidth / height
+          : extentHeight / height
 
         const center = getCenter(extent)
         const overviewView = new View({
@@ -6440,8 +6479,18 @@ class _NonVolumeImageViewer {
     }
 
     const resizeFactor = options.resizeFactor ? options.resizeFactor : 1
-    const height = this[_metadata].TotalPixelMatrixRows * resizeFactor
-    const width = this[_metadata].TotalPixelMatrixColumns * resizeFactor
+    /**
+     * DICOMweb `viewport` (e.g. Google Healthcare) requires integer pixel sizes.
+     * Round after scaling so fractional resizeFactor values do not 400.
+     */
+    const height = Math.max(
+      1,
+      Math.round(this[_metadata].TotalPixelMatrixRows * resizeFactor),
+    )
+    const width = Math.max(
+      1,
+      Math.round(this[_metadata].TotalPixelMatrixColumns * resizeFactor),
+    )
     const extent = [
       0, // min X
       -(height + 1), // min Y
