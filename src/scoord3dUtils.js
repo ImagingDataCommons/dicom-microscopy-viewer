@@ -310,12 +310,12 @@ function _getFeatureArea(feature, pyramid, affine) {
 }
 
 export {
-  coordinateWithOffset,
-  getPixelSpacing,
+  _geometry2Scoord3d,
+  _geometryCoordinates2scoord3dCoordinates,
   _getFeatureArea,
   _getFeatureLength,
   _scoord3d2Geometry,
-  _geometryCoordinates2scoord3dCoordinates,
   _scoord3dCoordinates2geometryCoordinates,
-  _geometry2Scoord3d,
+  coordinateWithOffset,
+  getPixelSpacing,
 }
