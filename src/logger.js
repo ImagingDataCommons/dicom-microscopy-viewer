@@ -1,7 +1,9 @@
 /**
  * Level-based logger for dicom-microscopy-viewer.
  * Host apps call {@link setLogLevel} once at startup; web workers receive the
- * same settings on initialize via {@link getLoggerOptions}.
+ * same settings on initialize via {@link getLoggerOptions} and are re-notified
+ * of later changes through listeners registered with
+ * {@link onLoggerConfigChange}.
  */
 
 export const LogLevel = {
@@ -17,25 +19,17 @@ export const LogLevel = {
 /**
  * @typedef {object} LoggerOptions
  * @property {LoggerLevelName} [level]
- * @property {boolean} [enableInProduction]
- * @property {boolean} [enableInDevelopment]
- */
-
-/**
- * @typedef {object} ResolvedLoggerConfig
- * @property {number} level
- * @property {boolean} enableInProduction
- * @property {boolean} enableInDevelopment
  */
 
 const DEFAULT_LOGGER_OPTIONS = {
   level: 'WARN',
-  enableInProduction: false,
-  enableInDevelopment: true,
 }
 
 /** @type {LoggerOptions} */
 let activeLoggerOptions = { ...DEFAULT_LOGGER_OPTIONS }
+
+/** @type {Array<(options: LoggerOptions) => void>} */
+const changeListeners = []
 
 /**
  * @param {string} level
@@ -59,38 +53,49 @@ export function parseLogLevel(level) {
 }
 
 /**
- * @param {LoggerOptions} options
- * @returns {ResolvedLoggerConfig}
+ * Register a callback invoked whenever the logger configuration changes,
+ * e.g. so the web worker manager can forward new options to spawned workers.
+ *
+ * @param {(options: LoggerOptions) => void} listener
+ * @returns {() => void} Unsubscribe function.
  */
-function resolveConfig(options) {
-  return {
-    level: parseLogLevel(options.level ?? 'WARN'),
-    enableInProduction: Boolean(options.enableInProduction),
-    enableInDevelopment: options.enableInDevelopment !== false,
+export function onLoggerConfigChange(listener) {
+  changeListeners.push(listener)
+  return () => {
+    const index = changeListeners.indexOf(listener)
+    if (index !== -1) {
+      changeListeners.splice(index, 1)
+    }
   }
 }
 
-function getActiveConfig() {
-  return resolveConfig(activeLoggerOptions)
-}
-
 function syncLogger() {
-  logger.configure(getActiveConfig())
+  logger.configure(activeLoggerOptions)
+  const snapshot = getLoggerOptions()
+  for (const listener of changeListeners) {
+    listener(snapshot)
+  }
 }
 
 /**
+ * Merge a partial configuration into the current active options.
+ *
  * @param {LoggerOptions | null} [options] Pass `null` to reset defaults (tests).
  */
 export function configureLogger(options) {
   activeLoggerOptions =
     options == null
       ? { ...DEFAULT_LOGGER_OPTIONS }
-      : { ...DEFAULT_LOGGER_OPTIONS, ...options }
+      : { ...activeLoggerOptions, ...options }
   syncLogger()
 }
 
 /**
- * Resolve logger settings from viewer constructor options.
+ * Resolve logger overrides from viewer constructor options.
+ *
+ * Returns only the fields that should override the current configuration;
+ * callers merge the result into the active options, so an empty object means
+ * "leave the configuration unchanged".
  *
  * @param {object} [options]
  * @param {boolean} [options.debug]
@@ -99,38 +104,28 @@ export function configureLogger(options) {
  */
 export function resolveLoggerOptions(options = {}) {
   if (options.logger != null) {
-    return {
-      ...DEFAULT_LOGGER_OPTIONS,
-      ...options.logger,
-    }
+    return { ...options.logger }
   }
   if (options.debug === true) {
-    return {
-      ...DEFAULT_LOGGER_OPTIONS,
-      level: 'DEBUG',
-    }
+    return { level: 'DEBUG' }
   }
-  return { ...DEFAULT_LOGGER_OPTIONS }
+  return {}
 }
 
 /**
  * Set library-wide logging (call once at host app startup).
  *
+ * Both the string and the object form merge into the current configuration,
+ * so partial updates never reset unrelated settings.
+ *
  * @param {LoggerLevelName | LoggerOptions} levelOrOptions
  */
 export function setLogLevel(levelOrOptions) {
   if (typeof levelOrOptions === 'string') {
-    activeLoggerOptions = {
-      ...activeLoggerOptions,
-      level: levelOrOptions,
-    }
+    configureLogger({ level: levelOrOptions })
   } else {
-    activeLoggerOptions = {
-      ...DEFAULT_LOGGER_OPTIONS,
-      ...levelOrOptions,
-    }
+    configureLogger({ ...levelOrOptions })
   }
-  syncLogger()
 }
 
 /**
@@ -163,28 +158,22 @@ export function resetLoggerOptions() {
 
 export class Logger {
   constructor() {
-    this.config = getActiveConfig()
+    this.configure(activeLoggerOptions)
   }
 
-  /** @param {ResolvedLoggerConfig} config */
-  configure(config) {
-    this.config = config
+  /**
+   * Resolve and cache the numeric level so {@link shouldLog} stays cheap on
+   * hot per-tile paths. Called whenever the global configuration changes.
+   *
+   * @param {LoggerOptions} options
+   */
+  configure(options) {
+    this._level = parseLogLevel(options?.level ?? 'WARN')
   }
 
   /** @param {number} level */
   shouldLog(level) {
-    const config = getActiveConfig()
-    if (level < config.level) {
-      return false
-    }
-    const nodeEnv =
-      typeof process !== 'undefined' && process.env?.NODE_ENV != null
-        ? process.env.NODE_ENV
-        : 'development'
-    if (nodeEnv === 'production') {
-      return config.enableInProduction
-    }
-    return config.enableInDevelopment
+    return level >= this._level
   }
 
   /** Verbose diagnostics (Chrome DevTools “Verbose” / console.debug). */

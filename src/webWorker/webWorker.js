@@ -109,6 +109,12 @@ self.onmessage = (msg) => {
     return
   }
 
+  // handle log configuration changes broadcast after this worker was spawned
+  if (msg.data.taskType === 'configureLogger') {
+    configureLogger(msg.data.logger)
+    return
+  }
+
   // handle loadWebWorkerTask message
   if (msg.data.taskType === 'loadWebWorkerTask') {
     loadWebWorkerTask(msg.data)
@@ -145,8 +151,8 @@ self.onmessage = (msg) => {
     return
   }
 
-  // not task handler registered - send a failure message back to ui thread
-  console.warn('no task handler for ', msg.data.taskType, taskHandler)
+  // no task handler registered - send a failure message back to ui thread
+  logger.warn('no task handler registered for task', msg.data.taskType)
 
   self.postMessage({
     taskType: msg.data.taskType,
