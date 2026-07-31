@@ -175,7 +175,7 @@ function _getInteractionBindingCondition(bindings) {
 
   const _mouseButtonCondition = (event) => {
     /** No mouse button condition set. */
-    if (!mouseButtons || !mouseButtons.length) {
+    if (!mouseButtons?.length) {
       return true
     }
 
