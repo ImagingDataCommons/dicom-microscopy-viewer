@@ -6,34 +6,39 @@ on:
   pull_request:
     branches: [master]
 
-jobs:
-  build:
-    name: Build and run tests
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: ["24.x"]
+permissions:
+  contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-test:
+    name: "Build and run unit tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
 
-      - name: Setup Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build package in production mode
-        run: pnpm run build
-
-      - name: Lint with standard
+      - name: Lint
         run: pnpm run lint
 
-      - name: Test with jest
+      - name: Build
+        run: pnpm run build
+
+      - name: Test
         run: pnpm run test
