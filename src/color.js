@@ -5,6 +5,79 @@ import { _generateUID, rescale } from './utils.js'
 const _attrs = Symbol('attrs')
 
 /**
+ * Normalize Palette Color Lookup Table Data to a typed array whose element
+ * size matches the number of bits per entry declared in the LUT descriptor.
+ *
+ * The Palette Color Lookup Table Data attributes have VR OW, so 8-bit LUT
+ * entries are byte-packed inside 16-bit words. Depending on how the dataset is
+ * retrieved and parsed, the data may reach us as a raw ArrayBuffer (e.g. from
+ * `dcmjs.data.DicomMessage.readFile`), as a typed array whose element size
+ * reflects the VR rather than the descriptor (e.g. a Uint16Array produced for
+ * an OW element that actually holds 8-bit entries), or as a plain array of
+ * per-entry numbers (e.g. from a US element in DICOM JSON). The descriptor's
+ * third value is authoritative for the element size, so reinterpret the
+ * underlying bytes accordingly instead of trusting the source element size.
+ *
+ * @param {ArrayBuffer|Uint8Array|Uint16Array|number[]} data - LUT data
+ * @param {Uint8ArrayConstructor|Uint16ArrayConstructor} DataType - Typed array
+ * constructor implied by the bits per entry (Uint8Array for 8, Uint16Array for
+ * 16)
+ *
+ * @returns {Uint8Array|Uint16Array|undefined} LUT data with the correct
+ * element size
+ *
+ * @private
+ */
+function _normalizeLUTData(data, DataType) {
+  if (data == null) {
+    return undefined
+  }
+  if (data instanceof ArrayBuffer) {
+    return new DataType(data)
+  }
+  if (ArrayBuffer.isView(data)) {
+    // Reinterpret the underlying bytes so that the element size matches the
+    // descriptor rather than the source typed array's element size.
+    return new DataType(
+      data.buffer,
+      data.byteOffset,
+      data.byteLength / DataType.BYTES_PER_ELEMENT,
+    )
+  }
+  // Plain array of per-entry numbers: copy element-wise.
+  return new DataType(data)
+}
+
+/**
+ * Normalize Segmented Palette Color Lookup Table Data to a Uint16Array.
+ *
+ * Segmented LUT Data has VR OW and is composed of 16-bit segment opcodes and
+ * values, so it must always be interpreted as 16-bit words regardless of how
+ * it was delivered.
+ *
+ * @param {ArrayBuffer|Uint8Array|Uint16Array|number[]} data - Segmented LUT data
+ *
+ * @returns {Uint16Array|undefined} Segmented LUT data as 16-bit words
+ *
+ * @private
+ */
+function _normalizeSegmentedLUTData(data) {
+  if (data == null) {
+    return undefined
+  }
+  if (data instanceof Uint16Array) {
+    return data
+  }
+  if (data instanceof ArrayBuffer) {
+    return new Uint16Array(data)
+  }
+  if (ArrayBuffer.isView(data)) {
+    return new Uint16Array(data.buffer, data.byteOffset, data.byteLength / 2)
+  }
+  return Uint16Array.from(data)
+}
+
+/**
  * Enumerated values for color map names.
  *
  * @memberof color
@@ -57,6 +130,114 @@ function createColormap({ name, bins }) {
   })
   if (reverse) {
     return colors.reverse()
+  }
+  return colors
+}
+
+/**
+ * Perceptually separated base hues (in degrees) used to colorize distinct
+ * overlays (fractional segments, parametric maps). The first entries are hand
+ * ordered so that the most common cases (2-6 overlays) get maximally
+ * distinguishable, easy-to-name colors; beyond the list we fall back to the
+ * golden-angle so an arbitrary number of overlays stays well separated.
+ */
+const DISTINCT_BASE_HUES = [
+  0, // red
+  210, // azure / blue
+  130, // green
+  35, // orange
+  280, // purple
+  175, // teal
+  320, // magenta / pink
+  55, // yellow
+  245, // indigo
+  150, // spring green
+]
+const GOLDEN_ANGLE_DEGREES = 137.508
+
+/**
+ * Convert an HSV color to an RGB triplet (each channel 0-255).
+ *
+ * @param {number} h - Hue in degrees [0, 360)
+ * @param {number} s - Saturation [0, 1]
+ * @param {number} v - Value / brightness [0, 1]
+ *
+ * @returns {number[]} `[r, g, b]` with each channel in [0, 255]
+ */
+function hsvToRgb(h, s, v) {
+  const c = v * s
+  const hPrime = (((h % 360) + 360) % 360) / 60
+  const x = c * (1 - Math.abs((hPrime % 2) - 1))
+  let r = 0
+  let g = 0
+  let b = 0
+  if (hPrime < 1) {
+    r = c
+    g = x
+  } else if (hPrime < 2) {
+    r = x
+    g = c
+  } else if (hPrime < 3) {
+    g = c
+    b = x
+  } else if (hPrime < 4) {
+    g = x
+    b = c
+  } else if (hPrime < 5) {
+    r = x
+    b = c
+  } else {
+    r = c
+    b = x
+  }
+  const m = v - c
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  ]
+}
+
+/**
+ * Create a perceptually distinct, single-hue color map for one overlay.
+ *
+ * Unlike the multi-hue scientific color maps (viridis, magma, inferno, hot,
+ * …) which all share a dark-purple → bright-yellow ramp and are therefore hard
+ * to tell apart and to match against a legend, this produces a ramp within a
+ * single, well-separated base hue (dark → saturated). Two overlays created
+ * with different `index` values are easy to distinguish at a glance and each
+ * legend bar maps unambiguously to its overlay. See
+ * https://github.com/ImagingDataCommons/dicom-microscopy-viewer/issues/240.
+ *
+ * @param {Object} options
+ * @param {number} options.index - Zero-based index of the overlay; selects the hue
+ * @param {number} options.bins - Number of color bins
+ *
+ * @returns {number[][]} RGB triplet for each color (low value → high value)
+ *
+ * @memberof color
+ */
+function createDistinctColormap({ index, bins }) {
+  if (!Number.isInteger(bins) || bins <= 0) {
+    throw new Error('Argument "bins" must be a positive integer.')
+  }
+  const safeIndex = Number.isInteger(index) && index >= 0 ? index : 0
+  const hue =
+    safeIndex < DISTINCT_BASE_HUES.length
+      ? DISTINCT_BASE_HUES[safeIndex]
+      : (safeIndex * GOLDEN_ANGLE_DEGREES) % 360
+
+  const colors = new Array(bins)
+  for (let i = 0; i < bins; i++) {
+    const t = bins === 1 ? 1 : i / (bins - 1)
+    /**
+     * Encode the value as brightness within the fixed hue: low values stay
+     * dark (so low-probability regions recede) and high values reach the
+     * fully saturated, easily named hue.
+     */
+    const value = 0.2 + 0.8 * t
+    const saturation = 1 - 0.15 * t
+    colors[i] = hsvToRgb(hue, saturation, value)
   }
   return colors
 }
@@ -206,6 +387,22 @@ class PaletteColorLookupTable {
       )
     }
 
+    if (this[_attrs].bitsPerEntry === 8) {
+      this[_attrs].DataType = Uint8Array
+    } else {
+      this[_attrs].DataType = Uint16Array
+    }
+
+    // Interpret the LUT data using the element size implied by the descriptor
+    // (bits per entry) rather than the source representation, which may differ
+    // (e.g. 8-bit entries byte-packed inside an OW/Uint16Array).
+    redData = _normalizeLUTData(redData, this[_attrs].DataType)
+    greenData = _normalizeLUTData(greenData, this[_attrs].DataType)
+    blueData = _normalizeLUTData(blueData, this[_attrs].DataType)
+    redSegmentedData = _normalizeSegmentedLUTData(redSegmentedData)
+    greenSegmentedData = _normalizeSegmentedLUTData(greenSegmentedData)
+    blueSegmentedData = _normalizeSegmentedLUTData(blueSegmentedData)
+
     if (redSegmentedData != null && redData != null) {
       throw new Error(
         'Either Segmented Red Palette Color Lookup Data or Red Palette ' +
@@ -268,12 +465,6 @@ class PaletteColorLookupTable {
     }
     this[_attrs].blueSegmentedData = blueSegmentedData
     this[_attrs].blueData = blueData
-
-    if (this[_attrs].bitsPerEntry === 8) {
-      this[_attrs].DataType = Uint8Array
-    } else {
-      this[_attrs].DataType = Uint16Array
-    }
 
     // Will be used to cache created colormap for repeated access
     this[_attrs].data = null
@@ -458,8 +649,9 @@ class PaletteColorLookupTable {
 }
 
 export {
+  buildPaletteColorLookupTable,
   ColormapNames,
   createColormap,
+  createDistinctColormap,
   PaletteColorLookupTable,
-  buildPaletteColorLookupTable,
 }

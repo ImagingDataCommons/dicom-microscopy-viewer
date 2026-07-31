@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.48.21",
+  "version": "0.48.22",
   "license": "MIT",
   "author": "ImagingDataCommons",
   "homepage": "https://github.com/imagingdatacommons/dicom-microscopy-viewer#readme",
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/imagingdatacommons/dicom-microscopy-viewer.git"
+    "url": "https://github.com/ImagingDataCommons/dicom-microscopy-viewer.git"
   },
   "keywords": [
     "dicom",
@@ -18,7 +18,7 @@
     "dicomweb",
     "microscopy"
   ],
-  "packageManager": "pnpm@10.34.1",
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
   "main": "./src/dicom-microscopy-viewer.js",
   "exports": {
     ".": "./dist/dicomMicroscopyViewer.bundle.min.js",
@@ -31,17 +31,18 @@
     "@babel/plugin-transform-runtime": "^7.15.0",
     "@babel/preset-env": "^7.16",
     "@babel/runtime-corejs3": "^7.15.4",
-    "@biomejs/biome": "2.3.13",
-    "babel-jest": "27.5",
+    "@biomejs/biome": "2.4.16",
+    "babel-jest": "^30.4",
     "babel-loader": "^8.2.3",
     "babel-plugin-transform-import-meta": "^2.3.3",
-    "chai": "^4.3.4",
+    "chai": "^6.2.2",
     "clean-webpack-plugin": "^4.0.0",
     "copy-webpack-plugin": "10.2.0",
     "core-js": "^3.17.2",
     "css-loader": "^6.7.1",
-    "jest": "^27.5",
+    "jest": "^30.4",
     "jest-canvas-mock": "^2.3",
+    "jest-environment-jsdom": "^30.4",
     "jsdoc": "^4.0.2",
     "open-cli": "^7.0.1",
     "terser-webpack-plugin": "^5.2.2",
@@ -82,12 +83,5 @@
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
     "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle",
     "prepare": "husky"
-  },
-  "pnpm": {
-    "overrides": {
-      "braces": "3.0.3",
-      "minimatch": "3.1.5",
-      "serialize-javascript": "7.0.5"
-    }
   }
 }
