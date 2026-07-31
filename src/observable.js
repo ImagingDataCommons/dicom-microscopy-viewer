@@ -49,9 +49,8 @@ class Observable {
       return
     }
     this[_value] = value
-    const callbacks = this[_subscribers].slice()
     Promise.resolve().then(() => {
-      for (const cb of callbacks) {
+      for (const cb of this[_subscribers].slice()) {
         cb(value, previous)
       }
     })

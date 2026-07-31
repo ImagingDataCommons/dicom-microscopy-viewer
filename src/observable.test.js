@@ -137,12 +137,25 @@ describe('Observable', () => {
       expect(calls).toHaveLength(1)
     })
 
+    it('cancels a pending microtask notification when called before it fires', async () => {
+      const obs = new Observable(0)
+      const calls = []
+      const cb = (v) => calls.push(v)
+      obs.subscribe(cb)
+
+      obs.setValue(1) // microtask queued but not yet fired
+      obs.unsubscribe(cb) // removed before microtask runs
+
+      await Promise.resolve()
+      expect(calls).toHaveLength(0)
+    })
+
     it('is a no-op when the callback was never subscribed', () => {
       const obs = new Observable(0)
       expect(() => obs.unsubscribe(() => {})).not.toThrow()
     })
 
-    it('only removes one instance when the same callback is subscribed once', async () => {
+    it('only removes one instance when the same callback is subscribed twice', async () => {
       const obs = new Observable(0)
       const calls = []
       const cb = (v) => calls.push(v)
@@ -166,6 +179,18 @@ describe('Observable', () => {
 
       obs.destroy()
       obs.setValue(1)
+      await Promise.resolve()
+      expect(calls).toHaveLength(0)
+    })
+
+    it('cancels pending microtask notifications when called before they fire', async () => {
+      const obs = new Observable(0)
+      const calls = []
+      obs.subscribe((v) => calls.push(v))
+
+      obs.setValue(1) // microtask queued but not yet fired
+      obs.destroy() // clears subscribers before microtask runs
+
       await Promise.resolve()
       expect(calls).toHaveLength(0)
     })
