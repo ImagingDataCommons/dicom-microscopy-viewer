@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# Heavy checks before push: build and unit tests
+pnpm run build && pnpm run test

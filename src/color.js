@@ -612,9 +612,9 @@ class PaletteColorLookupTable {
 }
 
 export {
+  buildPaletteColorLookupTable,
   ColormapNames,
   createColormap,
   createDistinctColormap,
   PaletteColorLookupTable,
-  buildPaletteColorLookupTable,
 }
