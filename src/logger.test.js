@@ -54,10 +54,10 @@ describe('Logger', () => {
     const previousNodeEnv = process.env.NODE_ENV
     process.env.NODE_ENV = 'production'
     try {
-      // warn/error must never be silenced by the environment
+      /** warn/error must never be silenced by the environment */
       expect(logger.shouldLog(LogLevel.WARN)).toBe(true)
       expect(logger.shouldLog(LogLevel.ERROR)).toBe(true)
-      // explicit setLogLevel always wins
+      /** explicit setLogLevel always wins */
       setLogLevel('DEBUG')
       expect(logger.shouldLog(LogLevel.DEBUG)).toBe(true)
     } finally {
@@ -142,7 +142,7 @@ describe('setLogLevel / applyViewerOptions', () => {
   })
 
   it('viewer debug normalization only enables DEBUG for literal true', () => {
-    // Mirrors option normalization in the VolumeImageViewer constructor
+    /** Mirrors option normalization in the VolumeImageViewer constructor. */
     const normalizeAndApply = (options) => {
       options.debug = options.debug === true
       applyViewerOptions(options)
@@ -153,7 +153,7 @@ describe('setLogLevel / applyViewerOptions', () => {
     expect(getLoggerOptions().level).toBe('WARN')
     expect(logger.shouldLog(LogLevel.DEBUG)).toBe(false)
 
-    // truthy but non-boolean values must not enable debug either
+    /** truthy but non-boolean values must not enable debug either */
     expect(normalizeAndApply({ debug: 1 }).debug).toBe(false)
     expect(getLoggerOptions().level).toBe('WARN')
 

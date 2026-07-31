@@ -151,7 +151,7 @@ self.onmessage = (msg) => {
     return
   }
 
-  // no task handler registered - send a failure message back to ui thread
+  /** No task handler registered — send a failure message back to the UI thread. */
   logger.warn('no task handler registered for task', msg.data.taskType)
 
   self.postMessage({
