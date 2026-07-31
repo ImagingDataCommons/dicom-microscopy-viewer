@@ -117,12 +117,28 @@ describe('setLogLevel / applyViewerOptions', () => {
     expect(getLoggerOptions().level).toBe('ERROR')
   })
 
-  it('all configuration paths preserve previously configured fields', () => {
-    configureLogger({ level: 'ERROR', custom: 'value' })
+  it('strips unknown fields so worker broadcasts stay serializable', () => {
+    configureLogger({
+      level: 'ERROR',
+      custom: 'value',
+      formatter: () => {},
+    })
+    expect(getLoggerOptions()).toEqual({ level: 'ERROR' })
     setLogLevel('DEBUG')
-    expect(getLoggerOptions()).toEqual({ level: 'DEBUG', custom: 'value' })
-    applyViewerOptions({ logger: { level: 'WARN' } })
-    expect(getLoggerOptions()).toEqual({ level: 'WARN', custom: 'value' })
+    expect(getLoggerOptions()).toEqual({ level: 'DEBUG' })
+  })
+
+  it('isolates setLogLevel from throwing config-change listeners', () => {
+    const unsubscribe = onLoggerConfigChange(() => {
+      throw new Error('listener boom')
+    })
+    try {
+      expect(() => setLogLevel('DEBUG')).not.toThrow()
+      expect(getLoggerOptions().level).toBe('DEBUG')
+      expect(logger.shouldLog(LogLevel.DEBUG)).toBe(true)
+    } finally {
+      unsubscribe()
+    }
   })
 
   it('viewer debug normalization only enables DEBUG for literal true', () => {

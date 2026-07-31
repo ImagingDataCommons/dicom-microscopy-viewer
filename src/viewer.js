@@ -784,8 +784,9 @@ class VolumeImageViewer {
    * @param {boolean} [options.debug=false] - Whether debug features should be
    * turned on (e.g., display of tile boundaries). When true, also enables
    * verbose library logging at DEBUG level unless `options.logger` is set.
-   * @param {object} [options.logger] - Per-viewer logging override. Host apps
-   * should prefer {@link setLogLevel} at startup instead.
+   * @param {object} [options.logger] - Global logging override applied at
+   * construction time (affects all viewers and workers). Host apps should
+   * prefer {@link setLogLevel} at startup instead.
    * @param {string} [options.logger.level] - DEBUG, LOG, WARN, ERROR, or NONE
    * @param {number} [options.tilesCacheSize=1000] - Number of tiles that should
    * be cached to avoid repeated retrieval for the DICOMweb server

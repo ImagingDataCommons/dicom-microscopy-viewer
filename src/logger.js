@@ -48,6 +48,9 @@ export function parseLogLevel(level) {
     case 'NONE':
       return LogLevel.NONE
     default:
+      console.warn(
+        `dicom-microscopy-viewer: unrecognized log level "${level}"; using WARN`,
+      )
       return LogLevel.WARN
   }
 }
@@ -71,10 +74,35 @@ export function onLoggerConfigChange(listener) {
 
 function syncLogger() {
   logger.configure(activeLoggerOptions)
+  // Only forward known-serializable fields so worker postMessage never
+  // throws DataCloneError on host-supplied extras (functions, etc.).
   const snapshot = getLoggerOptions()
   for (const listener of changeListeners) {
-    listener(snapshot)
+    try {
+      listener(snapshot)
+    } catch (error) {
+      console.error(
+        'dicom-microscopy-viewer: logger config-change listener failed',
+        error,
+      )
+    }
   }
+}
+
+/**
+ * Keep only known {@link LoggerOptions} fields so merges and worker
+ * broadcasts stay serializable and cannot carry host-app extras.
+ *
+ * @param {object} [options]
+ * @returns {LoggerOptions}
+ */
+function pickLoggerOptions(options = {}) {
+  /** @type {LoggerOptions} */
+  const picked = {}
+  if (options.level != null) {
+    picked.level = options.level
+  }
+  return picked
 }
 
 /**
@@ -86,7 +114,7 @@ export function configureLogger(options) {
   activeLoggerOptions =
     options == null
       ? { ...DEFAULT_LOGGER_OPTIONS }
-      : { ...activeLoggerOptions, ...options }
+      : { ...activeLoggerOptions, ...pickLoggerOptions(options) }
   syncLogger()
 }
 
@@ -104,7 +132,7 @@ export function configureLogger(options) {
  */
 export function resolveLoggerOptions(options = {}) {
   if (options.logger != null) {
-    return { ...options.logger }
+    return pickLoggerOptions(options.logger)
   }
   if (options.debug === true) {
     return { level: 'DEBUG' }
@@ -146,7 +174,7 @@ export function applyViewerOptions(options = {}) {
  * @returns {LoggerOptions}
  */
 export function getLoggerOptions() {
-  return { ...activeLoggerOptions }
+  return { level: activeLoggerOptions.level }
 }
 
 /**
