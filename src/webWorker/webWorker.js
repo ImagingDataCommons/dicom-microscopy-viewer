@@ -109,7 +109,7 @@ self.onmessage = (msg) => {
     return
   }
 
-  // handle log configuration changes broadcast after this worker was spawned
+  /** Handle log configuration changes broadcast after this worker was spawned. */
   if (msg.data.taskType === 'configureLogger') {
     configureLogger(msg.data.logger)
     return

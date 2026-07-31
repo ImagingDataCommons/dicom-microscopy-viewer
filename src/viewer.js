@@ -891,8 +891,10 @@ class VolumeImageViewer {
       this[_options].useTileGridResolutions = true
     }
 
-    // Strict boolean semantics: only a literal `true` enables debug, so that
-    // e.g. `debug: false` does not flip the global log level to DEBUG.
+    /**
+     * Strict boolean semantics: only a literal `true` enables debug, so that
+     * e.g. `debug: false` does not flip the global log level to DEBUG.
+     */
     this[_options].debug = this[_options].debug === true
 
     applyViewerOptions(this[_options])

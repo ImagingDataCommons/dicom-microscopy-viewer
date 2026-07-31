@@ -21,8 +21,10 @@ defaultConfig.maxWebWorkers = Math.min(defaultConfig.maxWebWorkers, 7)
 
 let config
 
-// Workers snapshot the logger options in their initialize message, but spawn
-// lazily; forward later log-configuration changes to every spawned worker.
+/**
+ * Workers snapshot the logger options in their initialize message, but spawn
+ * lazily; forward later log-configuration changes to every spawned worker.
+ */
 onLoggerConfigChange((loggerOptions) => {
   for (let i = 0; i < webWorkers.length; i++) {
     webWorkers[i].worker.postMessage({

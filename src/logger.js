@@ -74,8 +74,10 @@ export function onLoggerConfigChange(listener) {
 
 function syncLogger() {
   logger.configure(activeLoggerOptions)
-  // Only forward known-serializable fields so worker postMessage never
-  // throws DataCloneError on host-supplied extras (functions, etc.).
+  /**
+   * Only forward known-serializable fields so worker postMessage never
+   * throws DataCloneError on host-supplied extras (functions, etc.).
+   */
   const snapshot = getLoggerOptions()
   for (const listener of changeListeners) {
     try {
