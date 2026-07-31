@@ -1,5 +1,7 @@
 /* global Worker, URL */
 
+import { getLoggerOptions, onLoggerConfigChange } from '../logger.js'
+
 // the taskId to assign to the next task added via addTask()
 let nextTaskId = 0
 
@@ -18,6 +20,18 @@ const defaultConfig = {
 defaultConfig.maxWebWorkers = Math.min(defaultConfig.maxWebWorkers, 7)
 
 let config
+
+// Workers snapshot the logger options in their initialize message, but spawn
+// lazily; forward later log-configuration changes to every spawned worker.
+onLoggerConfigChange((loggerOptions) => {
+  for (let i = 0; i < webWorkers.length; i++) {
+    webWorkers[i].worker.postMessage({
+      taskType: 'configureLogger',
+      workerIndex: i,
+      logger: loggerOptions,
+    })
+  }
+})
 
 const statistics = {
   maxWebWorkers: 0,
@@ -162,7 +176,10 @@ function spawnWebWorker() {
   worker.postMessage({
     taskType: 'initialize',
     workerIndex: webWorkers.length - 1,
-    config,
+    config: {
+      ...config,
+      logger: getLoggerOptions(),
+    },
   })
 }
 
