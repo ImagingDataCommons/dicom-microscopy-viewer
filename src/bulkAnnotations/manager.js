@@ -45,15 +45,20 @@ import {
   buildTileSubviews,
 } from './geometry/spatialTiles.js'
 import {
-  createLineStripLayer,
-  createPathLayer,
-  createPointLayer,
-} from './layers/index.js'
-import {
   createBulkAnnotationDeck,
   createDeckOlLayer,
   disposeBulkAnnotationOverlay,
 } from './overlay.js'
+
+/** Lazy — keep deck.gl out of the VolumeImageViewer import graph for jsdom. */
+let layerFactoriesPromise = null
+function loadLayerFactories() {
+  if (layerFactoriesPromise == null) {
+    layerFactoriesPromise = import('./layers/index.js')
+  }
+  return layerFactoriesPromise
+}
+
 import {
   buildSpatialIndex,
   makeBulkAnnotationRoiUid,
@@ -115,10 +120,18 @@ export class BulkAnnotationManager {
   }
 
   /** Ensure Deck + OL wrapper layer exist (lazy; safe in jsdom). */
-  ensureOverlay() {
+  async ensureOverlay() {
     if (this._overlayReady) {
       return
     }
+    if (this._overlayInitPromise) {
+      return this._overlayInitPromise
+    }
+    this._overlayInitPromise = this._initOverlay()
+    return this._overlayInitPromise
+  }
+
+  async _initOverlay() {
     const map = this._getMap()
     if (map == null) {
       return
@@ -127,7 +140,7 @@ export class BulkAnnotationManager {
     if (parent == null) {
       return
     }
-    this._deck = createBulkAnnotationDeck({
+    this._deck = await createBulkAnnotationDeck({
       parent,
       onError: (err) => {
         const container = this._getContainer()
@@ -320,12 +333,13 @@ export class BulkAnnotationManager {
       this.setAnnotationGroupStyle(uid, styleOptions)
     }
     g.visible = true
-    this.ensureOverlay()
-    if (!g.hydrated) {
-      this._enqueueHydrate(uid)
-    } else {
-      this._rebuildLayersForGroup(g)
-    }
+    this.ensureOverlay().then(() => {
+      if (!g.hydrated) {
+        this._enqueueHydrate(uid)
+      } else {
+        this._rebuildLayersForGroup(g)
+      }
+    })
   }
 
   hideAnnotationGroup(uid) {
@@ -664,6 +678,21 @@ export class BulkAnnotationManager {
       g.deckLayers = []
       return
     }
+    this._rebuildLayersForGroupAsync(g).catch((error) => {
+      console.error('[bulkAnnotations] layer rebuild failed', error)
+    })
+  }
+
+  async _rebuildLayersForGroupAsync(g) {
+    if (!g.hydrated || g.decoded == null || !g.visible) {
+      g.deckLayers = []
+      return
+    }
+    const { createLineStripLayer, createPathLayer, createPointLayer } =
+      await loadLayerFactories()
+    if (!g.visible || g.decoded == null) {
+      return
+    }
     const {
       positions,
       startIndices,
@@ -685,7 +714,6 @@ export class BulkAnnotationManager {
       numberOfAnnotations > BULK_LOD_MIN_ANNOTATIONS
     const highRes = !useLod || this._isHighResolution()
 
-    /** Stable data object — reference equality across rebuilds. */
     if (g.deckData == null) {
       g.deckData = {
         centroids: {
@@ -699,7 +727,6 @@ export class BulkAnnotationManager {
           startIndices,
           attributes: {
             getPath: { value: positions, size: 2 },
-            /** Inert key — neutralize PathTesselator dead scratch. */
             positions: null,
           },
         },
@@ -724,7 +751,13 @@ export class BulkAnnotationManager {
       const map = this._getMap()
       const view = map?.getView()
       const extent = view?.calculateExtent?.()
-      const tileLayers = this._layersForVisibleTiles(g, rgba, extent)
+      const tileLayers = await this._layersForVisibleTiles(
+        g,
+        rgba,
+        extent,
+        createPathLayer,
+        createLineStripLayer,
+      )
       if (tileLayers.length > 0) {
         layers.push(...tileLayers)
       } else {
@@ -745,7 +778,13 @@ export class BulkAnnotationManager {
     g.deckLayers = layers
   }
 
-  _layersForVisibleTiles(g, rgba, extent) {
+  async _layersForVisibleTiles(
+    g,
+    rgba,
+    extent,
+    createPathLayer,
+    createLineStripLayer,
+  ) {
     if (g.spatial == null || extent == null) {
       return []
     }
@@ -794,12 +833,6 @@ export class BulkAnnotationManager {
   }
 
   _collectDeckLayers() {
-    /** Refresh LOD / tile visibility from current view. */
-    for (const g of this._groups.values()) {
-      if (g.visible && g.hydrated) {
-        this._rebuildLayersForGroup(g)
-      }
-    }
     const layers = []
     for (const g of this._groups.values()) {
       if (g.visible && g.deckLayers?.length) {
