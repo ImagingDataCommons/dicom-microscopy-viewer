@@ -1,19 +1,26 @@
 /**
  * Deck.gl overlay as a custom OpenLayers Layer.
  *
- * Official deck.gl + OpenLayers pattern: the OL layer's `render` callback
- * pushes per-frame view state into Deck so sync is exact during animated
- * pan/zoom. Deck participates in OL's layer stack (z-order / visibility).
+ * Deck is loaded lazily so jsdom/unit tests that import VolumeImageViewer do
+ * not pull in apache-arrow (TextDecoder) at module evaluation time.
  *
  * @see https://github.com/visgl/deck.gl/tree/master/examples/get-started/pure-js/openlayers
  */
 
-import { Deck, OrthographicView } from '@deck.gl/core'
 import Layer from 'ol/layer/Layer'
 
 import { olViewStateToDeck } from './viewState.js'
 
 export { olViewStateToDeck }
+
+let deckModulePromise = null
+
+function loadDeckModule() {
+  if (deckModulePromise == null) {
+    deckModulePromise = import('@deck.gl/core')
+  }
+  return deckModulePromise
+}
 
 /**
  * Create a Deck instance configured for bulk-annotation overlay use.
@@ -21,9 +28,9 @@ export { olViewStateToDeck }
  * @param {Object} options
  * @param {HTMLElement} options.parent - Parent element for the deck canvas
  * @param {Function} [options.onError]
- * @returns {Deck|null} null when WebGL is unavailable (jsdom / headless)
+ * @returns {Promise<import('@deck.gl/core').Deck|null>}
  */
-export function createBulkAnnotationDeck({ parent, onError }) {
+export async function createBulkAnnotationDeck({ parent, onError }) {
   if (
     typeof WebGLRenderingContext === 'undefined' &&
     typeof WebGL2RenderingContext === 'undefined'
@@ -35,6 +42,7 @@ export function createBulkAnnotationDeck({ parent, onError }) {
   }
 
   try {
+    const { Deck, OrthographicView } = await loadDeckModule()
     const view = new OrthographicView({
       id: 'bulk-ann-ortho',
       /** Match OpenLayers Y-down slide space (see geometry/coords.js). */
@@ -55,7 +63,6 @@ export function createBulkAnnotationDeck({ parent, onError }) {
       /**
        * Neutralize PathTesselator over-allocation and prevent free-on-hide from
        * retaining GB-sized scratch arrays in the TypedArrayManager pool.
-       * @see plan adversarial review — ~1.4 GB dead positions scratch otherwise.
        */
       _typedArrayManagerProps: { overAlloc: 1, poolSize: 0 },
       deviceProps: { type: 'webgl' },
@@ -89,7 +96,7 @@ export function createBulkAnnotationDeck({ parent, onError }) {
  * Build a custom `ol/layer/Layer` that drives a Deck instance each frame.
  *
  * @param {Object} options
- * @param {Deck} options.deck
+ * @param {import('@deck.gl/core').Deck} options.deck
  * @param {() => import('@deck.gl/core').Layer[]} options.getLayers
  * @returns {Layer}
  */
@@ -126,7 +133,7 @@ export function createDeckOlLayer({ deck, getLayers }) {
  * Tear down a Deck instance and its OL wrapper layer.
  *
  * @param {Object} options
- * @param {Deck|null} options.deck
+ * @param {import('@deck.gl/core').Deck|null} options.deck
  * @param {Layer|null} options.olLayer
  * @param {import('ol/Map').default|null} options.map
  */
