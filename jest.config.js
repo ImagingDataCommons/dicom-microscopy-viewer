@@ -13,7 +13,7 @@ module.exports = {
   },
   transformIgnorePatterns: [
     // Support pnpm's nested node_modules layout as well as a flat node_modules tree.
-    "node_modules/(?!(\\.pnpm/[^/]+/node_modules/)?(ol|@cornerstonejs|dicomicc|rbush|color-rgba|color-parse|color-name|color-space|quickselect|earcut)(/|$))",
+    "node_modules/(?!(\\.pnpm/[^/]+/node_modules/)?(ol|@cornerstonejs|dicomicc|rbush|color-rgba|color-parse|color-name|color-space|quickselect|earcut|@deck\\.gl|@luma\\.gl|@math\\.gl|@loaders\\.gl|@probe\\.gl|@turf|flatbush|mjolnir\\.js|h3-js)(/|$))",
   ],
   testMatch: ["<rootDir>/src/**/*.test.js"],
   testPathIgnorePatterns: ["<rootDir>/node_modules"],

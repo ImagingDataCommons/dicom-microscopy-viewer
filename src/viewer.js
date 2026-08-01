@@ -1,13 +1,13 @@
 import 'ol/ol.css'
 import dcmjs from 'dcmjs'
-import { debounce, has } from 'lodash'
+import { has } from 'lodash'
 import Collection from 'ol/Collection'
 import { Zoom, ZoomSlider } from 'ol/control'
 import FullScreen from 'ol/control/FullScreen'
 import MousePosition from 'ol/control/MousePosition'
 import OverviewMap from 'ol/control/OverviewMap'
 import ScaleLine from 'ol/control/ScaleLine'
-import { createEmpty, extend, getCenter, getHeight, getWidth } from 'ol/extent'
+import { getCenter, getHeight, getWidth } from 'ol/extent'
 import Feature from 'ol/Feature'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import DragPan from 'ol/interaction/DragPan'
@@ -24,7 +24,6 @@ import WebGLVector from 'ol/layer/WebGLVector'
 import OlMap from 'ol/Map'
 import Overlay from 'ol/Overlay'
 import Projection from 'ol/proj/Projection'
-import Cluster from 'ol/source/Cluster'
 import DataTileSource from 'ol/source/DataTile'
 import Static from 'ol/source/ImageStatic'
 import TileDebug from 'ol/source/TileDebug'
@@ -38,24 +37,10 @@ import Style from 'ol/style/Style'
 import TileGrid from 'ol/tilegrid/TileGrid'
 import View from 'ol/View'
 import WebGLHelper from 'ol/webgl/Helper'
-import {
-  _fetchGraphicData,
-  _fetchGraphicIndex,
-  // _fetchMeasurements,
-  _getCommonZCoordinate,
-  _getCoordinateDimensionality,
-  AnnotationGroup,
-} from './annotation.js'
+import { AnnotationGroup } from './annotation.js'
 import _AnnotationManager from './annotations/_AnnotationManager'
 import getExtendedROI from './bulkAnnotations/getExtendedROI'
-import {
-  getEllipseFeature,
-  getFeaturesFromBulkAnnotations,
-  getPointFeature,
-  getPolygonFeature,
-  getRectangleFeature,
-} from './bulkAnnotations/utils'
-import { getClusterStyleFunc } from './clusterStyles.js'
+import { BulkAnnotationManager } from './bulkAnnotations/manager.js'
 import {
   buildPaletteColorLookupTable,
   ColormapNames,
@@ -83,6 +68,7 @@ import {
   _getIccProfiles,
 } from './pyramid.js'
 import { ROI } from './roi.js'
+import { Point, Polygon, Polyline } from './scoord3d.js'
 import {
   _geometry2Scoord3d,
   _geometryCoordinates2scoord3dCoordinates,
@@ -97,15 +83,12 @@ import {
   _generateUID,
   _getUnitSuffix,
   applyTransform,
-  areCodedConceptsEqual,
   buildInverseTransform,
   buildTransform,
   computeRotation,
   createWindow,
   detectDisplayColorSpace,
   doContentItemsMatch,
-  getContentItemNameCodedConcept,
-  rgb2hex,
 } from './utils.js'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
@@ -747,9 +730,7 @@ const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
 const _iccOutputType = Symbol('iccOutputType')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
-const _highResSources = Symbol('highResSources')
-const _pointsSources = Symbol('pointsSources')
-const _clustersSources = Symbol('clustersSources')
+const _bulkAnnotationManager = Symbol('bulkAnnotationManager')
 const _segmentationInterpolate = Symbol('segmentationInterpolate')
 const _segmentationTileGrid = Symbol('segmentationTileGrid')
 const _parametricMapInterpolate = Symbol('parametricMapInterpolate')
@@ -821,9 +802,7 @@ class VolumeImageViewer {
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
-    this[_highResSources] = {}
-    this[_pointsSources] = {}
-    this[_clustersSources] = {}
+    this[_bulkAnnotationManager] = null
     this[_segmentationInterpolate] = false
     this[_parametricMapInterpolate] = true
 
@@ -1783,6 +1762,25 @@ class VolumeImageViewer {
         }
       }
 
+      /** Merge deck.gl bulk-annotation CPU picks (pickable:false on layers). */
+      if (this[_bulkAnnotationManager] != null && event.coordinate) {
+        const hit = this[_bulkAnnotationManager].pickAtMapCoordinate(
+          event.coordinate,
+        )
+        if (hit != null) {
+          const record = this[_bulkAnnotationManager].getGroupRecord(
+            hit.annotationGroupUID,
+          )
+          const roi = this._buildBulkAnnotationROI(hit, record)
+          if (roi != null) {
+            featuresWithROIs.push({
+              feature: roi,
+              annotationGroupUID: hit.annotationGroupUID,
+            })
+          }
+        }
+      }
+
       publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
         features: featuresWithROIs,
         event,
@@ -1848,18 +1846,37 @@ class VolumeImageViewer {
 
       clickEvent = 'click'
       const features = this[_map].getFeaturesAtPixel(event.pixel)
-      const rois = features.map((feature) =>
-        this._getROIFromFeature(
-          feature,
-          this[_pyramid].metadata,
-          this[_affine],
-        ),
-      )
+      const rois = features
+        .map((feature) =>
+          this._getROIFromFeature(
+            feature,
+            this[_pyramid].metadata,
+            this[_affine],
+          ),
+        )
+        .filter(Boolean)
+
+      let bulkRoi = null
+      if (this[_bulkAnnotationManager] != null && event.coordinate) {
+        const hit = this[_bulkAnnotationManager].pickAtMapCoordinate(
+          event.coordinate,
+        )
+        if (hit != null) {
+          const record = this[_bulkAnnotationManager].getGroupRecord(
+            hit.annotationGroupUID,
+          )
+          bulkRoi = this._buildBulkAnnotationROI(hit, record)
+          if (bulkRoi != null) {
+            rois.push(bulkRoi)
+          }
+        }
+      }
 
       publish(this[_map].getTargetElement(), EVENT.VIEWPORT_CLICKED, {
         rois,
       })
 
+      let selected = false
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
@@ -1875,6 +1892,7 @@ class VolumeImageViewer {
                   this[_affine],
                 ),
               )
+              selected = true
             }
             clickEvent = null
           }
@@ -1885,6 +1903,11 @@ class VolumeImageViewer {
             layer instanceof VectorLayer || layer instanceof WebGLVector,
         },
       )
+
+      if (!selected && bulkRoi != null) {
+        publish(this[_map].getTargetElement(), EVENT.ROI_SELECTED, bulkRoi)
+        clickEvent = null
+      }
     })
   }
 
@@ -2596,11 +2619,16 @@ class VolumeImageViewer {
    */
   cleanup() {
     console.info('cleanup memory')
+    if (this[_bulkAnnotationManager] != null) {
+      this[_bulkAnnotationManager].cleanup()
+      this[_bulkAnnotationManager] = null
+    }
+    this[_annotationGroups] = {}
+
     const itemsRequiringDisposal = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
       ...Object.values(this[_mappings]),
-      ...Object.values(this[_annotationGroups]),
     ]
 
     console.info('items requiring disposal:', itemsRequiringDisposal)
@@ -3119,36 +3147,34 @@ class VolumeImageViewer {
    * @param {string} uid - Unique identifier of the region of interest or annotation group UID
    */
   zoomToROI(uid) {
-    const feature =
-      this[_drawingSource].getFeatureById(uid) ||
-      this[_highResSources]?.[uid]?.getFeatures()?.[0] ||
-      this[_pointsSources]?.[uid]?.getFeatures()?.[0] ||
-      this[_clustersSources]?.[uid]?.getFeatures()?.[0]
-    if (!feature) {
-      console.warn(`Could not find a ROI with UID "${uid}" to zoom to.`)
+    const feature = this[_drawingSource].getFeatureById(uid)
+    if (feature) {
+      const geometry = feature.getGeometry()
+      if (!geometry) {
+        console.warn(`Feature with UID "${uid}" has no geometry to zoom to.`)
+        return
+      }
+      const view = this[_map].getView()
+      const extent = geometry.getExtent()
+      const center = getCenter(extent)
+      const width = getWidth(extent)
+      const height = getHeight(extent)
+      const scale = 7
+      const expandedExtent = [
+        center[0] - (width * scale) / 2,
+        center[1] - (height * scale) / 2,
+        center[0] + (width * scale) / 2,
+        center[1] + (height * scale) / 2,
+      ]
+      view.fit(expandedExtent, { duration: 500 })
       return
     }
-    const geometry = feature.getGeometry()
-    if (!geometry) {
-      console.warn(`Feature with UID "${uid}" has no geometry to zoom to.`)
+
+    /** Annotation-group UID — zoom to first annotation (parity with prior OL path). */
+    if (this[_bulkAnnotationManager]?.zoomToAnnotationGroup(uid)) {
       return
     }
-    const view = this[_map].getView()
-    // Expand the extent by a scale factor (e.g., 1.5x)
-    const extent = geometry.getExtent()
-    const center = getCenter(extent)
-    const width = getWidth(extent)
-    const height = getHeight(extent)
-    const scale = 7
-    const newWidth = width * scale
-    const newHeight = height * scale
-    const expandedExtent = [
-      center[0] - newWidth / 2,
-      center[1] - newHeight / 2,
-      center[0] + newWidth / 2,
-      center[1] + newHeight / 2,
-    ]
-    view.fit(expandedExtent, { duration: 500 })
+    console.warn(`Could not find a ROI with UID "${uid}" to zoom to.`)
   }
 
   /**
@@ -3184,6 +3210,87 @@ class VolumeImageViewer {
     if (uid) {
       return new ROI({ scoord3d, properties, uid })
     }
+  }
+
+  /**
+   * Build a frozen roi.ROI for a deck.gl bulk-annotation pick.
+   * @private
+   */
+  _buildBulkAnnotationROI(hit, record) {
+    if (hit == null || record?.decoded == null) {
+      return null
+    }
+    const { positions, startIndices, graphicType } = record.decoded
+    const start = startIndices[hit.annotationIndex]
+    const end = startIndices[hit.annotationIndex + 1]
+    const affine = this[_affine]
+    const frameOfReferenceUID =
+      this[_pyramid]?.metadata?.[0]?.FrameOfReferenceUID
+
+    const mapToSlide = (mapX, mapY) => {
+      const col = mapX
+      const row = -mapY - 1
+      return applyTransform({ coordinate: [col, row], affine })
+    }
+
+    const coords = []
+    for (let i = start; i < end; i++) {
+      const slide = mapToSlide(positions[i * 2], positions[i * 2 + 1])
+      coords.push([slide[0], slide[1], 0])
+    }
+
+    let scoord3d
+    try {
+      if (graphicType === 'POINT') {
+        scoord3d = new Point({
+          coordinates: coords[0],
+          frameOfReferenceUID,
+        })
+      } else if (graphicType === 'POLYLINE') {
+        scoord3d = new Polyline({
+          coordinates: coords,
+          frameOfReferenceUID,
+        })
+      } else {
+        /** POLYGON / RECTANGLE / ELLIPSE */
+        scoord3d = new Polygon({
+          coordinates: coords,
+          frameOfReferenceUID,
+        })
+      }
+    } catch (error) {
+      console.warn('[bulkAnnotations] failed to build scoord3d for pick', error)
+      return null
+    }
+
+    const uid = `${hit.annotationGroupUID}-${hit.annotationIndex}`
+    let roi = new ROI({ scoord3d, properties: {}, uid })
+    try {
+      roi = getExtendedROI({
+        annotationGroupUID: hit.annotationGroupUID,
+        annotationIndex: hit.annotationIndex,
+        roi,
+        metadata: record.metadata,
+        annotationGroup: record.metadataItem,
+      })
+    } catch (error) {
+      console.warn('[bulkAnnotations] getExtendedROI failed', error)
+    }
+    return roi
+  }
+
+  /**
+   * Measurement value range for an annotation group (for slim limitValues UI).
+   *
+   * @param {string} annotationGroupUID
+   * @param {Object} [measurement]
+   * @returns {{ min: number, max: number }}
+   */
+  getAnnotationGroupMeasurementRange(annotationGroupUID, measurement) {
+    return this._getBulkAnnotationManager().getAnnotationGroupMeasurementRange(
+      annotationGroupUID,
+      measurement,
+    )
   }
 
   /**
@@ -3909,7 +4016,37 @@ class VolumeImageViewer {
   }
 
   /**
+   * Lazily construct the deck.gl bulk-annotation manager.
+   * @private
+   */
+  _getBulkAnnotationManager() {
+    if (this[_bulkAnnotationManager] != null) {
+      return this[_bulkAnnotationManager]
+    }
+    this[_bulkAnnotationManager] = new BulkAnnotationManager({
+      getMap: () => this[_map],
+      getPyramid: () => this[_pyramid],
+      getAffineInverse: () => this[_affineInverse],
+      getClient: () =>
+        _getClient(
+          this[_clients],
+          Enums.SOPClassUIDs.MICROSCOPY_BULK_SIMPLE_ANNOTATIONS ||
+            Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
+        ),
+      getContainer: () =>
+        this[_container] || this[_map]?.getTargetElement?.() || null,
+      annotationOptions: this[_annotationOptions],
+      errorInterceptor: this[_options].errorInterceptor,
+      primaryColor: this[_options].primaryColor,
+    })
+    return this[_bulkAnnotationManager]
+  }
+
+  /**
    * Add annotation groups.
+   *
+   * Registers Microscopy Bulk Simple Annotation groups with the deck.gl
+   * renderer. Coordinate data is fetched lazily on showAnnotationGroup.
    *
    * @param {metadata.MicroscopyBulkSimpleAnnotations} metadata - Metadata of a
    * DICOM Microscopy Simple Bulk Annotations instance
@@ -3919,750 +4056,47 @@ class VolumeImageViewer {
       'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
         `of series "${metadata.SeriesInstanceUID}"`,
     )
-    const defaultAnnotationGroupStyle = {
-      opacity: 1.0,
-      color: this[_options].primaryColor,
-    }
-
-    // Helper function to extract color from annotation group metadata
-    const extractAnnotationGroupColor = (annotationGroupItem) => {
-      if (
-        annotationGroupItem.RecommendedDisplayCIELabValue &&
-        Array.isArray(annotationGroupItem.RecommendedDisplayCIELabValue)
-      ) {
-        try {
-          // Convert CIELab to RGB using dcmjs
-          const labValues = annotationGroupItem.RecommendedDisplayCIELabValue
-          if (labValues.length >= 3) {
-            const rgb = dcmjs.data.Colors.dicomlab2RGB(labValues)
-            // Convert from 0-1 range to 0-255 range and round to integers
-            return [
-              Math.max(0, Math.min(255, Math.round(rgb[0] * 255))),
-              Math.max(0, Math.min(255, Math.round(rgb[1] * 255))),
-              Math.max(0, Math.min(255, Math.round(rgb[2] * 255))),
-            ]
-          }
-        } catch (error) {
-          console.warn(
-            'Failed to convert CIELab to RGB for annotation group:',
-            error,
-          )
-        }
-      }
-      return null
-    }
-
-    // We need to bind those variables to constants for the loader function
-    const client = _getClient(
-      this[_clients],
-      Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
-    )
-    const pyramid = this[_pyramid].metadata
-    const affineInverse = this[_affineInverse]
-    const affine = this[_affine]
-    const map = this[_map]
-    const view = map.getView()
-    const isHighResolution = () => this._computeIsHighResolution(view)
+    const manager = this._getBulkAnnotationManager()
+    manager.addAnnotationGroups(metadata)
 
     /**
-     * Groups of annotations sharing common characteristics, such as graphic type,
-     * properties or measurements.
+     * Keep a lightweight mirror on `_annotationGroups` for cleanup / legacy
+     * readers. Rendering is owned by BulkAnnotationManager.
      */
-    metadata.AnnotationGroupSequence.forEach((item) => {
-      const annotationGroupUID = item.AnnotationGroupUID
-
-      // Extract color from metadata if available
-      const extractedColor = extractAnnotationGroupColor(item)
-      const annotationGroupStyle = {
-        opacity: defaultAnnotationGroupStyle.opacity,
-        color: extractedColor || defaultAnnotationGroupStyle.color,
+    for (const group of manager.getAllAnnotationGroups()) {
+      const uid = group.uid
+      if (this[_annotationGroups][uid]) {
+        continue
       }
-
-      const annotationGroup = {
-        annotationGroup: new AnnotationGroup({
-          uid: annotationGroupUID,
-          number: item.AnnotationGroupNumber,
-          label: item.AnnotationGroupLabel,
-          algorithmType: item.AnnotationGroupGenerationType,
-          algorithmName: item.AnnotationGroupAlgorithmIdentificationSequence
-            ? item.AnnotationGroupAlgorithmIdentificationSequence[0]
-                .AlgorithmName
-            : '',
-          propertyCategory: item.AnnotationPropertyCategoryCodeSequence[0],
-          propertyType: item.AnnotationPropertyTypeCodeSequence[0],
-          studyInstanceUID: metadata.StudyInstanceUID,
-          seriesInstanceUID: metadata.SeriesInstanceUID,
-          sopInstanceUIDs: [metadata.SOPInstanceUID],
-          referencedSeriesInstanceUID:
-            metadata.ReferencedSeriesSequence[0].SeriesInstanceUID,
-          referencedSOPInstanceUID:
-            metadata.ReferencedImageSequence[0].ReferencedSOPInstanceUID,
+      this[_annotationGroups][uid] = {
+        annotationGroup: group,
+        style: manager.getAnnotationGroupStyle(uid),
+        defaultStyle: manager.getAnnotationGroupDefaultStyle(uid),
+        metadata: manager.getAnnotationGroupMetadata(uid),
+        layers: [],
+        activeLayer: () => ({
+          getVisible: () => manager.isAnnotationGroupVisible(uid),
+          setVisible: (v) => {
+            if (v) manager.showAnnotationGroup(uid)
+            else manager.hideAnnotationGroup(uid)
+          },
+          setOpacity: () => {},
+          setStyle: () => {},
+          getSource: () => null,
         }),
-        style: { ...annotationGroupStyle },
-        defaultStyle: annotationGroupStyle,
-        metadata,
       }
-
-      if (this[_annotationGroups][annotationGroupUID]) {
-        console.info('annotation group already added', annotationGroupUID)
-        return
-      }
-
-      const { bulkdataReferences } = annotationGroup.metadata
-
-      // TODO: figure out how to use "loader" with bbox or tile "strategy"?
-      const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
-      const metadataItem =
-        annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
-      if (!metadataItem) {
-        console.warn(
-          `skip annotation group "${annotationGroupUID}": invalid annotation group number or annotation group sequence`,
-        )
-        return
-      }
-
-      /**
-       * Bulkdata may not be available, since it's possible that all information
-       * has been included into the metadata by value as InlineBinary. It must
-       * only be provided if information has been included by reference as
-       * BulkDataURI.
-       */
-      let bulkdataItem
-      if (bulkdataReferences.AnnotationGroupSequence != null) {
-        bulkdataItem =
-          bulkdataReferences.AnnotationGroupSequence[annotationGroupIndex]
-      }
-
-      /**
-       * The number of Annotations in this Annotation Group.
-       * Each point, open polyline or closed polygon, circle,
-       * ellipse or rectangle is counted as one Annotation.
-       */
-      const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-
-      /** Point, Open/Closed Polygon, Circle, Ellipse, etc. */
-      const graphicType = metadataItem.GraphicType
-      /** 2D or 3D dimentionality: (x, y) if value 2 and (x, y, z) if value 3. */
-      const coordinateDimensionality = _getCoordinateDimensionality(
-        metadataItem,
-        annotationGroup.metadata.AnnotationCoordinateType,
-      )
-
-      const refImage = this[_pyramid].metadata[0]
-      /** TODO: This should throw error? */
-      if (
-        coordinateDimensionality === '3D' &&
-        refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID
-      ) {
-        throw new Error(
-          'Microscopy Bulk Simple Annotation instances must have the same ' +
-            'Frame of Reference UID as the corresponding source images.',
-        )
-      }
-
-      /** Required if all points are in the same Z plane. */
-      const commonZCoordinate = _getCommonZCoordinate(metadataItem)
-      let areAnnotationsLoaded = false
-
-      const cacheBulkAnnotations = (id, data) => {
-        this[_retrievedBulkdata][id] = data
-      }
-      const getCachedBulkAnnotations = (id) => this[_retrievedBulkdata][id]
-
-      const errorInterceptor = this[_options].errorInterceptor
-
-      const bulkAnnotationsLoader = function (
-        featureFunction,
-        success,
-        failure,
-      ) {
-        console.info('load bulk annotations layer')
-
-        const processBulkAnnotations = (retrievedBulkdata) => {
-          console.info('process bulk annotations', retrievedBulkdata)
-          areAnnotationsLoaded = true
-
-          const [graphicData, graphicIndex, measurements] = retrievedBulkdata
-
-          console.debug('graphic data:', graphicData?.length)
-          console.debug('graphic index:', graphicIndex?.length)
-          console.debug('measurements:', measurements?.length)
-
-          console.info(
-            'compute statistics for measurement values ' +
-              `of annotation group "${annotationGroupUID}"`,
-          )
-          const properties = {}
-          measurements.forEach((measurementItem, measurementIndex) => {
-            /*
-             * Ideally, we would compute quantiles, but that is an expensive
-             * operation. For now, just compute mininum and maximum.
-             */
-            const min = measurementItem.values.reduce(
-              (a, b) => Math.min(a, b),
-              Infinity,
-            )
-            const max = measurementItem.values.reduce(
-              (a, b) => Math.max(a, b),
-              -Infinity,
-            )
-            const key = `measurementValue${measurementIndex.toString()}`
-            properties[key] = { min, max }
-          })
-          this.setProperties(properties, true)
-
-          const features = getFeaturesFromBulkAnnotations({
-            graphicType,
-            graphicData,
-            graphicIndex,
-            measurements,
-            commonZCoordinate,
-            coordinateDimensionality,
-            numberOfAnnotations,
-            annotationGroupUID,
-            annotationGroup,
-            metadataItem,
-            pyramid,
-            affine,
-            affineInverse,
-            view,
-            featureFunction,
-            isHighResolution: isHighResolution(),
-          })
-
-          console.info(
-            `add n=${features.length} annotations ` +
-              `for annotation group "${annotationGroupUID}"`,
-          )
-          this.addFeatures(features)
-          success(features)
-          console.info('number of annotations:', numberOfAnnotations)
-        }
-
-        const cachedBulkAnnotations =
-          getCachedBulkAnnotations(annotationGroupUID)
-        if (cachedBulkAnnotations) {
-          try {
-            console.info('use cached bulk annotations')
-            processBulkAnnotations(cachedBulkAnnotations)
-          } catch (error) {
-            console.error('Failed to process cached bulk annotations', error)
-            const customError = new CustomError(
-              errorTypes.VISUALIZATION,
-              `Failed to process cached bulk annotations: ${error.message}`,
-            )
-            errorInterceptor(customError)
-            failure()
-          }
-        } else {
-          const promises = [
-            _fetchGraphicData({
-              metadata,
-              annotationGroupIndex,
-              metadataItem,
-              bulkdataItem,
-              client,
-            }),
-            _fetchGraphicIndex({
-              metadata,
-              annotationGroupIndex,
-              metadataItem,
-              bulkdataItem,
-              client,
-            }),
-            // TODO: Only fetch measurements if required
-            // _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
-          ]
-          Promise.allSettled(promises)
-            .then((results) => {
-              const errors = {
-                0: 'Failed to retrieve point coordiante data of annotation group',
-                1: 'Failed to retrieve point index list of annotation group',
-                // 2: 'Failed to fetch measurements of annotation group'
-              }
-              const retrievedBulkdata = [[], [], []]
-              results.forEach((result, index) => {
-                if (result.status === 'fulfilled') {
-                  retrievedBulkdata[index] = result.value
-                } else {
-                  console.error(errors[index], result.reason)
-                  const customError = new CustomError(
-                    errorTypes.VISUALIZATION,
-                    `${errors[index]}: ${result.reason}`,
-                  )
-                  errorInterceptor(customError)
-                  failure()
-                }
-              })
-              console.info('retrieve and cache bulk annotations')
-              cacheBulkAnnotations(annotationGroupUID, retrievedBulkdata)
-              processBulkAnnotations(retrievedBulkdata)
-            })
-            .catch((error) => {
-              console.error(
-                'Failed to retrieve and cache bulk annotations',
-                error,
-              )
-              const customError = new CustomError(
-                errorTypes.VISUALIZATION,
-                `Failed to retrieve and cache bulk annotations: ${error.message}`,
-              )
-              errorInterceptor(customError)
-              failure()
-            })
-        }
-      }
-
-      /**
-       * The loader function used to load features, from a remote source for example.
-       * The 'featuresloadend' and 'featuresloaderror' events will only fire if the success
-       * and failure callbacks are used.
-       * https://openlayers.org/en/latest/apidoc/module-ol_source_Vector-VectorSource.html
-       *
-       * In the loader function "this" is bound to the vector source.
-       */
-      function pointsLoader(
-        _extent,
-        _resolution,
-        _projection,
-        success,
-        failure,
-      ) {
-        bulkAnnotationsLoader.call(this, getPointFeature, success, failure)
-      }
-      function polygonsLoader(
-        _extent,
-        _resolution,
-        _projection,
-        success,
-        failure,
-      ) {
-        bulkAnnotationsLoader.call(this, getPolygonFeature, success, failure)
-      }
-      function rectanglesLoader(
-        _extent,
-        _resolution,
-        _projection,
-        success,
-        failure,
-      ) {
-        bulkAnnotationsLoader.call(this, getRectangleFeature, success, failure)
-      }
-      function ellipseLoader(
-        _extent,
-        _resolution,
-        _projection,
-        success,
-        failure,
-      ) {
-        bulkAnnotationsLoader.call(this, getEllipseFeature, success, failure)
-      }
-
-      const getGraphicTypeLoader = (graphicType) => {
-        switch (graphicType) {
-          case 'POINT':
-            return pointsLoader
-          case 'POLYGON':
-          case 'POLYLINE':
-            return polygonsLoader
-          case 'RECTANGLE':
-            return rectanglesLoader
-          case 'ELLIPSE':
-            return ellipseLoader
-          default:
-            console.warn(`Unsupported graphic type "${graphicType}"`)
-            return polygonsLoader
-        }
-      }
-
-      const getHighResFeatureFunc = (graphicType) => {
-        switch (graphicType) {
-          case 'POINT':
-            return getPointFeature
-          case 'POLYGON':
-          case 'POLYLINE':
-            return getPolygonFeature
-          case 'RECTANGLE':
-            return getRectangleFeature
-          case 'ELLIPSE':
-            return getEllipseFeature
-          default:
-            console.warn(`Unsupported graphic type "${graphicType}"`)
-            return getPolygonFeature
-        }
-      }
-
-      const highResLoader = getGraphicTypeLoader(graphicType)
-      const highResFeatureFunc = getHighResFeatureFunc(graphicType)
-
-      const pointsSource = new VectorSource({
-        loader: pointsLoader,
-        wrapX: false,
-        rotateWithView: true,
-        overlaps: false,
-      })
-      const highResSource = new VectorSource({
-        loader: highResLoader,
-        wrapX: false,
-        rotateWithView: true,
-        overlaps: false,
-      })
-      const clustersSource = new Cluster({
-        distance: 100,
-        minDistance: 0,
-        source: pointsSource,
-      })
-
-      pointsSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
-      )
-      pointsSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
-      pointsSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
-      )
-      highResSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
-      )
-      highResSource.on(
-        'featuresloadend',
-        this._onBulkAnnotationsFeaturesLoadEnd,
-      )
-      highResSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
-      )
-      clustersSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
-      )
-      clustersSource.on(
-        'featuresloadend',
-        this._onBulkAnnotationsFeaturesLoadEnd,
-      )
-      clustersSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
-      )
-
-      /**
-       * Reload annotations when panning.
-       * The annotations will be drawn inside the viewport area for better performance.
-       */
-      const debouncedUpdate = debounce(() => {
-        console.info('change:center event')
-        const isVisible = annotationGroup.activeLayer().getVisible()
-        if (
-          isVisible &&
-          graphicType !== 'POINT' &&
-          areAnnotationsLoaded === true &&
-          isHighResolution()
-        ) {
-          console.info('load high resolution bulk annotations')
-          bulkAnnotationsLoader.call(
-            highResSource,
-            highResFeatureFunc,
-            this._onBulkAnnotationsFeaturesLoadEnd,
-            this._onBulkAnnotationsFeaturesLoadError,
-          )
-        }
-      }, 500)
-      view.on('change:center', debouncedUpdate)
-
-      const getHighResLayer = ({
-        pointsSource,
-        highResSource,
-        annotationGroup,
-      }) => {
-        return graphicType === 'POINT'
-          ? new WebGLVector({
-              source: pointsSource,
-              style: this.getGraphicTypeLayerStyle(annotationGroup),
-              disableHitDetection: true,
-            })
-          : new VectorLayer({
-              source: highResSource,
-              style: this.getGraphicTypeLayerStyle(annotationGroup),
-              extent: this[_pyramid].extent,
-            })
-      }
-
-      const highResLayer = getHighResLayer({
-        pointsSource,
-        highResSource,
-        annotationGroup,
-      })
-      const lowResLayer =
-        numberOfAnnotations > 1000
-          ? new VectorLayer({
-              source: clustersSource,
-              style: getClusterStyleFunc(annotationGroup.style, clustersSource),
-              extent: this[_pyramid].extent,
-            })
-          : getHighResLayer({ pointsSource, highResSource, annotationGroup })
-
-      annotationGroup.layers = []
-      annotationGroup.layers[0] = highResLayer
-      annotationGroup.layers[1] = lowResLayer
-      annotationGroup.activeLayer = () =>
-        isHighResolution() || graphicType === 'POINT'
-          ? annotationGroup.layers[0]
-          : annotationGroup.layers[1]
-
-      /** Switch low and high res layers when zoom changes */
-      if (graphicType !== 'POINT') {
-        this[_map].on('moveend', () => {
-          console.info('moveend event')
-          const atLeastOneVisible = annotationGroup.layers.some(
-            (l) => l.getVisible() === true,
-          )
-          if (atLeastOneVisible === true && areAnnotationsLoaded === true) {
-            annotationGroup.layers[0].setVisible(isHighResolution() === true)
-            annotationGroup.layers[1].setVisible(isHighResolution() === false)
-          }
-        })
-      }
-
-      /**
-       * Zoom in inside clusters (low res layer) when clicking on them.
-       */
-      if (graphicType !== 'POINT') {
-        const mapView = this[_map].getView()
-        this[_map].on('click', (event) => {
-          annotationGroup.layers[1]
-            .getFeatures(event.pixel)
-            .then((features) => {
-              if (features.length > 0) {
-                const clusterMembers = features[0].get('features')
-                /** Calculate the extent of the cluster members */
-                if (clusterMembers && clusterMembers.length > 1) {
-                  const extent = createEmpty()
-                  clusterMembers.forEach((feature) => {
-                    extend(extent, feature.getGeometry().getExtent())
-                  })
-                  /** Zoom to the extent of the cluster members */
-                  mapView.fit(extent, {
-                    duration: 500,
-                    padding: [50, 50, 50, 50],
-                  })
-                }
-              }
-            })
-        })
-      }
-
-      annotationGroup.layers[0].setVisible(false)
-      this[_map].addLayer(annotationGroup.layers[0])
-
-      if (graphicType !== 'POINT') {
-        annotationGroup.layers[1].setVisible(false)
-        this[_map].addLayer(annotationGroup.layers[1])
-      }
-
-      this[_annotationGroups][annotationGroupUID] = annotationGroup
-
-      this[_pointsSources][annotationGroupUID] = pointsSource
-      this[_highResSources][annotationGroupUID] = highResSource
-      this[_clustersSources][annotationGroupUID] = clustersSource
-    })
-
-    /**
-     * Select an annotation when clicked.
-     * Opens a dialog with ROI information.
-     */
-    let selectedAnnotation = null
-    this[_map].on('singleclick', (event) => {
-      if (selectedAnnotation !== null) {
-        selectedAnnotation.set('selected', 0)
-        selectedAnnotation = null
-      }
-
-      const container = this[_map].getTargetElement()
-      if (!container) {
-        return
-      }
-
-      /**
-       * Select an annotation when clicked.
-       * Opens a dialog with ROI information.
-       */
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          if (feature !== null && feature.getId() !== undefined) {
-            feature.set('selected', 1)
-            selectedAnnotation = feature
-            const roi = this._getROIFromFeature(
-              feature,
-              this[_pyramid].metadata,
-              this[_affine],
-            )
-            if (roi) {
-              const annotationGroupUID = feature.get('annotationGroupUID')
-              const extendedROI = getExtendedROI({
-                feature,
-                roi,
-                metadata,
-                annotationGroup: this[_annotationGroups][annotationGroupUID],
-              })
-              publish(container, EVENT.ROI_SELECTED, extendedROI)
-              return true
-            }
-          }
-          return false
-        },
-        {
-          hitTolerance: 1,
-          layerFilter: (layer) =>
-            layer instanceof VectorLayer || layer instanceof WebGLVector,
-        },
-      )
-    })
+    }
   }
 
   /**
-   * Returns the layer style for a given annotation group based on its graphic type.
-   * @param {Object} annotationGroup - The annotation group object.
-   * @returns {Object|Function} - The layer style object or an empty function.
+   * @deprecated OpenLayers vector styles are no longer used for bulk annotations.
+   * Kept for API compatibility.
    */
-  getGraphicTypeLayerStyle(annotationGroup) {
-    const { style } = annotationGroup
-    const color = `rgba(${style.color[0]}, ${style.color[1]}, ${style.color[2]}, ${style.opacity})`
-
-    const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
-    const metadataItem =
-      annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
-    const graphicType = metadataItem.GraphicType
-
-    if (graphicType === 'POINT') {
-      const topLayerIndex = 0
-      const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
-      const baseLayerIndex = this[_pyramid].metadata.length - 1
-      const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
-      const diameter = 5 * 10 ** -3 /** micrometer */
-
-      /*
-       * TODO: Determine optimal sizes based on number of zoom levels and
-       * number of objects, and zoom factor between levels.
-       * Use style variable(s) that can subsequently be updated.
-       */
-      const pointsStyle = {
-        'circle-radius': [
-          'interpolate',
-          ['exponential', 2],
-          ['zoom'],
-          1,
-          Math.max(diameter / topLayerPixelSpacing[0], 2),
-          this[_pyramid].resolutions.length,
-          Math.min(diameter / baseLayerPixelSpacing[0], 20),
-        ],
-        'circle-displacement': [0, 0],
-        'circle-opacity': annotationGroup.style.opacity,
-        'circle-fill-color': [
-          'match',
-          ['get', 'hover'],
-          1,
-          rgb2hex(this[_options].highlightColor),
-          rgb2hex(annotationGroup.style.color),
-        ],
-      }
-
-      const name = annotationGroup.style.measurement
-      if (name) {
-        const measurementIndex =
-          annotationGroup.groupItem.MeasurementsSequence.findIndex((item) => {
-            return areCodedConceptsEqual(
-              name,
-              getContentItemNameCodedConcept(item),
-            )
-          })
-        if (measurementIndex == null) {
-          throw new Error(
-            'Cannot set style of annotation group. ' +
-              `Could not find measurement "${name.CodeMeaning}" ` +
-              `of annotation group "${metadataItem.AnnotationGroupUID}".`,
-          )
-        }
-        const source = annotationGroup.layers[0].getSource()
-        const properties = source.getProperties()
-        const key = `measurementValue${measurementIndex.toString()}`
-
-        if (properties[key]) {
-          /*
-           * Ideally, we would use a color palette to colorize objects.
-           * However, it appears the "palette" expression is not yet supported for
-           * styling PointLayer.
-           *
-           * Create a heat map effect: normalize property values to 0-1 range and
-           * interpolate colors from white to annotation color.
-           */
-          Object.assign(pointsStyle, {
-            'circle-fill-color': [
-              'interpolate',
-              ['linear'],
-              [
-                '+',
-                [
-                  '/',
-                  [
-                    '*',
-                    ['-', ['get', key], properties[key].min],
-                    ['-', properties[key].min, properties[key].max],
-                  ],
-                  ['-', properties[key].max, properties[key].min],
-                ],
-                properties[key].min,
-              ],
-              0,
-              [255, 255, 255, 1],
-              1,
-              annotationGroup.style.color,
-            ],
-          })
-        }
-      }
-
-      if (annotationGroup.style.color !== null) {
-        Object.assign(pointsStyle, {
-          'circle-fill-color': [
-            'match',
-            ['get', 'selected'],
-            1,
-            rgb2hex(this[_options].highlightColor),
-            rgb2hex(annotationGroup.style.color),
-          ],
-        })
-      }
-
-      return pointsStyle
-    }
-
-    // For area-based annotations (POLYGON, RECTANGLE, ELLIPSE), add a transparent fill
-    // to enable hit detection in the filled area, not just on boundaries
-    if (
-      graphicType === 'POLYGON' ||
-      graphicType === 'RECTANGLE' ||
-      graphicType === 'ELLIPSE'
-    ) {
-      return new Style({
-        stroke: new Stroke({
-          color,
-          width: 2,
-          opacity: style.opacity,
-        }),
-        fill: new Fill({ color: 'rgba(0, 0, 255, 0)' }),
-      })
-    }
-
-    return new Style({
-      stroke: new Stroke({
-        color,
-        width: 2,
-        opacity: style.opacity,
-      }),
-    })
+  getGraphicTypeLayerStyle(_annotationGroup) {
+    console.warn(
+      '[bulkAnnotations] getGraphicTypeLayerStyle is deprecated; bulk annotations use deck.gl styles.',
+    )
+    return null
   }
 
   /**
@@ -4680,17 +4114,8 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-
     console.info(`remove annotation group ${annotationGroupUID}`)
-
-    annotationGroup.layers.forEach((layer) => {
-      this[_map].removeLayer(layer)
-      disposeLayer(layer)
-    })
-
-    delete this[_retrievedBulkdata][annotationGroupUID]
+    this._getBulkAnnotationManager().removeAnnotationGroup(annotationGroupUID)
     delete this[_annotationGroups][annotationGroupUID]
   }
 
@@ -4722,11 +4147,20 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.info(`show annotation group ${annotationGroupUID}`, annotationGroup)
-    this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
-    annotationGroup.activeLayer().setVisible(true)
+    console.info(`show annotation group ${annotationGroupUID}`)
+    this._getBulkAnnotationManager().showAnnotationGroup(
+      annotationGroupUID,
+      styleOptions,
+    )
+    const mirror = this[_annotationGroups][annotationGroupUID]
+    if (mirror) {
+      mirror.style = {
+        ...mirror.style,
+        ...this._getBulkAnnotationManager().getAnnotationGroupStyle(
+          annotationGroupUID,
+        ),
+      }
+    }
   }
 
   /**
@@ -4744,10 +4178,8 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.info(`hide annotation group ${annotationGroupUID}`, annotationGroup)
-    annotationGroup.activeLayer().setVisible(false)
+    console.info(`hide annotation group ${annotationGroupUID}`)
+    this._getBulkAnnotationManager().hideAnnotationGroup(annotationGroupUID)
   }
 
   /**
@@ -4765,9 +4197,9 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    return annotationGroup.activeLayer().getVisible()
+    return this._getBulkAnnotationManager().isAnnotationGroupVisible(
+      annotationGroupUID,
+    )
   }
 
   /**
@@ -4786,54 +4218,13 @@ class VolumeImageViewer {
         this[_annotationOptions].clusteringPixelSizeThreshold =
           options.clusteringPixelSizeThreshold
       } else {
-        if (
-          this[_annotationOptions].clusteringPixelSizeThreshold !== undefined
-        ) {
-          delete this[_annotationOptions].clusteringPixelSizeThreshold
-        }
+        delete this[_annotationOptions].clusteringPixelSizeThreshold
       }
-
-      const view = this[_map].getView()
-
-      /**
-       * Update visibility for all annotation groups
-       * Only update if the annotation group is currently visible to avoid triggering unnecessary loads
-       */
-      Object.values(this[_annotationGroups]).forEach((annotationGroup) => {
-        const layers = annotationGroup.layers
-        if (
-          !layers ||
-          layers.length < 2 ||
-          layers[0] == null ||
-          layers[1] == null
-        ) {
-          return
-        }
-
-        /** Check if annotation group is currently visible (at least one layer is visible) */
-        const isCurrentlyVisible = layers.some(
-          (layer) => layer && layer.getVisible() === true,
-        )
-
-        /**
-         * Only update visibility if the annotation group is already visible
-         * If it's not visible, just update the config and let moveend handler take care of it
-         */
-        if (isCurrentlyVisible) {
-          /** When clustering is disabled (undefined), always use high-res layer; otherwise use shared helper */
-          const shouldShowHighRes = this._computeIsHighResolution(view)
-
-          /** Only update visibility if it's actually changing to avoid triggering unnecessary loads */
-          const currentlyHighResVisible = layers[0].getVisible()
-          if (currentlyHighResVisible !== shouldShowHighRes) {
-            layers[0].setVisible(shouldShowHighRes)
-            layers[1].setVisible(!shouldShowHighRes)
-          }
-        }
-        // If annotation group is not visible, don't touch layers - just let the config update
-        // The moveend handler will apply the correct layer when the group becomes visible
-      })
     }
+    if ('lodLevelsFromFinest' in options) {
+      this[_annotationOptions].lodLevelsFromFinest = options.lodLevelsFromFinest
+    }
+    this._getBulkAnnotationManager().setAnnotationOptions(options)
   }
 
   /**
@@ -4857,71 +4248,20 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-
     console.info(
       `set style for annotation group "${annotationGroupUID}"`,
       styleOptions,
     )
-
-    if (styleOptions.opacity != null) {
-      annotationGroup.style.opacity = styleOptions.opacity
-      annotationGroup.layers.forEach((layer) => {
-        layer.setOpacity(styleOptions.opacity)
-      })
-    }
-
-    if (styleOptions.color != null) {
-      annotationGroup.style.color = styleOptions.color
-    }
-
-    if (styleOptions.measurement != null) {
-      annotationGroup.style.measurement = styleOptions.measurement
-    }
-
-    const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
-    const metadataItem =
-      annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
-    const graphicType = metadataItem.GraphicType
-    const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-    const metadata = annotationGroup.metadata
-    const groupItem = metadata.AnnotationGroupSequence.find((item) => {
-      return item.AnnotationGroupUID === annotationGroupUID
-    })
-
-    if (groupItem == null) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Cannot set style of annotation group. ' +
-          `Could not find metadata of annotation group "${annotationGroupUID}".`,
-      )
-      throw this[_options].errorInterceptor(error) || error
-    }
-
-    annotationGroup.groupItem = groupItem
-    annotationGroup.graphicType = graphicType
-    annotationGroup.numberOfAnnotations = numberOfAnnotations
-
-    if (annotationGroup.layers[0]) {
-      annotationGroup.layers[0].setStyle(
-        this.getGraphicTypeLayerStyle(annotationGroup),
-      )
-    }
-
-    if (annotationGroup.graphicType !== 'POINT' && annotationGroup.layers[1]) {
-      if (annotationGroup.numberOfAnnotations > 1000) {
-        annotationGroup.layers[1].setStyle(
-          getClusterStyleFunc(
-            annotationGroup.style,
-            annotationGroup.layers[1].getSource(),
-          ),
+    this._getBulkAnnotationManager().setAnnotationGroupStyle(
+      annotationGroupUID,
+      styleOptions,
+    )
+    const mirror = this[_annotationGroups][annotationGroupUID]
+    if (mirror) {
+      mirror.style =
+        this._getBulkAnnotationManager().getAnnotationGroupStyle(
+          annotationGroupUID,
         )
-      } else {
-        annotationGroup.layers[1].setStyle(
-          this.getGraphicTypeLayerStyle(annotationGroup),
-        )
-      }
     }
   }
 
