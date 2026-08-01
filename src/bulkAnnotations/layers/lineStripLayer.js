@@ -17,24 +17,28 @@ import { PathLayer } from '@deck.gl/layers'
  *
  * @param {Object} options
  * @param {string} options.id - Layer id
- * @param {Float32Array} options.positions - Flat XY vertex buffer, OL map space
- * @param {Uint32Array} options.startIndices - Path start offsets, length `length + 1`
- * @param {number} options.length - Number of paths (annotations)
+ * @param {Object} [options.data] - Prebuilt binary data object; pass the same reference across rebuilds to avoid re-tessellation/re-upload. Takes precedence over `positions`/`startIndices`.
+ * @param {Float32Array} [options.positions] - Flat XY vertex buffer, OL map space
+ * @param {Uint32Array} [options.startIndices] - Path start offsets, length `length + 1`
+ * @param {number} [options.length] - Number of paths (annotations)
  * @param {number[]} options.color - Constant RGBA color, e.g. `[r, g, b, a]`
  * @param {boolean} [options.visible=true] - Layer visibility
+ * @param {number[]} [options.modelMatrix] - Column-major 4x4 model matrix (e.g. for OL view rotation)
  * @returns {PathLayer} Configured deck.gl `PathLayer` pinned to a 1px width
  */
 export function createLineStripLayer({
   id,
+  data,
   positions,
   startIndices,
   length,
   color,
   visible = true,
+  modelMatrix,
 }) {
   return new PathLayer({
     id,
-    data: {
+    data: data ?? {
       length,
       startIndices,
       attributes: {
@@ -55,5 +59,6 @@ export function createLineStripLayer({
     widthMaxPixels: 1,
     pickable: false,
     visible,
+    ...(modelMatrix != null ? { modelMatrix } : {}),
   })
 }

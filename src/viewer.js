@@ -3266,9 +3266,14 @@ class VolumeImageViewer {
     const uid = `${hit.annotationGroupUID}-${hit.annotationIndex}`
     let roi = new ROI({ scoord3d, properties: {}, uid })
     try {
+      /** One value per MeasurementsSequence item, when already fetched. */
+      const measurementValues = Array.isArray(record.measurements)
+        ? record.measurements.map((item) => item?.values?.[hit.annotationIndex])
+        : undefined
       roi = getExtendedROI({
         annotationGroupUID: hit.annotationGroupUID,
         annotationIndex: hit.annotationIndex,
+        measurementValues,
         roi,
         metadata: record.metadata,
         annotationGroup: record.metadataItem,
@@ -3282,9 +3287,12 @@ class VolumeImageViewer {
   /**
    * Measurement value range for an annotation group (for slim limitValues UI).
    *
+   * Returns `null` until the group's measurement values have been fetched
+   * (a lazy fetch is triggered by the call, so retry after selection).
+   *
    * @param {string} annotationGroupUID
    * @param {Object} [measurement]
-   * @returns {{ min: number, max: number }}
+   * @returns {{ min: number, max: number } | null}
    */
   getAnnotationGroupMeasurementRange(annotationGroupUID, measurement) {
     return this._getBulkAnnotationManager().getAnnotationGroupMeasurementRange(
