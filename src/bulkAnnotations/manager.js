@@ -364,13 +364,17 @@ export class BulkAnnotationManager {
       this.setAnnotationGroupStyle(uid, styleOptions)
     }
     g.visible = true
-    this.ensureOverlay().then(() => {
-      if (!g.hydrated) {
-        this._enqueueHydrate(uid)
-      } else {
-        this._rebuildLayersForGroup(g)
-      }
-    })
+    this.ensureOverlay()
+      .then(() => {
+        if (!g.hydrated) {
+          this._enqueueHydrate(uid)
+        } else {
+          this._rebuildLayersForGroup(g)
+        }
+      })
+      .catch((error) => {
+        console.error('[bulkAnnotations] overlay initialization failed', error)
+      })
   }
 
   hideAnnotationGroup(uid) {
@@ -583,100 +587,110 @@ export class BulkAnnotationManager {
       publish(container, EVENTS.LOADING_STARTED, { annotationGroupUID: uid })
     }
 
-    const client = this._getClient()
-    const { metadata, metadataItem, bulkdataItem, sequenceIndex } = g
-    const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-    const graphicType = metadataItem.GraphicType
-    const coordinateDimensionality = getCoordinateDimensionality(
-      metadataItem,
-      metadata.AnnotationCoordinateType,
-    )
-    const commonZCoordinate = getCommonZCoordinate(metadataItem)
+    try {
+      const client = this._getClient()
+      const { metadata, metadataItem, bulkdataItem, sequenceIndex } = g
+      const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
+      const graphicType = metadataItem.GraphicType
+      const coordinateDimensionality = getCoordinateDimensionality(
+        metadataItem,
+        metadata.AnnotationCoordinateType,
+      )
+      const commonZCoordinate = getCommonZCoordinate(metadataItem)
 
-    const graphicIndex = await fetchGraphicIndexForGroup({
-      metadata,
-      annotationGroupIndex: sequenceIndex,
-      metadataItem,
-      bulkdataItem,
-      client,
-    })
-    if (gen !== g.hydrateGeneration || !g.visible) {
-      return
-    }
+      const graphicIndex = await fetchGraphicIndexForGroup({
+        metadata,
+        annotationGroupIndex: sequenceIndex,
+        metadataItem,
+        bulkdataItem,
+        client,
+      })
+      if (gen !== g.hydrateGeneration || !g.visible) {
+        return
+      }
 
-    if (graphicIndex) {
-      const validation = validateGraphicIndex(
+      if (graphicIndex) {
+        const validation = validateGraphicIndex(
+          graphicIndex,
+          numberOfAnnotations,
+          coordinateDimensionality,
+        )
+        if (!validation.ok) {
+          console.warn(
+            '[bulkAnnotations] graphicIndex validation warnings',
+            validation.errors,
+          )
+        }
+      }
+
+      /** Streams progressively when eligible; falls back to monolithic. */
+      const graphicData = await fetchGraphicDataForGroup({
+        metadata,
+        annotationGroupIndex: sequenceIndex,
+        metadataItem,
+        bulkdataItem,
+        client,
         graphicIndex,
         numberOfAnnotations,
-        coordinateDimensionality,
-      )
-      if (!validation.ok) {
-        console.warn(
-          '[bulkAnnotations] graphicIndex validation warnings',
-          validation.errors,
-        )
+        signal,
+        baseUrl: client?.wadoURL || client?.baseURL,
+        headers: client?.headers ?? {},
+      })
+
+      if (gen !== g.hydrateGeneration || !g.visible) {
+        return
       }
-    }
 
-    /** Streams progressively when eligible; falls back to monolithic. */
-    const graphicData = await fetchGraphicDataForGroup({
-      metadata,
-      annotationGroupIndex: sequenceIndex,
-      metadataItem,
-      bulkdataItem,
-      client,
-      graphicIndex,
-      numberOfAnnotations,
-      signal,
-      baseUrl: client?.wadoURL || client?.url,
-      headers: client?.headers ?? {},
-    })
+      const pyramid = this._getPyramid()
+      const affineInverse = this._getAffineInverse()
+      const coeffs = affineForReferencedPyramidLevel({
+        pyramid: pyramid.metadata,
+        annotationGroup: metadataItem,
+        metadata,
+        baseAffineInverse: affineInverse,
+      })
 
-    if (gen !== g.hydrateGeneration || !g.visible) {
-      return
-    }
+      const decoded = decodeGraphicGroup({
+        graphicType,
+        graphicData,
+        graphicIndex,
+        coordinateDimensionality,
+        commonZCoordinate,
+        numberOfAnnotations,
+        coeffs,
+        annotationCoordinateType: metadata.AnnotationCoordinateType,
+        shouldContinue: () => gen === g.hydrateGeneration && g.visible,
+      })
 
-    const pyramid = this._getPyramid()
-    const affineInverse = this._getAffineInverse()
-    const coeffs = affineForReferencedPyramidLevel({
-      pyramid: pyramid.metadata,
-      annotationGroup: metadataItem,
-      metadata,
-      baseAffineInverse: affineInverse,
-    })
+      if (gen !== g.hydrateGeneration || !g.visible) {
+        return
+      }
 
-    const decoded = decodeGraphicGroup({
-      graphicType,
-      graphicData,
-      graphicIndex,
-      coordinateDimensionality,
-      commonZCoordinate,
-      numberOfAnnotations,
-      coeffs,
-      annotationCoordinateType: metadata.AnnotationCoordinateType,
-      shouldContinue: () => gen === g.hydrateGeneration && g.visible,
-    })
-
-    if (gen !== g.hydrateGeneration || !g.visible) {
-      return
-    }
-
-    g.rawGraphicData = graphicData
-    g.rawGraphicIndex = graphicIndex
-    g.decoded = decoded
-    g.spatial = bucketAnnotations({
-      centroids: decoded.centroids,
-      numberOfAnnotations: decoded.numberOfAnnotations,
-      tileSizeWorld: BULK_SPATIAL_TILE_SIZE,
-    })
-    g.pickIndex = buildSpatialIndex(decoded.bboxes, decoded.numberOfAnnotations)
-    g.hydrated = true
-    this._rebuildLayersForGroup(g)
-    /** Warm the measurement cache so range lookups / filters resolve quickly. */
-    this._ensureMeasurements(g)
-
-    if (container) {
-      publish(container, EVENTS.LOADING_ENDED, { annotationGroupUID: uid })
+      g.rawGraphicData = graphicData
+      g.rawGraphicIndex = graphicIndex
+      g.decoded = decoded
+      g.spatial = bucketAnnotations({
+        centroids: decoded.centroids,
+        numberOfAnnotations: decoded.numberOfAnnotations,
+        tileSizeWorld: BULK_SPATIAL_TILE_SIZE,
+      })
+      g.pickIndex = buildSpatialIndex(
+        decoded.bboxes,
+        decoded.numberOfAnnotations,
+      )
+      g.hydrated = true
+      this._rebuildLayersForGroup(g)
+      /** Warm the measurement cache so range lookups / filters resolve quickly. */
+      this._ensureMeasurements(g)
+    } finally {
+      /**
+       * Always pair LOADING_STARTED with LOADING_ENDED — consumers (slim)
+       * gate a global loading indicator on this pair, and an abort, error, or
+       * stale-generation exit would otherwise leave it stuck.
+       */
+      if (container) {
+        publish(container, EVENTS.LOADING_ENDED, { annotationGroupUID: uid })
+      }
     }
   }
 
