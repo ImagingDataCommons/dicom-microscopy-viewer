@@ -12,8 +12,6 @@ import dcmjs from 'dcmjs'
 
 import {
   AnnotationGroup,
-  fetchGraphicData,
-  fetchGraphicIndex,
   getCommonZCoordinate,
   getCoordinateDimensionality,
 } from '../annotation.js'
@@ -30,10 +28,11 @@ import {
   PATH_LOD_GRAPHIC_TYPES,
 } from './constants.js'
 import {
-  browserSupportsBulkStreaming,
-  isMonotonicGraphicIndex,
-  resolveStreamableGraphicDataReference,
-  streamBulkGraphicData,
+  computeMeasurementRange,
+  expandMeasurementToPerVertex,
+  fetchGraphicDataForGroup,
+  fetchGraphicIndexForGroup,
+  fetchMeasurementsForGroup,
   validateGraphicIndex,
 } from './data/index.js'
 import {
@@ -49,6 +48,12 @@ import {
   createDeckOlLayer,
   disposeBulkAnnotationOverlay,
 } from './overlay.js'
+import {
+  buildSpatialIndex,
+  makeBulkAnnotationRoiUid,
+  pickBulkAnnotation,
+} from './picking.js'
+import { rotationModelMatrix } from './viewState.js'
 
 /** Lazy — keep deck.gl out of the VolumeImageViewer import graph for jsdom. */
 let layerFactoriesPromise = null
@@ -59,11 +64,8 @@ function loadLayerFactories() {
   return layerFactoriesPromise
 }
 
-import {
-  buildSpatialIndex,
-  makeBulkAnnotationRoiUid,
-  pickBulkAnnotation,
-} from './picking.js'
+/** Screen-space pick tolerance, converted to world units per pick. */
+const PICK_TOLERANCE_PX = 6
 
 /**
  * @typedef {Object} GroupRecord
@@ -79,9 +81,13 @@ import {
  * @property {Object|null} decoded
  * @property {Object|null} spatial
  * @property {Object|null} pickIndex
- * @property {Object|null} measurementRanges
- * @property {Array|null} measurementValues
+ * @property {Object|null} measurementRanges - `{ [codeValue]: { min, max } }`
+ * @property {Array|null} measurements - Raw items from `fetchMeasurementsForGroup`
+ * @property {Promise|null} measurementsPromise
  * @property {Object|null} deckData - Stable data object refs for layers
+ * @property {Map|null} tileDataCache - Per-tile stable data objects
+ * @property {Object|null} filterCache - Expanded per-vertex/per-annotation filter values
+ * @property {string|null} buildSignature - View signature of the current layer build
  * @property {Array} deckLayers
  */
 
@@ -117,6 +123,7 @@ export class BulkAnnotationManager {
     this._overlayReady = false
     this._hydrateQueue = Promise.resolve()
     this._selected = null
+    this._onMoveEnd = null
   }
 
   /** Ensure Deck + OL wrapper layer exist (lazy; safe in jsdom). */
@@ -160,6 +167,14 @@ export class BulkAnnotationManager {
       getLayers: () => this._collectDeckLayers(),
     })
     map.addLayer(this._olLayer)
+    /**
+     * LOD tier and the visible spatial-tile set depend on the view; refresh
+     * layer builds when a pan/zoom/rotate interaction settles.
+     */
+    this._onMoveEnd = () => {
+      this._refreshLayersForViewChange()
+    }
+    map.on('moveend', this._onMoveEnd)
     this._overlayReady = true
   }
 
@@ -249,8 +264,12 @@ export class BulkAnnotationManager {
         spatial: null,
         pickIndex: null,
         measurementRanges: null,
-        measurementValues: null,
+        measurements: null,
+        measurementsPromise: null,
         deckData: null,
+        tileDataCache: null,
+        filterCache: null,
+        buildSignature: null,
         deckLayers: [],
         rawGraphicData: null,
         rawGraphicIndex: null,
@@ -277,17 +296,25 @@ export class BulkAnnotationManager {
     return this._requireGroup(uid).metadata
   }
 
+  /**
+   * Measurement value range for a group, or `null` when the measurement values
+   * have not been fetched yet (a fetch is kicked off in that case, so a later
+   * call — or the automatic layer rebuild — picks up the real range).
+   *
+   * @param {string} uid
+   * @param {Object} [measurement] - Coded concept (`CodeValue` or dcmjs `value`)
+   * @returns {{ min: number, max: number } | null}
+   */
   getAnnotationGroupMeasurementRange(uid, measurement) {
     const g = this._requireGroup(uid)
     if (g.measurementRanges == null) {
-      return { min: 0, max: 1000 }
+      this._ensureMeasurements(g)
+      return null
     }
-    const key =
-      measurement?.CodeValue ||
-      measurement?.codeValue ||
-      measurement?.value ||
-      String(measurement)
-    return g.measurementRanges[key] || { min: 0, max: 1000 }
+    const key = this._measurementKey(measurement)
+    return key != null && g.measurementRanges[key] != null
+      ? { ...g.measurementRanges[key] }
+      : null
   }
 
   setAnnotationGroupStyle(uid, styleOptions = {}) {
@@ -298,11 +325,14 @@ export class BulkAnnotationManager {
     if (styleOptions.color != null) {
       g.style.color = styleOptions.color
     }
-    if (styleOptions.measurement != null) {
-      g.style.measurement = styleOptions.measurement
+    if ('measurement' in styleOptions) {
+      g.style.measurement = styleOptions.measurement ?? undefined
     }
     if (styleOptions.limitValues != null) {
       g.style.limitValues = styleOptions.limitValues
+    }
+    if (g.style.measurement != null) {
+      this._ensureMeasurements(g)
     }
     if (g.hydrated) {
       this._rebuildLayersForGroup(g)
@@ -321,6 +351,7 @@ export class BulkAnnotationManager {
     if ('lodLevelsFromFinest' in options) {
       this._annotationOptions.lodLevelsFromFinest = options.lodLevelsFromFinest
     }
+    this._refreshLayersForViewChange()
   }
 
   isAnnotationGroupVisible(uid) {
@@ -354,9 +385,13 @@ export class BulkAnnotationManager {
       }
       g.abortController = null
     }
-    /** Keep raw/decoded buffers for cheap re-toggle; drop GPU layers. */
+    /** Keep raw/decoded buffers for cheap re-toggle; drop GPU layers + copies. */
     g.deckLayers = []
     g.deckData = null
+    g.tileDataCache = null
+    g.filterCache = null
+    g.buildSignature = null
+    this._requestRender()
   }
 
   removeAnnotationGroup(uid) {
@@ -370,6 +405,7 @@ export class BulkAnnotationManager {
       }
     }
     this._groups.delete(uid)
+    this._requestRender()
   }
 
   removeAllAnnotationGroups() {
@@ -412,16 +448,28 @@ export class BulkAnnotationManager {
       centerX + width / 2,
       centerY + height / 2,
     ]
-    map.getView().it(extent, { duration: 500 })
+    // biome-ignore lint/suspicious/noFocusedTests: OL View#fit, not a focused test — the unsafe autofix rewrites it to `.it(` and breaks zoom.
+    map.getView().fit(extent, { duration: 500 })
     return true
   }
 
   /**
    * Pick at an OL map coordinate for event merging.
    *
+   * @param {number[]} coordinate - OL map coordinate
+   * @param {number} [hitToleranceWorld] - World-unit tolerance; defaults to
+   * `PICK_TOLERANCE_PX` screen pixels at the current view resolution.
    * @returns {{ annotationGroupUID: string, annotationIndex: number, roiUid: string } | null}
    */
-  pickAtMapCoordinate(coordinate, hitToleranceWorld = 2) {
+  pickAtMapCoordinate(coordinate, hitToleranceWorld) {
+    let tolerance = hitToleranceWorld
+    if (tolerance == null) {
+      const resolution = this._getMap()?.getView?.()?.getResolution?.()
+      tolerance =
+        resolution != null && resolution > 0
+          ? PICK_TOLERANCE_PX * resolution
+          : PICK_TOLERANCE_PX
+    }
     const groups = []
     for (const g of this._groups.values()) {
       if (!g.visible || !g.hydrated || g.decoded == null) {
@@ -440,7 +488,7 @@ export class BulkAnnotationManager {
     const hit = pickBulkAnnotation({
       x: coordinate[0],
       y: coordinate[1],
-      hitToleranceWorld,
+      hitToleranceWorld: tolerance,
       groups,
     })
     if (hit == null) {
@@ -464,6 +512,10 @@ export class BulkAnnotationManager {
       this.removeAnnotationGroup(uid)
     }
     const map = this._getMap()
+    if (map != null && this._onMoveEnd != null) {
+      map.un('moveend', this._onMoveEnd)
+      this._onMoveEnd = null
+    }
     disposeBulkAnnotationOverlay({
       deck: this._deck,
       olLayer: this._olLayer,
@@ -472,6 +524,7 @@ export class BulkAnnotationManager {
     this._deck = null
     this._olLayer = null
     this._overlayReady = false
+    this._overlayInitPromise = null
   }
 
   _requireGroup(uid) {
@@ -481,6 +534,14 @@ export class BulkAnnotationManager {
       throw this._errorInterceptor(error)
     }
     return g
+  }
+
+  /** Ask OL for a render frame so a changed deck layer list actually paints. */
+  _requestRender() {
+    if (this._olLayer != null) {
+      this._olLayer.changed()
+    }
+    this._getMap()?.render?.()
   }
 
   _enqueueHydrate(uid) {
@@ -532,7 +593,7 @@ export class BulkAnnotationManager {
     )
     const commonZCoordinate = getCommonZCoordinate(metadataItem)
 
-    const graphicIndex = await fetchGraphicIndex({
+    const graphicIndex = await fetchGraphicIndexForGroup({
       metadata,
       annotationGroupIndex: sequenceIndex,
       metadataItem,
@@ -557,57 +618,19 @@ export class BulkAnnotationManager {
       }
     }
 
-    let graphicData
-    const streamRef = resolveStreamableGraphicDataReference({
+    /** Streams progressively when eligible; falls back to monolithic. */
+    const graphicData = await fetchGraphicDataForGroup({
+      metadata,
+      annotationGroupIndex: sequenceIndex,
       metadataItem,
       bulkdataItem,
+      client,
+      graphicIndex,
+      numberOfAnnotations,
+      signal,
+      baseUrl: client?.wadoURL || client?.url,
+      headers: client?.headers ?? {},
     })
-    const canStream =
-      browserSupportsBulkStreaming() &&
-      streamRef != null &&
-      graphicIndex != null &&
-      isMonotonicGraphicIndex(graphicIndex, numberOfAnnotations) &&
-      ['POINT', 'POLYGON', 'POLYLINE', 'RECTANGLE', 'ELLIPSE'].includes(
-        graphicType,
-      )
-
-    if (canStream) {
-      try {
-        graphicData = await streamBulkGraphicData({
-          url: streamRef.BulkDataURI,
-          vr: streamRef.vr,
-          graphicIndex,
-          numberOfAnnotations,
-          signal,
-          retrieveBulkData: client.retrieveBulkData?.bind(client),
-          headers: client.headers,
-          baseUrl: client.wadoURL || client.url,
-        })
-      } catch (error) {
-        if (signal.aborted || error?.name === 'AbortError') {
-          throw error
-        }
-        console.warn(
-          '[bulkAnnotations] streaming failed; falling back to monolithic',
-          error,
-        )
-        graphicData = await fetchGraphicData({
-          metadata,
-          annotationGroupIndex: sequenceIndex,
-          metadataItem,
-          bulkdataItem,
-          client,
-        })
-      }
-    } else {
-      graphicData = await fetchGraphicData({
-        metadata,
-        annotationGroupIndex: sequenceIndex,
-        metadataItem,
-        bulkdataItem,
-        client,
-      })
-    }
 
     if (gen !== g.hydrateGeneration || !g.visible) {
       return
@@ -615,7 +638,7 @@ export class BulkAnnotationManager {
 
     const pyramid = this._getPyramid()
     const affineInverse = this._getAffineInverse()
-    const { coeffs } = affineForReferencedPyramidLevel({
+    const coeffs = affineForReferencedPyramidLevel({
       pyramid: pyramid.metadata,
       annotationGroup: metadataItem,
       metadata,
@@ -649,9 +672,120 @@ export class BulkAnnotationManager {
     g.pickIndex = buildSpatialIndex(decoded.bboxes, decoded.numberOfAnnotations)
     g.hydrated = true
     this._rebuildLayersForGroup(g)
+    /** Warm the measurement cache so range lookups / filters resolve quickly. */
+    this._ensureMeasurements(g)
 
     if (container) {
       publish(container, EVENTS.LOADING_ENDED, { annotationGroupUID: uid })
+    }
+  }
+
+  /**
+   * Lazily fetch measurement values for a group (once), computing ranges and
+   * re-applying a pending measurement filter when it resolves.
+   *
+   * @param {GroupRecord} g
+   * @returns {Promise|null}
+   */
+  _ensureMeasurements(g) {
+    if (g.measurements != null || g.measurementsPromise != null) {
+      return g.measurementsPromise
+    }
+    if (g.metadataItem?.MeasurementsSequence == null) {
+      g.measurements = []
+      g.measurementRanges = {}
+      return null
+    }
+    g.measurementsPromise = fetchMeasurementsForGroup({
+      metadataItem: g.metadataItem,
+      bulkdataItem: g.bulkdataItem,
+      metadata: g.metadata,
+      annotationGroupIndex: g.sequenceIndex,
+      client: this._getClient(),
+    })
+      .then((items) => {
+        g.measurements = items ?? []
+        g.measurementRanges = {}
+        for (const item of g.measurements) {
+          const key = item?.name?.CodeValue
+          if (key != null) {
+            g.measurementRanges[key] = computeMeasurementRange(
+              item.values ?? [],
+            )
+          }
+        }
+        if (g.visible && g.hydrated && g.style.measurement != null) {
+          this._rebuildLayersForGroup(g)
+        }
+        return g.measurements
+      })
+      .catch((error) => {
+        console.warn('[bulkAnnotations] measurement fetch failed', error)
+        g.measurementsPromise = null
+        return null
+      })
+    return g.measurementsPromise
+  }
+
+  _measurementKey(measurement) {
+    if (measurement == null) {
+      return null
+    }
+    return (
+      measurement.CodeValue ??
+      measurement.value ??
+      measurement.codeValue ??
+      null
+    )
+  }
+
+  /**
+   * Resolve the active measurement filter for a group: per-annotation values,
+   * a per-vertex expansion (cached), and the `[min, max]` filter range.
+   *
+   * @param {GroupRecord} g
+   * @returns {{ perAnnotation: Float32Array, perVertex: Float32Array, range: [number, number], key: string } | null}
+   */
+  _activeFilter(g) {
+    const key = this._measurementKey(g.style.measurement)
+    if (key == null) {
+      /** Measurement deselected: drop filter attributes from cached data. */
+      if (g.filterCache != null) {
+        g.filterCache = null
+        g.deckData = null
+        g.tileDataCache = null
+      }
+      return null
+    }
+    if (g.measurements == null || g.decoded == null) {
+      return null
+    }
+    const item = g.measurements.find((m) => m?.name?.CodeValue === key)
+    if (item == null || item.values == null) {
+      return null
+    }
+    if (g.filterCache?.key !== key) {
+      const perAnnotation = Float32Array.from(item.values, (v) => Number(v))
+      const perVertex = expandMeasurementToPerVertex(
+        perAnnotation,
+        g.decoded.startIndices,
+        g.decoded.vertexCount,
+      )
+      g.filterCache = { key, perAnnotation, perVertex }
+      /** Filter attribute changes invalidate cached data objects. */
+      g.deckData = null
+      g.tileDataCache = null
+    }
+    const stored = g.measurementRanges?.[key]
+    const range =
+      g.style.limitValues != null && g.style.limitValues.length === 2
+        ? [Number(g.style.limitValues[0]), Number(g.style.limitValues[1])]
+        : [stored?.min ?? 0, stored?.max ?? 1]
+    return {
+      perAnnotation: g.filterCache.perAnnotation,
+      perVertex: g.filterCache.perVertex,
+      range,
+      key,
     }
   }
 
@@ -673,9 +807,60 @@ export class BulkAnnotationManager {
     return tileZ >= -levelsFromFinest
   }
 
+  _viewRotation() {
+    return this._getMap()?.getView?.()?.getRotation?.() ?? 0
+  }
+
+  /** Tile keys of a group's spatial buckets intersecting the given extent. */
+  _visibleTileKeys(g, extent) {
+    if (g.spatial == null || extent == null) {
+      return []
+    }
+    const [minX, minY, maxX, maxY] = extent
+    const keys = []
+    for (const [key, bounds] of g.spatial.tileBounds) {
+      const [tMinX, tMinY, tMaxX, tMaxY] = bounds
+      if (tMaxX < minX || tMinX > maxX || tMaxY < minY || tMinY > maxY) {
+        continue
+      }
+      keys.push(key)
+    }
+    return keys
+  }
+
+  /**
+   * Signature of the view-dependent inputs of a group's layer build. When it
+   * changes (pan/zoom/rotate), the group's layers must be rebuilt.
+   *
+   * @param {GroupRecord} g
+   * @returns {string}
+   */
+  _computeBuildSignature(g) {
+    const view = this._getMap()?.getView?.()
+    const extent = view?.calculateExtent?.()
+    const highRes = this._isHighResolution() ? 1 : 0
+    const rotation = this._viewRotation()
+    const tileKeys = this._visibleTileKeys(g, extent)
+    return `${highRes}|${rotation.toFixed(6)}|${tileKeys.join(',')}`
+  }
+
+  /** Rebuild layers of visible hydrated groups whose view signature changed. */
+  _refreshLayersForViewChange() {
+    for (const g of this._groups.values()) {
+      if (!g.visible || !g.hydrated || g.decoded == null) {
+        continue
+      }
+      const signature = this._computeBuildSignature(g)
+      if (signature !== g.buildSignature) {
+        this._rebuildLayersForGroup(g)
+      }
+    }
+  }
+
   _rebuildLayersForGroup(g) {
     if (!g.hydrated || g.decoded == null || !g.visible) {
       g.deckLayers = []
+      this._requestRender()
       return
     }
     this._rebuildLayersForGroupAsync(g).catch((error) => {
@@ -686,6 +871,7 @@ export class BulkAnnotationManager {
   async _rebuildLayersForGroupAsync(g) {
     if (!g.hydrated || g.decoded == null || !g.visible) {
       g.deckLayers = []
+      this._requestRender()
       return
     }
     const { createLineStripLayer, createPathLayer, createPointLayer } =
@@ -693,6 +879,7 @@ export class BulkAnnotationManager {
     if (!g.visible || g.decoded == null) {
       return
     }
+    const signature = this._computeBuildSignature(g)
     const {
       positions,
       startIndices,
@@ -713,13 +900,23 @@ export class BulkAnnotationManager {
       PATH_LOD_GRAPHIC_TYPES.has(graphicType) &&
       numberOfAnnotations > BULK_LOD_MIN_ANNOTATIONS
     const highRes = !useLod || this._isHighResolution()
+    const modelMatrix = rotationModelMatrix(this._viewRotation())
+    const filter = this._activeFilter(g)
 
+    /**
+     * Stable data objects: deck compares `data` by reference, so reusing the
+     * same objects across rebuilds (e.g. opacity/color changes) skips
+     * re-tessellation and attribute re-upload.
+     */
     if (g.deckData == null) {
       g.deckData = {
         centroids: {
           length: numberOfAnnotations,
           attributes: {
             getPosition: { value: centroids, size: 2 },
+            ...(filter != null
+              ? { getFilterValue: { value: filter.perAnnotation, size: 1 } }
+              : {}),
           },
         },
         fullPaths: {
@@ -728,6 +925,9 @@ export class BulkAnnotationManager {
           attributes: {
             getPath: { value: positions, size: 2 },
             positions: null,
+            ...(filter != null
+              ? { getFilterValue: { value: filter.perVertex, size: 1 } }
+              : {}),
           },
         },
       }
@@ -738,11 +938,12 @@ export class BulkAnnotationManager {
       layers.push(
         createPointLayer({
           id: `bulk-${uid}-centers`,
-          positions: centroids,
-          length: numberOfAnnotations,
+          data: g.deckData.centroids,
           color: rgba,
           radiusPixels: BULK_POINT_RADIUS_MIN_PX,
           visible: true,
+          modelMatrix,
+          ...(filter != null ? { filterRange: filter.range } : {}),
         }),
       )
     }
@@ -751,12 +952,14 @@ export class BulkAnnotationManager {
       const map = this._getMap()
       const view = map?.getView()
       const extent = view?.calculateExtent?.()
-      const tileLayers = await this._layersForVisibleTiles(
+      const tileLayers = this._layersForVisibleTiles(
         g,
         rgba,
         extent,
         createPathLayer,
         createLineStripLayer,
+        modelMatrix,
+        filter,
       )
       if (tileLayers.length > 0) {
         layers.push(...tileLayers)
@@ -764,70 +967,95 @@ export class BulkAnnotationManager {
         layers.push(
           createPathLayer({
             id: `bulk-${uid}-paths`,
-            positions,
-            startIndices,
-            length: numberOfAnnotations,
+            data: g.deckData.fullPaths,
             color: rgba,
             widthPixels: BULK_PATH_STROKE_PX,
             visible: true,
+            modelMatrix,
+            ...(filter != null ? { filterRange: filter.range } : {}),
           }),
         )
       }
     }
 
     g.deckLayers = layers
+    g.buildSignature = signature
+    this._requestRender()
   }
 
-  async _layersForVisibleTiles(
+  _layersForVisibleTiles(
     g,
     rgba,
     extent,
     createPathLayer,
     createLineStripLayer,
+    modelMatrix,
+    filter,
   ) {
     if (g.spatial == null || extent == null) {
       return []
     }
-    const [minX, minY, maxX, maxY] = extent
+    if (g.tileDataCache == null) {
+      g.tileDataCache = new Map()
+    }
     const out = []
-    let tileIndex = 0
-    for (const [key, bounds] of g.spatial.tileBounds) {
-      const [tMinX, tMinY, tMaxX, tMaxY] = bounds
-      if (tMaxX < minX || tMinX > maxX || tMaxY < minY || tMinY > maxY) {
-        continue
-      }
+    for (const key of this._visibleTileKeys(g, extent)) {
       const annotationIndices = g.spatial.tileAnnotationIndices.get(key)
       if (annotationIndices == null || annotationIndices.length === 0) {
         continue
       }
-      const sub = buildTileSubviews({
-        positions: g.decoded.positions,
-        startIndices: g.decoded.startIndices,
-        annotationIndices,
-      })
+      let tileData = g.tileDataCache.get(key)
+      if (tileData == null) {
+        const sub = buildTileSubviews({
+          positions: g.decoded.positions,
+          startIndices: g.decoded.startIndices,
+          annotationIndices,
+        })
+        let tileFilterValues = null
+        if (filter != null) {
+          tileFilterValues = expandMeasurementToPerVertex(
+            Float32Array.from(
+              annotationIndices,
+              (annotationIndex) => filter.perAnnotation[annotationIndex],
+            ),
+            sub.startIndices,
+            sub.positions.length / 2,
+          )
+        }
+        tileData = {
+          length: annotationIndices.length,
+          startIndices: sub.startIndices,
+          attributes: {
+            getPath: { value: sub.positions, size: 2 },
+            positions: null,
+            ...(tileFilterValues != null
+              ? { getFilterValue: { value: tileFilterValues, size: 1 } }
+              : {}),
+          },
+        }
+        g.tileDataCache.set(key, tileData)
+      }
       const useStyled =
         annotationIndices.length < 50_000 && this._isHighResolution()
       out.push(
         useStyled
           ? createPathLayer({
-              id: `bulk-${g.annotationGroup.uid}-tile-${tileIndex}`,
-              positions: sub.positions,
-              startIndices: sub.startIndices,
-              length: annotationIndices.length,
+              id: `bulk-${g.annotationGroup.uid}-tile-${key}`,
+              data: tileData,
               color: rgba,
               widthPixels: BULK_PATH_STROKE_PX,
               visible: true,
+              modelMatrix,
+              ...(filter != null ? { filterRange: filter.range } : {}),
             })
           : createLineStripLayer({
-              id: `bulk-${g.annotationGroup.uid}-tile-${tileIndex}`,
-              positions: sub.positions,
-              startIndices: sub.startIndices,
-              length: annotationIndices.length,
+              id: `bulk-${g.annotationGroup.uid}-tile-${key}`,
+              data: tileData,
               color: rgba,
               visible: true,
+              modelMatrix,
             }),
       )
-      tileIndex += 1
     }
     return out
   }

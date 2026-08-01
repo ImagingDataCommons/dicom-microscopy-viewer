@@ -232,15 +232,19 @@ function getPixelSpacingFromMetadata(levelMetadata) {
  * group's `AnnotationCoordinateType`.
  *
  * Ported from `getAffineBasedOnPyramidLevel` in
- * `src/bulkAnnotations/utils.js`. Unlike that function, this warns
- * (rather than silently falling back) when the referenced SOP Instance
- * is not present in the pyramid, since falling back to the base level's
- * affine scales every coordinate by the downsample factor.
+ * `src/bulkAnnotations/utils.js`.
+ *
+ * When the referenced SOP Instance cannot be found (or no
+ * `ReferencedImageSequence` is present at all), 2D coordinates are
+ * assumed to be pixels of the base (highest-resolution) level. This
+ * matches the legacy OL path, where `getAffineBasedOnPyramidLevel`
+ * falls back to the base level's forward affine, which the base
+ * inverse then cancels to (near-)identity.
  *
  * @param {Object} options
- * @param {Object[]} options.pyramid - Array of pyramid level metadata
- * @param {Object} options.annotationGroup - Annotation group descriptor with a `metadata` property (`ReferencedImageSequence`, `AnnotationCoordinateType`)
- * @param {Object} [options.metadata] - Top-level bulk annotations metadata, used as a fallback source for `AnnotationCoordinateType`
+ * @param {Object[]} options.pyramid - Array of pyramid level metadata, sorted ascending by resolution (base level last)
+ * @param {Object} options.annotationGroup - Annotation Group Sequence item, or a descriptor with a `metadata` property
+ * @param {Object} [options.metadata] - Top-level bulk annotations metadata, used as a fallback source for `AnnotationCoordinateType` and `ReferencedImageSequence`
  * @param {number[][]} options.baseAffineInverse - 3x3 slide-to-pixel affine for the base (full-resolution) pyramid level
  * @returns {LinearCoeffs} Coefficients mapping raw vertex coordinates to base-level pixel space
  */
@@ -250,8 +254,9 @@ export function affineForReferencedPyramidLevel({
   metadata,
   baseAffineInverse,
 }) {
+  const groupMetadata = annotationGroup?.metadata ?? annotationGroup
   const annotationCoordinateType =
-    annotationGroup?.metadata?.AnnotationCoordinateType ??
+    groupMetadata?.AnnotationCoordinateType ??
     metadata?.AnnotationCoordinateType
 
   if (annotationCoordinateType !== '2D') {
@@ -260,20 +265,36 @@ export function affineForReferencedPyramidLevel({
   }
 
   const referencedImage =
-    annotationGroup?.metadata?.ReferencedImageSequence?.[0]
+    groupMetadata?.ReferencedImageSequence?.[0] ??
+    metadata?.ReferencedImageSequence?.[0]
   const referencedSOPInstanceUID = referencedImage?.ReferencedSOPInstanceUID
 
-  const referencedLevelMetadata = pyramid?.find(
-    (level) => level.SOPInstanceUID === referencedSOPInstanceUID,
-  )
+  let referencedLevelMetadata =
+    referencedSOPInstanceUID != null
+      ? pyramid?.find(
+          (level) => level.SOPInstanceUID === referencedSOPInstanceUID,
+        )
+      : undefined
 
   if (referencedLevelMetadata?.ImageOrientationSlide == null) {
-    console.warn(
-      `Bulk annotation group references pyramid level "${referencedSOPInstanceUID}", ` +
-        'which was not found. Falling back to the base-level affine; ' +
-        'coordinates may be scaled incorrectly.',
-    )
-    return coeffsFromAffine3x3(baseAffineInverse)
+    if (referencedSOPInstanceUID != null) {
+      console.warn(
+        `Bulk annotation group references pyramid level "${referencedSOPInstanceUID}", ` +
+          'which was not found in the pyramid. Assuming base-level pixel coordinates.',
+      )
+    }
+    /** Pyramid is sorted ascending by size; the base level is last. */
+    referencedLevelMetadata =
+      pyramid != null && pyramid.length > 0
+        ? pyramid[pyramid.length - 1]
+        : undefined
+    if (referencedLevelMetadata?.ImageOrientationSlide == null) {
+      console.warn(
+        'Could not resolve any pyramid level for 2D bulk annotation coordinates; ' +
+          'falling back to the raw slide-to-pixel inverse (coordinates may be wrong).',
+      )
+      return coeffsFromAffine3x3(baseAffineInverse)
+    }
   }
 
   const orientation = referencedLevelMetadata.ImageOrientationSlide

@@ -94,6 +94,10 @@ const getExtendedROI = ({
           const key = `measurementValue${measurementIndex.toString()}`
           value = feature.get(key)
         }
+        /** No value available (e.g. deck.gl pick without fetched measurements). */
+        if (value == null || Number.isNaN(Number(value))) {
+          return
+        }
         const name = measurementItem.ConceptNameCodeSequence[0]
         const unit = measurementItem.MeasurementUnitsCodeSequence[0]
 
