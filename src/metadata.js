@@ -563,9 +563,9 @@ class Segmentation extends SOPClass {
 export {
   Comprehensive3DSR,
   formatMetadata,
-  groupMonochromeInstances,
-  groupColorInstances,
   getFrameMapping,
+  groupColorInstances,
+  groupMonochromeInstances,
   MicroscopyBulkSimpleAnnotations,
   ParametricMap,
   Segmentation,

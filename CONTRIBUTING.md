@@ -22,6 +22,8 @@ Use the following commands to check and fix style:
     $ pnpm run lint:fix    # auto-fix issues
     $ pnpm run fmt         # format code
 
+Explanatory comments (not only API docstrings) use JSDoc-style block comments (`/** … */`), not `//` line comments. Keep `//` only for tooling directives (`eslint-disable`, `biome-ignore`), temporarily commented-out code, and shebang lines.
+
 Docstrings are written in [JSDoc](https://jsdoc.app/) format:
 
 ```js
