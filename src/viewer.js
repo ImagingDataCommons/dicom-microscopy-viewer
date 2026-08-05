@@ -990,7 +990,10 @@ class VolumeImageViewer {
 
     /*
      * Only include THUMBNAIL image into metadata if no other VOLUME image
-     * exists with the same resolution
+     * exists with the same resolution. When a THUMBNAIL is kept, also drop
+     * VOLUME levels that are coarser (fewer total pixels) than the thumbnail
+     * so OpenLayers uses the single-frame THUMBNAIL for overview / fit zoom
+     * instead of a coarser multi-frame VOLUME level (slim#389).
      */
     const filterImagesByResolution = (metadata) => {
       const pyramidBaseMetadata = metadata[metadata.length - 1]
@@ -1023,7 +1026,28 @@ class VolumeImageViewer {
         }
       })
 
-      return filteredMetadata
+      const thumbnailColumns = filteredMetadata
+        .filter((image) => hasImageFlavor(image, ImageFlavors.THUMBNAIL))
+        .map((image) => image.TotalPixelMatrixColumns)
+      if (thumbnailColumns.length === 0) {
+        return filteredMetadata
+      }
+
+      const minThumbnailColumns = Math.min(...thumbnailColumns)
+      return filteredMetadata.filter((image) => {
+        if (
+          hasImageFlavor(image, ImageFlavors.VOLUME) &&
+          image.TotalPixelMatrixColumns < minThumbnailColumns
+        ) {
+          console.debug(
+            'Volume image is coarser than THUMBNAIL; skipping so the ' +
+              'thumbnail is used for overview.',
+            image.SOPInstanceUID,
+          )
+          return false
+        }
+        return true
+      })
     }
 
     // We also accept metadata in raw JSON format for backwards compatibility
