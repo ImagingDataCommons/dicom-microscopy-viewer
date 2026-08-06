@@ -1,6 +1,6 @@
 {
   "name": "dicom-microscopy-viewer",
-  "version": "0.48.22",
+  "version": "0.49.0",
   "license": "MIT",
   "author": "ImagingDataCommons",
   "homepage": "https://github.com/imagingdatacommons/dicom-microscopy-viewer#readme",
@@ -57,10 +57,14 @@
     "@cornerstonejs/codec-libjpeg-turbo-8bit": "^1.2.2",
     "@cornerstonejs/codec-openjpeg": "^1.2.4",
     "@cornerstonejs/codec-openjph": "^2.4.5",
+    "@deck.gl/core": "9.1.15",
+    "@deck.gl/extensions": "9.1.15",
+    "@deck.gl/layers": "9.1.15",
     "@imagingdatacommons/dicomicc": "^0.2.3",
     "colormap": "^2.3",
     "dcmjs": "^0.41.0",
     "dicomweb-client": "0.10.3",
+    "flatbush": "4.4.0",
     "image-type": "^4.1",
     "mathjs": "^11.2",
     "ol": "^10.7.0",
@@ -82,6 +86,6 @@
     "webpack:bundle": "webpack --progress --config ./config/webpack/webpack-bundle",
     "webpack:dynamic-import:watch": "webpack --progress --watch --config ./config/webpack/webpack-dynamic-import",
     "webpack:watch": "webpack --progress --watch  --config ./config/webpack/webpack-bundle",
-    "prepare": "husky"
+    "prepare": "node ./scripts/prepare.mjs"
   }
 }
