@@ -253,7 +253,11 @@ function createDistinctColormap({ index, bins }) {
  *
  * @memberof color
  */
-function buildPaletteColorLookupTable({ data, firstValueMapped }) {
+function buildPaletteColorLookupTable({
+  data,
+  firstValueMapped,
+  applyDisplayGammaCorrection = true,
+}) {
   if (data == null) {
     throw new Error(
       'Argument "data" is required for building Palette Color Lookup Table.',
@@ -288,6 +292,7 @@ function buildPaletteColorLookupTable({ data, firstValueMapped }) {
     redData,
     greenData,
     blueData,
+    applyDisplayGammaCorrection,
   })
 }
 
@@ -310,6 +315,8 @@ class PaletteColorLookupTable {
    * @param {Uint8Array|Uint16Array} options.redSegmentedData - Red segmented LUT data
    * @param {Uint8Array|Uint16Array} options.greenSegmentedData - Green segmented LUT data
    * @param {Uint8Array|Uint16Array} options.blueSegmentedData - Blue segmented LUT data
+   * @param {boolean} [options.applyDisplayGammaCorrection=true] - Pre-compensate palette
+   * lookup for typical display gamma (~2.2). Disable for linear palette mapping.
    */
   constructor({
     uid,
@@ -322,6 +329,7 @@ class PaletteColorLookupTable {
     redSegmentedData,
     greenSegmentedData,
     blueSegmentedData,
+    applyDisplayGammaCorrection = true,
   }) {
     this[_attrs] = { uid }
 
@@ -460,8 +468,31 @@ class PaletteColorLookupTable {
 
     // Will be used to cache created colormap for repeated access
     this[_attrs].data = null
+    this[_attrs].applyDisplayGammaCorrection = applyDisplayGammaCorrection
 
     Object.freeze(this)
+  }
+
+  /**
+   * Enable or disable display gamma compensation for this palette.
+   * Clears cached palette data so the next read of {@link data} recomputes values.
+   *
+   * @param {boolean} enabled - Whether to apply gamma compensation
+   * @returns {void}
+   */
+  setApplyDisplayGammaCorrection(enabled) {
+    if (this[_attrs].applyDisplayGammaCorrection === enabled) {
+      return
+    }
+    this[_attrs].applyDisplayGammaCorrection = enabled
+    this[_attrs].data = null
+  }
+
+  /**
+   * @returns {boolean} Whether display gamma compensation is enabled
+   */
+  get applyDisplayGammaCorrection() {
+    return this[_attrs].applyDisplayGammaCorrection
   }
 
   _expandSegmentedLUTData(segmentedData) {
@@ -551,11 +582,17 @@ class PaletteColorLookupTable {
       const maxInput = Math.max(...maxValues)
       const maxOutput = 255
 
-      // Apply gamma correction to compensate for display gamma (brightens mid-tones)
-      // When a linear intensity value i (0 to 1) is looked up, we actually want to look up
-      // the color at position i^gamma where gamma = 1/2.2 ≈ 0.4545
-      // This pre-brightens the colors for mid-tones
-      const gammaInverse = 1.0 / 2.2 // ≈ 0.4545
+      /*
+       * Display gamma compensation (optional via applyDisplayGammaCorrection):
+       * Linear microscopy intensities are often stored without encoding gamma.
+       * Typical displays apply ~power-law gamma (~2.2). Without compensation,
+       * mid-tones look too dark. When enabled, for normalized palette position i
+       * we sample the LUT at i^(1/2.2), pre-brightening mid-tones so displayed
+       * appearance matches expectations after display gamma.
+       * When disabled, palette indices map linearly (sample position equals i).
+       */
+      const applyGamma = this[_attrs].applyDisplayGammaCorrection
+      const gammaInverse = applyGamma ? 1.0 / 2.2 : 1
 
       if (this[_attrs].bitsPerEntry === 16 && maxInput > 255) {
         /*
@@ -565,12 +602,12 @@ class PaletteColorLookupTable {
         const n = 256
         this[_attrs].data = new Array(n)
         for (let i = 0; i < n; i++) {
-          // Apply gamma correction: for palette position i, look up the color
-          // that would be at the gamma-corrected position
           const normalizedPos = i / (n - 1)
-          const gammaCorrectedPos = normalizedPos ** gammaInverse
+          const samplePos = applyGamma
+            ? normalizedPos ** gammaInverse
+            : normalizedPos
           const lutIndex = Math.round(
-            gammaCorrectedPos * (this[_attrs].numberOfEntries - 1),
+            samplePos * (this[_attrs].numberOfEntries - 1),
           )
 
           this[_attrs].data[i] = [
@@ -582,12 +619,12 @@ class PaletteColorLookupTable {
       } else {
         this[_attrs].data = new Array(this[_attrs].numberOfEntries)
         for (let i = 0; i < this[_attrs].numberOfEntries; i++) {
-          // Apply gamma correction: for palette position i, look up the color
-          // that would be at the gamma-corrected position
           const normalizedPos = i / (this[_attrs].numberOfEntries - 1)
-          const gammaCorrectedPos = normalizedPos ** gammaInverse
+          const samplePos = applyGamma
+            ? normalizedPos ** gammaInverse
+            : normalizedPos
           const lutIndex = Math.round(
-            gammaCorrectedPos * (this[_attrs].numberOfEntries - 1),
+            samplePos * (this[_attrs].numberOfEntries - 1),
           )
 
           this[_attrs].data[i] = [
