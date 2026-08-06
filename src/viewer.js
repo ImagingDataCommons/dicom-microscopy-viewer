@@ -1530,34 +1530,45 @@ class VolumeImageViewer {
         const viewportHeight = viewport.clientHeight
         const viewportWidth = viewport.clientWidth
         /**
-         * Size the overview to fit a viewport box while keeping aspect ratio.
-         * Wide/thin slides used to collapse to a few pixels of height when
-         * width was fixed at 25% of the viewport — enforce a minimum height
-         * and allow a wider overview when needed.
+         * Size the overview symmetrically for wide and tall slides:
+         * contain in a preferred viewport fraction, grow toward a hard max
+         * fraction only to meet a minimum side length, then contain in that
+         * max box. Wide slides must not spill to nearly full viewport width
+         * (same size as the main image); tall slides get the matching height
+         * treatment.
          *
-         * NOTE: Slim (idc-microscopy) loads the published DMV min bundle via
-         * craco, so these local changes do not affect Slim until this package
-         * is published and bumped. Slim mirrors the same sizing in
-         * `clampOverviewMapInViewport` / `fitOverviewMapSize`.
+         * NOTE: Slim loads the published DMV min bundle via craco, so these
+         * local changes do not affect Slim until this package is published and
+         * bumped. Slim mirrors the same sizing in `fitOverviewMapSize`.
          */
         const edgeInsetPx = 8
         const topHeadroomPx = 12
-        const minOverviewHeightPx = 80
-        const preferredWidthFraction = 0.45
-        const maxHeightFraction = 0.45
-        const maxOverviewHeight = Math.max(
+        const minOverviewSidePx = 80
+        const preferredFraction = 0.45
+        const maxFraction = 0.6
+        const insetMaxHeight = Math.max(
           0,
           viewportHeight - edgeInsetPx - topHeadroomPx,
         )
-        const maxOverviewWidth = Math.max(0, viewportWidth - 2 * edgeInsetPx)
+        const insetMaxWidth = Math.max(0, viewportWidth - 2 * edgeInsetPx)
+        const maxOverviewHeight = Math.min(
+          insetMaxHeight,
+          viewportHeight * maxFraction,
+        )
+        const maxOverviewWidth = Math.min(
+          insetMaxWidth,
+          viewportWidth * maxFraction,
+        )
         const preferredMaxWidth = Math.min(
           maxOverviewWidth,
-          viewportWidth * preferredWidthFraction,
+          viewportWidth * preferredFraction,
         )
-        const targetHeight = Math.min(
-          viewportHeight * maxHeightFraction,
+        const preferredMaxHeight = Math.min(
           maxOverviewHeight,
+          viewportHeight * preferredFraction,
         )
+        const minOverviewWidth = Math.min(minOverviewSidePx, maxOverviewWidth)
+        const minOverviewHeight = Math.min(minOverviewSidePx, maxOverviewHeight)
         const extent = this[_projection].getExtent()
         const extentWidth = getWidth(extent)
         const extentHeight = getHeight(extent)
@@ -1565,34 +1576,28 @@ class VolumeImageViewer {
           ? extentHeight / extentWidth
           : extentWidth / extentHeight
 
-        let height = Math.min(targetHeight, maxOverviewHeight)
+        let height =
+          preferredMaxWidth > 0 && preferredMaxHeight > 0 && aspect > 0
+            ? Math.min(preferredMaxHeight, preferredMaxWidth / aspect)
+            : 0
         let width = height * aspect
 
-        if (width > preferredMaxWidth && preferredMaxWidth > 0) {
-          width = preferredMaxWidth
-          height = width / aspect
-        }
+        if (height > 0 && width > 0) {
+          const scaleUp = Math.max(
+            1,
+            minOverviewHeight / height,
+            minOverviewWidth / width,
+          )
+          width *= scaleUp
+          height *= scaleUp
 
-        const minHeight = Math.min(minOverviewHeightPx, maxOverviewHeight)
-        if (height < minHeight && aspect > 0) {
-          height = minHeight
-          width = height * aspect
-          if (width > maxOverviewWidth && maxOverviewWidth > 0) {
-            width = maxOverviewWidth
-            height = width / aspect
-          }
-        }
-
-        if (height > maxOverviewHeight && height > 0) {
-          const scale = maxOverviewHeight / height
-          height = maxOverviewHeight
-          width *= scale
-        }
-
-        if (width > maxOverviewWidth && width > 0) {
-          const scale = maxOverviewWidth / width
-          width = maxOverviewWidth
-          height *= scale
+          const scaleDown = Math.min(
+            1,
+            maxOverviewWidth / width,
+            maxOverviewHeight / height,
+          )
+          width *= scaleDown
+          height *= scaleDown
         }
 
         const resolution = isRotated
