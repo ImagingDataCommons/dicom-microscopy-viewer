@@ -393,4 +393,4 @@ class Ellipse extends Scoord3D {
   }
 }
 
-export { Point, Multipoint, Polyline, Polygon, Ellipse, Ellipsoid }
+export { Ellipse, Ellipsoid, Multipoint, Point, Polygon, Polyline }
