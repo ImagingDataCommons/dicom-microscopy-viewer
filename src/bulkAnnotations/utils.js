@@ -362,7 +362,7 @@ export const getPolygonFeature = ({
       commonZCoordinate,
     )
 
-    if (!coordinate || !coordinate[0] || !coordinate[1]) {
+    if (!coordinate?.[0] || !coordinate[1]) {
       continue
     }
 
@@ -506,7 +506,7 @@ export const getFeaturesFromBulkAnnotations = ({
         commonZCoordinate,
       )
 
-      if (!firstCoordinate || !firstCoordinate[0] || !firstCoordinate[1]) {
+      if (!firstCoordinate?.[0] || !firstCoordinate[1]) {
         continue
       }
 

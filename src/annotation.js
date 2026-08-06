@@ -905,19 +905,19 @@ const _getCentroid = (
 }
 
 export {
-  AnnotationGroup,
   _fetchGraphicData,
-  _fetchGraphicIndex,
-  _fetchMeasurements,
-  _fetchMeasurement,
-  _getCentroid,
-  _getCommonZCoordinate,
-  _getCoordinateDimensionality,
-  _getPoint,
-  _getCoordinates,
   /** Stable public alias for non–OpenLayers consumers (e.g. Slim Viv / Deck.gl). */
   _fetchGraphicData as fetchGraphicData,
+  _fetchGraphicIndex,
   _fetchGraphicIndex as fetchGraphicIndex,
+  _fetchMeasurement,
+  _fetchMeasurements,
+  _getCentroid,
+  _getCommonZCoordinate,
   _getCommonZCoordinate as getCommonZCoordinate,
+  _getCoordinateDimensionality,
   _getCoordinateDimensionality as getCoordinateDimensionality,
+  _getCoordinates,
+  _getPoint,
+  AnnotationGroup,
 }

@@ -501,7 +501,7 @@ class _MarkupManager {
    */
   _drawLink(feature) {
     const markup = this.get(feature.getId())
-    if (!markup || !markup.isLinkable) {
+    if (!markup?.isLinkable) {
       return
     }
 

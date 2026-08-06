@@ -31,7 +31,7 @@
     "@babel/plugin-transform-runtime": "^7.15.0",
     "@babel/preset-env": "^7.16",
     "@babel/runtime-corejs3": "^7.15.4",
-    "@biomejs/biome": "2.3.13",
+    "@biomejs/biome": "2.4.16",
     "babel-jest": "^30.4",
     "babel-loader": "^8.2.3",
     "babel-plugin-transform-import-meta": "^2.3.3",
@@ -40,6 +40,7 @@
     "copy-webpack-plugin": "10.2.0",
     "core-js": "^3.17.2",
     "css-loader": "^6.7.1",
+    "husky": "^9.1.7",
     "jest": "^30.4",
     "jest-canvas-mock": "^2.3",
     "jest-environment-jsdom": "^30.4",
@@ -49,8 +50,7 @@
     "webpack": "^5.94.0",
     "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.2",
-    "husky": "^9.1.7"
+    "webpack-dev-server": "^4.15.2"
   },
   "dependencies": {
     "@cornerstonejs/codec-charls": "^1.2.3",
