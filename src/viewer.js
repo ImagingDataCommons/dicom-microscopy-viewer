@@ -67,6 +67,7 @@ import { CustomError, errorTypes } from './customError'
 import Enums from './enums'
 import publish from './eventPublisher'
 import EVENT from './events'
+import { applyViewerOptions } from './logger.js'
 import { _groupFramesPerMapping, ParameterMapping } from './mapping.js'
 import {
   groupColorInstances,
@@ -753,6 +754,9 @@ const _segmentationInterpolate = Symbol('segmentationInterpolate')
 const _segmentationTileGrid = Symbol('segmentationTileGrid')
 const _parametricMapInterpolate = Symbol('parametricMapInterpolate')
 const _mapViewResolutions = Symbol('mapViewResolutions')
+const _paletteDisplayGammaCorrectionEnabled = Symbol(
+  'paletteDisplayGammaCorrectionEnabled',
+)
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -781,7 +785,12 @@ class VolumeImageViewer {
    * @param {string[]} [options.controls=[]] - Names of viewer control elements
    * that should be included in the viewport
    * @param {boolean} [options.debug=false] - Whether debug features should be
-   * turned on (e.g., display of tile boundaries)
+   * turned on (e.g., display of tile boundaries). When true, also enables
+   * verbose library logging at DEBUG level unless `options.logger` is set.
+   * @param {object} [options.logger] - Global logging override applied at
+   * construction time (affects all viewers and workers). Host apps should
+   * prefer {@link setLogLevel} at startup instead.
+   * @param {string} [options.logger.level] - DEBUG, LOG, WARN, ERROR, or NONE
    * @param {number} [options.tilesCacheSize=1000] - Number of tiles that should
    * be cached to avoid repeated retrieval for the DICOMweb server
    * @param {number[]} [options.primaryColor=[255, 234, 0]] - Primary color of
@@ -803,6 +812,8 @@ class VolumeImageViewer {
    * Note: This option will be ignored if there are no thumbnail images available or its just one image.
    * If you set skipThumbnails to true, this option is not needed.
    * @param {boolean} [options.skipThumbnails=false] If true, thumbnail images will not be loaded as part of the pyramid.
+   * @param {boolean} [options.paletteDisplayGammaCorrection=true] If true, palette
+   * color lookup applies display gamma compensation (~sRGB). Set false for linear mapping.
    */
   constructor(options) {
     this[_options] = options
@@ -820,6 +831,8 @@ class VolumeImageViewer {
     this[_clustersSources] = {}
     this[_segmentationInterpolate] = false
     this[_parametricMapInterpolate] = true
+    this[_paletteDisplayGammaCorrectionEnabled] =
+      options.paletteDisplayGammaCorrection !== false
 
     this._onBulkAnnotationsFeaturesLoadStart =
       this._onBulkAnnotationsFeaturesLoadStart.bind(this)
@@ -885,11 +898,13 @@ class VolumeImageViewer {
       this[_options].useTileGridResolutions = true
     }
 
-    if (this[_options].debug == null) {
-      this[_options].debug = false
-    } else {
-      this[_options].debug = true
-    }
+    /**
+     * Strict boolean semantics: only a literal `true` enables debug, so that
+     * e.g. `debug: false` does not flip the global log level to DEBUG.
+     */
+    this[_options].debug = this[_options].debug === true
+
+    applyViewerOptions(this[_options])
 
     if (this[_options].preload == null) {
       this[_options].preload = false
@@ -975,7 +990,10 @@ class VolumeImageViewer {
 
     /*
      * Only include THUMBNAIL image into metadata if no other VOLUME image
-     * exists with the same resolution
+     * exists with the same resolution. When a THUMBNAIL is kept, also drop
+     * VOLUME levels that are coarser (fewer total pixels) than the thumbnail
+     * so OpenLayers uses the single-frame THUMBNAIL for overview / fit zoom
+     * instead of a coarser multi-frame VOLUME level (slim#389).
      */
     const filterImagesByResolution = (metadata) => {
       const pyramidBaseMetadata = metadata[metadata.length - 1]
@@ -1008,7 +1026,28 @@ class VolumeImageViewer {
         }
       })
 
-      return filteredMetadata
+      const thumbnailColumns = filteredMetadata
+        .filter((image) => hasImageFlavor(image, ImageFlavors.THUMBNAIL))
+        .map((image) => image.TotalPixelMatrixColumns)
+      if (thumbnailColumns.length === 0) {
+        return filteredMetadata
+      }
+
+      const minThumbnailColumns = Math.min(...thumbnailColumns)
+      return filteredMetadata.filter((image) => {
+        if (
+          hasImageFlavor(image, ImageFlavors.VOLUME) &&
+          image.TotalPixelMatrixColumns < minThumbnailColumns
+        ) {
+          console.debug(
+            'Volume image is coarser than THUMBNAIL; skipping so the ' +
+              'thumbnail is used for overview.',
+            image.SOPInstanceUID,
+          )
+          return false
+        }
+        return true
+      })
     }
 
     // We also accept metadata in raw JSON format for backwards compatibility
@@ -1233,6 +1272,8 @@ class VolumeImageViewer {
             redSegmentedData: item.SegmentedRedPaletteColorLookupTableData,
             greenSegmentedData: item.SegmentedGreenPaletteColorLookupTableData,
             blueSegmentedData: item.SegmentedBluePaletteColorLookupTableData,
+            applyDisplayGammaCorrection:
+              this[_paletteDisplayGammaCorrectionEnabled],
           })
         }
 
@@ -2427,6 +2468,134 @@ class VolumeImageViewer {
     })
 
     this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+  }
+
+  /**
+   * Collect unique palette color lookup table instances used by the viewer.
+   *
+   * @returns {Set}
+   * @private
+   */
+  _collectPaletteColorLookupTables() {
+    const palettes = new Set()
+    const collectFromStyle = (style) => {
+      const lut = style?.paletteColorLookupTable
+      if (
+        lut != null &&
+        typeof lut.setApplyDisplayGammaCorrection === 'function'
+      ) {
+        palettes.add(lut)
+      }
+    }
+    Object.values(this[_opticalPaths]).forEach((opticalPath) => {
+      collectFromStyle(opticalPath.style)
+      collectFromStyle(opticalPath.defaultStyle)
+    })
+    Object.values(this[_segments]).forEach((segment) => {
+      collectFromStyle(segment.style)
+      collectFromStyle(segment.defaultStyle)
+    })
+    Object.values(this[_mappings]).forEach((mapping) => {
+      collectFromStyle(mapping.style)
+      collectFromStyle(mapping.defaultStyle)
+    })
+    return palettes
+  }
+
+  /**
+   * Rebuild OpenLayers styles that depend on palette LUT `.data`.
+   *
+   * @private
+   */
+  _refreshPaletteDependentLayerStyles() {
+    for (const opticalPathIdentifier in this[_opticalPaths]) {
+      const opticalPath = this[_opticalPaths][opticalPathIdentifier]
+      if (!opticalPath.opticalPath.isMonochromatic) {
+        continue
+      }
+      if (!opticalPath.style.paletteColorLookupTable || !opticalPath.layer) {
+        continue
+      }
+      const [windowCenter, windowWidth] = createWindow(
+        opticalPath.style.limitValues[0],
+        opticalPath.style.limitValues[1],
+      )
+      const layerStyle = _getColorPaletteStyleForTileLayer({
+        windowCenter,
+        windowWidth,
+        colormap: opticalPath.style.paletteColorLookupTable.data,
+      })
+      opticalPath.layer.setStyle(layerStyle)
+      opticalPath.overviewLayer.setStyle(layerStyle)
+    }
+
+    for (const segmentUID in this[_segments]) {
+      const segment = this[_segments][segmentUID]
+      if (!segment.style.paletteColorLookupTable || !segment.layer) {
+        continue
+      }
+      const windowCenter = segment.style.windowCenter || 128
+      const windowWidth = segment.style.windowWidth || 256
+      const defaultSegmentStyle = segment.defaultStyle
+      const newStyle = _getColorPaletteStyleForTileLayer({
+        windowCenter,
+        windowWidth,
+        colormap: [
+          [
+            ...segment.style.paletteColorLookupTable.data[0],
+            defaultSegmentStyle.backgroundOpacity,
+          ],
+          ...segment.style.paletteColorLookupTable.data.slice(1),
+        ],
+      })
+      segment.layer.setStyle(newStyle)
+    }
+
+    for (const mappingUID in this[_mappings]) {
+      const mapping = this[_mappings][mappingUID]
+      if (!mapping.style.paletteColorLookupTable || !mapping.layer) {
+        continue
+      }
+      const [palWindowCenter, palWindowWidth] = createWindow(
+        mapping.style.limitValues[0],
+        mapping.style.limitValues[1],
+      )
+      mapping.layer.setStyle(
+        _getColorPaletteStyleForParametricMappingTileLayer({
+          windowCenter: palWindowCenter,
+          windowWidth: palWindowWidth,
+          colormap: mapping.style.paletteColorLookupTable.data,
+        }),
+      )
+    }
+
+    this._syncStackedDerivedLegendOverlays()
+  }
+
+  /**
+   * Enable or disable display gamma compensation for all palette color lookup
+   * tables (optical paths, segments, parametric maps).
+   *
+   * @param {boolean} enabled - Whether to apply display gamma (~sRGB) pre-compensation
+   * @returns {void}
+   */
+  setPaletteDisplayGammaCorrectionEnabled(enabled) {
+    console.info('setPaletteDisplayGammaCorrectionEnabled', enabled)
+    if (enabled === this[_paletteDisplayGammaCorrectionEnabled]) {
+      return
+    }
+    this[_paletteDisplayGammaCorrectionEnabled] = enabled
+    this._collectPaletteColorLookupTables().forEach((lut) => {
+      lut.setApplyDisplayGammaCorrection(enabled)
+    })
+    this._refreshPaletteDependentLayerStyles()
+  }
+
+  /**
+   * @returns {boolean} Whether display gamma compensation is enabled for palettes
+   */
+  getPaletteDisplayGammaCorrectionEnabled() {
+    return this[_paletteDisplayGammaCorrectionEnabled]
   }
 
   /**
@@ -5186,6 +5355,8 @@ class VolumeImageViewer {
         paletteColorLookupTable: buildPaletteColorLookupTable({
           data: colormap,
           firstValueMapped: 0,
+          applyDisplayGammaCorrection:
+            this[_paletteDisplayGammaCorrectionEnabled],
         }),
       }
 
@@ -5783,6 +5954,8 @@ class VolumeImageViewer {
           redData: paletteColorLookupTable.redData,
           greenData: paletteColorLookupTable.greenData,
           blueData: paletteColorLookupTable.blueData,
+          applyDisplayGammaCorrection:
+            this[_paletteDisplayGammaCorrectionEnabled],
         })
       }
 
@@ -6094,6 +6267,8 @@ class VolumeImageViewer {
         paletteColorLookupTable: buildPaletteColorLookupTable({
           data: colormap,
           firstValueMapped: 0,
+          applyDisplayGammaCorrection:
+            this[_paletteDisplayGammaCorrectionEnabled],
         }),
       }
 
