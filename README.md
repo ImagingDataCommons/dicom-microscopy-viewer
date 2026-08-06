@@ -1,99 +1,179 @@
 [![Build Status](https://github.com/imagingdatacommons/dicom-microscopy-viewer/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/imagingdatacommons/dicom-microscopy-viewer/actions)
-[![NPM version](https://badge.fury.io/js/dicom-microscopy-viewer.svg)](http://badge.fury.io/js/dicom-microscopy-viewer)
-![NPM downloads per month](https://img.shields.io/npm/dm/dicom-microscopy-viewer?color=blue)
+[![NPM version](https://badge.fury.io/js/dicom-microscopy-viewer.svg)](https://www.npmjs.com/package/dicom-microscopy-viewer)
+[![NPM downloads per month](https://img.shields.io/npm/dm/dicom-microscopy-viewer?color=blue)](https://www.npmjs.com/package/dicom-microscopy-viewer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 # DICOM Microscopy Viewer
 
-Vanilla JS library for web-based visualization of [DICOM VL Whole Slide Microscopy Image](http://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html) datasets and derived information.
+Vanilla JS library for web-based visualization of [DICOM VL Whole Slide Microscopy Image](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.32.8.html) datasets and derived information.
 
-The viewer allows visualization of slide microscopy images stored in a [DICOMweb](https://www.dicomstandard.org/dicomweb/) compatible archive.
-It leverages the [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client) JavaScript library to retrieve data from the archive.
+The viewer visualizes slide microscopy images stored in a [DICOMweb](https://www.dicomstandard.org/dicomweb/)-compatible archive. It uses the [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client) JavaScript library to retrieve data from the archive.
+
+> **Note:** The `dicom-microscopy-viewer` package is a **library** for building viewer applications, not a standalone viewer application. For a full application built on this library, see [Slim](https://github.com/ImagingDataCommons/slim).
+
+## Table of Contents
+
+- [Features](#features)
+- [Documentation](#documentation)
+- [Installation](#installation)
+- [Getting started](#getting-started)
+  - [Packaging](#packaging)
+  - [Basic usage](#basic-usage)
+- [Development](#development)
+- [Related projects](#related-projects)
+- [Contributing](#contributing)
+- [Citation](#citation)
+- [Support](#support)
+- [Acknowledgments](#acknowledgments)
+- [License](#license)
 
 ## Features
 
-* Display of different image types: `VOLUME`/`THUMBNAIL`, `OVERVIEW`, `LABEL`
-* Annotation of regions of interest (ROI) as vector graphics based on 3-dimensional spatial coordinates (SCOORD3D): `POINT`, `MULTIPOINT`, `POLYLINE`, `POLYGON`, `ELLIPSE`, `ELLIPSOID`
-* Assembly of concatenations
-* Decoding of compressed pixel data, supporting baseline JPEG, JPEG 2000, and JPEG-LS codecs
-* Correction of color images using ICC profiles
-* Additive blending and coloring of monochromatic images of multiple optical paths (channels), supporting highly-multiplexed immunofluorescence imaging
-* Overlay of image analysis results in the form of [DICOM Segmentation](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.51.html), [Parametric Map](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.75.html), [Comprehensive 3D SR](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.35.13.html), or [Microscopy Bulk Simple Annotations](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.87.html)
+- Display of different image types: `VOLUME` / `THUMBNAIL`, `OVERVIEW`, `LABEL`
+- Annotation of regions of interest (ROI) as vector graphics based on 3-dimensional spatial coordinates (SCOORD3D): `POINT`, `MULTIPOINT`, `POLYLINE`, `POLYGON`, `ELLIPSE`, `ELLIPSOID`
+- Assembly of concatenations
+- Decoding of compressed pixel data, supporting baseline JPEG, JPEG 2000, and JPEG-LS codecs
+- Correction of color images using ICC profiles
+- Additive blending and coloring of monochromatic images of multiple optical paths (channels), supporting highly multiplexed immunofluorescence imaging
+- Overlay of image analysis results in the form of [DICOM Segmentation](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.51.html), [Parametric Map](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.75.html), [Comprehensive 3D SR](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.35.13.html), or [Microscopy Bulk Simple Annotations](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.87.html)
 
 ## Documentation
 
-Documentation of the JavaScript Application Programming Interface (API) is available online at [imagingdatacommons.github.io/dicom-microscopy-viewer](https://imagingdatacommons.github.io/dicom-microscopy-viewer/).
+API documentation is available online at [imagingdatacommons.github.io/dicom-microscopy-viewer](https://imagingdatacommons.github.io/dicom-microscopy-viewer/).
+
+## Installation
+
+Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-microscopy-viewer) package using your preferred package manager:
+
+```bash
+pnpm add dicom-microscopy-viewer
+```
 
 ## Getting started
 
-Note that the *dicom-microscopy-viewer* package is **not** a viewer application, it is a library to build viewer applications.
+Below is an example of the most basic usage: a web page that displays a collection of DICOM VL Whole Slide Microscopy Image instances of a digital slide. For more advanced usage, see the [Slim](https://github.com/ImagingDataCommons/slim) viewer.
 
-Below is an example for the most basic usage: a web page that displays a collection of DICOM VL Whole Slide Microscopy Image instances of a digital slide.
-For more advanced usage, take a look at the [Slim](https://github.com/imagingdatacommons/slim) viewer.
+### Packaging
 
-## Packaging
- 
- The library is packaged as two different builds, one using dynamic import, and the other bundling into one 
- larger library.  The dynamic import version uses a public path of `/dicom-microscopy-viewer/` so that they can be used by simply adding an alias to the appropriate version, and then deploying that version.  In a straight web application, this can be loaded as:
- 
- ```javascript
-    const DICOMMicroscopyViewer = (await('/dicom-microscopy-viewer/dicomMicroscopyViewer.min.js')).default
- ```
- 
- The point of using the sub-directory here is to isolate the dependencies that unique to `dicom-microscopy-viewer`.
- 
- 
-### Basic usage
+The library is packaged as two builds: one using dynamic import, and another bundling into a single larger library.
 
-The viewer can be embedded in any website, one only needs to
-
-* Create an instance of [VolumeImageViewer](https://imagingdatacommons.github.io/dicom-microscopy-viewer/viewer.VolumeImageViewer.html). The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive as well as the metadata for each DICOM image as an instance of [VLWholeSlideMicroscopyImage](https://imagingdatacommons.github.io/dicom-microscopy-viewer/metadata.VLWholeSlideMicroscopyImage.html).
-
-* Call the `render()` method, passing it the HTML element (or the name of the element), which shall contain the viewport.
+The dynamic import version uses a public path of `/dicom-microscopy-viewer/` so it can be used by adding an alias to the appropriate version and then deploying that version. In a plain web application, this can be loaded as:
 
 ```js
-import * as DICOMMicroscopyViewer from 'dicom-microscopy-viewer';
-import * as DICOMwebClient from 'dicomweb-client';
+const DICOMMicroscopyViewer = (
+  await import("/dicom-microscopy-viewer/dicomMicroscopyViewer.min.js")
+).default
+```
+
+Using a subdirectory isolates the dependencies that are unique to `dicom-microscopy-viewer`.
+
+### Basic usage
+
+The viewer can be embedded in any website. To do so:
+
+1. Create an instance of [VolumeImageViewer](https://imagingdatacommons.github.io/dicom-microscopy-viewer/viewer.VolumeImageViewer.html). The constructor requires an instance of `DICOMwebClient` for retrieving frames from the archive, as well as the metadata for each DICOM image as an instance of [VLWholeSlideMicroscopyImage](https://imagingdatacommons.github.io/dicom-microscopy-viewer/metadata.VLWholeSlideMicroscopyImage.html).
+2. Call the `render()` method, passing it the HTML element (or the name of the element) that should contain the viewport.
+
+```js
+import * as DICOMMicroscopyViewer from "dicom-microscopy-viewer"
+import * as DICOMwebClient from "dicomweb-client"
 
 // Construct client instance
 const client = new DICOMwebClient.api.DICOMwebClient({
-  url: 'http://localhost:8080/dicomweb'
-});
+  url: "http://localhost:8080/dicomweb",
+})
 
 // Retrieve metadata of a series of DICOM VL Whole Slide Microscopy Image instances
 const retrieveOptions = {
-  studyInstanceUID: '1.2.3.4',
-  seriesInstanceUID: '1.2.3.5'
-};
+  studyInstanceUID: "1.2.3.4",
+  seriesInstanceUID: "1.2.3.5",
+}
 client.retrieveSeriesMetadata(retrieveOptions).then((metadata) => {
   // Parse, format, and filter metadata
   const volumeImages = []
-  metadata.forEach(m => {
+  metadata.forEach((m) => {
     const image = new DICOMMicroscopyViewer.metadata.VLWholeSlideMicroscopyImage({
-      metadata: m
+      metadata: m,
     })
     const imageFlavor = image.ImageType[2]
-    if (imageFlavor === 'VOLUME' || imageFlavor === 'THUMBNAIL') {
+    if (imageFlavor === "VOLUME" || imageFlavor === "THUMBNAIL") {
       volumeImages.push(image)
     }
   })
 
   // Construct viewer instance
-  const viewer = new DICOMMicroscopyViewer.viewer.VolumeViewer({
+  const viewer = new DICOMMicroscopyViewer.viewer.VolumeImageViewer({
     client,
-    metadata: volumeImages
-  });
+    metadata: volumeImages,
+  })
 
   // Render viewer instance in the "viewport" HTML element
-  viewer.render({ container: 'viewport' });
-});
+  viewer.render({ container: "viewport" })
+})
 ```
 
+## Development
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (LTS recommended)
+- [pnpm](https://pnpm.io/) `11.9.0` (see `packageManager` in `package.json`)
+
+We use [Babel](https://babeljs.io/) to compile (transpile), [webpack](https://webpack.js.org/) to bundle, and [Jest](https://github.com/facebook/jest) to test JavaScript code.
+
+Get the source code by cloning the git repository:
+
+```bash
+git clone https://github.com/ImagingDataCommons/dicom-microscopy-viewer
+cd dicom-microscopy-viewer
+```
+
+Install dependencies and build the package:
+
+```bash
+pnpm install
+pnpm run build
+```
+
+Run tests:
+
+```bash
+pnpm run test
+```
+
+Build the API documentation:
+
+```bash
+pnpm run generateDocs
+```
+
+Useful scripts:
+
+| Command | Description |
+| ------- | ----------- |
+| `pnpm run build` | Build the library |
+| `pnpm run test` | Run the test suite |
+| `pnpm run generateDocs` | Generate API documentation |
+| `pnpm run lint` | Check for lint issues |
+| `pnpm run lint:fix` | Auto-fix lint issues |
+| `pnpm run fmt` | Format source code |
+| `pnpm run webpack:dynamic-import:watch` | Watch and rebuild the dynamic-import package |
+
+## Related projects
+
+- [Slim](https://github.com/ImagingDataCommons/slim) — interoperable slide microscopy viewer and annotation tool built on this library
+- [dicomweb-client](https://github.com/dcmjs-org/dicomweb-client) — JavaScript client for DICOMweb
+- [Imaging Data Commons](https://imaging.datacommons.cancer.gov/) — cloud-based environment for publicly available cancer imaging data
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on coding style, documentation, and the development workflow.
 
 ## Citation
 
 Please cite the following article when using the viewer for scientific studies: [Herrmann et al. J Path Inform. 2018](http://www.jpathinformatics.org/article.asp?issn=2153-3539;year=2018;volume=9;issue=1;spage=37;epage=37;aulast=Herrmann):
 
-```None
+```bibtex
 @article{jpathinform-2018-9-37,
     Author={
         Herrmann, M. D. and Clunie, D. A. and Fedorov A. and Doyle, S. W. and Pieper, S. and
@@ -111,72 +191,28 @@ Please cite the following article when using the viewer for scientific studies: 
 }
 ```
 
-## Installation
-
-Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-microscopy-viewer) package using your preferred package manager:
-
-```None
-pnpm add dicom-microscopy-viewer
-```
-
-## Development & Testing
-
-We use [Babel](https://babeljs.io/) to compile (transpile), [webpack](https://webpack.js.org/) to bundle, and [Jest](https://github.com/facebook/jest) to test JavaScript code.
-
-Get the source code by cloning the git repository:
-
-```None
-git clone https://github.com/imagingdatacommons/dicom-microscopy-viewer
-cd dicom-microscopy-viewer
-```
-
-Install dependencies and build the package:
-
-```None
-pnpm install
-pnpm run build
-```
-
-Run tests:
-
-```None
-pnpm run test
-```
-
-Build the API documentation:
-
-```None
-pnpm run generateDocs
-```
-
 ## Support
 
-The developers gratefully acknowledge their reseach support:
-* [Open Health Imaging Foundation (OHIF)](http://ohif.org)
-* [Quantitative Image Informatics for Cancer Research (QIICR)](http://qiicr.org)
-* [Radiomics](http://radiomics.io)
-* [Imaging Data Commons (IDC)](https://datacommons.cancer.gov/repository/imaging-data-commons)
-* [Neuroimage Analysis Center](http://nac.spl.harvard.edu)
-* [National Center for Image Guided Therapy](http://ncigt.org)
-* [MGH & BWH Center for Clinical Data Science (CCDS)](https://www.ccds.io/)
+The developers gratefully acknowledge their research support:
+
+- [Open Health Imaging Foundation (OHIF)](http://ohif.org)
+- [Quantitative Image Informatics for Cancer Research (QIICR)](http://qiicr.org)
+- [Radiomics](http://radiomics.io)
+- [Imaging Data Commons (IDC)](https://datacommons.cancer.gov/repository/imaging-data-commons)
+- [Neuroimage Analysis Center](http://nac.spl.harvard.edu)
+- [National Center for Image Guided Therapy](http://ncigt.org)
+- [MGH & BWH Center for Clinical Data Science (CCDS)](https://www.ccds.io/)
 
 ## Acknowledgments
 
-This software is maintained by the Imaging Data Commons (IDC) team, which has been funded in whole or
-in part with Federal funds from the NCI, NIH, under task order no. HHSN26110071
-under contract no. HHSN261201500003l.
+This software is maintained by the Imaging Data Commons (IDC) team, which has been funded in whole or in part with Federal funds from the NCI, NIH, under task order no. HHSN26110071 under contract no. HHSN261201500003I.
 
-NCI Imaging Data Commons (IDC) (https://imaging.datacommons.cancer.gov/) is a cloud-based environment 
-containing publicly available cancer imaging data co-located with analysis and exploration tools and resources. 
-IDC is a node within the broader NCI Cancer Research Data Commons (CRDC) infrastructure that provides secure 
-access to a large, comprehensive, and expanding collection of cancer research data.
+NCI Imaging Data Commons (IDC) (https://imaging.datacommons.cancer.gov/) is a cloud-based environment containing publicly available cancer imaging data co-located with analysis and exploration tools and resources. IDC is a node within the broader NCI Cancer Research Data Commons (CRDC) infrastructure that provides secure access to a large, comprehensive, and expanding collection of cancer research data.
 
 Learn more about IDC from this publication:
 
-> Fedorov, A., Longabaugh, W. J. R., Pot, D., Clunie, D. A., Pieper, S. D.,
-> Gibbs, D. L., Bridge, C., Herrmann, M. D., Homeyer, A., Lewis, R., Aerts, H.
-> J. W., Krishnaswamy, D., Thiriveedhi, V. K., Ciausu, C., Schacherer, D. P.,
-> Bontempi, D., Pihl, T., Wagner, U., Farahani, K., Kim, E. & Kikinis, R.
-> _National Cancer Institute Imaging Data Commons: Toward Transparency,
-> Reproducibility, and Scalability in Imaging Artificial Intelligence_.
-> RadioGraphics (2023). https://doi.org/10.1148/rg.230180
+> Fedorov, A., Longabaugh, W. J. R., Pot, D., Clunie, D. A., Pieper, S. D., Gibbs, D. L., Bridge, C., Herrmann, M. D., Homeyer, A., Lewis, R., Aerts, H. J. W., Krishnaswamy, D., Thiriveedhi, V. K., Ciausu, C., Schacherer, D. P., Bontempi, D., Pihl, T., Wagner, U., Farahani, K., Kim, E. & Kikinis, R. _National Cancer Institute Imaging Data Commons: Toward Transparency, Reproducibility, and Scalability in Imaging Artificial Intelligence_. RadioGraphics (2023). https://doi.org/10.1148/rg.230180
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
