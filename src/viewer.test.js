@@ -1114,3 +1114,79 @@ describe.each(testCases)('test viewer API for mappings of "$name"', ({
     }
   })
 })
+
+describe('THUMBNAIL overview preference (slim#389)', () => {
+  /*
+   * Some series include a VOLUME level coarser than THUMBNAIL (fewer total
+   * pixels). At fit zoom OpenLayers would then request that VOLUME's tiles
+   * instead of the single-frame THUMBNAIL. When thumbnails are enabled, DMV
+   * must drop those coarser VOLUME levels so the thumbnail is used for overview.
+   */
+  const buildImagesWithCoarserVolume = () => {
+    const images = testCase1.images.map(
+      (metadata) => new dmv.metadata.VLWholeSlideMicroscopyImage({ metadata }),
+    )
+    const thumbnail = images.find((image) => image.ImageType[2] === 'THUMBNAIL')
+    const volumeRaw = JSON.parse(
+      JSON.stringify(
+        testCase1.images.find(
+          (metadata) => metadata['00080008'].Value[2] === 'VOLUME',
+        ),
+      ),
+    )
+    const coarserUid =
+      '1.2.826.0.1.3680043.10.511.3.99999999999999999999999999999999999'
+    volumeRaw['00080018'].Value = [coarserUid]
+    volumeRaw['00480006'].Value = [
+      Math.floor(thumbnail.TotalPixelMatrixColumns / 2),
+    ]
+    volumeRaw['00480007'].Value = [
+      Math.floor(thumbnail.TotalPixelMatrixRows / 2),
+    ]
+    const coarserVolume = new dmv.metadata.VLWholeSlideMicroscopyImage({
+      metadata: volumeRaw,
+    })
+    return [...images, coarserVolume]
+  }
+
+  it('keeps THUMBNAIL and drops VOLUME levels coarser than THUMBNAIL', () => {
+    const images = buildImagesWithCoarserVolume()
+    const coarserUid = images[images.length - 1].SOPInstanceUID
+    const thumbnailUid = images.find(
+      (image) => image.ImageType[2] === 'THUMBNAIL',
+    ).SOPInstanceUID
+
+    const viewer = new dmv.viewer.VolumeImageViewer({
+      client: {},
+      metadata: images,
+    })
+    const metadata = viewer.getOpticalPathMetadata('1')
+    const sopInstanceUIDs = metadata.map((image) => image.SOPInstanceUID)
+
+    expect(sopInstanceUIDs).toContain(thumbnailUid)
+    expect(sopInstanceUIDs).not.toContain(coarserUid)
+  })
+
+  it('keeps coarser VOLUME levels when skipThumbnails is true', () => {
+    const images = buildImagesWithCoarserVolume()
+    const coarserUid = images[images.length - 1].SOPInstanceUID
+
+    const viewer = new dmv.viewer.VolumeImageViewer({
+      client: {},
+      metadata: images,
+      skipThumbnails: true,
+    })
+    const metadata = viewer.getOpticalPathMetadata('1')
+    const sopInstanceUIDs = metadata.map((image) => image.SOPInstanceUID)
+
+    expect(sopInstanceUIDs).toContain(coarserUid)
+    expect(
+      sopInstanceUIDs.some((uid) =>
+        images.some(
+          (image) =>
+            image.SOPInstanceUID === uid && image.ImageType[2] === 'THUMBNAIL',
+        ),
+      ),
+    ).toBe(false)
+  })
+})
