@@ -1570,36 +1570,80 @@ class VolumeImageViewer {
         const viewport = this[_map].getViewport()
         const viewportHeight = viewport.clientHeight
         const viewportWidth = viewport.clientWidth
-        const viewportHeightFraction = 0.45
-        const viewportWidthFraction = 0.25
-        const targetHeight = viewportHeight * viewportHeightFraction
-        const targetWidth = viewportWidth * viewportWidthFraction
+        /**
+         * Size the overview symmetrically for wide and tall slides:
+         * contain in a preferred viewport fraction, grow toward a hard max
+         * fraction only to meet a minimum side length, then contain in that
+         * max box. Wide slides must not spill to nearly full viewport width
+         * (same size as the main image); tall slides get the matching height
+         * treatment.
+         *
+         * NOTE: Slim loads the published DMV min bundle via craco, so these
+         * local changes do not affect Slim until this package is published and
+         * bumped. Slim mirrors the same sizing in `fitOverviewMapSize`.
+         */
+        const edgeInsetPx = 8
+        const topHeadroomPx = 12
+        const minOverviewSidePx = 80
+        const preferredFraction = 0.45
+        const maxFraction = 0.6
+        const insetMaxHeight = Math.max(
+          0,
+          viewportHeight - edgeInsetPx - topHeadroomPx,
+        )
+        const insetMaxWidth = Math.max(0, viewportWidth - 2 * edgeInsetPx)
+        const maxOverviewHeight = Math.min(
+          insetMaxHeight,
+          viewportHeight * maxFraction,
+        )
+        const maxOverviewWidth = Math.min(
+          insetMaxWidth,
+          viewportWidth * maxFraction,
+        )
+        const preferredMaxWidth = Math.min(
+          maxOverviewWidth,
+          viewportWidth * preferredFraction,
+        )
+        const preferredMaxHeight = Math.min(
+          maxOverviewHeight,
+          viewportHeight * preferredFraction,
+        )
+        const minOverviewWidth = Math.min(minOverviewSidePx, maxOverviewWidth)
+        const minOverviewHeight = Math.min(minOverviewSidePx, maxOverviewHeight)
         const extent = this[_projection].getExtent()
-        let height
-        let width
-        let resolution
+        const extentWidth = getWidth(extent)
+        const extentHeight = getHeight(extent)
+        const aspect = isRotated
+          ? extentHeight / extentWidth
+          : extentWidth / extentHeight
 
-        if (isRotated) {
-          if (targetWidth > targetHeight) {
-            height = targetHeight
-            width = (height * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / height
-          } else {
-            width = targetWidth
-            height = (width * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / width
-          }
-        } else {
-          if (targetHeight > targetWidth) {
-            width = targetWidth
-            height = (width * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / width
-          } else {
-            height = targetHeight
-            width = (height * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / height
-          }
+        let height =
+          preferredMaxWidth > 0 && preferredMaxHeight > 0 && aspect > 0
+            ? Math.min(preferredMaxHeight, preferredMaxWidth / aspect)
+            : 0
+        let width = height * aspect
+
+        if (height > 0 && width > 0) {
+          const scaleUp = Math.max(
+            1,
+            minOverviewHeight / height,
+            minOverviewWidth / width,
+          )
+          width *= scaleUp
+          height *= scaleUp
+
+          const scaleDown = Math.min(
+            1,
+            maxOverviewWidth / width,
+            maxOverviewHeight / height,
+          )
+          width *= scaleDown
+          height *= scaleDown
         }
+
+        const resolution = isRotated
+          ? extentWidth / height
+          : extentHeight / height
 
         const center = getCenter(extent)
         const overviewView = new View({
@@ -6615,8 +6659,18 @@ class _NonVolumeImageViewer {
     }
 
     const resizeFactor = options.resizeFactor ? options.resizeFactor : 1
-    const height = this[_metadata].TotalPixelMatrixRows * resizeFactor
-    const width = this[_metadata].TotalPixelMatrixColumns * resizeFactor
+    /**
+     * DICOMweb `viewport` (e.g. Google Healthcare) requires integer pixel sizes.
+     * Round after scaling so fractional resizeFactor values do not 400.
+     */
+    const height = Math.max(
+      1,
+      Math.round(this[_metadata].TotalPixelMatrixRows * resizeFactor),
+    )
+    const width = Math.max(
+      1,
+      Math.round(this[_metadata].TotalPixelMatrixColumns * resizeFactor),
+    )
     const extent = [
       0, // min X
       -(height + 1), // min Y
