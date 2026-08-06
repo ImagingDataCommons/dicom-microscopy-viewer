@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.13/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.16/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -10,14 +10,8 @@
       "src/**/*.js",
       "config/**/*.js",
       "!src/__mocks__",
-      "!src/annotations/_AnnotationManager.test.js",
-      "!src/annotations/markups/_MarkupManager.test.js",
       "!src/dictionary.js",
-      "!src/**/*.test.js",
-      "!!dist",
-      "!!docs",
-      "!!build",
-      "!!test"
+      "!src/**/*.test.js"
     ]
   },
   "formatter": {
