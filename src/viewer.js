@@ -1641,20 +1641,7 @@ class VolumeImageViewer {
           height *= scaleDown
         }
 
-        const resolution = isRotated
-          ? extentWidth / height
-          : extentHeight / height
-
         const center = getCenter(extent)
-        const overviewView = new View({
-          projection: this[_projection],
-          rotation: this[_rotation],
-          constrainOnlyCenter: true,
-          minResolution: resolution,
-          maxResolution: resolution,
-          extent: center.concat(center),
-          showFullExtent: true,
-        })
         const map = this[_overviewMap].getOverviewMap()
         const overviewElement = this[_overviewMap].element
         const overviewmapElement = Object.values(overviewElement.children).find(
@@ -1664,6 +1651,26 @@ class VolumeImageViewer {
         overviewmapElement.style.width = `${width}px`
         overviewmapElement.style.height = `${height}px`
         map.updateSize()
+        /**
+         * Prefer the post-layout map size (excludes border/padding) so the
+         * locked resolution matches what OpenLayers will actually paint.
+         * Falling back to the CSS height keeps behavior if size is not ready.
+         */
+        const mapSize = map.getSize()
+        const viewHeight =
+          mapSize != null && mapSize[1] > 0 ? mapSize[1] : height
+        const viewResolution = isRotated
+          ? extentWidth / viewHeight
+          : extentHeight / viewHeight
+        const overviewView = new View({
+          projection: this[_projection],
+          rotation: this[_rotation],
+          constrainOnlyCenter: true,
+          minResolution: viewResolution,
+          maxResolution: viewResolution,
+          extent: center.concat(center),
+          showFullExtent: true,
+        })
         map.setView(overviewView)
         this[_map].removeControl(this[_overviewMap])
         this[_map].addControl(this[_overviewMap])
