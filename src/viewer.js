@@ -5490,6 +5490,7 @@ class VolumeImageViewer {
 
     segment.layer.setVisible(true)
     this.setSegmentStyle(segmentUID, styleOptions)
+    this._syncStackedDerivedLegendOverlays()
 
     if (!segment.hasLoader) {
       console.debug(
@@ -5509,8 +5510,6 @@ class VolumeImageViewer {
         view.animate({ zoom: segment.minZoomLevel })
       }
     }
-
-    this._syncStackedDerivedLegendOverlays()
   }
 
   /**
@@ -5699,14 +5698,17 @@ class VolumeImageViewer {
     header.style.flexDirection = 'row'
     header.style.alignItems = 'center'
     header.style.justifyContent = 'space-between'
-    header.style.gap = '8px'
+    header.style.gap = '10px'
     header.style.width = '100%'
-    header.style.padding = '0'
+    header.style.minHeight = '28px'
+    header.style.padding = '4px 6px'
     header.style.margin = '0'
-    header.style.border = 'none'
-    header.style.background = 'transparent'
+    header.style.border = '1px solid rgba(0, 0, 0, 0.12)'
+    header.style.borderRadius = '4px'
+    header.style.background = 'rgba(0, 0, 0, 0.04)'
     header.style.cursor = 'pointer'
     header.style.font = 'inherit'
+    header.style.boxSizing = 'border-box'
     header.setAttribute('aria-expanded', collapsed ? 'false' : 'true')
     header.title = collapsed ? 'Expand legend' : 'Collapse legend'
     header.setAttribute('aria-label', header.title)
@@ -5715,15 +5717,27 @@ class VolumeImageViewer {
     headerLabel.textContent = collapsed
       ? `Legend (${visibleCount} visible)`
       : 'Legend'
-    headerLabel.style.fontSize = '12px'
+    headerLabel.style.fontSize = '13px'
     headerLabel.style.fontWeight = '700'
     headerLabel.style.color = 'rgba(0, 0, 0, 0.85)'
 
+    /**
+     * Explicit collapse control: a padded chevron affordance so the control
+     * remains obvious at viewport scale (slim#409 / PR feedback).
+     */
     const chevron = document.createElement('span')
     chevron.textContent = collapsed ? '▸' : '▾'
-    chevron.style.fontSize = '12px'
-    chevron.style.color = 'rgba(0, 0, 0, 0.55)'
+    chevron.style.display = 'inline-flex'
+    chevron.style.alignItems = 'center'
+    chevron.style.justifyContent = 'center'
+    chevron.style.minWidth = '22px'
+    chevron.style.minHeight = '22px'
+    chevron.style.fontSize = '16px'
+    chevron.style.fontWeight = '700'
+    chevron.style.color = 'rgba(0, 0, 0, 0.75)'
     chevron.style.lineHeight = '1'
+    chevron.style.borderRadius = '3px'
+    chevron.style.background = 'rgba(0, 0, 0, 0.06)'
 
     header.appendChild(headerLabel)
     header.appendChild(chevron)
