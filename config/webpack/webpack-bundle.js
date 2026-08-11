@@ -50,7 +50,9 @@ module.exports = {
       },
       {
         test: /\.js$/,
-        exclude: [/(node_modules)/, /(codecs)/, /(dicomicc)/],
+        /** See webpack-base.js: include (not exclude) so builds work from
+         * paths containing "node_modules" (pnpm git-dependency store). */
+        include: context,
         use: {
           loader: 'babel-loader',
         },

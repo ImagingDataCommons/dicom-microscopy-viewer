@@ -46,7 +46,16 @@ module.exports = {
       },
       {
         test: /\.js$/,
-        exclude: [/(node_modules)/, /(codecs)/, /(dicomicc)/],
+        /**
+         * Only transpile this package's own sources. Excluding on a bare
+         * /(node_modules)/ pattern breaks when the package itself is built
+         * from a directory whose path contains "node_modules" (e.g. pnpm
+         * builds git-hosted dependencies inside its store), which silently
+         * skips babel — and babel-plugin-transform-import-meta — for every
+         * module, so webpack then fails to resolve
+         * new URL('./dataLoader.worker.min.js', import.meta.url).
+         */
+        include: context,
         use: {
           loader: 'babel-loader',
         },

@@ -757,6 +757,7 @@ const _mapViewResolutions = Symbol('mapViewResolutions')
 const _paletteDisplayGammaCorrectionEnabled = Symbol(
   'paletteDisplayGammaCorrectionEnabled',
 )
+const _derivedLegendCollapsed = Symbol('derivedLegendCollapsed')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -845,6 +846,8 @@ class VolumeImageViewer {
       element: document.createElement('div'),
       offset: [7, 5],
     })
+    /** Collapsed state for the in-viewport fractional/mapping legend. */
+    this[_derivedLegendCollapsed] = false
 
     if (this[_options].client) {
       this[_clients].default = this[_options].client
@@ -5586,6 +5589,7 @@ class VolumeImageViewer {
 
     segment.layer.setVisible(true)
     this.setSegmentStyle(segmentUID, styleOptions)
+    this._syncStackedDerivedLegendOverlays()
 
     if (!segment.hasLoader) {
       console.debug(
@@ -5649,8 +5653,11 @@ class VolumeImageViewer {
   }
 
   /**
-   * Single viewport overlay: all visible fractional segments and parametric
-   * maps as rows in one column (property type Code Meaning / LUT label).
+   * Single viewport overlay: all fractional segments and parametric maps as
+   * rows in one column (property type Code Meaning / LUT label).
+   *
+   * The legend is hidden when no overlay is currently visible, and is
+   * collapsible so it does not permanently obscure the image (slim#409).
    *
    * @private
    */
@@ -5676,8 +5683,8 @@ class VolumeImageViewer {
     root.style.display = 'flex'
     root.style.flexDirection = 'column'
     root.style.alignItems = 'stretch'
-    root.style.gap = '10px'
-    root.style.padding = '8px'
+    root.style.gap = '8px'
+    root.style.padding = '6px 8px'
     root.style.backgroundColor = 'rgba(255, 255, 255, 0.94)'
     root.style.borderRadius = '6px'
     root.style.margin = '1px'
@@ -5685,14 +5692,17 @@ class VolumeImageViewer {
     root.style.marginLeft = '4px'
     root.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.12)'
 
-    let rowCount = 0
-
     /**
-     * Render every fractional segment / parametric map (not only the visible
-     * ones) so the in-viewport legend doubles as a visibility control: hidden
+     * Collect fractional segments / parametric maps that have a palette so
+     * the in-viewport legend doubles as a visibility control: hidden
      * overlays appear dimmed with an "off" toggle and can be re-enabled
      * without opening the host application's side panel (see issue #240).
+     * The whole legend stays hidden until at least one of those overlays is
+     * visible (see ImagingDataCommons/slim#409).
      */
+    const rows = []
+    let visibleCount = 0
+
     const segmentUids = Object.keys(this[_segments]).sort()
     for (let s = 0; s < segmentUids.length; s++) {
       const uid = segmentUids[s]
@@ -5704,21 +5714,26 @@ class VolumeImageViewer {
       if (data == null || data.length === 0) {
         continue
       }
+      const isVisible = rec.layer.getVisible()
+      if (isVisible) {
+        visibleCount += 1
+      }
       const prop = rec.segment?.propertyType
       const title =
         prop?.CodeMeaning != null && String(prop.CodeMeaning).trim() !== ''
           ? prop.CodeMeaning
           : (rec.segment?.label ?? 'Fractional')
 
-      this._appendDerivedLegendRow(root, title, data, {
+      rows.push({
+        title,
+        colors: data,
         minValue: rec.minStoredValue,
         maxValue: rec.maxStoredValue,
         useRealWorldValues: false,
-        isVisible: rec.layer.getVisible(),
+        isVisible,
         kind: 'segment',
         uid,
       })
-      rowCount += 1
     }
 
     const mappingUids = Object.keys(this[_mappings]).sort()
@@ -5738,32 +5753,113 @@ class VolumeImageViewer {
         maxValue = mapping.realWorldValueRange[1]
         useRealWorldValues = true
       }
+      const isVisible = mapping.layer.getVisible()
+      if (isVisible) {
+        visibleCount += 1
+      }
       const mapTitle =
         mapping.mapping?.label != null &&
         String(mapping.mapping.label).trim() !== ''
           ? mapping.mapping.label
           : 'Parametric map'
 
-      this._appendDerivedLegendRow(root, mapTitle, mapData, {
+      rows.push({
+        title: mapTitle,
+        colors: mapData,
         minValue,
         maxValue,
         useRealWorldValues,
-        isVisible: mapping.layer.getVisible(),
+        isVisible,
         kind: 'mapping',
         uid: muid,
       })
-      rowCount += 1
     }
 
     const parentEl = root.parentNode
-    if (rowCount === 0) {
+    const hideLegend = () => {
       if (this.segmentOverlay.getMap() != null) {
         this[_map].removeOverlay(this.segmentOverlay)
       }
       if (parentEl != null) {
         parentEl.style.display = 'none'
       }
+    }
+
+    if (rows.length === 0 || visibleCount === 0) {
+      hideLegend()
       return
+    }
+
+    const collapsed = this[_derivedLegendCollapsed] === true
+    const header = document.createElement('button')
+    header.type = 'button'
+    header.style.display = 'flex'
+    header.style.flexDirection = 'row'
+    header.style.alignItems = 'center'
+    header.style.justifyContent = 'space-between'
+    header.style.gap = '10px'
+    header.style.width = '100%'
+    header.style.minHeight = '28px'
+    header.style.padding = '4px 6px'
+    header.style.margin = '0'
+    header.style.border = '1px solid rgba(0, 0, 0, 0.12)'
+    header.style.borderRadius = '4px'
+    header.style.background = 'rgba(0, 0, 0, 0.04)'
+    header.style.cursor = 'pointer'
+    header.style.font = 'inherit'
+    header.style.boxSizing = 'border-box'
+    header.setAttribute('aria-expanded', collapsed ? 'false' : 'true')
+    header.title = collapsed ? 'Expand legend' : 'Collapse legend'
+    header.setAttribute('aria-label', header.title)
+
+    const headerLabel = document.createElement('span')
+    headerLabel.textContent = collapsed
+      ? `Legend (${visibleCount} visible)`
+      : 'Legend'
+    headerLabel.style.fontSize = '13px'
+    headerLabel.style.fontWeight = '700'
+    headerLabel.style.color = 'rgba(0, 0, 0, 0.85)'
+
+    /**
+     * Explicit collapse control: a padded chevron affordance so the control
+     * remains obvious at viewport scale (slim#409 / PR feedback).
+     */
+    const chevron = document.createElement('span')
+    chevron.textContent = collapsed ? '▸' : '▾'
+    chevron.style.display = 'inline-flex'
+    chevron.style.alignItems = 'center'
+    chevron.style.justifyContent = 'center'
+    chevron.style.minWidth = '22px'
+    chevron.style.minHeight = '22px'
+    chevron.style.fontSize = '16px'
+    chevron.style.fontWeight = '700'
+    chevron.style.color = 'rgba(0, 0, 0, 0.75)'
+    chevron.style.lineHeight = '1'
+    chevron.style.borderRadius = '3px'
+    chevron.style.background = 'rgba(0, 0, 0, 0.06)'
+
+    header.appendChild(headerLabel)
+    header.appendChild(chevron)
+    header.addEventListener('click', (event) => {
+      event.stopPropagation()
+      this[_derivedLegendCollapsed] = !this[_derivedLegendCollapsed]
+      this._syncStackedDerivedLegendOverlays()
+    })
+    root.appendChild(header)
+
+    if (!collapsed) {
+      root.style.gap = '10px'
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]
+        this._appendDerivedLegendRow(root, row.title, row.colors, {
+          minValue: row.minValue,
+          maxValue: row.maxValue,
+          useRealWorldValues: row.useRealWorldValues,
+          isVisible: row.isVisible,
+          kind: row.kind,
+          uid: row.uid,
+        })
+      }
     }
 
     if (parentEl != null) {
@@ -6476,6 +6572,7 @@ class VolumeImageViewer {
 
     mapping.layer.setVisible(true)
     this.setParameterMappingStyle(mappingUID, styleOptions)
+    this._syncStackedDerivedLegendOverlays()
   }
 
   /**
