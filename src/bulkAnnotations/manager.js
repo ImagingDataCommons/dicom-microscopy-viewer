@@ -657,6 +657,25 @@ export class BulkAnnotationManager {
         }
       }
 
+      /** Throttled: the stream invokes `onProgress` once per network chunk. */
+      let lastProgressPublishMs = 0
+      const publishProgress = (loadedBytes, totalBytes) => {
+        if (gen !== g.hydrateGeneration || !g.visible || !container) {
+          return
+        }
+        const now = Date.now()
+        const isComplete = totalBytes != null && loadedBytes >= totalBytes
+        if (!isComplete && now - lastProgressPublishMs < 100) {
+          return
+        }
+        lastProgressPublishMs = now
+        publish(container, EVENTS.ANNOTATION_GROUP_LOADING_PROGRESS, {
+          annotationGroupUID: uid,
+          loadedBytes,
+          totalBytes,
+        })
+      }
+
       /** Streams progressively when eligible; falls back to monolithic. */
       const graphicData = await fetchGraphicDataForGroup({
         metadata,
@@ -669,6 +688,7 @@ export class BulkAnnotationManager {
         signal,
         baseUrl: client?.wadoURL || client?.baseURL,
         headers: client?.headers ?? {},
+        onProgress: publishProgress,
       })
 
       if (gen !== g.hydrateGeneration || !g.visible) {

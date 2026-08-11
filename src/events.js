@@ -52,6 +52,12 @@ const EVENTS = {
    * viewer. Detail: `{ mappingUID, isVisible }`.
    */
   PARAMETER_MAPPING_VISIBILITY_CHANGED: `${PROJECT_NAME}_parameter_mapping_visibility_changed`,
+  /**
+   * Triggered as bulk annotation group coordinate data streams in. Detail:
+   * `{ annotationGroupUID, loadedBytes, totalBytes }`, where `totalBytes` is
+   * `null` when the server didn't report a length (e.g. chunked transfer).
+   */
+  ANNOTATION_GROUP_LOADING_PROGRESS: `${PROJECT_NAME}_annotation_group_loading_progress`,
 }
 
 export default EVENTS
