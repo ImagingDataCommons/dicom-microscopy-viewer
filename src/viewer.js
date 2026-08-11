@@ -1570,47 +1570,88 @@ class VolumeImageViewer {
         const viewport = this[_map].getViewport()
         const viewportHeight = viewport.clientHeight
         const viewportWidth = viewport.clientWidth
-        const viewportHeightFraction = 0.45
-        const viewportWidthFraction = 0.25
-        const targetHeight = viewportHeight * viewportHeightFraction
-        const targetWidth = viewportWidth * viewportWidthFraction
+        /**
+         * Size like OpenLayers' native OverviewMap: a fixed pixel contain box
+         * (ol.css defaults to 150×150; custom example ~300px wide), not a large
+         * viewport fraction. Preserve slide aspect, grow only to meet a small
+         * min side, then hard-cap so large monitors / extreme aspects cannot
+         * dominate the main image.
+         *
+         * Keep in sync with Slim `fitOverviewMapSize.ts`:
+         * edgeInsetPx=8, topHeadroomPx=12, minOverviewSidePx=48,
+         * preferredBoxPx=150, maxBoxPx=200, preferredFraction=0.25,
+         * maxFraction=0.3.
+         *
+         * NOTE: Slim loads the published DMV min bundle via craco, so these
+         * local changes do not affect Slim until this package is published and
+         * bumped. Slim mirrors the same sizing in `fitOverviewMapSize`.
+         */
+        const edgeInsetPx = 8
+        const topHeadroomPx = 12
+        const minOverviewSidePx = 48
+        const preferredBoxPx = 150
+        const maxBoxPx = 200
+        const preferredFraction = 0.25
+        const maxFraction = 0.3
+        const insetMaxHeight = Math.max(
+          0,
+          viewportHeight - edgeInsetPx - topHeadroomPx,
+        )
+        const insetMaxWidth = Math.max(0, viewportWidth - 2 * edgeInsetPx)
+        const maxOverviewHeight = Math.min(
+          insetMaxHeight,
+          viewportHeight * maxFraction,
+          maxBoxPx,
+        )
+        const maxOverviewWidth = Math.min(
+          insetMaxWidth,
+          viewportWidth * maxFraction,
+          maxBoxPx,
+        )
+        const preferredMaxWidth = Math.min(
+          maxOverviewWidth,
+          viewportWidth * preferredFraction,
+          preferredBoxPx,
+        )
+        const preferredMaxHeight = Math.min(
+          maxOverviewHeight,
+          viewportHeight * preferredFraction,
+          preferredBoxPx,
+        )
+        const minOverviewWidth = Math.min(minOverviewSidePx, maxOverviewWidth)
+        const minOverviewHeight = Math.min(minOverviewSidePx, maxOverviewHeight)
         const extent = this[_projection].getExtent()
-        let height
-        let width
-        let resolution
+        const extentWidth = getWidth(extent)
+        const extentHeight = getHeight(extent)
+        const aspect = isRotated
+          ? extentHeight / extentWidth
+          : extentWidth / extentHeight
 
-        if (isRotated) {
-          if (targetWidth > targetHeight) {
-            height = targetHeight
-            width = (height * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / height
-          } else {
-            width = targetWidth
-            height = (width * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / width
-          }
-        } else {
-          if (targetHeight > targetWidth) {
-            width = targetWidth
-            height = (width * getHeight(extent)) / getWidth(extent)
-            resolution = getWidth(extent) / width
-          } else {
-            height = targetHeight
-            width = (height * getWidth(extent)) / getHeight(extent)
-            resolution = getHeight(extent) / height
-          }
+        let height =
+          preferredMaxWidth > 0 && preferredMaxHeight > 0 && aspect > 0
+            ? Math.min(preferredMaxHeight, preferredMaxWidth / aspect)
+            : 0
+        let width = height * aspect
+
+        if (height > 0 && width > 0) {
+          const scaleUp = Math.max(
+            1,
+            minOverviewHeight / height,
+            minOverviewWidth / width,
+          )
+          width *= scaleUp
+          height *= scaleUp
+
+          const scaleDown = Math.min(
+            1,
+            maxOverviewWidth / width,
+            maxOverviewHeight / height,
+          )
+          width *= scaleDown
+          height *= scaleDown
         }
 
         const center = getCenter(extent)
-        const overviewView = new View({
-          projection: this[_projection],
-          rotation: this[_rotation],
-          constrainOnlyCenter: true,
-          minResolution: resolution,
-          maxResolution: resolution,
-          extent: center.concat(center),
-          showFullExtent: true,
-        })
         const map = this[_overviewMap].getOverviewMap()
         const overviewElement = this[_overviewMap].element
         const overviewmapElement = Object.values(overviewElement.children).find(
@@ -1620,6 +1661,26 @@ class VolumeImageViewer {
         overviewmapElement.style.width = `${width}px`
         overviewmapElement.style.height = `${height}px`
         map.updateSize()
+        /**
+         * Prefer the post-layout map size (excludes border/padding) so the
+         * locked resolution matches what OpenLayers will actually paint.
+         * Falling back to the CSS height keeps behavior if size is not ready.
+         */
+        const mapSize = map.getSize()
+        const viewHeight =
+          mapSize != null && mapSize[1] > 0 ? mapSize[1] : height
+        const viewResolution = isRotated
+          ? extentWidth / viewHeight
+          : extentHeight / viewHeight
+        const overviewView = new View({
+          projection: this[_projection],
+          rotation: this[_rotation],
+          constrainOnlyCenter: true,
+          minResolution: viewResolution,
+          maxResolution: viewResolution,
+          extent: center.concat(center),
+          showFullExtent: true,
+        })
         map.setView(overviewView)
         this[_map].removeControl(this[_overviewMap])
         this[_map].addControl(this[_overviewMap])
@@ -2887,6 +2948,30 @@ class VolumeImageViewer {
           buttonElement.style.border = '0.25px solid black'
           buttonElement.style.backgroundColor = 'white'
           buttonElement.style.cursor = 'pointer'
+          buttonElement.style.margin = '0'
+          /**
+           * When expanded, pin the collapse control over the map so it cannot
+           * sit in normal flow and add dead space under the mini-map. Re-apply
+           * after every collapse toggle (OL flips `ol-collapsed` on click).
+           */
+          const syncOverviewCollapseButton = () => {
+            if (overviewElement.classList.contains('ol-collapsed')) {
+              buttonElement.style.position = ''
+              buttonElement.style.bottom = ''
+              buttonElement.style.left = ''
+            } else {
+              buttonElement.style.position = 'absolute'
+              buttonElement.style.bottom = '0'
+              buttonElement.style.left = '0'
+            }
+          }
+          syncOverviewCollapseButton()
+          if (!buttonElement.dataset.slimOverviewCollapseBound) {
+            buttonElement.dataset.slimOverviewCollapseBound = '1'
+            buttonElement.addEventListener('click', () => {
+              requestAnimationFrame(syncOverviewCollapseButton)
+            })
+          }
           const spanElement = buttonElement.children[0]
           spanElement.style.color = 'black'
           spanElement.style.backgroundColor = 'white'
@@ -2894,6 +2979,17 @@ class VolumeImageViewer {
         styleControlElement(overviewmapElement)
         overviewmapElement.style.border = '1px solid black'
         overviewmapElement.style.color = 'black'
+        /**
+         * Keep the mini-map flush inside the control so left/bottom viewport
+         * insets stay equal (margin/padding from styleControlElement would
+         * otherwise add uneven dead space under the map).
+         */
+        overviewmapElement.style.margin = '0'
+        overviewmapElement.style.padding = '0'
+        overviewElement.style.margin = '0'
+        overviewElement.style.padding = '0'
+        overviewElement.style.left = '8px'
+        overviewElement.style.bottom = '8px'
         this[_updateOverviewMapSize]()
       }
     })
@@ -2901,11 +2997,13 @@ class VolumeImageViewer {
     // Style scale element (overriding Openlayers CSS "ol-scale-line")
     const scaleElement = this[_controls].scale.element
     scaleElement.style.position = 'absolute'
-    scaleElement.style.right = '.5em'
-    scaleElement.style.bottom = '.5em'
+    /** Match overview edge inset (8px) — avoid em units that drift with font-size. */
+    scaleElement.style.right = '8px'
+    scaleElement.style.bottom = '8px'
     scaleElement.style.left = 'auto'
     scaleElement.style.borderRadius = '4px'
     styleControlElement(scaleElement)
+    scaleElement.style.margin = '0'
     const scaleInnerElement = this[_controls].scale.innerElement_
     scaleInnerElement.style.color = 'black'
     scaleInnerElement.style.fontWeight = '600'
@@ -2917,15 +3015,15 @@ class VolumeImageViewer {
     scaleInnerElement.style.borderRightColor = 'black'
     scaleInnerElement.style.borderLeftColor = 'black'
     scaleInnerElement.style.borderBottomColor = 'black'
-    scaleInnerElement.style.margin = '1px'
+    scaleInnerElement.style.margin = '0'
     scaleInnerElement.style.willChange = 'contents,width'
 
     // Style position element (overriding Openlayers CSS "ol-mouse-position")
     if (this[_controls].position != null) {
       const positionElement = this[_controls].position.element
       positionElement.style.position = 'absolute'
-      positionElement.style.right = '.5em'
-      positionElement.style.top = '.5em'
+      positionElement.style.right = '8px'
+      positionElement.style.top = '8px'
       positionElement.style.left = 'auto'
       positionElement.style.bottom = 'auto'
       positionElement.style.fontWeight = '600'
@@ -2933,6 +3031,7 @@ class VolumeImageViewer {
       positionElement.style.textAlign = 'center'
       positionElement.style.borderRadius = '4px'
       styleControlElement(positionElement)
+      positionElement.style.margin = '0'
     }
   }
 
@@ -6615,8 +6714,18 @@ class _NonVolumeImageViewer {
     }
 
     const resizeFactor = options.resizeFactor ? options.resizeFactor : 1
-    const height = this[_metadata].TotalPixelMatrixRows * resizeFactor
-    const width = this[_metadata].TotalPixelMatrixColumns * resizeFactor
+    /**
+     * DICOMweb `viewport` (e.g. Google Healthcare) requires integer pixel sizes.
+     * Round after scaling so fractional resizeFactor values do not 400.
+     */
+    const height = Math.max(
+      1,
+      Math.round(this[_metadata].TotalPixelMatrixRows * resizeFactor),
+    )
+    const width = Math.max(
+      1,
+      Math.round(this[_metadata].TotalPixelMatrixColumns * resizeFactor),
+    )
     const extent = [
       0, // min X
       -(height + 1), // min Y
