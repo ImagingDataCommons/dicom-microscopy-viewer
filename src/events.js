@@ -53,9 +53,13 @@ const EVENTS = {
    */
   PARAMETER_MAPPING_VISIBILITY_CHANGED: `${PROJECT_NAME}_parameter_mapping_visibility_changed`,
   /**
-   * Triggered as bulk annotation group coordinate data streams in. Detail:
-   * `{ annotationGroupUID, loadedBytes, totalBytes }`, where `totalBytes` is
-   * `null` when the server didn't report a length (e.g. chunked transfer).
+   * Triggered at each step of a bulk annotation group's hydrate lifecycle.
+   * Detail: `{ annotationGroupUID, phase, loadedBytes?, totalBytes? }`.
+   * `phase` is one of `'index'` (fetching the graphic index), `'data'`
+   * (retrieving coordinate data — `loadedBytes`/`totalBytes` are only
+   * present for this phase, and `totalBytes` is `null` when the server
+   * didn't report a length, e.g. chunked transfer), or `'decoding'`
+   * (decoding geometry and building the render layers).
    */
   ANNOTATION_GROUP_LOADING_PROGRESS: `${PROJECT_NAME}_annotation_group_loading_progress`,
 }

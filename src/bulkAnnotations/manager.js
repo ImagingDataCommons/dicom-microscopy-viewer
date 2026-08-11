@@ -593,6 +593,7 @@ export class BulkAnnotationManager {
         const container = this._getContainer()
         if (container) {
           publish(container, EVENTS.LOADING_ERROR, {
+            annotationGroupUID: uid,
             message: error?.message || String(error),
           })
         }
@@ -621,6 +622,18 @@ export class BulkAnnotationManager {
       publish(container, EVENTS.LOADING_STARTED, { annotationGroupUID: uid })
     }
 
+    /** Report a hydrate lifecycle step so consumers can show what's happening. */
+    const publishPhase = (phase, extra = {}) => {
+      if (gen !== g.hydrateGeneration || !g.visible || !container) {
+        return
+      }
+      publish(container, EVENTS.ANNOTATION_GROUP_LOADING_PROGRESS, {
+        annotationGroupUID: uid,
+        phase,
+        ...extra,
+      })
+    }
+
     try {
       const client = this._getClient()
       const { metadata, metadataItem, bulkdataItem, sequenceIndex } = g
@@ -632,6 +645,7 @@ export class BulkAnnotationManager {
       )
       const commonZCoordinate = getCommonZCoordinate(metadataItem)
 
+      publishPhase('index')
       const graphicIndex = await fetchGraphicIndexForGroup({
         metadata,
         annotationGroupIndex: sequenceIndex,
@@ -660,21 +674,15 @@ export class BulkAnnotationManager {
       /** Throttled: the stream invokes `onProgress` once per network chunk. */
       let lastProgressPublishMs = 0
       const publishProgress = (loadedBytes, totalBytes) => {
-        if (gen !== g.hydrateGeneration || !g.visible || !container) {
-          return
-        }
         const now = Date.now()
         const isComplete = totalBytes != null && loadedBytes >= totalBytes
         if (!isComplete && now - lastProgressPublishMs < 100) {
           return
         }
         lastProgressPublishMs = now
-        publish(container, EVENTS.ANNOTATION_GROUP_LOADING_PROGRESS, {
-          annotationGroupUID: uid,
-          loadedBytes,
-          totalBytes,
-        })
+        publishPhase('data', { loadedBytes, totalBytes })
       }
+      publishPhase('data', { loadedBytes: 0, totalBytes: null })
 
       /** Streams progressively when eligible; falls back to monolithic. */
       const graphicData = await fetchGraphicDataForGroup({
@@ -695,6 +703,7 @@ export class BulkAnnotationManager {
         return
       }
 
+      publishPhase('decoding')
       const pyramid = this._getPyramid()
       const affineInverse = this._getAffineInverse()
       const coeffs = affineForReferencedPyramidLevel({
