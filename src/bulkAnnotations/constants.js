@@ -32,6 +32,12 @@ export const BULK_DEFAULT_ALPHA = 220
 /** Default fallback color (green). */
 export const BULK_DEFAULT_COLOR = [0, 255, 0]
 
+/** Whether closed graphic types are filled by default. */
+export const BULK_DEFAULT_FILLED = false
+
+/** Default fill opacity (0–1) when a closed graphic type is filled. */
+export const BULK_DEFAULT_FILL_OPACITY = 0.35
+
 /** Graphic types rendered as closed paths. */
 export const CLOSED_GRAPHIC_TYPES = new Set(['POLYGON', 'RECTANGLE', 'ELLIPSE'])
 

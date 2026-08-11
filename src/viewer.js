@@ -4407,6 +4407,10 @@ class VolumeImageViewer {
    * @param {Object} styleOptions
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.color] - RGB color triplet
+   * @param {boolean} [styleOptions.filled] - Whether closed graphic types
+   * (POLYGON, RECTANGLE, ELLIPSE) are rendered filled
+   * @param {number} [styleOptions.fillOpacity] - Fill opacity, applied when
+   * `filled` is true
    * @param {Object} [styleOptions.measurement] - Selected measurement
    */
   showAnnotationGroup(annotationGroupUID, styleOptions = {}) {
@@ -4506,6 +4510,10 @@ class VolumeImageViewer {
    * @param {Object} styleOptions - Style options
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.color] - RGB color triplet
+   * @param {boolean} [styleOptions.filled] - Whether closed graphic types
+   * (POLYGON, RECTANGLE, ELLIPSE) are rendered filled
+   * @param {number} [styleOptions.fillOpacity] - Fill opacity, applied when
+   * `filled` is true
    * @param {Object} [styleOptions.measurement] - Selected measurement for
    * pseudo-coloring of annotations using measurement values
    * @param {boolean} [styleOptions.fill] - Whether to fill polygon annotations
@@ -4560,6 +4568,8 @@ class VolumeImageViewer {
     return {
       opacity: annotationGroup.defaultStyle.opacity,
       color: annotationGroup.defaultStyle.color,
+      filled: annotationGroup.defaultStyle.filled,
+      fillOpacity: annotationGroup.defaultStyle.fillOpacity,
     }
   }
 
@@ -4585,6 +4595,8 @@ class VolumeImageViewer {
     return {
       opacity: annotationGroup.style.opacity,
       color: annotationGroup.style.color,
+      filled: annotationGroup.style.filled,
+      fillOpacity: annotationGroup.style.fillOpacity,
     }
   }
 

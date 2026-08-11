@@ -20,11 +20,14 @@ import EVENTS from '../events.js'
 import {
   BULK_DEFAULT_ALPHA,
   BULK_DEFAULT_COLOR,
+  BULK_DEFAULT_FILL_OPACITY,
+  BULK_DEFAULT_FILLED,
   BULK_LOD_DEFAULT_LEVELS_FROM_FINEST,
   BULK_LOD_MIN_ANNOTATIONS,
   BULK_PATH_STROKE_PX,
   BULK_POINT_RADIUS_MIN_PX,
   BULK_SPATIAL_TILE_SIZE,
+  CLOSED_GRAPHIC_TYPES,
   PATH_LOD_GRAPHIC_TYPES,
 } from './constants.js'
 import {
@@ -86,6 +89,7 @@ const PICK_TOLERANCE_PX = 6
  * @property {Promise|null} measurementsPromise
  * @property {Object|null} deckData - Stable data object refs for layers
  * @property {Map|null} tileDataCache - Per-tile stable data objects
+ * @property {Map|null} tilePolygonDataCache - Per-tile stable fill data objects (built lazily; only when a group is filled)
  * @property {Object|null} filterCache - Expanded per-vertex/per-annotation filter values
  * @property {string|null} buildSignature - View signature of the current layer build
  * @property {Array} deckLayers
@@ -190,6 +194,8 @@ export class BulkAnnotationManager {
     const defaultStyle = {
       opacity: 1.0,
       color: this._primaryColor.slice(0, 3),
+      filled: BULK_DEFAULT_FILLED,
+      fillOpacity: BULK_DEFAULT_FILL_OPACITY,
     }
 
     sequence.forEach((item, sequenceIndex) => {
@@ -254,8 +260,18 @@ export class BulkAnnotationManager {
         bulkdataItem:
           bulkdataReferences.AnnotationGroupSequence?.[sequenceIndex],
         metadataItem: item,
-        style: { opacity: defaultStyle.opacity, color },
-        defaultStyle: { opacity: defaultStyle.opacity, color },
+        style: {
+          opacity: defaultStyle.opacity,
+          color,
+          filled: defaultStyle.filled,
+          fillOpacity: defaultStyle.fillOpacity,
+        },
+        defaultStyle: {
+          opacity: defaultStyle.opacity,
+          color,
+          filled: defaultStyle.filled,
+          fillOpacity: defaultStyle.fillOpacity,
+        },
         visible: false,
         hydrated: false,
         hydrateGeneration: 0,
@@ -268,6 +284,7 @@ export class BulkAnnotationManager {
         measurementsPromise: null,
         deckData: null,
         tileDataCache: null,
+        tilePolygonDataCache: null,
         filterCache: null,
         buildSignature: null,
         deckLayers: [],
@@ -284,12 +301,22 @@ export class BulkAnnotationManager {
 
   getAnnotationGroupStyle(uid) {
     const g = this._requireGroup(uid)
-    return { opacity: g.style.opacity, color: g.style.color }
+    return {
+      opacity: g.style.opacity,
+      color: g.style.color,
+      filled: g.style.filled,
+      fillOpacity: g.style.fillOpacity,
+    }
   }
 
   getAnnotationGroupDefaultStyle(uid) {
     const g = this._requireGroup(uid)
-    return { opacity: g.defaultStyle.opacity, color: g.defaultStyle.color }
+    return {
+      opacity: g.defaultStyle.opacity,
+      color: g.defaultStyle.color,
+      filled: g.defaultStyle.filled,
+      fillOpacity: g.defaultStyle.fillOpacity,
+    }
   }
 
   getAnnotationGroupMetadata(uid) {
@@ -324,6 +351,12 @@ export class BulkAnnotationManager {
     }
     if (styleOptions.color != null) {
       g.style.color = styleOptions.color
+    }
+    if (styleOptions.filled != null) {
+      g.style.filled = styleOptions.filled
+    }
+    if (styleOptions.fillOpacity != null) {
+      g.style.fillOpacity = styleOptions.fillOpacity
     }
     if ('measurement' in styleOptions) {
       g.style.measurement = styleOptions.measurement ?? undefined
@@ -393,6 +426,7 @@ export class BulkAnnotationManager {
     g.deckLayers = []
     g.deckData = null
     g.tileDataCache = null
+    g.tilePolygonDataCache = null
     g.filterCache = null
     g.buildSignature = null
     this._requestRender()
@@ -768,6 +802,7 @@ export class BulkAnnotationManager {
         g.filterCache = null
         g.deckData = null
         g.tileDataCache = null
+        g.tilePolygonDataCache = null
       }
       return null
     }
@@ -789,6 +824,7 @@ export class BulkAnnotationManager {
       /** Filter attribute changes invalidate cached data objects. */
       g.deckData = null
       g.tileDataCache = null
+      g.tilePolygonDataCache = null
     }
     const stored = g.measurementRanges?.[key]
     const range =
@@ -888,8 +924,12 @@ export class BulkAnnotationManager {
       this._requestRender()
       return
     }
-    const { createLineStripLayer, createPathLayer, createPointLayer } =
-      await loadLayerFactories()
+    const {
+      createLineStripLayer,
+      createPathLayer,
+      createPointLayer,
+      createPolygonLayer,
+    } = await loadLayerFactories()
     if (!g.visible || g.decoded == null) {
       return
     }
@@ -909,6 +949,21 @@ export class BulkAnnotationManager {
         Math.max(0, Math.min(1, g.style.opacity ?? 1)) * BULK_DEFAULT_ALPHA,
       ),
     ]
+    const isFilled =
+      g.style.filled === true && CLOSED_GRAPHIC_TYPES.has(graphicType)
+    const fillRgba = isFilled
+      ? [
+          g.style.color[0],
+          g.style.color[1],
+          g.style.color[2],
+          Math.round(
+            Math.max(
+              0,
+              Math.min(1, g.style.fillOpacity ?? BULK_DEFAULT_FILL_OPACITY),
+            ) * 255,
+          ),
+        ]
+      : null
     const uid = g.annotationGroup.uid
     const useLod =
       PATH_LOD_GRAPHIC_TYPES.has(graphicType) &&
@@ -946,6 +1001,25 @@ export class BulkAnnotationManager {
         },
       }
     }
+    /**
+     * Separate object from `fullPaths`: `PathLayer` neutralizes its tesselator's
+     * `positions` scratch slot via an inert `positions: null` key, but
+     * `SolidPolygonLayer`'s tesselator writes triangulated vertices into that
+     * same-named attribute, so the two layers cannot share one data object.
+     * Built lazily — only groups with fill enabled pay for it.
+     */
+    if (isFilled && g.deckData.fullPolygons == null) {
+      g.deckData.fullPolygons = {
+        length: numberOfAnnotations,
+        startIndices,
+        attributes: {
+          getPolygon: { value: positions, size: 2 },
+          ...(filter != null
+            ? { getFilterValue: { value: filter.perVertex, size: 1 } }
+            : {}),
+        },
+      }
+    }
 
     const layers = []
     if (graphicType === 'POINT' || (useLod && !highRes)) {
@@ -969,15 +1043,30 @@ export class BulkAnnotationManager {
       const tileLayers = this._layersForVisibleTiles(
         g,
         rgba,
+        fillRgba,
         extent,
         createPathLayer,
         createLineStripLayer,
+        createPolygonLayer,
         modelMatrix,
         filter,
       )
       if (tileLayers.length > 0) {
         layers.push(...tileLayers)
       } else {
+        /** Fill drawn first so the stroke on top isn't blended over its own fill. */
+        if (fillRgba != null) {
+          layers.push(
+            createPolygonLayer({
+              id: `bulk-${uid}-fill`,
+              data: g.deckData.fullPolygons,
+              fillColor: fillRgba,
+              visible: true,
+              modelMatrix,
+              ...(filter != null ? { filterRange: filter.range } : {}),
+            }),
+          )
+        }
         layers.push(
           createPathLayer({
             id: `bulk-${uid}-paths`,
@@ -1000,9 +1089,11 @@ export class BulkAnnotationManager {
   _layersForVisibleTiles(
     g,
     rgba,
+    fillRgba,
     extent,
     createPathLayer,
     createLineStripLayer,
+    createPolygonLayer,
     modelMatrix,
     filter,
   ) {
@@ -1012,6 +1103,9 @@ export class BulkAnnotationManager {
     if (g.tileDataCache == null) {
       g.tileDataCache = new Map()
     }
+    if (fillRgba != null && g.tilePolygonDataCache == null) {
+      g.tilePolygonDataCache = new Map()
+    }
     const out = []
     for (const key of this._visibleTileKeys(g, extent)) {
       const annotationIndices = g.spatial.tileAnnotationIndices.get(key)
@@ -1019,13 +1113,17 @@ export class BulkAnnotationManager {
         continue
       }
       let tileData = g.tileDataCache.get(key)
-      if (tileData == null) {
-        const sub = buildTileSubviews({
+      let sub = null
+      let tileFilterValues = null
+      if (
+        tileData == null ||
+        (fillRgba != null && !g.tilePolygonDataCache.has(key))
+      ) {
+        sub = buildTileSubviews({
           positions: g.decoded.positions,
           startIndices: g.decoded.startIndices,
           annotationIndices,
         })
-        let tileFilterValues = null
         if (filter != null) {
           tileFilterValues = expandMeasurementToPerVertex(
             Float32Array.from(
@@ -1036,6 +1134,8 @@ export class BulkAnnotationManager {
             sub.positions.length / 2,
           )
         }
+      }
+      if (tileData == null) {
         tileData = {
           length: annotationIndices.length,
           startIndices: sub.startIndices,
@@ -1051,6 +1151,36 @@ export class BulkAnnotationManager {
       }
       const useStyled =
         annotationIndices.length < 50_000 && this._isHighResolution()
+      /**
+       * Fill only rendered alongside the styled (full-detail) path tier —
+       * matches the non-tiled fallback and keeps the coarse LOD tier cheap.
+       */
+      if (fillRgba != null && useStyled) {
+        let tilePolygonData = g.tilePolygonDataCache.get(key)
+        if (tilePolygonData == null) {
+          tilePolygonData = {
+            length: annotationIndices.length,
+            startIndices: sub.startIndices,
+            attributes: {
+              getPolygon: { value: sub.positions, size: 2 },
+              ...(tileFilterValues != null
+                ? { getFilterValue: { value: tileFilterValues, size: 1 } }
+                : {}),
+            },
+          }
+          g.tilePolygonDataCache.set(key, tilePolygonData)
+        }
+        out.push(
+          createPolygonLayer({
+            id: `bulk-${g.annotationGroup.uid}-tile-${key}-fill`,
+            data: tilePolygonData,
+            fillColor: fillRgba,
+            visible: true,
+            modelMatrix,
+            ...(filter != null ? { filterRange: filter.range } : {}),
+          }),
+        )
+      }
       out.push(
         useStyled
           ? createPathLayer({

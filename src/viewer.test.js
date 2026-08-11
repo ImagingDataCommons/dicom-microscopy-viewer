@@ -90,7 +90,9 @@ const testCases = [
           }),
           style: {
             color: [255, 234, 0],
-            opacity: 1
+            opacity: 1,
+            filled: false,
+            fillOpacity: 0.35
           }
         }
       },

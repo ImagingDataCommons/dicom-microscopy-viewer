@@ -5,3 +5,4 @@
 export { createLineStripLayer } from './lineStripLayer.js'
 export { createPathLayer } from './pathLayer.js'
 export { createPointLayer } from './pointLayer.js'
+export { createPolygonLayer } from './polygonLayer.js'
