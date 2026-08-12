@@ -101,6 +101,10 @@ const PICK_TOLERANCE_PX = 6
  * Kept rendered as a stale placeholder underneath a new build's base
  * layers while that build's own fill is in flight, so panning/zooming
  * never blanks fill to nothing for a frame.
+ * @property {Map|null} fillTileDataCache - Per-tile fill geometry
+ * (`tileKey -> dataObject[]`), populated as tiles are triangulated. A tile
+ * revisited on a later pan reuses its cached data instead of being
+ * re-triangulated, so only genuinely new tiles pay that cost.
  */
 
 export class BulkAnnotationManager {
@@ -297,6 +301,7 @@ export class BulkAnnotationManager {
         deckLayers: [],
         fillBuildGeneration: 0,
         lastFillLayers: null,
+        fillTileDataCache: null,
         rawGraphicData: null,
         rawGraphicIndex: null,
       }
@@ -439,6 +444,7 @@ export class BulkAnnotationManager {
     g.buildSignature = null
     g.fillBuildGeneration += 1
     g.lastFillLayers = null
+    g.fillTileDataCache = null
     this._requestRender()
   }
 
@@ -843,6 +849,7 @@ export class BulkAnnotationManager {
         g.filterCache = null
         g.deckData = null
         g.tileDataCache = null
+        g.fillTileDataCache = null
       }
       return null
     }
@@ -864,6 +871,7 @@ export class BulkAnnotationManager {
       /** Filter attribute changes invalidate cached data objects. */
       g.deckData = null
       g.tileDataCache = null
+      g.fillTileDataCache = null
     }
     const stored = g.measurementRanges?.[key]
     const range =
@@ -1075,7 +1083,8 @@ export class BulkAnnotationManager {
       )
     }
 
-    let fillIndices = null
+    /** null = "fill the whole (untiled) group"; see _scheduleFillBuild. */
+    let fillTiles = null
     if (graphicType !== 'POINT' && (!useLod || highRes)) {
       const map = this._getMap()
       const view = map?.getView()
@@ -1091,7 +1100,7 @@ export class BulkAnnotationManager {
       )
       if (tiled.layers.length > 0) {
         layers.push(...tiled.layers)
-        fillIndices = tiled.fillableIndices
+        fillTiles = tiled.fillTiles
       } else {
         layers.push(
           createPathLayer({
@@ -1104,8 +1113,7 @@ export class BulkAnnotationManager {
             ...(filter != null ? { filterRange: filter.range } : {}),
           }),
         )
-        /** null = "fill the whole (untiled) group"; see _scheduleFillBuild. */
-        fillIndices = null
+        fillTiles = null
       }
     }
 
@@ -1133,7 +1141,7 @@ export class BulkAnnotationManager {
       this._scheduleFillBuild({
         g,
         generation: g.fillBuildGeneration,
-        indices: fillIndices,
+        fillTiles,
         fillRgba,
         modelMatrix,
         filter,
@@ -1144,16 +1152,19 @@ export class BulkAnnotationManager {
   }
 
   /**
-   * Render fill for a group: synchronously for small counts, otherwise
-   * batched across animation frames (see `_buildFillLayersProgressively`)
-   * so a dense selection can't block the main thread. `indices === null`
-   * means "the whole (untiled) group" — uses the stable `fullPolygons`
-   * data object for cheap re-tessellation skips across style-only rebuilds.
+   * Render fill for a group. `fillTiles === null` means "the whole (untiled)
+   * group" — small groups build synchronously, larger ones batch across
+   * frames (`_buildWholeGroupFillProgressively`), same as before. When
+   * `fillTiles` is an array (the common, spatially-tiled case), each tile's
+   * fill is cached in `g.fillTileDataCache` once built: a tile already seen
+   * on a prior pan is reused instantly instead of being re-triangulated, so
+   * only genuinely new tiles pay the triangulation cost
+   * (`_buildTileFillLayersProgressively`).
    *
    * @param {Object} options
    * @param {GroupRecord} options.g
    * @param {number} options.generation - `g.fillBuildGeneration` at schedule time; a stale batch loop stops once this no longer matches
-   * @param {number[]|null} options.indices
+   * @param {Array<{key: string, annotationIndices: number[]}>|null} options.fillTiles
    * @param {number[]} options.fillRgba
    * @param {number[]} [options.modelMatrix]
    * @param {Object|null} options.filter
@@ -1163,30 +1174,91 @@ export class BulkAnnotationManager {
   _scheduleFillBuild({
     g,
     generation,
-    indices,
+    fillTiles,
     fillRgba,
     modelMatrix,
     filter,
     createPolygonLayer,
     baseLayers,
   }) {
-    const total =
-      indices != null ? indices.length : g.decoded.numberOfAnnotations
+    if (fillTiles == null) {
+      this._scheduleWholeGroupFillBuild({
+        g,
+        generation,
+        fillRgba,
+        modelMatrix,
+        filter,
+        createPolygonLayer,
+        baseLayers,
+      })
+      return
+    }
+
+    if (g.fillTileDataCache == null) {
+      g.fillTileDataCache = new Map()
+    }
+    const cachedLayers = []
+    const pendingTiles = []
+    for (const tile of fillTiles) {
+      const chunks = g.fillTileDataCache.get(tile.key)
+      if (chunks != null) {
+        cachedLayers.push(
+          ...this._tileFillLayersFromChunks(
+            g,
+            tile.key,
+            chunks,
+            fillRgba,
+            modelMatrix,
+            filter,
+            createPolygonLayer,
+          ),
+        )
+      } else {
+        pendingTiles.push(tile)
+      }
+    }
+    if (pendingTiles.length === 0) {
+      g.lastFillLayers = cachedLayers
+      g.deckLayers = [...cachedLayers, ...baseLayers]
+      this._requestRender()
+      return
+    }
+    this._buildTileFillLayersProgressively({
+      g,
+      generation,
+      cachedLayers,
+      pendingTiles,
+      fillRgba,
+      modelMatrix,
+      filter,
+      createPolygonLayer,
+      baseLayers,
+    }).catch((error) => {
+      console.error('[bulkAnnotations] progressive fill build failed', error)
+    })
+  }
+
+  /** Whole-(untiled)-group variant of `_scheduleFillBuild` — see there. */
+  _scheduleWholeGroupFillBuild({
+    g,
+    generation,
+    fillRgba,
+    modelMatrix,
+    filter,
+    createPolygonLayer,
+    baseLayers,
+  }) {
+    const total = g.decoded.numberOfAnnotations
     if (total === 0) {
-      /** No fillable tiles at this view (e.g. zoomed out to the LOD tier) — drop any stale fill rather than leaving it stuck on screen. */
       g.lastFillLayers = null
       g.deckLayers = baseLayers
       this._requestRender()
       return
     }
     if (total <= BULK_FILL_INSTANT_MAX) {
-      const data =
-        indices != null
-          ? this._buildFillDataForIndices(g, indices, filter)
-          : g.deckData.fullPolygons
       const fillLayer = createPolygonLayer({
         id: `bulk-${g.annotationGroup.uid}-fill`,
-        data,
+        data: g.deckData.fullPolygons,
         fillColor: fillRgba,
         visible: true,
         modelMatrix,
@@ -1197,12 +1269,11 @@ export class BulkAnnotationManager {
       this._requestRender()
       return
     }
-    const fullIndices =
-      indices ?? Array.from({ length: total }, (_unused, index) => index)
-    this._buildFillLayersProgressively({
+    const allIndices = Array.from({ length: total }, (_unused, index) => index)
+    this._buildWholeGroupFillProgressively({
       g,
       generation,
-      indices: fullIndices,
+      indices: allIndices,
       fillRgba,
       modelMatrix,
       filter,
@@ -1211,6 +1282,28 @@ export class BulkAnnotationManager {
     }).catch((error) => {
       console.error('[bulkAnnotations] progressive fill build failed', error)
     })
+  }
+
+  /** Build the deck.gl fill layer(s) for one tile's cached data chunks. */
+  _tileFillLayersFromChunks(
+    g,
+    key,
+    chunks,
+    fillRgba,
+    modelMatrix,
+    filter,
+    createPolygonLayer,
+  ) {
+    return chunks.map((data, chunkIndex) =>
+      createPolygonLayer({
+        id: `bulk-${g.annotationGroup.uid}-fill-tile-${key}-${chunkIndex * BULK_FILL_BATCH_SIZE}`,
+        data,
+        fillColor: fillRgba,
+        visible: true,
+        modelMatrix,
+        ...(filter != null ? { filterRange: filter.range } : {}),
+      }),
+    )
   }
 
   /** Slice + filter-expand a fill data object for an explicit annotation index set. */
@@ -1241,15 +1334,16 @@ export class BulkAnnotationManager {
   }
 
   /**
-   * Build fill for `indices` in `BULK_FILL_BATCH_SIZE`-sized chunks, one
-   * chunk per animation frame, so triangulating a large selection never
-   * blocks the main thread for more than a batch's worth of work. Each
-   * completed batch is appended under `baseLayers` and rendered immediately
-   * — fill visibly grows in rather than appearing all at once. Aborts as
-   * soon as a newer rebuild (`g.fillBuildGeneration` moved on), the group
-   * is hidden, or the group is unhydrated.
+   * Build fill for the whole untiled group's `indices` in
+   * `BULK_FILL_BATCH_SIZE`-sized chunks, one chunk per animation frame, so
+   * triangulating a large selection never blocks the main thread for more
+   * than a batch's worth of work. Each completed batch is appended under
+   * `baseLayers` and rendered immediately — fill visibly grows in rather
+   * than appearing all at once. Aborts as soon as a newer rebuild
+   * (`g.fillBuildGeneration` moved on), the group is hidden, or the group is
+   * unhydrated.
    */
-  async _buildFillLayersProgressively({
+  async _buildWholeGroupFillProgressively({
     g,
     generation,
     indices,
@@ -1285,6 +1379,71 @@ export class BulkAnnotationManager {
     g.lastFillLayers = fillLayers
   }
 
+  /**
+   * Build fill for tiles not yet in `g.fillTileDataCache`, one tile at a
+   * time, sub-batching a tile's own annotations by `BULK_FILL_BATCH_SIZE`
+   * across animation frames so a single dense tile can't block the main
+   * thread either. `cachedLayers` (already-triangulated tiles) render
+   * immediately; each pending tile's fill is appended as its batches
+   * complete, and the finished tile's data chunks are cached so a later
+   * rebuild that revisits it (panning back, an unrelated style change, …)
+   * reuses them instead of re-triangulating. Aborts as soon as a newer
+   * rebuild supersedes this one, the group is hidden, or unhydrated —
+   * whatever tiles finished before the abort stay cached.
+   */
+  async _buildTileFillLayersProgressively({
+    g,
+    generation,
+    cachedLayers,
+    pendingTiles,
+    fillRgba,
+    modelMatrix,
+    filter,
+    createPolygonLayer,
+    baseLayers,
+  }) {
+    const newLayers = []
+    g.deckLayers = [...cachedLayers, ...newLayers, ...baseLayers]
+    this._requestRender()
+    for (const tile of pendingTiles) {
+      const chunks = []
+      for (
+        let start = 0;
+        start < tile.annotationIndices.length;
+        start += BULK_FILL_BATCH_SIZE
+      ) {
+        if (generation !== g.fillBuildGeneration || !g.visible || !g.hydrated) {
+          return
+        }
+        const batchIndices = tile.annotationIndices.slice(
+          start,
+          start + BULK_FILL_BATCH_SIZE,
+        )
+        const data = this._buildFillDataForIndices(g, batchIndices, filter)
+        chunks.push(data)
+        newLayers.push(
+          createPolygonLayer({
+            id: `bulk-${g.annotationGroup.uid}-fill-tile-${tile.key}-${start}`,
+            data,
+            fillColor: fillRgba,
+            visible: true,
+            modelMatrix,
+            ...(filter != null ? { filterRange: filter.range } : {}),
+          }),
+        )
+        g.deckLayers = [...cachedLayers, ...newLayers, ...baseLayers]
+        this._requestRender()
+        await new Promise((resolve) => {
+          requestAnimationFrame(resolve)
+        })
+      }
+      if (g.fillTileDataCache != null) {
+        g.fillTileDataCache.set(tile.key, chunks)
+      }
+    }
+    g.lastFillLayers = [...cachedLayers, ...newLayers]
+  }
+
   _layersForVisibleTiles(
     g,
     rgba,
@@ -1295,13 +1454,13 @@ export class BulkAnnotationManager {
     filter,
   ) {
     if (g.spatial == null || extent == null) {
-      return { layers: [], fillableIndices: [] }
+      return { layers: [], fillTiles: [] }
     }
     if (g.tileDataCache == null) {
       g.tileDataCache = new Map()
     }
     const out = []
-    const fillableIndices = []
+    const fillTiles = []
     for (const key of this._visibleTileKeys(g, extent)) {
       const annotationIndices = g.spatial.tileAnnotationIndices.get(key)
       if (annotationIndices == null || annotationIndices.length === 0) {
@@ -1346,16 +1505,14 @@ export class BulkAnnotationManager {
       /**
        * Fill only considered for tiles rendered at the styled (full-detail)
        * tier — matches the non-tiled fallback and keeps the coarse LOD tier
-       * cheap. Collected here and built separately (see
-       * `_scheduleFillBuild`/`_buildFillLayersProgressively`) so a large
-       * combined selection can be triangulated in batches across frames
-       * instead of per-tile, which would block on whichever tile is
-       * densest.
+       * cheap. Collected here and built separately, per tile, so
+       * `_scheduleFillBuild` can reuse an already-triangulated tile's fill
+       * across rebuilds (see `g.fillTileDataCache`) instead of re-building
+       * every visible tile's fill on every pan/zoom, and so one dense tile
+       * can be batched across frames without blocking the others.
        */
       if (useStyled) {
-        for (const index of annotationIndices) {
-          fillableIndices.push(index)
-        }
+        fillTiles.push({ key, annotationIndices })
       }
       out.push(
         useStyled
@@ -1377,7 +1534,7 @@ export class BulkAnnotationManager {
             }),
       )
     }
-    return { layers: out, fillableIndices }
+    return { layers: out, fillTiles }
   }
 
   _collectDeckLayers() {

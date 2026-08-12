@@ -46,8 +46,9 @@ export const BULK_FILL_INSTANT_MAX = 1500
 
 /**
  * Above `BULK_FILL_INSTANT_MAX`, fill is built this many annotations at a
- * time (see `BulkAnnotationManager#_buildFillLayersProgressively`), each
- * batch on its own animation frame. Unlike the stroke PathLayer,
+ * time (see `BulkAnnotationManager#_buildTileFillLayersProgressively` and
+ * `#_buildWholeGroupFillProgressively`), each batch on its own animation
+ * frame. Unlike the stroke PathLayer,
  * SolidPolygonLayer triangulates every polygon on the CPU main thread when
  * a layer is built — synchronous, with no LOD fallback of its own — so an
  * unbatched fill of a dense tile (nuclei segmentation clears this easily)
