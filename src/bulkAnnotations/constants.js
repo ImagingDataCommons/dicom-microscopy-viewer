@@ -39,15 +39,22 @@ export const BULK_DEFAULT_FILLED = false
 export const BULK_DEFAULT_FILL_OPACITY = 0.35
 
 /**
- * Max annotations per spatial tile that get a fill layer. Unlike the stroke
- * PathLayer, SolidPolygonLayer triangulates every polygon on the CPU main
- * thread when the layer is built — synchronous, no LOD fallback the way
- * strokes have one. A dense tile (nuclei segmentation easily clears the
- * existing 50k stroke/LOD cutoff) can visibly hang the tab for a toggle.
- * Tiles above this count render stroke-only regardless of the `filled`
- * style, rather than block the UI trying to fill them.
+ * Below this count, fill is triangulated in one synchronous pass — cheap
+ * enough that batching would just add overhead for no benefit.
  */
-export const BULK_FILL_MAX_ANNOTATIONS_PER_TILE = 4000
+export const BULK_FILL_INSTANT_MAX = 1500
+
+/**
+ * Above `BULK_FILL_INSTANT_MAX`, fill is built this many annotations at a
+ * time (see `BulkAnnotationManager#_buildFillLayersProgressively`), each
+ * batch on its own animation frame. Unlike the stroke PathLayer,
+ * SolidPolygonLayer triangulates every polygon on the CPU main thread when
+ * a layer is built — synchronous, with no LOD fallback of its own — so an
+ * unbatched fill of a dense tile (nuclei segmentation clears this easily)
+ * can visibly hang the tab. Batching keeps each frame's triangulation work
+ * bounded instead of skipping fill outright for large groups.
+ */
+export const BULK_FILL_BATCH_SIZE = 500
 
 /** Graphic types rendered as closed paths. */
 export const CLOSED_GRAPHIC_TYPES = new Set(['POLYGON', 'RECTANGLE', 'ELLIPSE'])

@@ -22,7 +22,8 @@ import {
   BULK_DEFAULT_COLOR,
   BULK_DEFAULT_FILL_OPACITY,
   BULK_DEFAULT_FILLED,
-  BULK_FILL_MAX_ANNOTATIONS_PER_TILE,
+  BULK_FILL_BATCH_SIZE,
+  BULK_FILL_INSTANT_MAX,
   BULK_LOD_DEFAULT_LEVELS_FROM_FINEST,
   BULK_LOD_MIN_ANNOTATIONS,
   BULK_PATH_STROKE_PX,
@@ -90,10 +91,12 @@ const PICK_TOLERANCE_PX = 6
  * @property {Promise|null} measurementsPromise
  * @property {Object|null} deckData - Stable data object refs for layers
  * @property {Map|null} tileDataCache - Per-tile stable data objects
- * @property {Map|null} tilePolygonDataCache - Per-tile stable fill data objects (built lazily; only when a group is filled)
  * @property {Object|null} filterCache - Expanded per-vertex/per-annotation filter values
  * @property {string|null} buildSignature - View signature of the current layer build
  * @property {Array} deckLayers
+ * @property {number} fillBuildGeneration - Bumped on every rebuild; a
+ * stale progressive fill batch loop compares against this and stops
+ * appending once it no longer matches.
  */
 
 export class BulkAnnotationManager {
@@ -285,10 +288,10 @@ export class BulkAnnotationManager {
         measurementsPromise: null,
         deckData: null,
         tileDataCache: null,
-        tilePolygonDataCache: null,
         filterCache: null,
         buildSignature: null,
         deckLayers: [],
+        fillBuildGeneration: 0,
         rawGraphicData: null,
         rawGraphicIndex: null,
       }
@@ -427,9 +430,9 @@ export class BulkAnnotationManager {
     g.deckLayers = []
     g.deckData = null
     g.tileDataCache = null
-    g.tilePolygonDataCache = null
     g.filterCache = null
     g.buildSignature = null
+    g.fillBuildGeneration += 1
     this._requestRender()
   }
 
@@ -443,6 +446,8 @@ export class BulkAnnotationManager {
         /* ignore */
       }
     }
+    /** Stop an in-flight progressive fill batch loop (see `g.visible` check there) from wastefully continuing on a detached record. */
+    g.visible = false
     this._groups.delete(uid)
     this._requestRender()
   }
@@ -832,7 +837,6 @@ export class BulkAnnotationManager {
         g.filterCache = null
         g.deckData = null
         g.tileDataCache = null
-        g.tilePolygonDataCache = null
       }
       return null
     }
@@ -854,7 +858,6 @@ export class BulkAnnotationManager {
       /** Filter attribute changes invalidate cached data objects. */
       g.deckData = null
       g.tileDataCache = null
-      g.tilePolygonDataCache = null
     }
     const stored = g.measurementRanges?.[key]
     const range =
@@ -1066,40 +1069,24 @@ export class BulkAnnotationManager {
       )
     }
 
+    let fillIndices = null
     if (graphicType !== 'POINT' && (!useLod || highRes)) {
       const map = this._getMap()
       const view = map?.getView()
       const extent = view?.calculateExtent?.()
-      const tileLayers = this._layersForVisibleTiles(
+      const tiled = this._layersForVisibleTiles(
         g,
         rgba,
-        fillRgba,
         extent,
         createPathLayer,
         createLineStripLayer,
-        createPolygonLayer,
         modelMatrix,
         filter,
       )
-      if (tileLayers.length > 0) {
-        layers.push(...tileLayers)
+      if (tiled.layers.length > 0) {
+        layers.push(...tiled.layers)
+        fillIndices = tiled.fillableIndices
       } else {
-        /** Fill drawn first so the stroke on top isn't blended over its own fill. */
-        if (
-          fillRgba != null &&
-          numberOfAnnotations <= BULK_FILL_MAX_ANNOTATIONS_PER_TILE
-        ) {
-          layers.push(
-            createPolygonLayer({
-              id: `bulk-${uid}-fill`,
-              data: g.deckData.fullPolygons,
-              fillColor: fillRgba,
-              visible: true,
-              modelMatrix,
-              ...(filter != null ? { filterRange: filter.range } : {}),
-            }),
-          )
-        }
         layers.push(
           createPathLayer({
             id: `bulk-${uid}-paths`,
@@ -1111,35 +1098,185 @@ export class BulkAnnotationManager {
             ...(filter != null ? { filterRange: filter.range } : {}),
           }),
         )
+        /** null = "fill the whole (untiled) group"; see _scheduleFillBuild. */
+        fillIndices = null
       }
     }
 
     g.deckLayers = layers
     g.buildSignature = signature
+    g.fillBuildGeneration += 1
     this._requestRender()
+
+    if (isFilled && graphicType !== 'POINT' && (!useLod || highRes)) {
+      this._scheduleFillBuild({
+        g,
+        generation: g.fillBuildGeneration,
+        indices: fillIndices,
+        fillRgba,
+        modelMatrix,
+        filter,
+        createPolygonLayer,
+        baseLayers: layers,
+      })
+    }
+  }
+
+  /**
+   * Render fill for a group: synchronously for small counts, otherwise
+   * batched across animation frames (see `_buildFillLayersProgressively`)
+   * so a dense selection can't block the main thread. `indices === null`
+   * means "the whole (untiled) group" — uses the stable `fullPolygons`
+   * data object for cheap re-tessellation skips across style-only rebuilds.
+   *
+   * @param {Object} options
+   * @param {GroupRecord} options.g
+   * @param {number} options.generation - `g.fillBuildGeneration` at schedule time; a stale batch loop stops once this no longer matches
+   * @param {number[]|null} options.indices
+   * @param {number[]} options.fillRgba
+   * @param {number[]} [options.modelMatrix]
+   * @param {Object|null} options.filter
+   * @param {Function} options.createPolygonLayer
+   * @param {Array} options.baseLayers - Non-fill layers to keep underneath the fill batches
+   */
+  _scheduleFillBuild({
+    g,
+    generation,
+    indices,
+    fillRgba,
+    modelMatrix,
+    filter,
+    createPolygonLayer,
+    baseLayers,
+  }) {
+    const total =
+      indices != null ? indices.length : g.decoded.numberOfAnnotations
+    if (total === 0) {
+      return
+    }
+    if (total <= BULK_FILL_INSTANT_MAX) {
+      const data =
+        indices != null
+          ? this._buildFillDataForIndices(g, indices, filter)
+          : g.deckData.fullPolygons
+      g.deckLayers = [
+        createPolygonLayer({
+          id: `bulk-${g.annotationGroup.uid}-fill`,
+          data,
+          fillColor: fillRgba,
+          visible: true,
+          modelMatrix,
+          ...(filter != null ? { filterRange: filter.range } : {}),
+        }),
+        ...baseLayers,
+      ]
+      this._requestRender()
+      return
+    }
+    const fullIndices =
+      indices ?? Array.from({ length: total }, (_unused, index) => index)
+    this._buildFillLayersProgressively({
+      g,
+      generation,
+      indices: fullIndices,
+      fillRgba,
+      modelMatrix,
+      filter,
+      createPolygonLayer,
+      baseLayers,
+    }).catch((error) => {
+      console.error('[bulkAnnotations] progressive fill build failed', error)
+    })
+  }
+
+  /** Slice + filter-expand a fill data object for an explicit annotation index set. */
+  _buildFillDataForIndices(g, indices, filter) {
+    const sub = buildTileSubviews({
+      positions: g.decoded.positions,
+      startIndices: g.decoded.startIndices,
+      annotationIndices: indices,
+    })
+    let filterValues = null
+    if (filter != null) {
+      filterValues = expandMeasurementToPerVertex(
+        Float32Array.from(indices, (index) => filter.perAnnotation[index]),
+        sub.startIndices,
+        sub.positions.length / 2,
+      )
+    }
+    return {
+      length: indices.length,
+      startIndices: sub.startIndices,
+      attributes: {
+        getPolygon: { value: sub.positions, size: 2 },
+        ...(filterValues != null
+          ? { getFilterValue: { value: filterValues, size: 1 } }
+          : {}),
+      },
+    }
+  }
+
+  /**
+   * Build fill for `indices` in `BULK_FILL_BATCH_SIZE`-sized chunks, one
+   * chunk per animation frame, so triangulating a large selection never
+   * blocks the main thread for more than a batch's worth of work. Each
+   * completed batch is appended under `baseLayers` and rendered immediately
+   * — fill visibly grows in rather than appearing all at once. Aborts as
+   * soon as a newer rebuild (`g.fillBuildGeneration` moved on), the group
+   * is hidden, or the group is unhydrated.
+   */
+  async _buildFillLayersProgressively({
+    g,
+    generation,
+    indices,
+    fillRgba,
+    modelMatrix,
+    filter,
+    createPolygonLayer,
+    baseLayers,
+  }) {
+    const fillLayers = []
+    for (let start = 0; start < indices.length; start += BULK_FILL_BATCH_SIZE) {
+      if (generation !== g.fillBuildGeneration || !g.visible || !g.hydrated) {
+        return
+      }
+      const batchIndices = indices.slice(start, start + BULK_FILL_BATCH_SIZE)
+      const data = this._buildFillDataForIndices(g, batchIndices, filter)
+      fillLayers.push(
+        createPolygonLayer({
+          id: `bulk-${g.annotationGroup.uid}-fill-batch-${start}`,
+          data,
+          fillColor: fillRgba,
+          visible: true,
+          modelMatrix,
+          ...(filter != null ? { filterRange: filter.range } : {}),
+        }),
+      )
+      g.deckLayers = [...fillLayers, ...baseLayers]
+      this._requestRender()
+      await new Promise((resolve) => {
+        requestAnimationFrame(resolve)
+      })
+    }
   }
 
   _layersForVisibleTiles(
     g,
     rgba,
-    fillRgba,
     extent,
     createPathLayer,
     createLineStripLayer,
-    createPolygonLayer,
     modelMatrix,
     filter,
   ) {
     if (g.spatial == null || extent == null) {
-      return []
+      return { layers: [], fillableIndices: [] }
     }
     if (g.tileDataCache == null) {
       g.tileDataCache = new Map()
     }
-    if (fillRgba != null && g.tilePolygonDataCache == null) {
-      g.tilePolygonDataCache = new Map()
-    }
     const out = []
+    const fillableIndices = []
     for (const key of this._visibleTileKeys(g, extent)) {
       const annotationIndices = g.spatial.tileAnnotationIndices.get(key)
       if (annotationIndices == null || annotationIndices.length === 0) {
@@ -1148,10 +1285,7 @@ export class BulkAnnotationManager {
       let tileData = g.tileDataCache.get(key)
       let sub = null
       let tileFilterValues = null
-      if (
-        tileData == null ||
-        (fillRgba != null && !g.tilePolygonDataCache.has(key))
-      ) {
+      if (tileData == null) {
         sub = buildTileSubviews({
           positions: g.decoded.positions,
           startIndices: g.decoded.startIndices,
@@ -1185,42 +1319,18 @@ export class BulkAnnotationManager {
       const useStyled =
         annotationIndices.length < 50_000 && this._isHighResolution()
       /**
-       * Fill only rendered alongside the styled (full-detail) path tier —
-       * matches the non-tiled fallback and keeps the coarse LOD tier cheap.
-       * Also capped well below the stroke tier's own cutoff: triangulating
-       * a dense tile synchronously (SolidPolygonLayer, no LOD fallback of
-       * its own) can visibly hang the tab, so a tile above the fill cap
-       * renders stroke-only even with `filled` on.
+       * Fill only considered for tiles rendered at the styled (full-detail)
+       * tier — matches the non-tiled fallback and keeps the coarse LOD tier
+       * cheap. Collected here and built separately (see
+       * `_scheduleFillBuild`/`_buildFillLayersProgressively`) so a large
+       * combined selection can be triangulated in batches across frames
+       * instead of per-tile, which would block on whichever tile is
+       * densest.
        */
-      if (
-        fillRgba != null &&
-        useStyled &&
-        annotationIndices.length <= BULK_FILL_MAX_ANNOTATIONS_PER_TILE
-      ) {
-        let tilePolygonData = g.tilePolygonDataCache.get(key)
-        if (tilePolygonData == null) {
-          tilePolygonData = {
-            length: annotationIndices.length,
-            startIndices: sub.startIndices,
-            attributes: {
-              getPolygon: { value: sub.positions, size: 2 },
-              ...(tileFilterValues != null
-                ? { getFilterValue: { value: tileFilterValues, size: 1 } }
-                : {}),
-            },
-          }
-          g.tilePolygonDataCache.set(key, tilePolygonData)
+      if (useStyled) {
+        for (const index of annotationIndices) {
+          fillableIndices.push(index)
         }
-        out.push(
-          createPolygonLayer({
-            id: `bulk-${g.annotationGroup.uid}-tile-${key}-fill`,
-            data: tilePolygonData,
-            fillColor: fillRgba,
-            visible: true,
-            modelMatrix,
-            ...(filter != null ? { filterRange: filter.range } : {}),
-          }),
-        )
       }
       out.push(
         useStyled
@@ -1242,7 +1352,7 @@ export class BulkAnnotationManager {
             }),
       )
     }
-    return out
+    return { layers: out, fillableIndices }
   }
 
   _collectDeckLayers() {
