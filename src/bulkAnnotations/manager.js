@@ -97,6 +97,10 @@ const PICK_TOLERANCE_PX = 6
  * @property {number} fillBuildGeneration - Bumped on every rebuild; a
  * stale progressive fill batch loop compares against this and stops
  * appending once it no longer matches.
+ * @property {Array|null} lastFillLayers - Last completed fill layer(s).
+ * Kept rendered as a stale placeholder underneath a new build's base
+ * layers while that build's own fill is in flight, so panning/zooming
+ * never blanks fill to nothing for a frame.
  */
 
 export class BulkAnnotationManager {
@@ -292,6 +296,7 @@ export class BulkAnnotationManager {
         buildSignature: null,
         deckLayers: [],
         fillBuildGeneration: 0,
+        lastFillLayers: null,
         rawGraphicData: null,
         rawGraphicIndex: null,
       }
@@ -433,6 +438,7 @@ export class BulkAnnotationManager {
     g.filterCache = null
     g.buildSignature = null
     g.fillBuildGeneration += 1
+    g.lastFillLayers = null
     this._requestRender()
   }
 
@@ -1103,12 +1109,27 @@ export class BulkAnnotationManager {
       }
     }
 
-    g.deckLayers = layers
+    /** Matches the tier that actually gets a fill build scheduled below. */
+    const fillEligible =
+      isFilled && graphicType !== 'POINT' && (!useLod || highRes)
+
+    /**
+     * Show the previous build's fill underneath the new base layers instead
+     * of blanking to unfilled while the new fill (re)builds — panning/zooming
+     * would otherwise flicker unfilled-then-filled on every view change.
+     * Positions are absolute world coordinates, so a stale set still draws
+     * correctly; it's just replaced once the new build's fill is ready.
+     */
+    const staleFillLayers = fillEligible ? (g.lastFillLayers ?? []) : []
+    if (!fillEligible) {
+      g.lastFillLayers = null
+    }
+    g.deckLayers = [...staleFillLayers, ...layers]
     g.buildSignature = signature
     g.fillBuildGeneration += 1
     this._requestRender()
 
-    if (isFilled && graphicType !== 'POINT' && (!useLod || highRes)) {
+    if (fillEligible) {
       this._scheduleFillBuild({
         g,
         generation: g.fillBuildGeneration,
@@ -1152,6 +1173,10 @@ export class BulkAnnotationManager {
     const total =
       indices != null ? indices.length : g.decoded.numberOfAnnotations
     if (total === 0) {
+      /** No fillable tiles at this view (e.g. zoomed out to the LOD tier) — drop any stale fill rather than leaving it stuck on screen. */
+      g.lastFillLayers = null
+      g.deckLayers = baseLayers
+      this._requestRender()
       return
     }
     if (total <= BULK_FILL_INSTANT_MAX) {
@@ -1159,17 +1184,16 @@ export class BulkAnnotationManager {
         indices != null
           ? this._buildFillDataForIndices(g, indices, filter)
           : g.deckData.fullPolygons
-      g.deckLayers = [
-        createPolygonLayer({
-          id: `bulk-${g.annotationGroup.uid}-fill`,
-          data,
-          fillColor: fillRgba,
-          visible: true,
-          modelMatrix,
-          ...(filter != null ? { filterRange: filter.range } : {}),
-        }),
-        ...baseLayers,
-      ]
+      const fillLayer = createPolygonLayer({
+        id: `bulk-${g.annotationGroup.uid}-fill`,
+        data,
+        fillColor: fillRgba,
+        visible: true,
+        modelMatrix,
+        ...(filter != null ? { filterRange: filter.range } : {}),
+      })
+      g.lastFillLayers = [fillLayer]
+      g.deckLayers = [fillLayer, ...baseLayers]
       this._requestRender()
       return
     }
@@ -1258,6 +1282,7 @@ export class BulkAnnotationManager {
         requestAnimationFrame(resolve)
       })
     }
+    g.lastFillLayers = fillLayers
   }
 
   _layersForVisibleTiles(
