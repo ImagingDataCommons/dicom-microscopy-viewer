@@ -22,6 +22,7 @@ import {
   BULK_DEFAULT_COLOR,
   BULK_DEFAULT_FILL_OPACITY,
   BULK_DEFAULT_FILLED,
+  BULK_FILL_MAX_ANNOTATIONS_PER_TILE,
   BULK_LOD_DEFAULT_LEVELS_FROM_FINEST,
   BULK_LOD_MIN_ANNOTATIONS,
   BULK_PATH_STROKE_PX,
@@ -1084,7 +1085,10 @@ export class BulkAnnotationManager {
         layers.push(...tileLayers)
       } else {
         /** Fill drawn first so the stroke on top isn't blended over its own fill. */
-        if (fillRgba != null) {
+        if (
+          fillRgba != null &&
+          numberOfAnnotations <= BULK_FILL_MAX_ANNOTATIONS_PER_TILE
+        ) {
           layers.push(
             createPolygonLayer({
               id: `bulk-${uid}-fill`,
@@ -1183,8 +1187,16 @@ export class BulkAnnotationManager {
       /**
        * Fill only rendered alongside the styled (full-detail) path tier —
        * matches the non-tiled fallback and keeps the coarse LOD tier cheap.
+       * Also capped well below the stroke tier's own cutoff: triangulating
+       * a dense tile synchronously (SolidPolygonLayer, no LOD fallback of
+       * its own) can visibly hang the tab, so a tile above the fill cap
+       * renders stroke-only even with `filled` on.
        */
-      if (fillRgba != null && useStyled) {
+      if (
+        fillRgba != null &&
+        useStyled &&
+        annotationIndices.length <= BULK_FILL_MAX_ANNOTATIONS_PER_TILE
+      ) {
         let tilePolygonData = g.tilePolygonDataCache.get(key)
         if (tilePolygonData == null) {
           tilePolygonData = {

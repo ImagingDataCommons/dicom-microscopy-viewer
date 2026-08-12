@@ -38,6 +38,17 @@ export const BULK_DEFAULT_FILLED = false
 /** Default fill opacity (0–1) when a closed graphic type is filled. */
 export const BULK_DEFAULT_FILL_OPACITY = 0.35
 
+/**
+ * Max annotations per spatial tile that get a fill layer. Unlike the stroke
+ * PathLayer, SolidPolygonLayer triangulates every polygon on the CPU main
+ * thread when the layer is built — synchronous, no LOD fallback the way
+ * strokes have one. A dense tile (nuclei segmentation easily clears the
+ * existing 50k stroke/LOD cutoff) can visibly hang the tab for a toggle.
+ * Tiles above this count render stroke-only regardless of the `filled`
+ * style, rather than block the UI trying to fill them.
+ */
+export const BULK_FILL_MAX_ANNOTATIONS_PER_TILE = 4000
+
 /** Graphic types rendered as closed paths. */
 export const CLOSED_GRAPHIC_TYPES = new Set(['POLYGON', 'RECTANGLE', 'ELLIPSE'])
 
