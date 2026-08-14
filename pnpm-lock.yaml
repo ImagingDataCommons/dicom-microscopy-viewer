@@ -43,8 +43,8 @@ importers:
         specifier: ^0.41.0
         version: 0.41.0
       dicomweb-client:
-        specifier: 0.10.3
-        version: 0.10.3
+        specifier: 0.11.3
+        version: 0.11.3
       image-type:
         specifier: ^4.1
         version: 4.1.0
@@ -1906,8 +1906,8 @@ packages:
   detect-node@2.1.0:
     resolution: {integrity: sha512-T0NIuQpnTvFDATNuHN5roPwSBG83rFsuO+MXXH9/3N1eFbn4wcPjttvjMLEPWJ0RGUYgQE7cGgS3tNxbqCGM7g==}
 
-  dicomweb-client@0.10.3:
-    resolution: {integrity: sha512-/fHNEAYiz8j+9TNOrNJ0k+hYqirbOT85B7vM7I4VkY8DeDQb4BDUeL3RX6huDVtn6ZQlR91dI+2tejLc5c99wA==}
+  dicomweb-client@0.11.3:
+    resolution: {integrity: sha512-7t1Rc/01fyFnKlQeNPW9Pvxvmsx8R/BgB2n7BxTuWirRFwlTC5upEeLeS3vO72P+n6/SQZ3+5ij0bgaWDHQG/A==}
 
   dir-glob@3.0.1:
     resolution: {integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==}
@@ -6034,7 +6034,7 @@ snapshots:
 
   detect-node@2.1.0: {}
 
-  dicomweb-client@0.10.3: {}
+  dicomweb-client@0.11.3: {}
 
   dir-glob@3.0.1:
     dependencies:
