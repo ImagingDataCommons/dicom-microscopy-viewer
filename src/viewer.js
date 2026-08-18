@@ -4902,20 +4902,26 @@ class VolumeImageViewer {
       return pointsStyle
     }
 
-    // For area-based annotations (POLYGON, RECTANGLE, ELLIPSE), add a transparent fill
-    // to enable hit detection in the filled area, not just on boundaries
+    // For area-based annotations (POLYGON, RECTANGLE, ELLIPSE), add fill
+    // When style.fill is true, use the annotation color with fillOpacity
+    // Otherwise use transparent fill for hit detection only
     if (
       graphicType === 'POLYGON' ||
       graphicType === 'RECTANGLE' ||
       graphicType === 'ELLIPSE'
     ) {
+      let fillColor = 'rgba(0, 0, 255, 0)' // transparent by default for hit detection
+      if (style.fill === true) {
+        const fillOpacity = Math.max(0, Math.min(1, style.fillOpacity ?? 0.5))
+        fillColor = `rgba(${style.color[0]}, ${style.color[1]}, ${style.color[2]}, ${fillOpacity})`
+      }
       return new Style({
         stroke: new Stroke({
           color,
           width: 2,
           opacity: style.opacity,
         }),
-        fill: new Fill({ color: 'rgba(0, 0, 255, 0)' }),
+        fill: new Fill({ color: fillColor }),
       })
     }
 
@@ -5109,6 +5115,8 @@ class VolumeImageViewer {
    * @param {number[]} [styleOptions.color] - RGB color triplet
    * @param {Object} [styleOptions.measurement] - Selected measurement for
    * pseudo-coloring of annotations using measurement values
+   * @param {boolean} [styleOptions.fill] - Whether to fill polygon annotations
+   * @param {number} [styleOptions.fillOpacity] - Opacity of fill (0-1)
    * @returns {void}
    */
   setAnnotationGroupStyle(annotationGroupUID, styleOptions = {}) {
@@ -5141,6 +5149,17 @@ class VolumeImageViewer {
 
     if (styleOptions.measurement != null) {
       annotationGroup.style.measurement = styleOptions.measurement
+    }
+
+    if (styleOptions.fill != null) {
+      annotationGroup.style.fill = styleOptions.fill
+    }
+
+    if (styleOptions.fillOpacity != null) {
+      annotationGroup.style.fillOpacity = Math.max(
+        0,
+        Math.min(1, styleOptions.fillOpacity),
+      )
     }
 
     const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
