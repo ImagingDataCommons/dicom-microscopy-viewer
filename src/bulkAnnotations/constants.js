@@ -2,8 +2,27 @@
  * Shared constants for the deck.gl bulk-annotation renderer.
  */
 
-/** Match OpenLayers cluster threshold: LOD applies above this count. */
-export const BULK_LOD_MIN_ANNOTATIONS = 1000
+/**
+ * LOD thresholds: LOD (showing centroids instead of full paths at low zoom)
+ * activates when EITHER threshold is exceeded.
+ *
+ * - BULK_LOD_MIN_VERTICES: Primary metric. Vertex count directly correlates
+ *   with GPU rendering cost (tessellation, memory, draw calls). 100k vertices
+ *   is a reasonable threshold where full-detail rendering at all zoom levels
+ *   starts to impact performance.
+ *
+ * - BULK_LOD_MIN_ANNOTATIONS: Fallback for sparse shapes (e.g., simple
+ *   polylines with few vertices). Even with low vertex count, thousands of
+ *   separate annotations can impact picking/interaction performance.
+ *
+ * The OR logic ensures:
+ * - 500 complex polygons (200 vertices each = 100k total) → triggers LOD
+ * - 5000 simple lines (10 vertices each = 50k total) → triggers LOD
+ * - 100 large polygons (1000 vertices each = 100k total) → triggers LOD
+ * - 50 simple rectangles (4 vertices each = 200 total) → NO LOD (always full detail)
+ */
+export const BULK_LOD_MIN_VERTICES = 100_000
+export const BULK_LOD_MIN_ANNOTATIONS = 5000
 
 /** Default pyramid levels from finest that show full paths (rest = centroids). */
 export const BULK_LOD_DEFAULT_LEVELS_FROM_FINEST = 1

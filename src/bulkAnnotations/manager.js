@@ -26,6 +26,7 @@ import {
   BULK_FILL_INSTANT_MAX,
   BULK_LOD_DEFAULT_LEVELS_FROM_FINEST,
   BULK_LOD_MIN_ANNOTATIONS,
+  BULK_LOD_MIN_VERTICES,
   BULK_PATH_STROKE_PX,
   BULK_POINT_RADIUS_MIN_PX,
   BULK_SPATIAL_TILE_SIZE,
@@ -987,6 +988,7 @@ export class BulkAnnotationManager {
       centroids,
       numberOfAnnotations,
       graphicType,
+      vertexCount,
     } = g.decoded
     const rgba = [
       g.style.color[0],
@@ -1012,10 +1014,25 @@ export class BulkAnnotationManager {
         ]
       : null
     const uid = g.annotationGroup.uid
+    /**
+     * LOD (showing centroids instead of full paths at low zoom) activates when:
+     * - Graphic type supports LOD (POLYGON, POLYLINE), AND
+     * - EITHER vertex count OR annotation count exceeds threshold
+     *
+     * Vertex count is the primary metric (direct GPU cost). Annotation count
+     * is a fallback for sparse shapes where interaction/picking cost matters.
+     */
     const useLod =
       PATH_LOD_GRAPHIC_TYPES.has(graphicType) &&
-      numberOfAnnotations > BULK_LOD_MIN_ANNOTATIONS
-    const highRes = !useLod || this._isHighResolution()
+      (vertexCount > BULK_LOD_MIN_VERTICES ||
+        numberOfAnnotations > BULK_LOD_MIN_ANNOTATIONS)
+    /**
+     * Show full paths (instead of just centroids) when:
+     * - LOD is not in use, OR
+     * - Currently at high resolution zoom, OR
+     * - Fill is enabled (user expects to see fill at all zoom levels)
+     */
+    const highRes = !useLod || this._isHighResolution() || isFilled
     const modelMatrix = rotationModelMatrix(this._viewRotation())
     const filter = this._activeFilter(g)
 
@@ -1097,6 +1114,7 @@ export class BulkAnnotationManager {
         createLineStripLayer,
         modelMatrix,
         filter,
+        isFilled,
       )
       if (tiled.layers.length > 0) {
         layers.push(...tiled.layers)
@@ -1452,6 +1470,7 @@ export class BulkAnnotationManager {
     createLineStripLayer,
     modelMatrix,
     filter,
+    isFilled = false,
   ) {
     if (g.spatial == null || extent == null) {
       return { layers: [], fillTiles: [] }
@@ -1500,8 +1519,15 @@ export class BulkAnnotationManager {
         }
         g.tileDataCache.set(key, tileData)
       }
+      /**
+       * Use styled (full-detail) PathLayer when:
+       * - Tile is not too dense (< 50k annotations), AND
+       * - Either at high resolution OR fill is enabled (user expects
+       *   consistent appearance at all zoom levels when fill is on)
+       */
       const useStyled =
-        annotationIndices.length < 50_000 && this._isHighResolution()
+        annotationIndices.length < 50_000 &&
+        (this._isHighResolution() || isFilled)
       /**
        * Fill only considered for tiles rendered at the styled (full-detail)
        * tier — matches the non-tiled fallback and keeps the coarse LOD tier
