@@ -1372,10 +1372,9 @@ export class BulkAnnotationManager {
     /**
      * Show full paths (instead of just centroids) when:
      * - LOD is not in use, OR
-     * - Currently at high resolution zoom, OR
-     * - Fill is enabled (user expects to see fill at all zoom levels)
+     * - Currently at high resolution zoom
      */
-    const highRes = !useLod || this._isHighResolution() || isFilled
+    const highRes = !useLod || this._isHighResolution()
     const modelMatrix = rotationModelMatrix(this._viewRotation())
     const filter = this._activeFilter(g)
 
