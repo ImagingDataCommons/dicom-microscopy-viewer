@@ -1210,11 +1210,14 @@ export class BulkAnnotationManager {
       const { color, opacity, fillOpacity } = g.style
       const rgba = [
         ...(color ?? BULK_DEFAULT_COLOR),
-        Math.round((opacity ?? BULK_DEFAULT_ALPHA) * 255),
+        Math.round(Math.max(0, Math.min(1, opacity ?? 1)) * BULK_DEFAULT_ALPHA),
       ]
       const fillRgba = [
         ...(color ?? BULK_DEFAULT_COLOR),
-        Math.round((fillOpacity ?? BULK_DEFAULT_FILL_OPACITY) * 255),
+        Math.round(
+          Math.max(0, Math.min(1, fillOpacity ?? BULK_DEFAULT_FILL_OPACITY)) *
+            255,
+        ),
       ]
 
       // Clone each layer with updated color props
@@ -1224,10 +1227,19 @@ export class BulkAnnotationManager {
         const isFillLayer = layerId.includes('-fill-')
 
         // deck.gl layers are immutable - clone with new props
+        // SolidPolygonLayer uses getFillColor, PathLayer/ScatterplotLayer use getColor
+        if (isFillLayer) {
+          return layer.clone({
+            getFillColor: fillRgba,
+            updateTriggers: {
+              getFillColor: [color, fillOpacity],
+            },
+          })
+        }
         return layer.clone({
-          getColor: isFillLayer ? fillRgba : rgba,
+          getColor: rgba,
           updateTriggers: {
-            getColor: [color, isFillLayer ? fillOpacity : opacity],
+            getColor: [color, opacity],
           },
         })
       })
