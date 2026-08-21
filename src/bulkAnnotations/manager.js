@@ -9,7 +9,6 @@
  */
 
 import dcmjs from 'dcmjs'
-
 import {
   AnnotationGroup,
   getCommonZCoordinate,
@@ -30,6 +29,8 @@ import {
   BULK_PATH_STROKE_PX,
   BULK_POINT_RADIUS_MIN_PX,
   BULK_SPATIAL_TILE_SIZE,
+  BULK_STYLE_DEBOUNCE_MS,
+  BULK_TILE_CACHE_MAX_SIZE,
   CLOSED_GRAPHIC_TYPES,
   PATH_LOD_GRAPHIC_TYPES,
 } from './constants.js'
@@ -59,7 +60,136 @@ import {
   makeBulkAnnotationRoiUid,
   pickBulkAnnotation,
 } from './picking.js'
+import { profiler as localProfiler } from './profiler.js'
 import { rotationModelMatrix } from './viewState.js'
+
+/**
+ * Use window.__bulkAnnProfiler if available (it's the singleton enabled via URL),
+ * otherwise fall back to the local import. This handles module duplication
+ * across webpack chunks.
+ */
+const getProfiler = () =>
+  typeof window !== 'undefined' && window.__bulkAnnProfiler
+    ? window.__bulkAnnProfiler
+    : localProfiler
+
+/**
+ * Simple LRU cache with maximum size limit.
+ * Uses Map's insertion order for LRU tracking.
+ */
+class LRUCache {
+  constructor(maxSize) {
+    this._maxSize = maxSize
+    this._cache = new Map()
+  }
+
+  get(key) {
+    if (!this._cache.has(key)) {
+      return undefined
+    }
+    // Move to end (most recently used) by delete + re-insert
+    const value = this._cache.get(key)
+    this._cache.delete(key)
+    this._cache.set(key, value)
+    return value
+  }
+
+  set(key, value) {
+    // Remove if exists (to update insertion order)
+    if (this._cache.has(key)) {
+      this._cache.delete(key)
+    }
+    this._cache.set(key, value)
+    // Evict oldest entries if over limit
+    while (this._cache.size > this._maxSize) {
+      const oldestKey = this._cache.keys().next().value
+      this._cache.delete(oldestKey)
+    }
+  }
+
+  has(key) {
+    return this._cache.has(key)
+  }
+
+  delete(key) {
+    return this._cache.delete(key)
+  }
+
+  clear() {
+    this._cache.clear()
+  }
+
+  get size() {
+    return this._cache.size
+  }
+
+  keys() {
+    return this._cache.keys()
+  }
+
+  values() {
+    return this._cache.values()
+  }
+
+  entries() {
+    return this._cache.entries()
+  }
+
+  forEach(callback, thisArg) {
+    this._cache.forEach(callback, thisArg)
+  }
+
+  [Symbol.iterator]() {
+    return this._cache[Symbol.iterator]()
+  }
+}
+
+/**
+ * Creates a debounced function that delays invoking func until after wait ms
+ * have elapsed since the last time the debounced function was invoked.
+ */
+function debounce(func, wait) {
+  let timeoutId = null
+  const debounced = function (...args) {
+    if (timeoutId != null) {
+      clearTimeout(timeoutId)
+    }
+    timeoutId = setTimeout(() => {
+      timeoutId = null
+      func.apply(this, args)
+    }, wait)
+  }
+  debounced.cancel = () => {
+    if (timeoutId != null) {
+      clearTimeout(timeoutId)
+      timeoutId = null
+    }
+  }
+  debounced.flush = function () {
+    if (timeoutId != null) {
+      clearTimeout(timeoutId)
+      timeoutId = null
+      func.apply(this)
+    }
+  }
+  return debounced
+}
+
+/**
+ * Compare two color arrays for equality.
+ * @param {number[]|null|undefined} a
+ * @param {number[]|null|undefined} b
+ * @returns {boolean}
+ */
+function colorsEqual(a, b) {
+  if (a == null && b == null) return true
+  if (a == null || b == null) return false
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
 
 /** Lazy — keep deck.gl out of the VolumeImageViewer import graph for jsdom. */
 let layerFactoriesPromise = null
@@ -141,6 +271,17 @@ export class BulkAnnotationManager {
     this._hydrateQueue = Promise.resolve()
     this._selected = null
     this._onMoveEnd = null
+
+    /**
+     * Debounced render to batch rapid style changes.
+     * Multiple updates within BULK_STYLE_DEBOUNCE_MS are coalesced.
+     */
+    this._debouncedRender = debounce(() => {
+      this._flushPendingStyleUpdates()
+    }, BULK_STYLE_DEBOUNCE_MS)
+
+    /** Groups with pending color-only style updates. */
+    this._pendingColorUpdates = new Set()
   }
 
   /** Ensure Deck + OL wrapper layer exist (lazy; safe in jsdom). */
@@ -360,7 +501,31 @@ export class BulkAnnotationManager {
   }
 
   setAnnotationGroupStyle(uid, styleOptions = {}) {
+    getProfiler().start('setAnnotationGroupStyle', uid)
     const g = this._requireGroup(uid)
+
+    // Track which properties changed for optimization decisions
+    const colorChanged =
+      styleOptions.color != null &&
+      !colorsEqual(styleOptions.color, g.style.color)
+    const opacityChanged =
+      styleOptions.opacity != null && styleOptions.opacity !== g.style.opacity
+    const fillOpacityChanged =
+      styleOptions.fillOpacity != null &&
+      styleOptions.fillOpacity !== g.style.fillOpacity
+    const filledChanged =
+      styleOptions.filled != null && styleOptions.filled !== g.style.filled
+    const measurementChanged =
+      'measurement' in styleOptions &&
+      this._measurementKey(styleOptions.measurement) !==
+        this._measurementKey(g.style.measurement)
+    const limitValuesChanged =
+      styleOptions.limitValues != null &&
+      (g.style.limitValues == null ||
+        styleOptions.limitValues[0] !== g.style.limitValues[0] ||
+        styleOptions.limitValues[1] !== g.style.limitValues[1])
+
+    // Apply style updates
     if (styleOptions.opacity != null) {
       g.style.opacity = styleOptions.opacity
     }
@@ -382,9 +547,30 @@ export class BulkAnnotationManager {
     if (g.style.measurement != null) {
       this._ensureMeasurements(g)
     }
+
     if (g.hydrated) {
-      this._rebuildLayersForGroup(g)
+      // Determine if we need full rebuild or can use lightweight update
+      const needsFullRebuild =
+        filledChanged || measurementChanged || limitValuesChanged
+
+      if (needsFullRebuild) {
+        // Structural change: full layer rebuild required
+        this._rebuildLayersForGroup(g)
+      } else if (colorChanged || opacityChanged || fillOpacityChanged) {
+        // Color/opacity only: update existing layers in place
+        this._updateLayerColors(g)
+      }
+      // If nothing changed, no update needed
     }
+    getProfiler().end('setAnnotationGroupStyle', uid, {
+      styleOptions,
+      colorChanged,
+      opacityChanged,
+      filledChanged,
+      measurementChanged,
+      needsFullRebuild:
+        filledChanged || measurementChanged || limitValuesChanged,
+    })
   }
 
   setAnnotationOptions(options = {}) {
@@ -565,6 +751,12 @@ export class BulkAnnotationManager {
   }
 
   cleanup() {
+    // Cancel any pending debounced updates
+    if (this._debouncedRender != null) {
+      this._debouncedRender.cancel()
+    }
+    this._pendingColorUpdates.clear()
+
     for (const uid of Array.from(this._groups.keys())) {
       this.removeAnnotationGroup(uid)
     }
@@ -843,10 +1035,15 @@ export class BulkAnnotationManager {
    * @returns {{ perAnnotation: Float32Array, perVertex: Float32Array, range: [number, number], key: string } | null}
    */
   _activeFilter(g) {
+    const uid = g.annotationGroup.uid
     const key = this._measurementKey(g.style.measurement)
     if (key == null) {
       /** Measurement deselected: drop filter attributes from cached data. */
       if (g.filterCache != null) {
+        getProfiler().record('filterCacheInvalidate', 1, {
+          uid,
+          reason: 'measurementDeselected',
+        })
         g.filterCache = null
         g.deckData = null
         g.tileDataCache = null
@@ -862,6 +1059,7 @@ export class BulkAnnotationManager {
       return null
     }
     if (g.filterCache?.key !== key) {
+      getProfiler().start('filterCacheRebuild', uid)
       const perAnnotation = Float32Array.from(item.values, (v) => Number(v))
       const perVertex = expandMeasurementToPerVertex(
         perAnnotation,
@@ -873,6 +1071,10 @@ export class BulkAnnotationManager {
       g.deckData = null
       g.tileDataCache = null
       g.fillTileDataCache = null
+      getProfiler().end('filterCacheRebuild', uid, {
+        vertexCount: g.decoded.vertexCount,
+        annotationCount: g.decoded.numberOfAnnotations,
+      })
     }
     const stored = g.measurementRanges?.[key]
     const range =
@@ -927,6 +1129,124 @@ export class BulkAnnotationManager {
   }
 
   /**
+   * Compute the overall bounding box of a group from its spatial tile bounds.
+   * Returns [minX, minY, maxX, maxY] or null if not available.
+   * @param {GroupRecord} g
+   * @returns {number[] | null}
+   */
+  _computeGroupBbox(g) {
+    if (g.spatial == null || g.spatial.tileBounds == null) {
+      return null
+    }
+    let gMinX = Infinity
+    let gMinY = Infinity
+    let gMaxX = -Infinity
+    let gMaxY = -Infinity
+    for (const [, bounds] of g.spatial.tileBounds) {
+      const [tMinX, tMinY, tMaxX, tMaxY] = bounds
+      if (tMinX < gMinX) gMinX = tMinX
+      if (tMinY < gMinY) gMinY = tMinY
+      if (tMaxX > gMaxX) gMaxX = tMaxX
+      if (tMaxY > gMaxY) gMaxY = tMaxY
+    }
+    if (!Number.isFinite(gMinX)) {
+      return null
+    }
+    return [gMinX, gMinY, gMaxX, gMaxY]
+  }
+
+  /**
+   * Check if a group's bounding box intersects with the given view extent.
+   * @param {GroupRecord} g
+   * @param {number[]} extent - [minX, minY, maxX, maxY]
+   * @returns {boolean}
+   */
+  _groupIntersectsExtent(g, extent) {
+    if (extent == null) {
+      return true // If no extent, assume visible
+    }
+    const bbox = this._computeGroupBbox(g)
+    if (bbox == null) {
+      return true // If no bbox, assume visible
+    }
+    const [gMinX, gMinY, gMaxX, gMaxY] = bbox
+    const [eMinX, eMinY, eMaxX, eMaxY] = extent
+    // Check for non-intersection
+    if (gMaxX < eMinX || gMinX > eMaxX || gMaxY < eMinY || gMinY > eMaxY) {
+      return false
+    }
+    return true
+  }
+
+  /**
+   * Update layer colors/opacity without full rebuild.
+   * Uses debouncing to batch rapid style changes (e.g., from sliders).
+   * @param {GroupRecord} g
+   */
+  _updateLayerColors(g) {
+    // Add to pending set and schedule debounced flush
+    this._pendingColorUpdates.add(g.annotationGroup.uid)
+    this._debouncedRender()
+  }
+
+  /**
+   * Flush all pending color updates in a single render pass.
+   * Called by the debounced render function.
+   */
+  _flushPendingStyleUpdates() {
+    if (this._pendingColorUpdates.size === 0) {
+      return
+    }
+
+    getProfiler().start('flushStyleUpdates', 'batch')
+    let updatedCount = 0
+
+    for (const uid of this._pendingColorUpdates) {
+      const g = this._groups.get(uid)
+      if (g == null || g.deckLayers == null || g.deckLayers.length === 0) {
+        continue
+      }
+
+      const { color, opacity, fillOpacity } = g.style
+      const rgba = [
+        ...(color ?? BULK_DEFAULT_COLOR),
+        Math.round((opacity ?? BULK_DEFAULT_ALPHA) * 255),
+      ]
+      const fillRgba = [
+        ...(color ?? BULK_DEFAULT_COLOR),
+        Math.round((fillOpacity ?? BULK_DEFAULT_FILL_OPACITY) * 255),
+      ]
+
+      // Clone each layer with updated color props
+      g.deckLayers = g.deckLayers.map((layer) => {
+        const layerId = layer.id || ''
+        // Determine if this is a fill layer (polygon fill) or outline layer
+        const isFillLayer = layerId.includes('-fill-')
+
+        // deck.gl layers are immutable - clone with new props
+        return layer.clone({
+          getColor: isFillLayer ? fillRgba : rgba,
+          updateTriggers: {
+            getColor: [color, isFillLayer ? fillOpacity : opacity],
+          },
+        })
+      })
+      updatedCount++
+    }
+
+    this._pendingColorUpdates.clear()
+
+    // Single render call for all updates
+    if (updatedCount > 0) {
+      this._requestRender()
+    }
+
+    getProfiler().end('flushStyleUpdates', 'batch', {
+      groupsUpdated: updatedCount,
+    })
+  }
+
+  /**
    * Signature of the view-dependent inputs of a group's layer build. When it
    * changes (pan/zoom/rotate), the group's layers must be rebuilt.
    *
@@ -944,15 +1264,36 @@ export class BulkAnnotationManager {
 
   /** Rebuild layers of visible hydrated groups whose view signature changed. */
   _refreshLayersForViewChange() {
+    getProfiler().start('refreshLayersForViewChange')
+    let rebuiltCount = 0
+    let culledCount = 0
+    const view = this._getMap()?.getView?.()
+    const extent = view?.calculateExtent?.()
+
     for (const g of this._groups.values()) {
       if (!g.visible || !g.hydrated || g.decoded == null) {
+        continue
+      }
+      // Optimization: Skip groups whose bbox doesn't intersect the view extent
+      if (!this._groupIntersectsExtent(g, extent)) {
+        // Clear layers for off-screen groups to free GPU memory
+        if (g.deckLayers.length > 0) {
+          g.deckLayers = []
+          g.buildSignature = null // Force rebuild when back in view
+          culledCount++
+        }
         continue
       }
       const signature = this._computeBuildSignature(g)
       if (signature !== g.buildSignature) {
         this._rebuildLayersForGroup(g)
+        rebuiltCount++
       }
     }
+    getProfiler().end('refreshLayersForViewChange', 'default', {
+      rebuiltCount,
+      culledCount,
+    })
   }
 
   _rebuildLayersForGroup(g) {
@@ -967,9 +1308,12 @@ export class BulkAnnotationManager {
   }
 
   async _rebuildLayersForGroupAsync(g) {
+    const uid = g.annotationGroup.uid
+    getProfiler().start('rebuildLayers', uid)
     if (!g.hydrated || g.decoded == null || !g.visible) {
       g.deckLayers = []
       this._requestRender()
+      getProfiler().end('rebuildLayers', uid, { skipped: true })
       return
     }
     const {
@@ -1013,7 +1357,6 @@ export class BulkAnnotationManager {
           ),
         ]
       : null
-    const uid = g.annotationGroup.uid
     /**
      * LOD (showing centroids instead of full paths at low zoom) activates when:
      * - Graphic type supports LOD (POLYGON, POLYLINE), AND
@@ -1167,6 +1510,14 @@ export class BulkAnnotationManager {
         baseLayers: layers,
       })
     }
+    getProfiler().end('rebuildLayers', uid, {
+      layerCount: layers.length,
+      useLod,
+      highRes,
+      isFilled,
+      vertexCount,
+      numberOfAnnotations,
+    })
   }
 
   /**
@@ -1420,7 +1771,11 @@ export class BulkAnnotationManager {
     createPolygonLayer,
     baseLayers,
   }) {
+    const uid = g.annotationGroup.uid
+    getProfiler().start('buildTileFillProgressively', uid)
     const newLayers = []
+    let tilesProcessed = 0
+    let batchesProcessed = 0
     g.deckLayers = [...cachedLayers, ...newLayers, ...baseLayers]
     this._requestRender()
     for (const tile of pendingTiles) {
@@ -1431,8 +1786,14 @@ export class BulkAnnotationManager {
         start += BULK_FILL_BATCH_SIZE
       ) {
         if (generation !== g.fillBuildGeneration || !g.visible || !g.hydrated) {
+          getProfiler().end('buildTileFillProgressively', uid, {
+            aborted: true,
+            tilesProcessed,
+            batchesProcessed,
+          })
           return
         }
+        batchesProcessed++
         const batchIndices = tile.annotationIndices.slice(
           start,
           start + BULK_FILL_BATCH_SIZE,
@@ -1458,7 +1819,13 @@ export class BulkAnnotationManager {
       if (g.fillTileDataCache != null) {
         g.fillTileDataCache.set(tile.key, chunks)
       }
+      tilesProcessed++
     }
+    getProfiler().end('buildTileFillProgressively', uid, {
+      tilesProcessed,
+      batchesProcessed,
+      pendingTileCount: pendingTiles.length,
+    })
     g.lastFillLayers = [...cachedLayers, ...newLayers]
   }
 
@@ -1472,14 +1839,19 @@ export class BulkAnnotationManager {
     filter,
     isFilled = false,
   ) {
+    const uid = g.annotationGroup.uid
+    getProfiler().start('layersForVisibleTiles', uid)
     if (g.spatial == null || extent == null) {
+      getProfiler().end('layersForVisibleTiles', uid, { skipped: true })
       return { layers: [], fillTiles: [] }
     }
     if (g.tileDataCache == null) {
-      g.tileDataCache = new Map()
+      g.tileDataCache = new LRUCache(BULK_TILE_CACHE_MAX_SIZE)
     }
     const out = []
     const fillTiles = []
+    let tilesCached = 0
+    let tilesBuilt = 0
     for (const key of this._visibleTileKeys(g, extent)) {
       const annotationIndices = g.spatial.tileAnnotationIndices.get(key)
       if (annotationIndices == null || annotationIndices.length === 0) {
@@ -1518,6 +1890,9 @@ export class BulkAnnotationManager {
           },
         }
         g.tileDataCache.set(key, tileData)
+        tilesBuilt++
+      } else {
+        tilesCached++
       }
       /**
        * Use styled (full-detail) PathLayer when:
@@ -1560,6 +1935,12 @@ export class BulkAnnotationManager {
             }),
       )
     }
+    getProfiler().end('layersForVisibleTiles', uid, {
+      tileCount: out.length,
+      tilesCached,
+      tilesBuilt,
+      fillTileCount: fillTiles.length,
+    })
     return { layers: out, fillTiles }
   }
 

@@ -81,3 +81,15 @@ export const CLOSED_GRAPHIC_TYPES = new Set(['POLYGON', 'RECTANGLE', 'ELLIPSE'])
 
 /** Graphic types that participate in path LOD. */
 export const PATH_LOD_GRAPHIC_TYPES = new Set(['POLYGON', 'POLYLINE'])
+
+/**
+ * Maximum number of tiles to keep in the tile data cache per group.
+ * LRU eviction kicks in when this limit is exceeded.
+ */
+export const BULK_TILE_CACHE_MAX_SIZE = 64
+
+/**
+ * Debounce delay (ms) for batching rapid style changes.
+ * Multiple style updates within this window are coalesced into one render.
+ */
+export const BULK_STYLE_DEBOUNCE_MS = 16 // ~1 frame at 60fps
