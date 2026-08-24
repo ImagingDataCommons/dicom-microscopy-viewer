@@ -13,11 +13,11 @@ module.exports = {
   },
   transformIgnorePatterns: [
     // Support pnpm's nested node_modules layout as well as a flat node_modules tree.
-    "node_modules/(?!(\\.pnpm/[^/]+/node_modules/)?(ol|@cornerstonejs|dicomicc|rbush|color-rgba|color-parse|color-name|color-space|quickselect|earcut)(/|$))",
+    "node_modules/(?!(\\.pnpm/[^/]+/node_modules/)?(ol|@cornerstonejs|dicomicc|rbush|color-rgba|color-parse|color-name|color-space|quickselect|earcut|@deck\\.gl|@luma\\.gl|@math\\.gl|@loaders\\.gl|@probe\\.gl|@turf|flatbush|flatqueue|mjolnir\\.js|h3-js|@mapbox|tiny-sdf)(/|$))",
   ],
   testMatch: ["<rootDir>/src/**/*.test.js"],
   testPathIgnorePatterns: ["<rootDir>/node_modules"],
-  setupFiles: ["jest-canvas-mock"],
+  setupFiles: ["jest-canvas-mock", "<rootDir>/src/__mocks__/jestSetup.js"],
   moduleNameMapper: {
     "@cornerstonejs/codec-libjpeg-turbo-8bit/decodewasmjs":
       "@cornerstonejs/codec-libjpeg-turbo-8bit/dist/libjpegturbowasm_decode",
