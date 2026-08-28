@@ -343,6 +343,12 @@ function _areImagePyramidsEqual(pyramid, refPyramid) {
   return true
 }
 
+/**
+ * Cache for empty tiles to avoid repeated allocation for TILED_SPARSE images.
+ * Key format: "columns-rows-samplesPerPixel-bitsAllocated-photometricInterpretation"
+ */
+const emptyTileCache = new Map()
+
 function _createEmptyTile({
   columns,
   rows,
@@ -350,6 +356,12 @@ function _createEmptyTile({
   bitsAllocated,
   photometricInterpretation,
 }) {
+  const cacheKey = `${columns}-${rows}-${samplesPerPixel}-${bitsAllocated}-${photometricInterpretation}`
+
+  if (emptyTileCache.has(cacheKey)) {
+    return emptyTileCache.get(cacheKey)
+  }
+
   let pixelArray
   if (bitsAllocated <= 8) {
     pixelArray = new Uint8Array(columns * rows * samplesPerPixel)
@@ -357,19 +369,20 @@ function _createEmptyTile({
     pixelArray = new Float32Array(columns * rows * samplesPerPixel)
   }
 
-  // Fill white in case of color and black in case of monochrome.
+  /** Fill white for color images, black for monochrome */
   let fillValue = 2 ** bitsAllocated - 1
   if (photometricInterpretation === 'MONOCHROME2') {
     if (bitsAllocated <= 16) {
       fillValue = 0
     } else {
-      // Float pixel data
       fillValue = -(2 ** bitsAllocated - 1) / 2
     }
   }
   for (let i = 0; i < pixelArray.length; i++) {
     pixelArray[i] = fillValue
   }
+
+  emptyTileCache.set(cacheKey, pixelArray)
   return pixelArray
 }
 
@@ -381,6 +394,12 @@ function _createTileLoadFunction({
   iccOutputType,
   targetElement,
 }) {
+  /**
+   * Pre-cache values that don't change per tile request.
+   * This avoids repeated lookups in the hot path.
+   */
+  const channelSuffix = `-${channel}`
+
   return async (z, y, x) => {
     /**
      * Build frame mapping key from tile coordinates.
@@ -388,8 +407,7 @@ function _createTileLoadFunction({
      * - x corresponds to row index in the frame mapping
      * - y corresponds to column index in the frame mapping
      */
-    let index = `${x + 1}-${y + 1}`
-    index += `-${channel}`
+    const index = `${x + 1}-${y + 1}${channelSuffix}`
 
     if (pyramid.metadata[z] === undefined) {
       throw new Error(
@@ -399,163 +417,24 @@ function _createTileLoadFunction({
       )
     }
 
-    const studyInstanceUID = pyramid.metadata[z].StudyInstanceUID
-    const seriesInstanceUID = pyramid.metadata[z].SeriesInstanceUID
     const path = pyramid.frameMappings[z][index]
-
-    /** Debug: Log when a sparse tile is found */
-    const dimensionOrgTypeCheck = pyramid.dimensionOrganizationTypes?.[z]
-    if (path != null && dimensionOrgTypeCheck !== 'TILED_FULL') {
-      console.log(`[SPARSE TILE FOUND] key="${index}" -> path="${path}"`)
-    }
-
-    let src
-    if (path != null) {
-      src = ''
-      if (client.wadoURL !== undefined) {
-        src += client.wadoURL
-      }
-      src +=
-        '/studies/' +
-        studyInstanceUID +
-        '/series/' +
-        seriesInstanceUID +
-        '/instances/' +
-        path
-    }
-
     const refImage = pyramid.metadata[z]
     const columns = refImage.Columns
     const rows = refImage.Rows
     const bitsAllocated = refImage.BitsAllocated
-    const pixelRepresentation = refImage.PixelRepresentation
     const samplesPerPixel = refImage.SamplesPerPixel
     const photometricInterpretation = refImage.PhotometricInterpretation
-    const sopClassUID = refImage.SOPClassUID
 
-    if (src != null) {
-      const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src)
-      const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
-
-      if (samplesPerPixel === 1) {
-        logger.debug(
-          `retrieve frame ${frameNumbers} of monochrome image ` +
-            `for channel "${channel}" at tile position (${x + 1}, ${y + 1}) ` +
-            `at zoom level ${z}`,
-        )
-      } else {
-        logger.debug(
-          `retrieve frame ${frameNumbers} of color image ` +
-            `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`,
-        )
-      }
-
-      const octetStreamMediaType = 'application/octet-stream'
-      /*
-       * Use of the "*" transfer syntax is a hack to work around standard
-       * compliance issues of the Google Cloud Healthcare API.
-       * It will return bulkdata encoded with the transfer syntax of the
-       * stored data set (uncompressed or compressed). The decoder can then not
-       * rely on the media type specified by the "Content-Type" header in the
-       * response message, but will need to determine it from the payload.
-       * Only application/octet-stream with "*" is requested here; decoders
-       * determine the actual compression format (e.g. JPEG, JPEG-LS, JPEG 2000)
-       * from the payload when processing the frames.
-       */
-      const octetStreamTransferSyntaxUID = '*'
-
-      const mediaTypes = []
-      mediaTypes.push(
-        ...[
-          {
-            mediaType: octetStreamMediaType,
-            transferSyntaxUID: octetStreamTransferSyntaxUID,
-          },
-        ],
-      )
-
-      const frameInfo = {
-        studyInstanceUID,
-        seriesInstanceUID,
-        sopInstanceUID,
-        sopClassUID,
-        frameNumber: frameNumbers[0],
-        channelIdentifier: String(channel),
-      }
-      publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
-
-      const retrieveOptions = {
-        studyInstanceUID,
-        seriesInstanceUID,
-        sopInstanceUID,
-        frameNumbers,
-        mediaTypes,
-      }
-      return client
-        .retrieveInstanceFrames(retrieveOptions)
-        .then((rawFrames) => {
-          return _decodeAndTransformFrame({
-            frame: rawFrames[0],
-            frameNumber: frameNumbers[0],
-            bitsAllocated,
-            pixelRepresentation,
-            columns,
-            rows,
-            samplesPerPixel,
-            sopInstanceUID,
-            metadata: pyramid.metadata,
-            iccProfiles,
-            iccOutputType,
-          }).then((pixelArray) => {
-            if (pixelArray.constructor === Float64Array) {
-              // TODO: handle Float64Array using LUT
-              throw new Error('Double Float Pixel Data is not (yet) supported.')
-            }
-            publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
-              pixelArray,
-              ...frameInfo,
-            })
-            if (samplesPerPixel === 3 && bitsAllocated === 8) {
-              // Rendering of color images requires unsigned 8-bit integers
-              return pixelArray
-            }
-            // Rendering of grayscale images requires floating point values
-            return new Float32Array(
-              pixelArray,
-              pixelArray.byteOffset,
-              pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT,
-            )
-          })
-        })
-        .catch((error) => {
-          publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
-          publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo)
-          return Promise.reject(
-            new Error(
-              `Failed to load frames ${frameNumbers} ` +
-                `of SOP instance "${sopInstanceUID}" ` +
-                `for channel "${channel}" ` +
-                `at tile position (${x + 1}, ${y + 1}) ` +
-                `at zoom level ${z}: `,
-              error,
-            ),
-          )
-        })
-    } else {
-      /**
-       * For TILED_SPARSE images, missing tiles are expected behavior.
-       * Only log warnings for TILED_FULL images where missing tiles indicate a problem.
-       */
+    /**
+     * Fast path for missing tiles (common in TILED_SPARSE).
+     * Return cached empty tile immediately without further processing.
+     */
+    if (path == null) {
       const dimensionOrganizationType = pyramid.dimensionOrganizationTypes?.[z]
       if (dimensionOrganizationType === 'TILED_FULL') {
         console.warn(
           `could not load tile "${index}" at level ${z}, ` +
             'this tile does not exist',
-        )
-      } else {
-        logger.debug(
-          `Tile "${index}" at level ${z} does not exist ` +
-            '(expected for sparse image)',
         )
       }
       return _createEmptyTile({
@@ -566,6 +445,132 @@ function _createTileLoadFunction({
         photometricInterpretation,
       })
     }
+
+    /** Tile exists - do the full processing */
+    const studyInstanceUID = refImage.StudyInstanceUID
+    const seriesInstanceUID = refImage.SeriesInstanceUID
+    const pixelRepresentation = refImage.PixelRepresentation
+    const sopClassUID = refImage.SOPClassUID
+
+    let src = ''
+    if (client.wadoURL !== undefined) {
+      src += client.wadoURL
+    }
+    src +=
+      '/studies/' +
+      studyInstanceUID +
+      '/series/' +
+      seriesInstanceUID +
+      '/instances/' +
+      path
+
+    const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src)
+    const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
+
+    if (samplesPerPixel === 1) {
+      logger.debug(
+        `retrieve frame ${frameNumbers} of monochrome image ` +
+          `for channel "${channel}" at tile position (${x + 1}, ${y + 1}) ` +
+          `at zoom level ${z}`,
+      )
+    } else {
+      logger.debug(
+        `retrieve frame ${frameNumbers} of color image ` +
+          `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`,
+      )
+    }
+
+    const octetStreamMediaType = 'application/octet-stream'
+    /*
+     * Use of the "*" transfer syntax is a hack to work around standard
+     * compliance issues of the Google Cloud Healthcare API.
+     * It will return bulkdata encoded with the transfer syntax of the
+     * stored data set (uncompressed or compressed). The decoder can then not
+     * rely on the media type specified by the "Content-Type" header in the
+     * response message, but will need to determine it from the payload.
+     * Only application/octet-stream with "*" is requested here; decoders
+     * determine the actual compression format (e.g. JPEG, JPEG-LS, JPEG 2000)
+     * from the payload when processing the frames.
+     */
+    const octetStreamTransferSyntaxUID = '*'
+
+    const mediaTypes = []
+    mediaTypes.push(
+      ...[
+        {
+          mediaType: octetStreamMediaType,
+          transferSyntaxUID: octetStreamTransferSyntaxUID,
+        },
+      ],
+    )
+
+    const frameInfo = {
+      studyInstanceUID,
+      seriesInstanceUID,
+      sopInstanceUID,
+      sopClassUID,
+      frameNumber: frameNumbers[0],
+      channelIdentifier: String(channel),
+    }
+    publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
+
+    const retrieveOptions = {
+      studyInstanceUID,
+      seriesInstanceUID,
+      sopInstanceUID,
+      frameNumbers,
+      mediaTypes,
+    }
+    return client
+      .retrieveInstanceFrames(retrieveOptions)
+      .then((rawFrames) => {
+        return _decodeAndTransformFrame({
+          frame: rawFrames[0],
+          frameNumber: frameNumbers[0],
+          bitsAllocated,
+          pixelRepresentation,
+          columns,
+          rows,
+          samplesPerPixel,
+          sopInstanceUID,
+          metadata: pyramid.metadata,
+          iccProfiles,
+          iccOutputType,
+        }).then((pixelArray) => {
+          if (pixelArray.constructor === Float64Array) {
+            // TODO: handle Float64Array using LUT
+            throw new Error('Double Float Pixel Data is not (yet) supported.')
+          }
+          publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
+            pixelArray,
+            ...frameInfo,
+          })
+          if (samplesPerPixel === 3 && bitsAllocated === 8) {
+            // Rendering of color images requires unsigned 8-bit integers
+            return pixelArray
+          }
+          // Rendering of grayscale images requires floating point values
+          return new Float32Array(
+            pixelArray,
+            pixelArray.byteOffset,
+            pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT,
+          )
+        })
+      })
+      .catch((error) => {
+        publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
+        publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo)
+        return Promise.reject(
+          new Error(
+            `Failed to load frames ${frameNumbers} ` +
+              `of SOP instance "${sopInstanceUID}" ` +
+              `for channel "${channel}" ` +
+              `at tile position (${x + 1}, ${y + 1}) ` +
+              `at zoom level ${z}: `,
+            error,
+          ),
+        )
+      })
   }
 }
 
