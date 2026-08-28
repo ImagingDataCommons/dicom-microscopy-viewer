@@ -627,10 +627,6 @@ function _fitImagePyramid(pyramid, refPyramid) {
       const resolution = segPixelSpacing[0] / refBasePixelSpacing[0]
       const finalResolution = parseFloat(resolution.toFixed(4))
 
-      console.log(
-        `[SPARSE] Resolution: exact=${resolution}, final=${finalResolution}`,
-      )
-
       /**
        * For TILED_SPARSE overlays at non-matching resolutions:
        * Calculate where the SEG's origin is in base image pixel coordinates,
@@ -692,13 +688,6 @@ function _fitImagePyramid(pyramid, refPyramid) {
             offsetY = physicalOffsetY / (rowCosines[1] * refBasePixelSpacing[0])
           }
         }
-
-        console.log(
-          '[SPARSE] Origin offset - physical:',
-          { physicalOffsetX, physicalOffsetY },
-          'pixels:',
-          { offsetX, offsetY },
-        )
       }
 
       /**
@@ -716,14 +705,6 @@ function _fitImagePyramid(pyramid, refPyramid) {
         offsetX + scaledWidth,
         -(offsetY + 1),
       ]
-      console.log(
-        '[SPARSE] Calculated extent:',
-        extent,
-        'from SEG size:',
-        { segCols, segRows },
-        'scaled by:',
-        resolution,
-      )
       fittedPyramid.extent = extent
 
       /**
@@ -735,10 +716,6 @@ function _fitImagePyramid(pyramid, refPyramid) {
       const perframeFuncGroups = segmentation.PerFrameFunctionalGroupsSequence
       const tileHeight = segmentation.Rows
       const tileWidth = segmentation.Columns
-
-      console.log(
-        `[SPARSE] Analyzing ${perframeFuncGroups?.length || 0} frames, tile size: ${tileWidth}x${tileHeight}, resolution: ${resolution.toFixed(4)}`,
-      )
 
       if (perframeFuncGroups && perframeFuncGroups.length > 0) {
         /** Check all frames to see if they have consistent sub-tile offsets */
@@ -774,12 +751,6 @@ function _fitImagePyramid(pyramid, refPyramid) {
                 subTileRowOffset,
                 subTileColOffset,
               })
-
-              console.log(
-                `[SPARSE] Frame ${frameIdx}: pos=(${rowPosition}, ${colPosition}), ` +
-                  `tileIdx=(${tileRowIndex}, ${tileColIndex}), ` +
-                  `subTileOffset=(${subTileRowOffset}, ${subTileColOffset})`,
-              )
             }
           }
         }
@@ -800,11 +771,6 @@ function _fitImagePyramid(pyramid, refPyramid) {
            * - Negative y offset shifts tiles down (more negative Y)
            */
           tileOriginOffset = [baseColOffset, -baseRowOffset]
-
-          console.log(
-            `[SPARSE] Calculated tileOriginOffset: [${tileOriginOffset[0].toFixed(2)}, ${tileOriginOffset[1].toFixed(2)}] ` +
-              `(from subTileOffset=(${firstOffset.subTileRowOffset}, ${firstOffset.subTileColOffset}) * resolution=${resolution.toFixed(4)})`,
-          )
 
           /** Check if all frames have consistent offsets */
           const allConsistent = subTileOffsets.every(
@@ -834,12 +800,6 @@ function _fitImagePyramid(pyramid, refPyramid) {
         -(offsetY + 1) + tileOriginOffset[1],
       ]
 
-      console.log(
-        `[SPARSE] Origin adjustment: ` +
-          `extentOffset=(${offsetX.toFixed(1)}, ${offsetY.toFixed(1)}), ` +
-          `pyramidOrigin=[${pyramid.origins[j][0]}, ${pyramid.origins[j][1]}], ` +
-          `adjustedOrigin=[${adjustedOrigin[0].toFixed(1)}, ${adjustedOrigin[1].toFixed(1)}]`,
-      )
       fittedPyramid.origins.push(adjustedOrigin)
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])

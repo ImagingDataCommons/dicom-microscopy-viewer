@@ -246,6 +246,7 @@ function getFrameMapping(metadata) {
   return {
     frameMapping,
     numberOfChannels,
+    dimensionOrganizationType,
   }
 }
 
