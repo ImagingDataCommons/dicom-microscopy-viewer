@@ -5767,6 +5767,47 @@ class VolumeImageViewer {
   }
 
   /**
+   * Zoom to a segment's bounding box.
+   *
+   * @param {string} segmentUID - Unique tracking identifier of a segment
+   */
+  zoomToSegment(segmentUID) {
+    if (!(segmentUID in this[_segments])) {
+      console.warn(
+        `Cannot zoom to segment. Could not find segment "${segmentUID}".`,
+      )
+      return
+    }
+
+    const segment = this[_segments][segmentUID]
+    const view = this[_map].getView()
+
+    if (segment.boundingBox != null) {
+      const extent = segment.boundingBox
+      const center = getCenter(extent)
+      const width = getWidth(extent)
+      const height = getHeight(extent)
+
+      /** Expand extent slightly for context (scale factor 1.5) */
+      const scale = 1.5
+      const expandedExtent = [
+        center[0] - (width * scale) / 2,
+        center[1] - (height * scale) / 2,
+        center[0] + (width * scale) / 2,
+        center[1] + (height * scale) / 2,
+      ]
+
+      view.fit(expandedExtent, {
+        duration: 500,
+        maxZoom: segment.maxZoomLevel,
+      })
+      console.info(`Zooming to segment "${segmentUID}" bounding box`)
+    } else {
+      console.warn(`Segment "${segmentUID}" has no bounding box to zoom to`)
+    }
+  }
+
+  /**
    * Hide a segment.
    *
    * @param {string} segmentUID - Unique tracking identifier of a segment
