@@ -5467,20 +5467,6 @@ class VolumeImageViewer {
     const segPixelSpacing = getPixelSpacing(segLevel)
     const coordinateScaleFactor = segPixelSpacing[0] / basePixelSpacing[0]
 
-    console.log(
-      '[SPARSE] Creating segmentation TileGrid with:',
-      '\n  extent:',
-      fittedPyramid.extent,
-      '\n  origins:',
-      fittedPyramid.origins,
-      '\n  resolutions:',
-      fittedPyramid.resolutions,
-      '\n  gridSizes:',
-      fittedPyramid.gridSizes,
-      '\n  tileSizes:',
-      fittedPyramid.tileSizes,
-    )
-
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
       origins: fittedPyramid.origins,
@@ -5744,9 +5730,6 @@ class VolumeImageViewer {
           duration: 500,
           maxZoom: segment.maxZoomLevel,
         })
-        console.info(
-          `Zooming to segment bounding box: [${segment.boundingBox.join(', ')}]`,
-        )
       } else {
         /**
          * No bounding box available (segment has no frames).
@@ -5801,7 +5784,6 @@ class VolumeImageViewer {
         duration: 500,
         maxZoom: segment.maxZoomLevel,
       })
-      console.info(`Zooming to segment "${segmentUID}" bounding box`)
     } else {
       console.warn(`Segment "${segmentUID}" has no bounding box to zoom to`)
     }
