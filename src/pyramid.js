@@ -99,6 +99,7 @@ function _computeImagePyramid({ metadata }) {
 
   const pyramidMetadata = []
   const pyramidFrameMappings = []
+  const pyramidDimensionOrganizationTypes = []
   let pyramidNumberOfChannels
   for (let i = 0; i < metadata.length; i++) {
     if (metadata[0].FrameOfReferenceUID !== metadata[i].FrameOfReferenceUID) {
@@ -116,7 +117,8 @@ function _computeImagePyramid({ metadata }) {
     const cols = metadata[i].TotalPixelMatrixColumns || metadata[i].Columns
     const rows = metadata[i].TotalPixelMatrixRows || metadata[i].Rows
 
-    const { frameMapping, numberOfChannels } = getFrameMapping(metadata[i])
+    const { frameMapping, numberOfChannels, dimensionOrganizationType } =
+      getFrameMapping(metadata[i])
     if (i > 0) {
       if (pyramidNumberOfChannels !== numberOfChannels) {
         throw new Error(
@@ -177,6 +179,7 @@ function _computeImagePyramid({ metadata }) {
     } else {
       pyramidMetadata.push(metadata[i])
       pyramidFrameMappings.push(frameMapping)
+      pyramidDimensionOrganizationTypes.push(dimensionOrganizationType)
     }
   }
 
@@ -281,6 +284,7 @@ function _computeImagePyramid({ metadata }) {
     metadata: pyramidMetadata,
     frameMappings: pyramidFrameMappings,
     numberOfChannels: pyramidNumberOfChannels,
+    dimensionOrganizationTypes: pyramidDimensionOrganizationTypes,
   }
 }
 
@@ -378,6 +382,12 @@ function _createTileLoadFunction({
   targetElement,
 }) {
   return async (z, y, x) => {
+    /**
+     * Build frame mapping key from tile coordinates.
+     * Note: The function signature uses (z, y, x) where the mapping is:
+     * - x corresponds to row index in the frame mapping
+     * - y corresponds to column index in the frame mapping
+     */
     let index = `${x + 1}-${y + 1}`
     index += `-${channel}`
 
@@ -392,6 +402,13 @@ function _createTileLoadFunction({
     const studyInstanceUID = pyramid.metadata[z].StudyInstanceUID
     const seriesInstanceUID = pyramid.metadata[z].SeriesInstanceUID
     const path = pyramid.frameMappings[z][index]
+
+    /** Debug: Log when a sparse tile is found */
+    const dimensionOrgTypeCheck = pyramid.dimensionOrganizationTypes?.[z]
+    if (path != null && dimensionOrgTypeCheck !== 'TILED_FULL') {
+      console.log(`[SPARSE TILE FOUND] key="${index}" -> path="${path}"`)
+    }
+
     let src
     if (path != null) {
       src = ''
@@ -525,10 +542,22 @@ function _createTileLoadFunction({
           )
         })
     } else {
-      console.warn(
-        `could not load tile "${index}" at level ${z}, ` +
-          'this tile does not exist',
-      )
+      /**
+       * For TILED_SPARSE images, missing tiles are expected behavior.
+       * Only log warnings for TILED_FULL images where missing tiles indicate a problem.
+       */
+      const dimensionOrganizationType = pyramid.dimensionOrganizationTypes?.[z]
+      if (dimensionOrganizationType === 'TILED_FULL') {
+        console.warn(
+          `could not load tile "${index}" at level ${z}, ` +
+            'this tile does not exist',
+        )
+      } else {
+        logger.debug(
+          `Tile "${index}" at level ${z} does not exist ` +
+            '(expected for sparse image)',
+        )
+      }
       return _createEmptyTile({
         columns,
         rows,
@@ -569,6 +598,7 @@ function _fitImagePyramid(pyramid, refPyramid) {
     pixelSpacings: [],
     metadata: [],
     frameMappings: [],
+    dimensionOrganizationTypes: [],
   }
 
   if (matchingLevelIndices.length === 0) {
@@ -583,24 +613,240 @@ function _fitImagePyramid(pyramid, refPyramid) {
       const refBasePixelSpacing = getPixelSpacing(refBaseLevel)
       const segPixelSpacing = getPixelSpacing(segmentation)
 
-      /** Calculate resolution based on ratio of pixel spacings */
+      /**
+       * Calculate resolution based on ratio of pixel spacings.
+       * For TILED_SPARSE, we MUST use the exact resolution (not rounded)
+       * to ensure tiles are rendered at the correct scale and position.
+       * Rounding causes misalignment because the tiles would be scaled incorrectly.
+       */
       const resolution = segPixelSpacing[0] / refBasePixelSpacing[0]
-      const roundedResolution = Math.round(resolution)
+      const finalResolution = parseFloat(resolution.toFixed(4))
 
-      /** Handle resolution conflicts similar to _computeImagePyramid */
-      const finalResolution = fittedPyramid.resolutions.includes(
-        roundedResolution,
+      console.log(
+        `[SPARSE] Resolution: exact=${resolution}, final=${finalResolution}`,
       )
-        ? parseFloat(resolution.toFixed(2))
-        : roundedResolution
 
-      fittedPyramid.origins.push([...pyramid.origins[j]])
+      /**
+       * For TILED_SPARSE overlays at non-matching resolutions:
+       * Calculate where the SEG's origin is in base image pixel coordinates,
+       * then create an extent that positions the SEG correctly.
+       */
+      const refOriginSeq = refBaseLevel.TotalPixelMatrixOriginSequence?.[0]
+      const segOriginSeq = segmentation.TotalPixelMatrixOriginSequence?.[0]
+
+      /** Default to using scaled SEG extent if origins match or are unavailable */
+      let offsetX = 0
+      let offsetY = 0
+
+      if (refOriginSeq && segOriginSeq) {
+        const refOriginX = Number(
+          refOriginSeq.XOffsetInSlideCoordinateSystem || 0,
+        )
+        const refOriginY = Number(
+          refOriginSeq.YOffsetInSlideCoordinateSystem || 0,
+        )
+        const segOriginX = Number(
+          segOriginSeq.XOffsetInSlideCoordinateSystem || 0,
+        )
+        const segOriginY = Number(
+          segOriginSeq.YOffsetInSlideCoordinateSystem || 0,
+        )
+
+        /**
+         * Calculate the physical offset between origins.
+         * Then convert to base image pixel coordinates.
+         */
+        const physicalOffsetX = segOriginX - refOriginX
+        const physicalOffsetY = segOriginY - refOriginY
+
+        /**
+         * Convert physical offset to base image pixels.
+         * Need to account for ImageOrientationSlide.
+         */
+        const orientation = refBaseLevel.ImageOrientationSlide
+        if (orientation) {
+          const rowCosines = orientation.slice(0, 3)
+          const colCosines = orientation.slice(3, 6)
+
+          /**
+           * For standard orientations, the offset in pixels is:
+           * pixelCol = physicalX / (colCosines[0] * spacing[1]) approximately
+           * But this is complex - for now, use simpler approximation
+           */
+          offsetX = physicalOffsetX / refBasePixelSpacing[1]
+          offsetY = physicalOffsetY / refBasePixelSpacing[0]
+
+          /**
+           * Adjust for orientation - common case is [0,-1,0,-1,0,0]
+           * which means col direction is -X and row direction is -Y
+           */
+          if (Math.abs(colCosines[0]) > 0.5) {
+            offsetX = physicalOffsetX / (colCosines[0] * refBasePixelSpacing[1])
+          }
+          if (Math.abs(rowCosines[1]) > 0.5) {
+            offsetY = physicalOffsetY / (rowCosines[1] * refBasePixelSpacing[0])
+          }
+        }
+
+        console.log(
+          '[SPARSE] Origin offset - physical:',
+          { physicalOffsetX, physicalOffsetY },
+          'pixels:',
+          { offsetX, offsetY },
+        )
+      }
+
+      /**
+       * Create extent for the SEG overlay in base image coordinate system.
+       * The SEG covers its own pixel dimensions, scaled by resolution ratio.
+       */
+      const segCols = segmentation.TotalPixelMatrixColumns
+      const segRows = segmentation.TotalPixelMatrixRows
+      const scaledWidth = segCols * resolution
+      const scaledHeight = segRows * resolution
+
+      const extent = [
+        offsetX,
+        -(offsetY + scaledHeight + 1),
+        offsetX + scaledWidth,
+        -(offsetY + 1),
+      ]
+      console.log(
+        '[SPARSE] Calculated extent:',
+        extent,
+        'from SEG size:',
+        { segCols, segRows },
+        'scaled by:',
+        resolution,
+      )
+      fittedPyramid.extent = extent
+
+      /**
+       * For TILED_SPARSE, frames may be positioned at arbitrary pixel locations
+       * within the TotalPixelMatrix, not necessarily at tile boundaries.
+       * We need to calculate the sub-tile offset and adjust the tile grid origin.
+       */
+      let tileOriginOffset = [0, 0]
+      const perframeFuncGroups = segmentation.PerFrameFunctionalGroupsSequence
+      const tileHeight = segmentation.Rows
+      const tileWidth = segmentation.Columns
+
+      console.log(
+        `[SPARSE] Analyzing ${perframeFuncGroups?.length || 0} frames, tile size: ${tileWidth}x${tileHeight}, resolution: ${resolution.toFixed(4)}`,
+      )
+
+      if (perframeFuncGroups && perframeFuncGroups.length > 0) {
+        /** Check all frames to see if they have consistent sub-tile offsets */
+        const subTileOffsets = []
+
+        for (
+          let frameIdx = 0;
+          frameIdx < Math.min(perframeFuncGroups.length, 10);
+          frameIdx++
+        ) {
+          const framePosition =
+            perframeFuncGroups[frameIdx].PlanePositionSlideSequence?.[0]
+          if (framePosition) {
+            const rowPosition = Number(
+              framePosition.RowPositionInTotalImagePixelMatrix,
+            )
+            const colPosition = Number(
+              framePosition.ColumnPositionInTotalImagePixelMatrix,
+            )
+
+            if (!Number.isNaN(rowPosition) && !Number.isNaN(colPosition)) {
+              const tileRowIndex = Math.ceil(rowPosition / tileHeight)
+              const tileColIndex = Math.ceil(colPosition / tileWidth)
+              const tileBoundaryRow = (tileRowIndex - 1) * tileHeight + 1
+              const tileBoundaryCol = (tileColIndex - 1) * tileWidth + 1
+              const subTileRowOffset = rowPosition - tileBoundaryRow
+              const subTileColOffset = colPosition - tileBoundaryCol
+
+              subTileOffsets.push({
+                frameIdx,
+                rowPosition,
+                colPosition,
+                subTileRowOffset,
+                subTileColOffset,
+              })
+
+              console.log(
+                `[SPARSE] Frame ${frameIdx}: pos=(${rowPosition}, ${colPosition}), ` +
+                  `tileIdx=(${tileRowIndex}, ${tileColIndex}), ` +
+                  `subTileOffset=(${subTileRowOffset}, ${subTileColOffset})`,
+              )
+            }
+          }
+        }
+
+        /** Use the first frame's offset to calculate the adjustment */
+        if (subTileOffsets.length > 0) {
+          const firstOffset = subTileOffsets[0]
+          const baseRowOffset = firstOffset.subTileRowOffset * resolution
+          const baseColOffset = firstOffset.subTileColOffset * resolution
+
+          /**
+           * The tile grid origin needs to be adjusted so that when OpenLayers
+           * places a tile at grid position (row, col), the content aligns
+           * with the actual frame position.
+           *
+           * For OpenLayers with Y-down coordinate system:
+           * - Positive x offset shifts tiles to the right
+           * - Negative y offset shifts tiles down (more negative Y)
+           */
+          tileOriginOffset = [baseColOffset, -baseRowOffset]
+
+          console.log(
+            `[SPARSE] Calculated tileOriginOffset: [${tileOriginOffset[0].toFixed(2)}, ${tileOriginOffset[1].toFixed(2)}] ` +
+              `(from subTileOffset=(${firstOffset.subTileRowOffset}, ${firstOffset.subTileColOffset}) * resolution=${resolution.toFixed(4)})`,
+          )
+
+          /** Check if all frames have consistent offsets */
+          const allConsistent = subTileOffsets.every(
+            (o) =>
+              o.subTileRowOffset === firstOffset.subTileRowOffset &&
+              o.subTileColOffset === firstOffset.subTileColOffset,
+          )
+          if (!allConsistent) {
+            console.warn(
+              '[SPARSE] WARNING: Not all frames have the same sub-tile offset! Single origin adjustment may not work for all frames.',
+            )
+          }
+        }
+      }
+
+      /**
+       * Adjust the origin to be consistent with the extent.
+       * The extent top-left is at [offsetX, -(offsetY + 1)], so the origin
+       * should start there, plus the sub-tile offset for frame alignment.
+       *
+       * Note: The origin is where tile (0, 0) would be positioned.
+       * For TILED_SPARSE with frames at arbitrary positions, we need
+       * the origin to align with the extent's coordinate system.
+       */
+      const adjustedOrigin = [
+        offsetX + tileOriginOffset[0],
+        -(offsetY + 1) + tileOriginOffset[1],
+      ]
+
+      console.log(
+        `[SPARSE] Origin adjustment: ` +
+          `extentOffset=(${offsetX.toFixed(1)}, ${offsetY.toFixed(1)}), ` +
+          `pyramidOrigin=[${pyramid.origins[j][0]}, ${pyramid.origins[j][1]}], ` +
+          `adjustedOrigin=[${adjustedOrigin[0].toFixed(1)}, ${adjustedOrigin[1].toFixed(1)}]`,
+      )
+      fittedPyramid.origins.push(adjustedOrigin)
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
       fittedPyramid.resolutions.push(finalResolution)
       fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+      if (pyramid.dimensionOrganizationTypes) {
+        fittedPyramid.dimensionOrganizationTypes.push(
+          pyramid.dimensionOrganizationTypes[j],
+        )
+      }
     }
   } else {
     /**
@@ -618,6 +864,11 @@ function _fitImagePyramid(pyramid, refPyramid) {
         fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
         fittedPyramid.metadata.push(pyramid.metadata[j])
         fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+        if (pyramid.dimensionOrganizationTypes) {
+          fittedPyramid.dimensionOrganizationTypes.push(
+            pyramid.dimensionOrganizationTypes[j],
+          )
+        }
       }
     }
   }

@@ -715,6 +715,88 @@ function _getColorInterpolationStyleForTileLayer({
   return { color: expression, variables }
 }
 
+/**
+ * Compute the bounding box for a segment from its frame mappings.
+ *
+ * @param {Object} pyramid - The image pyramid containing frame mappings
+ * @param {number} segmentNumber - The segment number to compute bounds for
+ * @param {number} [scaleFactor=1] - Scale factor to transform from segment coordinates to base image coordinates
+ * @returns {number[]|null} The extent [minX, minY, maxX, maxY] in map coordinates, or null if no frames exist
+ * @private
+ */
+function _computeSegmentBoundingBox(pyramid, segmentNumber, scaleFactor = 1) {
+  const channelId = String(segmentNumber)
+  let minTileRow = Infinity
+  let maxTileRow = -Infinity
+  let minTileCol = Infinity
+  let maxTileCol = -Infinity
+  let foundAnyFrame = false
+  let tileRows = 0
+  let tileCols = 0
+
+  /**
+   * Search all pyramid levels for frames belonging to this segment.
+   * Use the finest resolution level (last in array) for tile size.
+   */
+  for (let z = 0; z < pyramid.frameMappings.length; z++) {
+    const frameMapping = pyramid.frameMappings[z]
+    const metadata = pyramid.metadata[z]
+
+    if (!frameMapping || !metadata) continue
+
+    tileRows = metadata.Rows
+    tileCols = metadata.Columns
+
+    for (const key of Object.keys(frameMapping)) {
+      /** Key format is "rowIndex-colIndex-channelIdentifier" */
+      const parts = key.split('-')
+      if (parts.length >= 3 && parts[parts.length - 1] === channelId) {
+        const rowIndex = parseInt(parts[0], 10)
+        const colIndex = parseInt(parts[1], 10)
+
+        minTileRow = Math.min(minTileRow, rowIndex)
+        maxTileRow = Math.max(maxTileRow, rowIndex)
+        minTileCol = Math.min(minTileCol, colIndex)
+        maxTileCol = Math.max(maxTileCol, colIndex)
+        foundAnyFrame = true
+      }
+    }
+
+    /** Only need to check one level since all levels should have same frames */
+    if (foundAnyFrame) break
+  }
+
+  if (!foundAnyFrame) {
+    return null
+  }
+
+  /**
+   * Convert tile indices to pixel coordinates in the segment's coordinate system.
+   * Tile indices are 1-based, so we subtract 1 for 0-based pixel calculation.
+   */
+  const minPixelX = (minTileCol - 1) * tileCols
+  const maxPixelX = maxTileCol * tileCols
+  const minPixelY = (minTileRow - 1) * tileRows
+  const maxPixelY = maxTileRow * tileRows
+
+  /**
+   * Apply scale factor to transform from segment coordinates to base image coordinates.
+   * This is needed when the segment is at a different resolution than the base image.
+   */
+  const scaledMinX = minPixelX * scaleFactor
+  const scaledMaxX = maxPixelX * scaleFactor
+  const scaledMinY = minPixelY * scaleFactor
+  const scaledMaxY = maxPixelY * scaleFactor
+
+  /**
+   * Convert to map coordinates.
+   * In the viewer, Y is inverted: map Y = -(pixel Y + 1)
+   */
+  const extent = [scaledMinX, -(scaledMaxY + 1), scaledMaxX, -(scaledMinY + 1)]
+
+  return extent
+}
+
 const _errorInterceptor = Symbol('errorInterceptor')
 const _retrievedBulkdata = Symbol('retrievedBulkdata')
 const _affine = Symbol.for('affine')
@@ -5373,6 +5455,32 @@ class VolumeImageViewer {
       this[_pyramid],
     )
 
+    /**
+     * Calculate scale factor for coordinate transformation.
+     * This is needed for TILED_SPARSE overlays at different resolutions.
+     * Scale factor = SEG pixel spacing / Base pixel spacing
+     */
+    const refBaseLevel =
+      this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
+    const segLevel = pyramid.metadata[pyramid.metadata.length - 1]
+    const basePixelSpacing = getPixelSpacing(refBaseLevel)
+    const segPixelSpacing = getPixelSpacing(segLevel)
+    const coordinateScaleFactor = segPixelSpacing[0] / basePixelSpacing[0]
+
+    console.log(
+      '[SPARSE] Creating segmentation TileGrid with:',
+      '\n  extent:',
+      fittedPyramid.extent,
+      '\n  origins:',
+      fittedPyramid.origins,
+      '\n  resolutions:',
+      fittedPyramid.resolutions,
+      '\n  gridSizes:',
+      fittedPyramid.gridSizes,
+      '\n  tileSizes:',
+      fittedPyramid.tileSizes,
+    )
+
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
       origins: fittedPyramid.origins,
@@ -5466,6 +5574,11 @@ class VolumeImageViewer {
         },
         hasLoader: false,
         segmentationType: refSegmentation.SegmentationType,
+        boundingBox: _computeSegmentBoundingBox(
+          pyramid,
+          segmentNumber,
+          coordinateScaleFactor,
+        ),
       }
 
       const source = new DataTileSource({
@@ -5619,13 +5732,36 @@ class VolumeImageViewer {
 
     if (shouldZoomIn) {
       const view = this[_map].getView()
-      const currentZoomLevel = view.getZoom()
 
-      if (
-        currentZoomLevel < segment.minZoomLevel ||
-        currentZoomLevel > segment.maxZoomLevel
-      ) {
-        view.animate({ zoom: segment.minZoomLevel })
+      if (segment.boundingBox != null) {
+        /**
+         * Zoom to the segment's bounding box.
+         * This ensures the view shows where the segment data actually exists.
+         */
+        const padding = [50, 50, 50, 50]
+        view.fit(segment.boundingBox, {
+          padding,
+          duration: 500,
+          maxZoom: segment.maxZoomLevel,
+        })
+        console.info(
+          `Zooming to segment bounding box: [${segment.boundingBox.join(', ')}]`,
+        )
+      } else {
+        /**
+         * No bounding box available (segment has no frames).
+         * Just ensure we're at an appropriate zoom level.
+         */
+        const currentZoomLevel = view.getZoom()
+        if (
+          currentZoomLevel < segment.minZoomLevel ||
+          currentZoomLevel > segment.maxZoomLevel
+        ) {
+          view.animate({ zoom: segment.minZoomLevel, duration: 500 })
+        }
+        console.warn(
+          `Segment "${segmentUID}" has no bounding box - it may have no frame data`,
+        )
       }
     }
   }
