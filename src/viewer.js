@@ -5390,14 +5390,29 @@ class VolumeImageViewer {
     }
 
     /**
-     * Fractional segments are colorized with distinct, single-hue color maps so
-     * that multiple overlays are easy to tell apart and to match against the
-     * legend (see issue #240). Continue the hue sequence from any fractional
-     * segments that already exist so newly added series do not reuse hues.
+     * LABELMAP segmentation encodes all segments in a single frame where pixel
+     * values represent segment numbers. After pixel masking in the tile loader,
+     * each segment's layer becomes binary (0 or 1).
+     */
+    const isLabelmap = refSegmentation.SegmentationType === 'LABELMAP'
+    if (isLabelmap) {
+      minStoredValue = 0
+      maxStoredValue = 1
+    }
+
+    /**
+     * Fractional and LABELMAP segments are colorized with distinct, single-hue
+     * color maps so that multiple overlays are easy to tell apart and to match
+     * against the legend (see issue #240). Continue the hue sequence from any
+     * existing segments that use distinct colormaps so newly added series do
+     * not reuse hues.
      */
     const isFractional = refSegmentation.SegmentationType === 'FRACTIONAL'
-    let fractionalOrdinal = Object.values(this[_segments]).filter(
-      (existing) => existing.segmentationType === 'FRACTIONAL',
+    const useDistinctColormap = isFractional || isLabelmap
+    let distinctColormapOrdinal = Object.values(this[_segments]).filter(
+      (existing) =>
+        existing.segmentationType === 'FRACTIONAL' ||
+        existing.segmentationType === 'LABELMAP',
     ).length
 
     refSegmentation.SegmentSequence.forEach((item, _index) => {
@@ -5416,9 +5431,9 @@ class VolumeImageViewer {
         segmentUID = item.TrackingUID
       }
 
-      const colormap = isFractional
+      const colormap = useDistinctColormap
         ? createDistinctColormap({
-            index: fractionalOrdinal++,
+            index: distinctColormapOrdinal++,
             bins: 2 ** 8,
           })
         : createColormap({
@@ -5461,8 +5476,14 @@ class VolumeImageViewer {
         maxZoomLevel,
         loaderParams: {
           pyramid: fittedPyramid,
-          client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
+          client: _getClient(this[_clients], refSegmentation.SOPClassUID),
           channel: segmentNumber,
+          /**
+           * For LABELMAP, the tile loader needs to mask pixels after decoding
+           * to create a binary layer where only pixels matching this segment
+           * number are preserved.
+           */
+          labelmapSegmentNumber: isLabelmap ? segmentNumber : undefined,
         },
         hasLoader: false,
         segmentationType: refSegmentation.SegmentationType,
