@@ -5752,6 +5752,11 @@ class VolumeImageViewer {
   /**
    * Zoom to a segment's bounding box.
    *
+   * For segments with compact bounding boxes, fits the view to show the
+   * entire segment with some context. For segments with large bounding boxes
+   * (e.g., TILED_SPARSE with scattered features), zooms to the segment's
+   * max zoom level centered on the bounding box.
+   *
    * @param {string} segmentUID - Unique tracking identifier of a segment
    */
   zoomToSegment(segmentUID) {
@@ -5768,22 +5773,67 @@ class VolumeImageViewer {
     if (segment.boundingBox != null) {
       const extent = segment.boundingBox
       const center = getCenter(extent)
-      const width = getWidth(extent)
-      const height = getHeight(extent)
+      const extentWidth = getWidth(extent)
+      const extentHeight = getHeight(extent)
 
-      /** Expand extent slightly for context (scale factor 1.5) */
-      const scale = 1.5
-      const expandedExtent = [
-        center[0] - (width * scale) / 2,
-        center[1] - (height * scale) / 2,
-        center[0] + (width * scale) / 2,
-        center[1] + (height * scale) / 2,
-      ]
+      /**
+       * Get the viewport size in map coordinates at the target zoom level.
+       * If the segment bounding box is extremely large relative to the viewport
+       * (indicating scattered features like TILED_SPARSE nuclei spread across
+       * a large region), zoom to the max zoom level centered on the segment
+       * rather than fitting the entire bounding box.
+       *
+       * We use a high threshold (10x) to avoid affecting normal segments like
+       * tumor regions that may span several tiles but should still be shown
+       * in full. Only truly scattered segments (e.g., nuclei across an entire
+       * slide region) will trigger the centered zoom behavior.
+       */
+      const viewportSize = this[_map].getSize()
+      if (!viewportSize) {
+        console.warn('Cannot get map size for zoom calculation')
+        return
+      }
 
-      view.fit(expandedExtent, {
-        duration: 500,
-        maxZoom: segment.maxZoomLevel,
-      })
+      const targetZoom = segment.maxZoomLevel
+      const targetResolution = view.getResolutionForZoom(targetZoom)
+      const viewportWidthAtTarget = viewportSize[0] * targetResolution
+      const viewportHeightAtTarget = viewportSize[1] * targetResolution
+
+      /**
+       * Threshold of 10x viewport size - only extremely large/scattered
+       * segments trigger centered zoom behavior. Normal segments (tumor
+       * regions, lesions, etc.) will still fit their bounding box.
+       */
+      const scatterThreshold = 10
+      const isScatteredSegment =
+        extentWidth > viewportWidthAtTarget * scatterThreshold ||
+        extentHeight > viewportHeightAtTarget * scatterThreshold
+
+      if (isScatteredSegment) {
+        /**
+         * Bounding box is extremely large (scattered features across a wide
+         * region), zoom to max zoom centered on the segment's bounding box.
+         */
+        view.animate({
+          center: center,
+          zoom: targetZoom,
+          duration: 500,
+        })
+      } else {
+        /** Expand extent slightly for context (scale factor 1.5) */
+        const scale = 1.5
+        const expandedExtent = [
+          center[0] - (extentWidth * scale) / 2,
+          center[1] - (extentHeight * scale) / 2,
+          center[0] + (extentWidth * scale) / 2,
+          center[1] + (extentHeight * scale) / 2,
+        ]
+
+        view.fit(expandedExtent, {
+          duration: 500,
+          maxZoom: segment.maxZoomLevel,
+        })
+      }
     } else {
       console.warn(`Segment "${segmentUID}" has no bounding box to zoom to`)
     }
