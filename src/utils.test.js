@@ -281,7 +281,7 @@ describe('test detectDisplayColorSpace function', () => {
       dispatchEvent: jest.fn(),
     }))
 
-    expect(utils.detectDisplayColorSpace()).toEqual('display-p3')
+    expect(utils.detectDisplayColorSpace().getValue()).toEqual('display-p3')
   })
 
   it('should fall back to srgb when p3 is not supported', () => {
@@ -297,14 +297,40 @@ describe('test detectDisplayColorSpace function', () => {
       dispatchEvent: jest.fn(),
     }))
 
-    expect(utils.detectDisplayColorSpace()).toEqual('srgb')
+    expect(utils.detectDisplayColorSpace().getValue()).toEqual('srgb')
   })
 
   it('should default to srgb when window.matchMedia is not available', () => {
     // Mock matchMedia to be undefined
     window.matchMedia = undefined
 
-    expect(utils.detectDisplayColorSpace()).toEqual('srgb')
+    expect(utils.detectDisplayColorSpace().getValue()).toEqual('srgb')
+  })
+
+  it('should notify subscribers when the display color space changes', async () => {
+    let p3ChangeListener
+    const p3MediaQuery = {
+      matches: false,
+      addEventListener: jest.fn((event, listener) => {
+        p3ChangeListener = listener
+      }),
+    }
+    window.matchMedia = jest.fn((query) =>
+      query === '(color-gamut: p3)'
+        ? p3MediaQuery
+        : { matches: true, addEventListener: jest.fn() },
+    )
+
+    const colorSpace = utils.detectDisplayColorSpace()
+    const subscriber = jest.fn()
+    colorSpace.subscribe(subscriber)
+
+    p3MediaQuery.matches = true
+    p3ChangeListener()
+    await Promise.resolve()
+
+    expect(subscriber).toHaveBeenCalledWith('display-p3', 'srgb')
+    expect(colorSpace.getValue()).toEqual('display-p3')
   })
 
 })
