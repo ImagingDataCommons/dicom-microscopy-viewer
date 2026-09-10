@@ -1815,7 +1815,13 @@ class VolumeImageViewer {
     this._setupMapEventListeners()
     this._setupDrawingSourceEventListeners()
     this[_unsubscribeDisplayColorSpace] = this[_iccOutputType].subscribe(() => {
-      this.refreshColorSpace()
+      // Target color space changed
+      // Reconfigure the dataloaders if ICC profiles are enabled
+      if (!this[_isICCProfilesEnabled]) {
+        return
+      }
+
+      this.configureDataLoaders(this[_isICCProfilesEnabled])
     })
   }
 
@@ -2435,96 +2441,57 @@ class VolumeImageViewer {
    */
   toggleICCProfiles() {
     console.debug('toggle ICC profiles:', this[_isICCProfilesEnabled])
+    this.configureDataLoaders(!this[_isICCProfilesEnabled]).then(() => {
+      // Update the toggle if reloading was successful
+      this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+    })
+  }
+
+  async configureDataLoaders(iccProfilesEnabled) {
     const itemsRequiringDecodersAndTransformers = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
       ...Object.values(this[_mappings]),
     ]
 
-    itemsRequiringDecodersAndTransformers.forEach((item) => {
-      const metadata = item.pyramid.metadata
-      const client = _getClient(
-        this[_clients],
-        Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
-      )
-      _getIccProfiles({
-        metadata,
-        client,
-        onError: (error) => {
-          console.error('Failed to fetch ICC profiles:', error)
-          const customError = new CustomError(
-            errorTypes.VISUALIZATION,
-            'Failed to fetch ICC profiles',
-          )
-          this[_options].errorInterceptor(customError)
-        },
-      }).then((profiles) => {
-        this[_iccProfiles] = profiles
+    // Update the data loaders of all items asynchronously
+    await Promise.all(
+      itemsRequiringDecodersAndTransformers.map(async (item) => {
+        const metadata = item.pyramid.metadata
+        const client = _getClient(
+          this[_clients],
+          Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
+        )
+        this[_iccProfiles] = await _getIccProfiles({
+          metadata,
+          client,
+          onError: (error) => {
+            console.error('Failed to fetch ICC profiles:', error)
+            const customError = new CustomError(
+              errorTypes.VISUALIZATION,
+              'Failed to fetch ICC profiles',
+            )
+            this[_options].errorInterceptor(customError)
+          },
+        })
+
         const source = item.layer.getSource()
         if (!source) {
           return
         }
-        const loaderWithICCProfiles = _createTileLoadFunction({
+
+        const loaderConfig = {
           targetElement: this[_container],
-          iccProfiles: profiles,
-          iccOutputType: this[_iccOutputType].getValue(),
-          ...item.loaderParams,
-        })
-        const loaderWithoutICCProfiles = _createTileLoadFunction({
-          targetElement: this[_container],
-          ...item.loaderParams,
-        })
-        const loader = this[_isICCProfilesEnabled]
-          ? loaderWithICCProfiles
-          : loaderWithoutICCProfiles
-        source.setLoader(loader)
-        source.refresh()
-        item.hasLoader = true
-      })
-    })
+        }
 
-    this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
-  }
-
-  refreshColorSpace() {
-    if (!this[_isICCProfilesEnabled]) {
-      return
-    }
-
-    const itemsRequiringDecodersAndTransformers = [
-      ...Object.values(this[_opticalPaths]),
-      ...Object.values(this[_segments]),
-      ...Object.values(this[_mappings]),
-    ]
-
-    itemsRequiringDecodersAndTransformers.forEach((item) => {
-      const metadata = item.pyramid.metadata
-      const client = _getClient(
-        this[_clients],
-        Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
-      )
-      _getIccProfiles({
-        metadata,
-        client,
-        onError: (error) => {
-          console.error('Failed to fetch ICC profiles:', error)
-          const customError = new CustomError(
-            errorTypes.VISUALIZATION,
-            'Failed to fetch ICC profiles',
-          )
-          this[_options].errorInterceptor(customError)
-        },
-      }).then((profiles) => {
-        this[_iccProfiles] = profiles
-        const source = item.layer.getSource()
-        if (!source) {
-          return
+        // Add ICC profile configuration if enabled
+        if (iccProfilesEnabled) {
+          loaderConfig.iccProfiles = this[_iccProfiles]
+          loaderConfig.iccOutputType = this[_iccOutputType].getValue()
         }
 
         const loader = _createTileLoadFunction({
-          targetElement: this[_container],
-          iccProfiles: profiles,
-          iccOutputType: this[_iccOutputType].getValue(),
+          ...loaderConfig,
           ...item.loaderParams,
         })
 
@@ -2535,18 +2502,18 @@ class VolumeImageViewer {
           bandCount: source.bandCount,
           interpolate: source.getInterpolate(),
         })
+
         replacementSource.setLoader(loader)
+        item.layer.setSource(replacementSource)
+        item.overviewLayer?.setSource(replacementSource)
+        item.hasLoader = true
         if (item.onTileLoadError) {
           replacementSource.on('tileloaderror', item.onTileLoadError)
         }
-        item.layer.setSource(replacementSource)
-        if (item.overviewLayer) {
-          item.overviewLayer.setSource(replacementSource)
-        }
-        item.hasLoader = true
-      })
-    })
+      }),
+    )
 
+    // Force a re-render to let the changes take effect
     this[_map]?.render()
   }
 
