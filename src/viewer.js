@@ -5766,25 +5766,28 @@ class VolumeImageViewer {
       if (segment.boundingBox != null) {
         /**
          * Zoom to the segment's bounding box.
-         * This ensures the view shows where the segment data actually exists.
+         * Cap with pyramid resolution (not OL zoom index): Slim and other
+         * hosts often use free zoom (`useTileGridResolutions: false`), where
+         * view zoom ≠ pyramid level index.
          */
         const padding = [50, 50, 50, 50]
         view.fit(segment.boundingBox, {
           padding,
           duration: 500,
-          maxZoom: segment.maxZoomLevel,
+          minResolution: this._getSegmentTargetResolution(segment),
         })
       } else {
         /**
          * No bounding box available (segment has no frames).
          * Just ensure we're at an appropriate zoom level.
          */
-        const currentZoomLevel = view.getZoom()
+        const targetResolution = this._getSegmentTargetResolution(segment)
+        const currentResolution = view.getResolution()
         if (
-          currentZoomLevel < segment.minZoomLevel ||
-          currentZoomLevel > segment.maxZoomLevel
+          currentResolution == null ||
+          currentResolution > targetResolution * 1.01
         ) {
-          view.animate({ zoom: segment.minZoomLevel, duration: 500 })
+          view.animate({ resolution: targetResolution, duration: 500 })
         }
         console.warn(
           `Segment "${segmentUID}" has no bounding box - it may have no frame data`,
@@ -5794,12 +5797,39 @@ class VolumeImageViewer {
   }
 
   /**
+   * Map a segment's preferred pyramid level to a view resolution.
+   *
+   * `minZoomLevel` / `maxZoomLevel` are indices into the base image pyramid
+   * resolutions. With free zoom (no constrained view resolutions), those
+   * indices are not OpenLayers zoom levels — callers must animate/fit by
+   * resolution instead of `zoom` / `maxZoom`.
+   *
+   * @param {Object} segment - Internal segment record
+   * @returns {number} Target map resolution (map units per pixel)
+   * @private
+   */
+  _getSegmentTargetResolution(segment) {
+    const resolutions = this[_pyramid].resolutions
+    const index = segment.maxZoomLevel
+    if (
+      resolutions != null &&
+      resolutions.length > 0 &&
+      Number.isInteger(index) &&
+      index >= 0 &&
+      index < resolutions.length
+    ) {
+      return resolutions[index]
+    }
+    return resolutions[resolutions.length - 1]
+  }
+
+  /**
    * Zoom to a segment's bounding box.
    *
    * For segments with compact bounding boxes, fits the view to show the
    * entire segment with some context. For segments with large bounding boxes
    * (e.g., TILED_SPARSE with scattered features), zooms to the segment's
-   * preferred (fitted) zoom level centered on the bounding box.
+   * preferred (fitted) resolution centered on the bounding box.
    *
    * `minZoomLevel` / `maxZoomLevel` come from `_fitImagePyramid`. When the
    * SEG has no matching base pyramid levels, those values are the closest
@@ -5831,11 +5861,23 @@ class VolumeImageViewer {
     const extentWidth = getWidth(extent)
     const extentHeight = getHeight(extent)
 
+    if (
+      !Number.isFinite(extentWidth) ||
+      !Number.isFinite(extentHeight) ||
+      extentWidth <= 0 ||
+      extentHeight <= 0
+    ) {
+      console.warn(
+        `Cannot zoom to segment "${segmentUID}": invalid bounding box.`,
+      )
+      return
+    }
+
     /**
-     * Get the viewport size in map coordinates at the target zoom level.
+     * Get the viewport size in map coordinates at the target resolution.
      * If the segment bounding box is extremely large relative to the viewport
      * (indicating scattered features like TILED_SPARSE nuclei spread across
-     * a large region), zoom to the fitted/max zoom level centered on the
+     * a large region), zoom to the fitted resolution centered on the
      * segment rather than fitting the entire bounding box.
      *
      * We use a high threshold (10x) to avoid affecting normal segments like
@@ -5850,13 +5892,10 @@ class VolumeImageViewer {
     }
 
     /**
-     * Prefer the finest fitted zoom (closest base level to SEG resolution).
-     * For matching-pyramid SEGs this is the finest shared level; for
-     * non-matching fitted SEGs it is the closest base index to the fitted
-     * resolution — not the full base range.
+     * Prefer the finest fitted pyramid resolution (not OL zoom index).
+     * Free-zoom hosts (Slim) must animate/fit by resolution.
      */
-    const targetZoom = segment.maxZoomLevel
-    const targetResolution = view.getResolutionForZoom(targetZoom)
+    const targetResolution = this._getSegmentTargetResolution(segment)
     const viewportWidthAtTarget = viewportSize[0] * targetResolution
     const viewportHeightAtTarget = viewportSize[1] * targetResolution
 
@@ -5873,12 +5912,12 @@ class VolumeImageViewer {
     if (isScatteredSegment) {
       /**
        * Bounding box is extremely large (scattered features across a wide
-       * region), zoom to fitted max zoom centered on the segment's bounding
+       * region), zoom to fitted resolution centered on the segment's bounding
        * box.
        */
       view.animate({
         center: center,
-        zoom: targetZoom,
+        resolution: targetResolution,
         duration: 500,
       })
     } else {
@@ -5893,7 +5932,7 @@ class VolumeImageViewer {
 
       view.fit(expandedExtent, {
         duration: 500,
-        maxZoom: segment.maxZoomLevel,
+        minResolution: targetResolution,
       })
     }
   }
