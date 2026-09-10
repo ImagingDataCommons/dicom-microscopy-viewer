@@ -6888,12 +6888,32 @@ class VolumeImageViewer {
     }
 
     const view = this[_map].getView()
-    const currentZoomLevel = view.getZoom()
+    /**
+     * Prefer pyramid resolution over OL zoom index. With free zoom (Slim),
+     * view zoom ≠ pyramid level; after non-matching fit, min/max collapse to
+     * the closest base index and animate({ zoom }) would jump incorrectly.
+     */
+    const resolutions = this[_pyramid].resolutions
+    const minIndex = mapping.minZoomLevel
+    const maxIndex = mapping.maxZoomLevel
     if (
-      currentZoomLevel < mapping.minZoomLevel ||
-      currentZoomLevel > mapping.maxZoomLevel
+      resolutions != null &&
+      resolutions.length > 0 &&
+      Number.isInteger(minIndex) &&
+      Number.isInteger(maxIndex) &&
+      minIndex >= 0 &&
+      maxIndex < resolutions.length
     ) {
-      view.animate({ zoom: mapping.minZoomLevel })
+      const coarsestResolution = resolutions[minIndex]
+      const finestResolution = resolutions[maxIndex]
+      const currentResolution = view.getResolution()
+      if (
+        currentResolution == null ||
+        currentResolution > coarsestResolution * 1.01 ||
+        currentResolution < finestResolution * 0.99
+      ) {
+        view.animate({ resolution: coarsestResolution })
+      }
     }
 
     mapping.layer.setVisible(true)
