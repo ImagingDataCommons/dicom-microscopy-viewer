@@ -838,34 +838,80 @@ function _fitImagePyramid(pyramid, refPyramid) {
     }
   }
 
-  let minZoom = 0
-  for (let i = 0; i < refPyramid.resolutions.length; i++) {
-    for (let j = 0; j < fittedPyramid.resolutions.length; j++) {
-      if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
-        minZoom = i
-        break
-      }
-    }
-  }
-  let maxZoom = refPyramid.resolutions.length - 1
-  for (let i = refPyramid.resolutions.length - 1; i >= minZoom; i--) {
-    for (let j = fittedPyramid.resolutions.length - 1; j >= 0; j--) {
-      if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
-        maxZoom = i
-        break
-      }
-    }
-  }
-
   const hasMatchingLevels = matchingLevelIndices.length > 0
+  let minZoom = 0
+  let maxZoom = Math.max(refPyramid.resolutions.length - 1, 0)
+
+  if (hasMatchingLevels) {
+    /**
+     * Shared pyramid levels: clamp zoom to the matching base indices so the
+     * overlay is only preferred within its available resolution range.
+     */
+    for (let i = 0; i < refPyramid.resolutions.length; i++) {
+      for (let j = 0; j < fittedPyramid.resolutions.length; j++) {
+        if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
+          minZoom = i
+          break
+        }
+      }
+    }
+    maxZoom = refPyramid.resolutions.length - 1
+    for (let i = refPyramid.resolutions.length - 1; i >= minZoom; i--) {
+      for (let j = fittedPyramid.resolutions.length - 1; j >= 0; j--) {
+        if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
+          maxZoom = i
+          break
+        }
+      }
+    }
+  } else if (fittedPyramid.resolutions.length > 0) {
+    /**
+     * No shared levels (e.g. TILED_SPARSE at a non-matching spacing). The
+     * fitted pyramid has its own resolution(s) that are not in the base
+     * pyramid. Map each fitted resolution to the closest base zoom index so
+     * click-to-zoom / fit targets the fitted overlay instead of the full
+     * base range (0..n-1), which zooms incorrectly for single-level SEGs.
+     * See https://github.com/ImagingDataCommons/slim/issues/371
+     */
+    const closestZooms = fittedPyramid.resolutions.map((resolution) =>
+      _findClosestResolutionIndex(refPyramid.resolutions, resolution),
+    )
+    minZoom = Math.min(...closestZooms)
+    maxZoom = Math.max(...closestZooms)
+  }
 
   return [fittedPyramid, minZoom, maxZoom, hasMatchingLevels]
+}
+
+/**
+ * Find the index of the resolution closest to a target value.
+ *
+ * @param {number[]} resolutions - Sorted resolution array (coarsest → finest)
+ * @param {number} targetResolution - Resolution to match
+ * @returns {number} Index of the closest resolution
+ * @private
+ */
+function _findClosestResolutionIndex(resolutions, targetResolution) {
+  if (!resolutions || resolutions.length === 0) {
+    return 0
+  }
+  let bestIndex = 0
+  let bestDiff = Math.abs(resolutions[0] - targetResolution)
+  for (let i = 1; i < resolutions.length; i++) {
+    const diff = Math.abs(resolutions[i] - targetResolution)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      bestIndex = i
+    }
+  }
+  return bestIndex
 }
 
 export {
   _areImagePyramidsEqual,
   _computeImagePyramid,
   _createTileLoadFunction,
+  _findClosestResolutionIndex,
   _fitImagePyramid,
   _getIccProfiles,
 }

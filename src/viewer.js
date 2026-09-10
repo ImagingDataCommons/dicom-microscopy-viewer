@@ -721,10 +721,16 @@ function _getColorInterpolationStyleForTileLayer({
  * @param {Object} pyramid - The image pyramid containing frame mappings
  * @param {number} segmentNumber - The segment number to compute bounds for
  * @param {number} [scaleFactor=1] - Scale factor to transform from segment coordinates to base image coordinates
+ * @param {number[]} [pixelOffset=[0, 0]] - Origin offset `[offsetX, offsetY]` in base image pixels (from the fitted pyramid)
  * @returns {number[]|null} The extent [minX, minY, maxX, maxY] in map coordinates, or null if no frames exist
  * @private
  */
-function _computeSegmentBoundingBox(pyramid, segmentNumber, scaleFactor = 1) {
+function _computeSegmentBoundingBox(
+  pyramid,
+  segmentNumber,
+  scaleFactor = 1,
+  pixelOffset = [0, 0],
+) {
   const channelId = String(segmentNumber)
   let minTileRow = Infinity
   let maxTileRow = -Infinity
@@ -789,10 +795,17 @@ function _computeSegmentBoundingBox(pyramid, segmentNumber, scaleFactor = 1) {
   const scaledMaxY = maxPixelY * scaleFactor
 
   /**
-   * Convert to map coordinates.
-   * In the viewer, Y is inverted: map Y = -(pixel Y + 1)
+   * Apply fitted-pyramid origin offset (physical origin between SEG and base),
+   * then convert to map coordinates. Y is inverted: map Y = -(pixel Y + 1).
    */
-  const extent = [scaledMinX, -(scaledMaxY + 1), scaledMaxX, -(scaledMinY + 1)]
+  const offsetX = pixelOffset[0] || 0
+  const offsetY = pixelOffset[1] || 0
+  const extent = [
+    offsetX + scaledMinX,
+    -(offsetY + scaledMaxY + 1),
+    offsetX + scaledMaxX,
+    -(offsetY + scaledMinY + 1),
+  ]
 
   return extent
 }
@@ -5450,10 +5463,8 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
-      pyramid,
-      this[_pyramid],
-    )
+    const [fittedPyramid, minZoomLevel, maxZoomLevel, hasMatchingLevels] =
+      _fitImagePyramid(pyramid, this[_pyramid])
 
     /**
      * Calculate scale factor for coordinate transformation.
@@ -5466,6 +5477,15 @@ class VolumeImageViewer {
     const basePixelSpacing = getPixelSpacing(refBaseLevel)
     const segPixelSpacing = getPixelSpacing(segLevel)
     const coordinateScaleFactor = segPixelSpacing[0] / basePixelSpacing[0]
+
+    /**
+     * Fitted extent encodes the SEG origin in base pixels:
+     *   [offsetX, -(offsetY + scaledHeight + 1), offsetX + scaledWidth, -(offsetY + 1)]
+     */
+    const fittedOriginOffset = [
+      fittedPyramid.extent[0],
+      -(fittedPyramid.extent[3] + 1),
+    ]
 
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
@@ -5564,6 +5584,7 @@ class VolumeImageViewer {
           pyramid,
           segmentNumber,
           coordinateScaleFactor,
+          fittedOriginOffset,
         ),
       }
 
@@ -5612,8 +5633,14 @@ class VolumeImageViewer {
         }),
         useInterimTilesOnError: false,
         cacheSize: this[_options].tilesCacheSize,
+        /**
+         * Only clamp overlay visibility to matching pyramid levels. For
+         * non-matching (fitted) single-level SEGs, min/max zoom map to the
+         * closest base index for click-to-zoom, but the overlay must stay
+         * visible at all view resolutions.
+         */
         minResolution:
-          this[_mapViewResolutions] === undefined
+          this[_mapViewResolutions] === undefined || !hasMatchingLevels
             ? undefined
             : minZoomLevel > 0
               ? this[_pyramid].resolutions[minZoomLevel]
@@ -5755,7 +5782,12 @@ class VolumeImageViewer {
    * For segments with compact bounding boxes, fits the view to show the
    * entire segment with some context. For segments with large bounding boxes
    * (e.g., TILED_SPARSE with scattered features), zooms to the segment's
-   * max zoom level centered on the bounding box.
+   * preferred (fitted) zoom level centered on the bounding box.
+   *
+   * `minZoomLevel` / `maxZoomLevel` come from `_fitImagePyramid`. When the
+   * SEG has no matching base pyramid levels, those values are the closest
+   * base zoom indices to the fitted resolution — not the full base range —
+   * so click-to-zoom lands on the overlay's native scale (slim#371).
    *
    * @param {string} segmentUID - Unique tracking identifier of a segment
    */
@@ -5780,8 +5812,8 @@ class VolumeImageViewer {
        * Get the viewport size in map coordinates at the target zoom level.
        * If the segment bounding box is extremely large relative to the viewport
        * (indicating scattered features like TILED_SPARSE nuclei spread across
-       * a large region), zoom to the max zoom level centered on the segment
-       * rather than fitting the entire bounding box.
+       * a large region), zoom to the fitted/max zoom level centered on the
+       * segment rather than fitting the entire bounding box.
        *
        * We use a high threshold (10x) to avoid affecting normal segments like
        * tumor regions that may span several tiles but should still be shown
@@ -5794,6 +5826,7 @@ class VolumeImageViewer {
         return
       }
 
+      /** Prefer the finest fitted zoom (closest base level to SEG resolution). */
       const targetZoom = segment.maxZoomLevel
       const targetResolution = view.getResolutionForZoom(targetZoom)
       const viewportWidthAtTarget = viewportSize[0] * targetResolution
@@ -5812,7 +5845,8 @@ class VolumeImageViewer {
       if (isScatteredSegment) {
         /**
          * Bounding box is extremely large (scattered features across a wide
-         * region), zoom to max zoom centered on the segment's bounding box.
+         * region), zoom to fitted max zoom centered on the segment's bounding
+         * box.
          */
         view.animate({
           center: center,

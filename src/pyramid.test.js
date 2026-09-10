@@ -1,7 +1,10 @@
 const testCase1 = require('../test/data/TCGA-LUAD_TCGA-05-4244-01Z-00-DX1.json')
 
 const dmv = require('./dicom-microscopy-viewer.js')
-const { _computeImagePyramid } = require('./pyramid.js')
+const {
+  _computeImagePyramid,
+  _findClosestResolutionIndex,
+} = require('./pyramid.js')
 
 describe('_computeImagePyramid', () => {
   /*
@@ -47,5 +50,28 @@ describe('_computeImagePyramid', () => {
     for (let i = 1; i < pyramid.resolutions.length; i++) {
       expect(pyramid.resolutions[i]).toBeLessThan(pyramid.resolutions[i - 1])
     }
+  })
+})
+
+describe('_findClosestResolutionIndex', () => {
+  /**
+   * Used by `_fitImagePyramid` when a SEG/PM has no matching base levels
+   * (e.g. TILED_SPARSE at spacing ~1.19× base). Click-to-zoom must target the
+   * closest base zoom, not the full 0..n-1 range (slim#371).
+   */
+  const resolutions = [64, 32, 16, 8, 4, 2, 1]
+
+  it('returns the index of an exact match', () => {
+    expect(_findClosestResolutionIndex(resolutions, 8)).toBe(3)
+    expect(_findClosestResolutionIndex(resolutions, 1)).toBe(6)
+  })
+
+  it('maps a non-matching fitted resolution to the closest base zoom', () => {
+    expect(_findClosestResolutionIndex(resolutions, 1.19)).toBe(6)
+    expect(_findClosestResolutionIndex(resolutions, 3.1)).toBe(4)
+  })
+
+  it('returns 0 for an empty resolutions array', () => {
+    expect(_findClosestResolutionIndex([], 1.19)).toBe(0)
   })
 })
