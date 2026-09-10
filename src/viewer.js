@@ -5551,6 +5551,19 @@ class VolumeImageViewer {
         }),
       }
 
+      /**
+       * A segment is absent when Segment Sequence declares it but the
+       * pyramid has no frames for that channel (common for TILED_SPARSE
+       * where some labels were never found in any patch).
+       */
+      const boundingBox = _computeSegmentBoundingBox(
+        pyramid,
+        segmentNumber,
+        coordinateScaleFactor,
+        fittedOriginOffset,
+      )
+      const isAbsent = boundingBox == null
+
       const segment = {
         segment: new Segment({
           uid: segmentUID,
@@ -5565,6 +5578,7 @@ class VolumeImageViewer {
           sopInstanceUIDs: pyramid.metadata.map((element) => {
             return element.SOPInstanceUID
           }),
+          isAbsent,
         }),
         pyramid,
         style: { ...defaultSegmentStyle },
@@ -5580,12 +5594,8 @@ class VolumeImageViewer {
         },
         hasLoader: false,
         segmentationType: refSegmentation.SegmentationType,
-        boundingBox: _computeSegmentBoundingBox(
-          pyramid,
-          segmentNumber,
-          coordinateScaleFactor,
-          fittedOriginOffset,
-        ),
+        boundingBox,
+        isAbsent,
       }
 
       const source = new DataTileSource({
@@ -5708,6 +5718,13 @@ class VolumeImageViewer {
     }
 
     const segment = this[_segments][segmentUID]
+    if (segment.isAbsent) {
+      console.warn(
+        `Cannot show segment "${segmentUID}": segment is absent ` +
+          '(no frame data).',
+      )
+      return
+    }
     console.info(`show segment ${segmentUID}`)
 
     const container = this[_map].getTargetElement() || this[_container]
@@ -5800,76 +5817,84 @@ class VolumeImageViewer {
     }
 
     const segment = this[_segments][segmentUID]
+    if (segment.isAbsent || segment.boundingBox == null) {
+      console.warn(
+        `Cannot zoom to segment "${segmentUID}": segment is absent ` +
+          '(no frame data / bounding box).',
+      )
+      return
+    }
+
     const view = this[_map].getView()
+    const extent = segment.boundingBox
+    const center = getCenter(extent)
+    const extentWidth = getWidth(extent)
+    const extentHeight = getHeight(extent)
 
-    if (segment.boundingBox != null) {
-      const extent = segment.boundingBox
-      const center = getCenter(extent)
-      const extentWidth = getWidth(extent)
-      const extentHeight = getHeight(extent)
+    /**
+     * Get the viewport size in map coordinates at the target zoom level.
+     * If the segment bounding box is extremely large relative to the viewport
+     * (indicating scattered features like TILED_SPARSE nuclei spread across
+     * a large region), zoom to the fitted/max zoom level centered on the
+     * segment rather than fitting the entire bounding box.
+     *
+     * We use a high threshold (10x) to avoid affecting normal segments like
+     * tumor regions that may span several tiles but should still be shown
+     * in full. Only truly scattered segments (e.g., nuclei across an entire
+     * slide region) will trigger the centered zoom behavior.
+     */
+    const viewportSize = this[_map].getSize()
+    if (!viewportSize) {
+      console.warn('Cannot get map size for zoom calculation')
+      return
+    }
 
+    /**
+     * Prefer the finest fitted zoom (closest base level to SEG resolution).
+     * For matching-pyramid SEGs this is the finest shared level; for
+     * non-matching fitted SEGs it is the closest base index to the fitted
+     * resolution — not the full base range.
+     */
+    const targetZoom = segment.maxZoomLevel
+    const targetResolution = view.getResolutionForZoom(targetZoom)
+    const viewportWidthAtTarget = viewportSize[0] * targetResolution
+    const viewportHeightAtTarget = viewportSize[1] * targetResolution
+
+    /**
+     * Threshold of 10x viewport size - only extremely large/scattered
+     * segments trigger centered zoom behavior. Normal segments (tumor
+     * regions, lesions, etc.) will still fit their bounding box.
+     */
+    const scatterThreshold = 10
+    const isScatteredSegment =
+      extentWidth > viewportWidthAtTarget * scatterThreshold ||
+      extentHeight > viewportHeightAtTarget * scatterThreshold
+
+    if (isScatteredSegment) {
       /**
-       * Get the viewport size in map coordinates at the target zoom level.
-       * If the segment bounding box is extremely large relative to the viewport
-       * (indicating scattered features like TILED_SPARSE nuclei spread across
-       * a large region), zoom to the fitted/max zoom level centered on the
-       * segment rather than fitting the entire bounding box.
-       *
-       * We use a high threshold (10x) to avoid affecting normal segments like
-       * tumor regions that may span several tiles but should still be shown
-       * in full. Only truly scattered segments (e.g., nuclei across an entire
-       * slide region) will trigger the centered zoom behavior.
+       * Bounding box is extremely large (scattered features across a wide
+       * region), zoom to fitted max zoom centered on the segment's bounding
+       * box.
        */
-      const viewportSize = this[_map].getSize()
-      if (!viewportSize) {
-        console.warn('Cannot get map size for zoom calculation')
-        return
-      }
-
-      /** Prefer the finest fitted zoom (closest base level to SEG resolution). */
-      const targetZoom = segment.maxZoomLevel
-      const targetResolution = view.getResolutionForZoom(targetZoom)
-      const viewportWidthAtTarget = viewportSize[0] * targetResolution
-      const viewportHeightAtTarget = viewportSize[1] * targetResolution
-
-      /**
-       * Threshold of 10x viewport size - only extremely large/scattered
-       * segments trigger centered zoom behavior. Normal segments (tumor
-       * regions, lesions, etc.) will still fit their bounding box.
-       */
-      const scatterThreshold = 10
-      const isScatteredSegment =
-        extentWidth > viewportWidthAtTarget * scatterThreshold ||
-        extentHeight > viewportHeightAtTarget * scatterThreshold
-
-      if (isScatteredSegment) {
-        /**
-         * Bounding box is extremely large (scattered features across a wide
-         * region), zoom to fitted max zoom centered on the segment's bounding
-         * box.
-         */
-        view.animate({
-          center: center,
-          zoom: targetZoom,
-          duration: 500,
-        })
-      } else {
-        /** Expand extent slightly for context (scale factor 1.5) */
-        const scale = 1.5
-        const expandedExtent = [
-          center[0] - (extentWidth * scale) / 2,
-          center[1] - (extentHeight * scale) / 2,
-          center[0] + (extentWidth * scale) / 2,
-          center[1] + (extentHeight * scale) / 2,
-        ]
-
-        view.fit(expandedExtent, {
-          duration: 500,
-          maxZoom: segment.maxZoomLevel,
-        })
-      }
+      view.animate({
+        center: center,
+        zoom: targetZoom,
+        duration: 500,
+      })
     } else {
-      console.warn(`Segment "${segmentUID}" has no bounding box to zoom to`)
+      /** Expand extent slightly for context (scale factor 1.5) */
+      const scale = 1.5
+      const expandedExtent = [
+        center[0] - (extentWidth * scale) / 2,
+        center[1] - (extentHeight * scale) / 2,
+        center[0] + (extentWidth * scale) / 2,
+        center[1] + (extentHeight * scale) / 2,
+      ]
+
+      view.fit(expandedExtent, {
+        duration: 500,
+        maxZoom: segment.maxZoomLevel,
+      })
     }
   }
 

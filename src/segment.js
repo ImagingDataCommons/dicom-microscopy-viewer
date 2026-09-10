@@ -26,6 +26,8 @@ class Segment {
    * Segmentation instances
    * @param {string|undefined} options.paletteColorLookupTableUID - Palette
    * Color Lookup Table UID
+   * @param {boolean} [options.isAbsent=false] - True when the segment is
+   * declared in Segment Sequence but has no frame data to display
    */
   constructor({
     uid,
@@ -39,6 +41,7 @@ class Segment {
     seriesInstanceUID,
     sopInstanceUIDs,
     paletteColorLookupTableUID,
+    isAbsent = false,
   }) {
     this[_attrs] = {}
     if (uid === undefined) {
@@ -93,6 +96,7 @@ class Segment {
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
 
     this[_attrs].paletteColorLookupTableUID = paletteColorLookupTableUID
+    this[_attrs].isAbsent = Boolean(isAbsent)
 
     Object.freeze(this)
   }
@@ -194,6 +198,19 @@ class Segment {
    */
   get paletteColorLookupTableUID() {
     return this[_attrs].paletteColorLookupTableUID
+  }
+
+  /**
+   * Whether the segment has no frame data to display.
+   *
+   * True when the segment is listed in Segment Sequence but no
+   * Per-Frame Functional Groups (or TILED_FULL tiles) map to it.
+   * Callers should disable visibility toggles and skip zoom-to-segment.
+   *
+   * @type boolean
+   */
+  get isAbsent() {
+    return this[_attrs].isAbsent
   }
 }
 
