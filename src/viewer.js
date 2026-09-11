@@ -2427,6 +2427,15 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get ICC output type.
+   *
+   * @returns {string} ICC output type
+   */
+  getICCOutputType() {
+    return this[_iccOutputType].getValue()
+  }
+
+  /**
    * Get ICC profiles.
    *
    * @returns {any[]} ICC profiles
