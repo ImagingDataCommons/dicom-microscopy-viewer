@@ -99,6 +99,7 @@ function _computeImagePyramid({ metadata }) {
 
   const pyramidMetadata = []
   const pyramidFrameMappings = []
+  const pyramidDimensionOrganizationTypes = []
   let pyramidNumberOfChannels
   for (let i = 0; i < metadata.length; i++) {
     if (metadata[0].FrameOfReferenceUID !== metadata[i].FrameOfReferenceUID) {
@@ -116,7 +117,8 @@ function _computeImagePyramid({ metadata }) {
     const cols = metadata[i].TotalPixelMatrixColumns || metadata[i].Columns
     const rows = metadata[i].TotalPixelMatrixRows || metadata[i].Rows
 
-    const { frameMapping, numberOfChannels } = getFrameMapping(metadata[i])
+    const { frameMapping, numberOfChannels, dimensionOrganizationType } =
+      getFrameMapping(metadata[i])
     if (i > 0) {
       if (pyramidNumberOfChannels !== numberOfChannels) {
         throw new Error(
@@ -177,6 +179,7 @@ function _computeImagePyramid({ metadata }) {
     } else {
       pyramidMetadata.push(metadata[i])
       pyramidFrameMappings.push(frameMapping)
+      pyramidDimensionOrganizationTypes.push(dimensionOrganizationType)
     }
   }
 
@@ -281,6 +284,7 @@ function _computeImagePyramid({ metadata }) {
     metadata: pyramidMetadata,
     frameMappings: pyramidFrameMappings,
     numberOfChannels: pyramidNumberOfChannels,
+    dimensionOrganizationTypes: pyramidDimensionOrganizationTypes,
   }
 }
 
@@ -339,6 +343,12 @@ function _areImagePyramidsEqual(pyramid, refPyramid) {
   return true
 }
 
+/**
+ * Cache for empty tiles to avoid repeated allocation for TILED_SPARSE images.
+ * Key format: "columns-rows-samplesPerPixel-bitsAllocated-photometricInterpretation"
+ */
+const emptyTileCache = new Map()
+
 function _createEmptyTile({
   columns,
   rows,
@@ -346,6 +356,12 @@ function _createEmptyTile({
   bitsAllocated,
   photometricInterpretation,
 }) {
+  const cacheKey = `${columns}-${rows}-${samplesPerPixel}-${bitsAllocated}-${photometricInterpretation}`
+
+  if (emptyTileCache.has(cacheKey)) {
+    return emptyTileCache.get(cacheKey)
+  }
+
   let pixelArray
   if (bitsAllocated <= 8) {
     pixelArray = new Uint8Array(columns * rows * samplesPerPixel)
@@ -353,19 +369,20 @@ function _createEmptyTile({
     pixelArray = new Float32Array(columns * rows * samplesPerPixel)
   }
 
-  // Fill white in case of color and black in case of monochrome.
+  /** Fill white for color images, black for monochrome */
   let fillValue = 2 ** bitsAllocated - 1
   if (photometricInterpretation === 'MONOCHROME2') {
     if (bitsAllocated <= 16) {
       fillValue = 0
     } else {
-      // Float pixel data
       fillValue = -(2 ** bitsAllocated - 1) / 2
     }
   }
   for (let i = 0; i < pixelArray.length; i++) {
     pixelArray[i] = fillValue
   }
+
+  emptyTileCache.set(cacheKey, pixelArray)
   return pixelArray
 }
 
@@ -377,9 +394,20 @@ function _createTileLoadFunction({
   iccOutputType,
   targetElement,
 }) {
+  /**
+   * Pre-cache values that don't change per tile request.
+   * This avoids repeated lookups in the hot path.
+   */
+  const channelSuffix = `-${channel}`
+
   return async (z, y, x) => {
-    let index = `${x + 1}-${y + 1}`
-    index += `-${channel}`
+    /**
+     * Build frame mapping key from tile coordinates.
+     * Note: The function signature uses (z, y, x) where the mapping is:
+     * - x corresponds to row index in the frame mapping
+     * - y corresponds to column index in the frame mapping
+     */
+    const index = `${x + 1}-${y + 1}${channelSuffix}`
 
     if (pyramid.metadata[z] === undefined) {
       throw new Error(
@@ -389,146 +417,26 @@ function _createTileLoadFunction({
       )
     }
 
-    const studyInstanceUID = pyramid.metadata[z].StudyInstanceUID
-    const seriesInstanceUID = pyramid.metadata[z].SeriesInstanceUID
     const path = pyramid.frameMappings[z][index]
-    let src
-    if (path != null) {
-      src = ''
-      if (client.wadoURL !== undefined) {
-        src += client.wadoURL
-      }
-      src +=
-        '/studies/' +
-        studyInstanceUID +
-        '/series/' +
-        seriesInstanceUID +
-        '/instances/' +
-        path
-    }
-
     const refImage = pyramid.metadata[z]
     const columns = refImage.Columns
     const rows = refImage.Rows
     const bitsAllocated = refImage.BitsAllocated
-    const pixelRepresentation = refImage.PixelRepresentation
     const samplesPerPixel = refImage.SamplesPerPixel
     const photometricInterpretation = refImage.PhotometricInterpretation
-    const sopClassUID = refImage.SOPClassUID
 
-    if (src != null) {
-      const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src)
-      const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
-
-      if (samplesPerPixel === 1) {
-        logger.debug(
-          `retrieve frame ${frameNumbers} of monochrome image ` +
-            `for channel "${channel}" at tile position (${x + 1}, ${y + 1}) ` +
-            `at zoom level ${z}`,
-        )
-      } else {
-        logger.debug(
-          `retrieve frame ${frameNumbers} of color image ` +
-            `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`,
+    /**
+     * Fast path for missing tiles (common in TILED_SPARSE).
+     * Return cached empty tile immediately without further processing.
+     */
+    if (path == null) {
+      const dimensionOrganizationType = pyramid.dimensionOrganizationTypes?.[z]
+      if (dimensionOrganizationType === 'TILED_FULL') {
+        console.warn(
+          `could not load tile "${index}" at level ${z}, ` +
+            'this tile does not exist',
         )
       }
-
-      const octetStreamMediaType = 'application/octet-stream'
-      /*
-       * Use of the "*" transfer syntax is a hack to work around standard
-       * compliance issues of the Google Cloud Healthcare API.
-       * It will return bulkdata encoded with the transfer syntax of the
-       * stored data set (uncompressed or compressed). The decoder can then not
-       * rely on the media type specified by the "Content-Type" header in the
-       * response message, but will need to determine it from the payload.
-       * Only application/octet-stream with "*" is requested here; decoders
-       * determine the actual compression format (e.g. JPEG, JPEG-LS, JPEG 2000)
-       * from the payload when processing the frames.
-       */
-      const octetStreamTransferSyntaxUID = '*'
-
-      const mediaTypes = []
-      mediaTypes.push(
-        ...[
-          {
-            mediaType: octetStreamMediaType,
-            transferSyntaxUID: octetStreamTransferSyntaxUID,
-          },
-        ],
-      )
-
-      const frameInfo = {
-        studyInstanceUID,
-        seriesInstanceUID,
-        sopInstanceUID,
-        sopClassUID,
-        frameNumber: frameNumbers[0],
-        channelIdentifier: String(channel),
-      }
-      publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
-
-      const retrieveOptions = {
-        studyInstanceUID,
-        seriesInstanceUID,
-        sopInstanceUID,
-        frameNumbers,
-        mediaTypes,
-      }
-      return client
-        .retrieveInstanceFrames(retrieveOptions)
-        .then((rawFrames) => {
-          return _decodeAndTransformFrame({
-            frame: rawFrames[0],
-            frameNumber: frameNumbers[0],
-            bitsAllocated,
-            pixelRepresentation,
-            columns,
-            rows,
-            samplesPerPixel,
-            sopInstanceUID,
-            metadata: pyramid.metadata,
-            iccProfiles,
-            iccOutputType,
-          }).then((pixelArray) => {
-            if (pixelArray.constructor === Float64Array) {
-              // TODO: handle Float64Array using LUT
-              throw new Error('Double Float Pixel Data is not (yet) supported.')
-            }
-            publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
-              pixelArray,
-              ...frameInfo,
-            })
-            if (samplesPerPixel === 3 && bitsAllocated === 8) {
-              // Rendering of color images requires unsigned 8-bit integers
-              return pixelArray
-            }
-            // Rendering of grayscale images requires floating point values
-            return new Float32Array(
-              pixelArray,
-              pixelArray.byteOffset,
-              pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT,
-            )
-          })
-        })
-        .catch((error) => {
-          publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
-          publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo)
-          return Promise.reject(
-            new Error(
-              `Failed to load frames ${frameNumbers} ` +
-                `of SOP instance "${sopInstanceUID}" ` +
-                `for channel "${channel}" ` +
-                `at tile position (${x + 1}, ${y + 1}) ` +
-                `at zoom level ${z}: `,
-              error,
-            ),
-          )
-        })
-    } else {
-      console.warn(
-        `could not load tile "${index}" at level ${z}, ` +
-          'this tile does not exist',
-      )
       return _createEmptyTile({
         columns,
         rows,
@@ -537,6 +445,132 @@ function _createTileLoadFunction({
         photometricInterpretation,
       })
     }
+
+    /** Tile exists - do the full processing */
+    const studyInstanceUID = refImage.StudyInstanceUID
+    const seriesInstanceUID = refImage.SeriesInstanceUID
+    const pixelRepresentation = refImage.PixelRepresentation
+    const sopClassUID = refImage.SOPClassUID
+
+    let src = ''
+    if (client.wadoURL !== undefined) {
+      src += client.wadoURL
+    }
+    src +=
+      '/studies/' +
+      studyInstanceUID +
+      '/series/' +
+      seriesInstanceUID +
+      '/instances/' +
+      path
+
+    const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src)
+    const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
+
+    if (samplesPerPixel === 1) {
+      logger.debug(
+        `retrieve frame ${frameNumbers} of monochrome image ` +
+          `for channel "${channel}" at tile position (${x + 1}, ${y + 1}) ` +
+          `at zoom level ${z}`,
+      )
+    } else {
+      logger.debug(
+        `retrieve frame ${frameNumbers} of color image ` +
+          `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`,
+      )
+    }
+
+    const octetStreamMediaType = 'application/octet-stream'
+    /*
+     * Use of the "*" transfer syntax is a hack to work around standard
+     * compliance issues of the Google Cloud Healthcare API.
+     * It will return bulkdata encoded with the transfer syntax of the
+     * stored data set (uncompressed or compressed). The decoder can then not
+     * rely on the media type specified by the "Content-Type" header in the
+     * response message, but will need to determine it from the payload.
+     * Only application/octet-stream with "*" is requested here; decoders
+     * determine the actual compression format (e.g. JPEG, JPEG-LS, JPEG 2000)
+     * from the payload when processing the frames.
+     */
+    const octetStreamTransferSyntaxUID = '*'
+
+    const mediaTypes = []
+    mediaTypes.push(
+      ...[
+        {
+          mediaType: octetStreamMediaType,
+          transferSyntaxUID: octetStreamTransferSyntaxUID,
+        },
+      ],
+    )
+
+    const frameInfo = {
+      studyInstanceUID,
+      seriesInstanceUID,
+      sopInstanceUID,
+      sopClassUID,
+      frameNumber: frameNumbers[0],
+      channelIdentifier: String(channel),
+    }
+    publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
+
+    const retrieveOptions = {
+      studyInstanceUID,
+      seriesInstanceUID,
+      sopInstanceUID,
+      frameNumbers,
+      mediaTypes,
+    }
+    return client
+      .retrieveInstanceFrames(retrieveOptions)
+      .then((rawFrames) => {
+        return _decodeAndTransformFrame({
+          frame: rawFrames[0],
+          frameNumber: frameNumbers[0],
+          bitsAllocated,
+          pixelRepresentation,
+          columns,
+          rows,
+          samplesPerPixel,
+          sopInstanceUID,
+          metadata: pyramid.metadata,
+          iccProfiles,
+          iccOutputType,
+        }).then((pixelArray) => {
+          if (pixelArray.constructor === Float64Array) {
+            // TODO: handle Float64Array using LUT
+            throw new Error('Double Float Pixel Data is not (yet) supported.')
+          }
+          publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
+            pixelArray,
+            ...frameInfo,
+          })
+          if (samplesPerPixel === 3 && bitsAllocated === 8) {
+            // Rendering of color images requires unsigned 8-bit integers
+            return pixelArray
+          }
+          // Rendering of grayscale images requires floating point values
+          return new Float32Array(
+            pixelArray,
+            pixelArray.byteOffset,
+            pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT,
+          )
+        })
+      })
+      .catch((error) => {
+        publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
+        publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo)
+        return Promise.reject(
+          new Error(
+            `Failed to load frames ${frameNumbers} ` +
+              `of SOP instance "${sopInstanceUID}" ` +
+              `for channel "${channel}" ` +
+              `at tile position (${x + 1}, ${y + 1}) ` +
+              `at zoom level ${z}: `,
+            error,
+          ),
+        )
+      })
   }
 }
 
@@ -569,6 +603,10 @@ function _fitImagePyramid(pyramid, refPyramid) {
     pixelSpacings: [],
     metadata: [],
     frameMappings: [],
+    dimensionOrganizationTypes: [],
+    usePerFramePlacement: false,
+    fitResolution: null,
+    pixelOriginOffset: [0, 0],
   }
 
   if (matchingLevelIndices.length === 0) {
@@ -583,24 +621,196 @@ function _fitImagePyramid(pyramid, refPyramid) {
       const refBasePixelSpacing = getPixelSpacing(refBaseLevel)
       const segPixelSpacing = getPixelSpacing(segmentation)
 
-      /** Calculate resolution based on ratio of pixel spacings */
+      /**
+       * Calculate resolution based on ratio of pixel spacings.
+       * For TILED_SPARSE, we MUST use the exact resolution (not rounded)
+       * to ensure tiles are rendered at the correct scale and position.
+       * Rounding causes misalignment because the tiles would be scaled incorrectly.
+       */
       const resolution = segPixelSpacing[0] / refBasePixelSpacing[0]
-      const roundedResolution = Math.round(resolution)
+      const finalResolution = parseFloat(resolution.toFixed(4))
 
-      /** Handle resolution conflicts similar to _computeImagePyramid */
-      const finalResolution = fittedPyramid.resolutions.includes(
-        roundedResolution,
-      )
-        ? parseFloat(resolution.toFixed(2))
-        : roundedResolution
+      /**
+       * For TILED_SPARSE overlays at non-matching resolutions:
+       * Calculate where the SEG's origin is in base image pixel coordinates,
+       * then create an extent that positions the SEG correctly.
+       */
+      const refOriginSeq = refBaseLevel.TotalPixelMatrixOriginSequence?.[0]
+      const segOriginSeq = segmentation.TotalPixelMatrixOriginSequence?.[0]
 
-      fittedPyramid.origins.push([...pyramid.origins[j]])
+      /** Default to using scaled SEG extent if origins match or are unavailable */
+      let offsetX = 0
+      let offsetY = 0
+
+      if (refOriginSeq && segOriginSeq) {
+        const refOriginX = Number(
+          refOriginSeq.XOffsetInSlideCoordinateSystem || 0,
+        )
+        const refOriginY = Number(
+          refOriginSeq.YOffsetInSlideCoordinateSystem || 0,
+        )
+        const segOriginX = Number(
+          segOriginSeq.XOffsetInSlideCoordinateSystem || 0,
+        )
+        const segOriginY = Number(
+          segOriginSeq.YOffsetInSlideCoordinateSystem || 0,
+        )
+
+        /**
+         * Calculate the physical offset between origins.
+         * Then convert to base image pixel coordinates.
+         */
+        const physicalOffsetX = segOriginX - refOriginX
+        const physicalOffsetY = segOriginY - refOriginY
+
+        /**
+         * Convert physical offset to base image pixels.
+         * Need to account for ImageOrientationSlide.
+         */
+        const orientation = refBaseLevel.ImageOrientationSlide
+        if (orientation) {
+          const rowCosines = orientation.slice(0, 3)
+          const colCosines = orientation.slice(3, 6)
+
+          /**
+           * For standard orientations, the offset in pixels is:
+           * pixelCol = physicalX / (colCosines[0] * spacing[1]) approximately
+           * But this is complex - for now, use simpler approximation
+           */
+          offsetX = physicalOffsetX / refBasePixelSpacing[1]
+          offsetY = physicalOffsetY / refBasePixelSpacing[0]
+
+          /**
+           * Adjust for orientation - common case is [0,-1,0,-1,0,0]
+           * which means col direction is -X and row direction is -Y
+           */
+          if (Math.abs(colCosines[0]) > 0.5) {
+            offsetX = physicalOffsetX / (colCosines[0] * refBasePixelSpacing[1])
+          }
+          if (Math.abs(rowCosines[1]) > 0.5) {
+            offsetY = physicalOffsetY / (rowCosines[1] * refBasePixelSpacing[0])
+          }
+        }
+      }
+
+      /**
+       * Create extent for the SEG overlay in base image coordinate system.
+       * The SEG covers its own pixel dimensions, scaled by resolution ratio.
+       */
+      const segCols = segmentation.TotalPixelMatrixColumns
+      const segRows = segmentation.TotalPixelMatrixRows
+      const scaledWidth = segCols * resolution
+      const scaledHeight = segRows * resolution
+
+      const extent = [
+        offsetX,
+        -(offsetY + scaledHeight + 1),
+        offsetX + scaledWidth,
+        -(offsetY + 1),
+      ]
+      fittedPyramid.extent = extent
+
+      /**
+       * For TILED_SPARSE, frames may be positioned at arbitrary pixel locations
+       * within the TotalPixelMatrix, not necessarily at tile boundaries.
+       * We need to calculate the sub-tile offset and adjust the tile grid origin.
+       */
+      let tileOriginOffset = [0, 0]
+      const perframeFuncGroups = segmentation.PerFrameFunctionalGroupsSequence
+      const tileHeight = segmentation.Rows
+      const tileWidth = segmentation.Columns
+
+      if (perframeFuncGroups && perframeFuncGroups.length > 0) {
+        /** Check frames to see if they have consistent sub-tile offsets */
+        let inconsistentCount = 0
+        let firstOffset = null
+
+        for (
+          let frameIdx = 0;
+          frameIdx < perframeFuncGroups.length;
+          frameIdx++
+        ) {
+          const framePosition =
+            perframeFuncGroups[frameIdx].PlanePositionSlideSequence?.[0]
+          if (framePosition) {
+            const rowPosition = Number(
+              framePosition.RowPositionInTotalImagePixelMatrix,
+            )
+            const colPosition = Number(
+              framePosition.ColumnPositionInTotalImagePixelMatrix,
+            )
+
+            if (!Number.isNaN(rowPosition) && !Number.isNaN(colPosition)) {
+              const tileRowIndex = Math.ceil(rowPosition / tileHeight)
+              const tileColIndex = Math.ceil(colPosition / tileWidth)
+              const tileBoundaryRow = (tileRowIndex - 1) * tileHeight + 1
+              const tileBoundaryCol = (tileColIndex - 1) * tileWidth + 1
+              const entry = {
+                subTileRowOffset: rowPosition - tileBoundaryRow,
+                subTileColOffset: colPosition - tileBoundaryCol,
+              }
+              if (firstOffset == null) {
+                firstOffset = entry
+              } else if (
+                entry.subTileRowOffset !== firstOffset.subTileRowOffset ||
+                entry.subTileColOffset !== firstOffset.subTileColOffset
+              ) {
+                inconsistentCount += 1
+              }
+            }
+          }
+        }
+
+        /** Use the first frame's offset only when every frame shares it */
+        if (firstOffset != null) {
+          if (inconsistentCount > 0) {
+            /**
+             * Patches sit at arbitrary positions inside their ceil() grid
+             * cells. A single TileGrid origin cannot place them — render
+             * each frame at its PlanePosition instead (see addSegments).
+             */
+            fittedPyramid.usePerFramePlacement = true
+            tileOriginOffset = [0, 0]
+            console.warn(
+              `[SPARSE] ${inconsistentCount}/${perframeFuncGroups.length} frames have different sub-tile offsets; using per-frame placement.`,
+            )
+          } else {
+            const baseRowOffset = firstOffset.subTileRowOffset * finalResolution
+            const baseColOffset = firstOffset.subTileColOffset * finalResolution
+            tileOriginOffset = [baseColOffset, -baseRowOffset]
+          }
+        }
+      }
+
+      fittedPyramid.fitResolution = finalResolution
+      fittedPyramid.pixelOriginOffset = [offsetX, offsetY]
+
+      /**
+       * Adjust the origin to be consistent with the extent.
+       * The extent top-left is at [offsetX, -(offsetY + 1)], so the origin
+       * should start there, plus the sub-tile offset for frame alignment.
+       *
+       * Note: The origin is where tile (0, 0) would be positioned.
+       * For TILED_SPARSE with frames at arbitrary positions, we need
+       * the origin to align with the extent's coordinate system.
+       */
+      const adjustedOrigin = [
+        offsetX + tileOriginOffset[0],
+        -(offsetY + 1) + tileOriginOffset[1],
+      ]
+
+      fittedPyramid.origins.push(adjustedOrigin)
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
       fittedPyramid.resolutions.push(finalResolution)
       fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
+      if (pyramid.dimensionOrganizationTypes) {
+        fittedPyramid.dimensionOrganizationTypes.push(
+          pyramid.dimensionOrganizationTypes[j],
+        )
+      }
     }
   } else {
     /**
@@ -618,38 +828,169 @@ function _fitImagePyramid(pyramid, refPyramid) {
         fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
         fittedPyramid.metadata.push(pyramid.metadata[j])
         fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
-      }
-    }
-  }
-
-  let minZoom = 0
-  for (let i = 0; i < refPyramid.resolutions.length; i++) {
-    for (let j = 0; j < fittedPyramid.resolutions.length; j++) {
-      if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
-        minZoom = i
-        break
-      }
-    }
-  }
-  let maxZoom = refPyramid.resolutions.length - 1
-  for (let i = refPyramid.resolutions.length - 1; i >= minZoom; i--) {
-    for (let j = fittedPyramid.resolutions.length - 1; j >= 0; j--) {
-      if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
-        maxZoom = i
-        break
+        if (pyramid.dimensionOrganizationTypes) {
+          fittedPyramid.dimensionOrganizationTypes.push(
+            pyramid.dimensionOrganizationTypes[j],
+          )
+        }
       }
     }
   }
 
   const hasMatchingLevels = matchingLevelIndices.length > 0
+  let minZoom = 0
+  let maxZoom = Math.max(refPyramid.resolutions.length - 1, 0)
+
+  if (hasMatchingLevels) {
+    /**
+     * Shared pyramid levels: clamp zoom to the matching base indices so the
+     * overlay is only preferred within its available resolution range.
+     */
+    for (let i = 0; i < refPyramid.resolutions.length; i++) {
+      for (let j = 0; j < fittedPyramid.resolutions.length; j++) {
+        if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
+          minZoom = i
+          break
+        }
+      }
+    }
+    maxZoom = refPyramid.resolutions.length - 1
+    for (let i = refPyramid.resolutions.length - 1; i >= minZoom; i--) {
+      for (let j = fittedPyramid.resolutions.length - 1; j >= 0; j--) {
+        if (refPyramid.resolutions[i] === fittedPyramid.resolutions[j]) {
+          maxZoom = i
+          break
+        }
+      }
+    }
+  } else if (fittedPyramid.resolutions.length > 0) {
+    /**
+     * No shared levels (e.g. TILED_SPARSE at a non-matching spacing). The
+     * fitted pyramid has its own resolution(s) that are not in the base
+     * pyramid. Map each fitted resolution to the closest base zoom index so
+     * click-to-zoom / fit targets the fitted overlay instead of the full
+     * base range (0..n-1), which zooms incorrectly for single-level SEGs.
+     * See https://github.com/ImagingDataCommons/slim/issues/371
+     */
+    const closestZooms = fittedPyramid.resolutions.map((resolution) =>
+      _findClosestResolutionIndex(refPyramid.resolutions, resolution),
+    )
+    minZoom = Math.min(...closestZooms)
+    maxZoom = Math.max(...closestZooms)
+  }
 
   return [fittedPyramid, minZoom, maxZoom, hasMatchingLevels]
 }
 
+/**
+ * Build map extents for TILED_SPARSE frames that are not on a shared sub-tile
+ * origin. Each frame is placed from its PlanePositionSlide coordinates.
+ *
+ * @param {Object} segmentation - SEG metadata instance
+ * @param {number} fitResolution - SEG→base spacing ratio
+ * @param {number[]} pixelOriginOffset - [offsetX, offsetY] of SEG TPM in base px
+ * @param {string|number} channelId - Segment number to include
+ * @returns {Array<{frameNumber: number, extent: number[], origin: number[], tileSize: number[]}>}
+ * @private
+ */
+function _buildSparseFramePlacements(
+  segmentation,
+  fitResolution,
+  pixelOriginOffset,
+  channelId,
+) {
+  const channel = String(channelId)
+  const offsetX = pixelOriginOffset?.[0] || 0
+  const offsetY = pixelOriginOffset?.[1] || 0
+  const tileWidth = segmentation.Columns
+  const tileHeight = segmentation.Rows
+  const sharedFuncGroups = segmentation.SharedFunctionalGroupsSequence
+  const perframeFuncGroups = segmentation.PerFrameFunctionalGroupsSequence || []
+  const placements = []
+
+  for (let j = 0; j < perframeFuncGroups.length; j++) {
+    let frameChannel
+    try {
+      frameChannel = String(
+        perframeFuncGroups[j].SegmentIdentificationSequence[0]
+          .ReferencedSegmentNumber,
+      )
+    } catch {
+      try {
+        frameChannel = String(
+          sharedFuncGroups[0].SegmentIdentificationSequence[0]
+            .ReferencedSegmentNumber,
+        )
+      } catch {
+        frameChannel = channel
+      }
+    }
+    if (frameChannel !== channel) {
+      continue
+    }
+
+    const framePosition = perframeFuncGroups[j].PlanePositionSlideSequence?.[0]
+    if (!framePosition) {
+      continue
+    }
+    const rowPosition = Number(framePosition.RowPositionInTotalImagePixelMatrix)
+    const colPosition = Number(
+      framePosition.ColumnPositionInTotalImagePixelMatrix,
+    )
+    if (Number.isNaN(rowPosition) || Number.isNaN(colPosition)) {
+      continue
+    }
+
+    /**
+     * SEG TPM (col,row) 1-based → map coords. Top-left of pixel (1,1) is
+     * [offsetX, -(offsetY + 1)] (same convention as fitted extent).
+     */
+    const minX = offsetX + (colPosition - 1) * fitResolution
+    const maxX = minX + tileWidth * fitResolution
+    const maxY = -(offsetY + 1) - (rowPosition - 1) * fitResolution
+    const minY = maxY - tileHeight * fitResolution
+
+    placements.push({
+      frameNumber: j + 1,
+      extent: [minX, minY, maxX, maxY],
+      origin: [minX, maxY],
+      tileSize: [tileWidth, tileHeight],
+    })
+  }
+
+  return placements
+}
+
+/**
+ * Find the index of the resolution closest to a target value.
+ *
+ * @param {number[]} resolutions - Sorted resolution array (coarsest → finest)
+ * @param {number} targetResolution - Resolution to match
+ * @returns {number} Index of the closest resolution
+ * @private
+ */
+function _findClosestResolutionIndex(resolutions, targetResolution) {
+  if (!resolutions || resolutions.length === 0) {
+    return 0
+  }
+  let bestIndex = 0
+  let bestDiff = Math.abs(resolutions[0] - targetResolution)
+  for (let i = 1; i < resolutions.length; i++) {
+    const diff = Math.abs(resolutions[i] - targetResolution)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      bestIndex = i
+    }
+  }
+  return bestIndex
+}
+
 export {
   _areImagePyramidsEqual,
+  _buildSparseFramePlacements,
   _computeImagePyramid,
   _createTileLoadFunction,
+  _findClosestResolutionIndex,
   _fitImagePyramid,
   _getIccProfiles,
 }
