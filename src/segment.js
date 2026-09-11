@@ -26,6 +26,9 @@ class Segment {
    * Segmentation instances
    * @param {string|undefined} options.paletteColorLookupTableUID - Palette
    * Color Lookup Table UID
+   * @param {boolean} [options.isBackground=false] - Whether this segment
+   * represents background (identified by PixelPaddingValue or Background
+   * property type code)
    */
   constructor({
     uid,
@@ -39,6 +42,7 @@ class Segment {
     seriesInstanceUID,
     sopInstanceUIDs,
     paletteColorLookupTableUID,
+    isBackground = false,
   }) {
     this[_attrs] = {}
     if (uid === undefined) {
@@ -93,6 +97,7 @@ class Segment {
     this[_attrs].sopInstanceUIDs = sopInstanceUIDs
 
     this[_attrs].paletteColorLookupTableUID = paletteColorLookupTableUID
+    this[_attrs].isBackground = isBackground
 
     Object.freeze(this)
   }
@@ -194,6 +199,19 @@ class Segment {
    */
   get paletteColorLookupTableUID() {
     return this[_attrs].paletteColorLookupTableUID
+  }
+
+  /**
+   * Whether this segment represents background.
+   *
+   * A segment is considered background if:
+   * - Its SegmentNumber matches PixelPaddingValue (0028,0120), or
+   * - Its Segmented Property Type Code is (DCM, 125040, "Background")
+   *
+   * @type boolean
+   */
+  get isBackground() {
+    return this[_attrs].isBackground
   }
 }
 
