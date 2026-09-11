@@ -1,6 +1,7 @@
 import { inv, multiply } from 'mathjs'
 import { getPointResolution } from 'ol/proj'
 import { v4 as createUUIDv4, v5 as createUUIDv5 } from 'uuid'
+import Observable from './observable.js'
 
 const _UUID_NAMESPACE = 'c4f09b11-bac0-4f3a-8dc1-9f0046637383'
 
@@ -680,17 +681,35 @@ function throttle(mainFunction, delay) {
  * Detect the display color space.
  * Note: The WebGLRenderingContext only supports sRGB and Display-P3
  * color spaces, Adobe RGB (1998) and ROMM RGB are not supported.
- * @returns {string} 'display-p3' or 'srgb'
+ * @returns {Observable<string>} Observable containing 'display-p3' or 'srgb'
  */
 function detectDisplayColorSpace() {
+  const colorSpace = new Observable('srgb')
   if (typeof window !== 'undefined' && window.matchMedia) {
-    if (window.matchMedia('(color-gamut: p3)').matches) {
-      return 'display-p3'
-    } else if (window.matchMedia('(color-gamut: srgb)').matches) {
-      return 'srgb'
+    const p3MediaQuery = window.matchMedia('(color-gamut: p3)')
+    const srgbMediaQuery = window.matchMedia('(color-gamut: srgb)')
+    const updateColorSpace = () => {
+      colorSpace.setValue(p3MediaQuery.matches ? 'display-p3' : 'srgb')
+    }
+
+    updateColorSpace()
+    for (const mediaQuery of [p3MediaQuery, srgbMediaQuery]) {
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', updateColorSpace)
+        colorSpace.addCleanup(() =>
+          mediaQuery.removeEventListener('change', updateColorSpace),
+        )
+      } else {
+        if (mediaQuery.addListener) {
+          mediaQuery.addListener(updateColorSpace)
+          colorSpace.addCleanup(() =>
+            mediaQuery.removeListener?.(updateColorSpace),
+          )
+        }
+      }
     }
   }
-  return 'srgb'
+  return colorSpace
 }
 
 export {

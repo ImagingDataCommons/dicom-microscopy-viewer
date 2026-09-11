@@ -74,6 +74,7 @@ import {
   groupMonochromeInstances,
   VLWholeSlideMicroscopyImage,
 } from './metadata.js'
+import Observable from './observable.js'
 import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
@@ -758,6 +759,7 @@ const _paletteDisplayGammaCorrectionEnabled = Symbol(
   'paletteDisplayGammaCorrectionEnabled',
 )
 const _derivedLegendCollapsed = Symbol('derivedLegendCollapsed')
+const _unsubscribeDisplayColorSpace = Symbol('unsubscribeDisplayColorSpace')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -823,7 +825,7 @@ class VolumeImageViewer {
     this[_clients] = {}
     this[_errorInterceptor] = options.errorInterceptor || ((error) => error)
     this[_isICCProfilesEnabled] = true
-    this[_iccOutputType] = 'srgb'
+    this[_iccOutputType] = new Observable('srgb')
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
@@ -1391,7 +1393,7 @@ class VolumeImageViewer {
         opticalPath.layer.on('precompose', (event) => {
           const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
-            gl.drawingBufferColorSpace = this[_iccOutputType]
+            gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
           }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
@@ -1420,7 +1422,7 @@ class VolumeImageViewer {
         opticalPath.overviewLayer.on('precompose', (event) => {
           const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
-            gl.drawingBufferColorSpace = this[_iccOutputType]
+            gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
           }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
@@ -1472,7 +1474,7 @@ class VolumeImageViewer {
         transition: 0,
         bandCount: 3,
       })
-      source.on('tileloaderror', (event) => {
+      opticalPath.onTileLoadError = (event) => {
         console.error(
           `error loading tile of optical path "${opticalPathIdentifier}"`,
           event.tile?.error_?.message || event,
@@ -1482,7 +1484,8 @@ class VolumeImageViewer {
           `error loading tile of optical path "${opticalPathIdentifier}": ${event.tile?.error_?.message || event.message}`,
         )
         this[_options].errorInterceptor(error)
-      })
+      }
+      source.on('tileloaderror', opticalPath.onTileLoadError)
 
       opticalPath.layer = new TileLayer({
         source,
@@ -1494,7 +1497,7 @@ class VolumeImageViewer {
       opticalPath.layer.on('precompose', (event) => {
         const gl = event.context
         if ('drawingBufferColorSpace' in gl) {
-          gl.drawingBufferColorSpace = this[_iccOutputType]
+          gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
         }
       })
 
@@ -1518,7 +1521,7 @@ class VolumeImageViewer {
       opticalPath.overviewLayer.on('precompose', (event) => {
         const gl = event.context
         if ('drawingBufferColorSpace' in gl) {
-          gl.drawingBufferColorSpace = this[_iccOutputType]
+          gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
         }
       })
 
@@ -1811,6 +1814,15 @@ class VolumeImageViewer {
 
     this._setupMapEventListeners()
     this._setupDrawingSourceEventListeners()
+    this[_unsubscribeDisplayColorSpace] = this[_iccOutputType].subscribe(() => {
+      // Target color space changed
+      // Reconfigure the dataloaders if ICC profiles are enabled
+      if (!this[_isICCProfilesEnabled]) {
+        return
+      }
+
+      this.configureDataLoaders(this[_isICCProfilesEnabled])
+    })
   }
 
   /**
@@ -2415,6 +2427,15 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get ICC output type.
+   *
+   * @returns {string} ICC output type
+   */
+  getICCOutputType() {
+    return this[_iccOutputType].getValue()
+  }
+
+  /**
    * Get ICC profiles.
    *
    * @returns {any[]} ICC profiles
@@ -2424,35 +2445,47 @@ class VolumeImageViewer {
   }
 
   /**
-   * Get ICC output type.
-   *
-   * @returns {string} ICC output type
-   */
-  getICCOutputType() {
-    return this[_iccOutputType]
-  }
-
-  /**
    * Toggle ICC profiles.
    *
    * @returns {void}
    */
   toggleICCProfiles() {
     console.debug('toggle ICC profiles:', this[_isICCProfilesEnabled])
+    this.configureDataLoaders(!this[_isICCProfilesEnabled])
+      .then(() => {
+        // Update the toggle if reloading was successful
+        this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+      })
+      .catch((error) => {
+        console.error('Failed to toggle ICC profiles:', error)
+        const customError = new CustomError(
+          errorTypes.VISUALIZATION,
+          'Failed to toggle ICC profiles',
+        )
+        this[_options].errorInterceptor(customError)
+      })
+  }
+
+  async configureDataLoaders(iccProfilesEnabled) {
     const itemsRequiringDecodersAndTransformers = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
       ...Object.values(this[_mappings]),
     ]
 
-    itemsRequiringDecodersAndTransformers.forEach((item) => {
-      const metadata = item.pyramid.metadata
-      const client = _getClient(
-        this[_clients],
-        Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
-      )
-      _getIccProfiles({
-        metadata,
+    if (itemsRequiringDecodersAndTransformers.length === 0) {
+      return
+    }
+
+    const client = _getClient(
+      this[_clients],
+      Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
+    )
+
+    // TODO: We could make this async, however, we would need to determine what this[_iccProfiles] should actually contain (it's overwritten every loop instance)
+    for (const item of itemsRequiringDecodersAndTransformers) {
+      this[_iccProfiles] = await _getIccProfiles({
+        metadata: item.pyramid.metadata,
         client,
         onError: (error) => {
           console.error('Failed to fetch ICC profiles:', error)
@@ -2462,32 +2495,51 @@ class VolumeImageViewer {
           )
           this[_options].errorInterceptor(customError)
         },
-      }).then((profiles) => {
-        this[_iccProfiles] = profiles
-        const source = item.layer.getSource()
-        if (!source) {
-          return
-        }
-        const loaderWithICCProfiles = _createTileLoadFunction({
-          targetElement: this[_container],
-          iccProfiles: profiles,
-          iccOutputType: this[_iccOutputType],
-          ...item.loaderParams,
-        })
-        const loaderWithoutICCProfiles = _createTileLoadFunction({
-          targetElement: this[_container],
-          ...item.loaderParams,
-        })
-        const loader = this[_isICCProfilesEnabled]
-          ? loaderWithICCProfiles
-          : loaderWithoutICCProfiles
-        source.setLoader(loader)
-        source.refresh()
-        item.hasLoader = true
       })
-    })
 
-    this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+      const source = item.layer.getSource()
+      if (!source) {
+        return
+      }
+
+      const loaderConfig = {
+        targetElement: this[_container],
+      }
+
+      // Add ICC profile configuration if enabled
+      if (iccProfilesEnabled) {
+        loaderConfig.iccProfiles = this[_iccProfiles]
+        loaderConfig.iccOutputType = this[_iccOutputType].getValue()
+      }
+
+      const loader = _createTileLoadFunction({
+        ...loaderConfig,
+        ...item.loaderParams,
+      })
+
+      const createReplacementSource = () => {
+        const replacementSource = new DataTileSource({
+          tileGrid: source.getTileGrid(),
+          projection: source.getProjection(),
+          wrapX: source.getWrapX(),
+          bandCount: source.bandCount,
+          interpolate: source.getInterpolate(),
+        })
+
+        replacementSource.setLoader(loader)
+        if (item.onTileLoadError) {
+          replacementSource.on('tileloaderror', item.onTileLoadError)
+        }
+        return replacementSource
+      }
+
+      item.layer.setSource(createReplacementSource())
+      item.overviewLayer?.setSource(createReplacementSource())
+      item.hasLoader = true
+    }
+
+    // Force a re-render to let the changes take effect
+    this[_map]?.render()
   }
 
   /**
@@ -2742,7 +2794,7 @@ class VolumeImageViewer {
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
-          iccOutputType: this[_iccOutputType],
+          iccOutputType: this[_iccOutputType].getValue(),
           ...opticalPath.loaderParams,
         })
         const source = opticalPath.layer.getSource()
@@ -2821,6 +2873,8 @@ class VolumeImageViewer {
    */
   cleanup() {
     console.info('cleanup memory')
+    this[_iccOutputType]?.cleanup?.()
+    this[_unsubscribeDisplayColorSpace]?.()
     const itemsRequiringDisposal = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
@@ -2924,7 +2978,7 @@ class VolumeImageViewer {
           this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
         iccOutputType:
           this[_isICCProfilesEnabled] && profiles.length > 0
-            ? this[_iccOutputType]
+            ? this[_iccOutputType].getValue()
             : undefined,
         ...item.loaderParams,
       })
@@ -5476,17 +5530,18 @@ class VolumeImageViewer {
         /** Avoid interpolation for single resolution (avoid blocky pixels) */
         interpolate: this[_segmentationInterpolate],
       })
-      source.on('tileloaderror', (event) => {
+      segment.onTileLoadError = (event) => {
         console.error(
           `error loading tile of segment "${segmentUID}"`,
           event.tile?.error_?.message || event,
         )
         const error = new CustomError(
           errorTypes.VISUALIZATION,
-          `error loading tile of segment "${segmentUID}": ${event.message}`,
+          `error loading tile of segment "${segmentUID}": ${event.tile?.error_?.message || event.message}`,
         )
         this[_options].errorInterceptor(error)
-      })
+      }
+      source.on('tileloaderror', segment.onTileLoadError)
 
       const [windowCenter, windowWidth] = createWindow(
         minStoredValue,
@@ -6477,17 +6532,18 @@ class VolumeImageViewer {
         bandCount: 1,
         interpolate: this[_parametricMapInterpolate],
       })
-      source.on('tileloaderror', (event) => {
+      mapping.onTileLoadError = (event) => {
         console.error(
           `error loading tile of mapping "${mappingUID}"`,
           event.tile?.error_?.message || event,
         )
         const error = new CustomError(
           errorTypes.VISUALIZATION,
-          `error loading tile of mapping "${mappingUID}": ${event.message}`,
+          `error loading tile of mapping "${mappingUID}": ${event.tile?.error_?.message || event.message}`,
         )
         this[_options].errorInterceptor(error)
-      })
+      }
+      source.on('tileloaderror', mapping.onTileLoadError)
 
       mapping.layer = new TileLayer({
         source,
