@@ -604,6 +604,9 @@ function _fitImagePyramid(pyramid, refPyramid) {
     metadata: [],
     frameMappings: [],
     dimensionOrganizationTypes: [],
+    usePerFramePlacement: false,
+    fitResolution: null,
+    pixelOriginOffset: [0, 0],
   }
 
   if (matchingLevelIndices.length === 0) {
@@ -620,12 +623,12 @@ function _fitImagePyramid(pyramid, refPyramid) {
 
       /**
        * Calculate resolution based on ratio of pixel spacings.
-       * For TILED_SPARSE, we MUST use the exact resolution (not rounded /
-       * toFixed) for the TileGrid, extent, and sub-tile offsets together.
-       * Mixing a rounded grid resolution with exact extent math causes a
-       * slight scale mismatch ("almost aligned" overlays).
+       * For TILED_SPARSE, we MUST use the exact resolution (not rounded)
+       * to ensure tiles are rendered at the correct scale and position.
+       * Rounding causes misalignment because the tiles would be scaled incorrectly.
        */
       const resolution = segPixelSpacing[0] / refBasePixelSpacing[0]
+      const finalResolution = parseFloat(resolution.toFixed(4))
 
       /**
        * For TILED_SPARSE overlays at non-matching resolutions:
@@ -718,12 +721,13 @@ function _fitImagePyramid(pyramid, refPyramid) {
       const tileWidth = segmentation.Columns
 
       if (perframeFuncGroups && perframeFuncGroups.length > 0) {
-        /** Check all frames to see if they have consistent sub-tile offsets */
-        const subTileOffsets = []
+        /** Check frames to see if they have consistent sub-tile offsets */
+        let inconsistentCount = 0
+        let firstOffset = null
 
         for (
           let frameIdx = 0;
-          frameIdx < Math.min(perframeFuncGroups.length, 10);
+          frameIdx < perframeFuncGroups.length;
           frameIdx++
         ) {
           const framePosition =
@@ -741,50 +745,45 @@ function _fitImagePyramid(pyramid, refPyramid) {
               const tileColIndex = Math.ceil(colPosition / tileWidth)
               const tileBoundaryRow = (tileRowIndex - 1) * tileHeight + 1
               const tileBoundaryCol = (tileColIndex - 1) * tileWidth + 1
-              const subTileRowOffset = rowPosition - tileBoundaryRow
-              const subTileColOffset = colPosition - tileBoundaryCol
-
-              subTileOffsets.push({
-                frameIdx,
-                rowPosition,
-                colPosition,
-                subTileRowOffset,
-                subTileColOffset,
-              })
+              const entry = {
+                subTileRowOffset: rowPosition - tileBoundaryRow,
+                subTileColOffset: colPosition - tileBoundaryCol,
+              }
+              if (firstOffset == null) {
+                firstOffset = entry
+              } else if (
+                entry.subTileRowOffset !== firstOffset.subTileRowOffset ||
+                entry.subTileColOffset !== firstOffset.subTileColOffset
+              ) {
+                inconsistentCount += 1
+              }
             }
           }
         }
 
-        /** Use the first frame's offset to calculate the adjustment */
-        if (subTileOffsets.length > 0) {
-          const firstOffset = subTileOffsets[0]
-          const baseRowOffset = firstOffset.subTileRowOffset * resolution
-          const baseColOffset = firstOffset.subTileColOffset * resolution
-
-          /**
-           * The tile grid origin needs to be adjusted so that when OpenLayers
-           * places a tile at grid position (row, col), the content aligns
-           * with the actual frame position.
-           *
-           * For OpenLayers with Y-down coordinate system:
-           * - Positive x offset shifts tiles to the right
-           * - Negative y offset shifts tiles down (more negative Y)
-           */
-          tileOriginOffset = [baseColOffset, -baseRowOffset]
-
-          /** Check if all frames have consistent offsets */
-          const allConsistent = subTileOffsets.every(
-            (o) =>
-              o.subTileRowOffset === firstOffset.subTileRowOffset &&
-              o.subTileColOffset === firstOffset.subTileColOffset,
-          )
-          if (!allConsistent) {
+        /** Use the first frame's offset only when every frame shares it */
+        if (firstOffset != null) {
+          if (inconsistentCount > 0) {
+            /**
+             * Patches sit at arbitrary positions inside their ceil() grid
+             * cells. A single TileGrid origin cannot place them — render
+             * each frame at its PlanePosition instead (see addSegments).
+             */
+            fittedPyramid.usePerFramePlacement = true
+            tileOriginOffset = [0, 0]
             console.warn(
-              '[SPARSE] WARNING: Not all frames have the same sub-tile offset! Single origin adjustment may not work for all frames.',
+              `[SPARSE] ${inconsistentCount}/${perframeFuncGroups.length} frames have different sub-tile offsets; using per-frame placement.`,
             )
+          } else {
+            const baseRowOffset = firstOffset.subTileRowOffset * finalResolution
+            const baseColOffset = firstOffset.subTileColOffset * finalResolution
+            tileOriginOffset = [baseColOffset, -baseRowOffset]
           }
         }
       }
+
+      fittedPyramid.fitResolution = finalResolution
+      fittedPyramid.pixelOriginOffset = [offsetX, offsetY]
 
       /**
        * Adjust the origin to be consistent with the extent.
@@ -803,7 +802,7 @@ function _fitImagePyramid(pyramid, refPyramid) {
       fittedPyramid.origins.push(adjustedOrigin)
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
-      fittedPyramid.resolutions.push(resolution)
+      fittedPyramid.resolutions.push(finalResolution)
       fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
@@ -884,6 +883,85 @@ function _fitImagePyramid(pyramid, refPyramid) {
 }
 
 /**
+ * Build map extents for TILED_SPARSE frames that are not on a shared sub-tile
+ * origin. Each frame is placed from its PlanePositionSlide coordinates.
+ *
+ * @param {Object} segmentation - SEG metadata instance
+ * @param {number} fitResolution - SEG→base spacing ratio
+ * @param {number[]} pixelOriginOffset - [offsetX, offsetY] of SEG TPM in base px
+ * @param {string|number} channelId - Segment number to include
+ * @returns {Array<{frameNumber: number, extent: number[], origin: number[], tileSize: number[]}>}
+ * @private
+ */
+function _buildSparseFramePlacements(
+  segmentation,
+  fitResolution,
+  pixelOriginOffset,
+  channelId,
+) {
+  const channel = String(channelId)
+  const offsetX = pixelOriginOffset?.[0] || 0
+  const offsetY = pixelOriginOffset?.[1] || 0
+  const tileWidth = segmentation.Columns
+  const tileHeight = segmentation.Rows
+  const sharedFuncGroups = segmentation.SharedFunctionalGroupsSequence
+  const perframeFuncGroups = segmentation.PerFrameFunctionalGroupsSequence || []
+  const placements = []
+
+  for (let j = 0; j < perframeFuncGroups.length; j++) {
+    let frameChannel
+    try {
+      frameChannel = String(
+        perframeFuncGroups[j].SegmentIdentificationSequence[0]
+          .ReferencedSegmentNumber,
+      )
+    } catch {
+      try {
+        frameChannel = String(
+          sharedFuncGroups[0].SegmentIdentificationSequence[0]
+            .ReferencedSegmentNumber,
+        )
+      } catch {
+        frameChannel = channel
+      }
+    }
+    if (frameChannel !== channel) {
+      continue
+    }
+
+    const framePosition = perframeFuncGroups[j].PlanePositionSlideSequence?.[0]
+    if (!framePosition) {
+      continue
+    }
+    const rowPosition = Number(framePosition.RowPositionInTotalImagePixelMatrix)
+    const colPosition = Number(
+      framePosition.ColumnPositionInTotalImagePixelMatrix,
+    )
+    if (Number.isNaN(rowPosition) || Number.isNaN(colPosition)) {
+      continue
+    }
+
+    /**
+     * SEG TPM (col,row) 1-based → map coords. Top-left of pixel (1,1) is
+     * [offsetX, -(offsetY + 1)] (same convention as fitted extent).
+     */
+    const minX = offsetX + (colPosition - 1) * fitResolution
+    const maxX = minX + tileWidth * fitResolution
+    const maxY = -(offsetY + 1) - (rowPosition - 1) * fitResolution
+    const minY = maxY - tileHeight * fitResolution
+
+    placements.push({
+      frameNumber: j + 1,
+      extent: [minX, minY, maxX, maxY],
+      origin: [minX, maxY],
+      tileSize: [tileWidth, tileHeight],
+    })
+  }
+
+  return placements
+}
+
+/**
  * Find the index of the resolution closest to a target value.
  *
  * @param {number[]} resolutions - Sorted resolution array (coarsest → finest)
@@ -909,6 +987,7 @@ function _findClosestResolutionIndex(resolutions, targetResolution) {
 
 export {
   _areImagePyramidsEqual,
+  _buildSparseFramePlacements,
   _computeImagePyramid,
   _createTileLoadFunction,
   _findClosestResolutionIndex,

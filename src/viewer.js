@@ -17,6 +17,7 @@ import Modify from 'ol/interaction/Modify'
 import Select from 'ol/interaction/Select'
 import Snap from 'ol/interaction/Snap'
 import Translate from 'ol/interaction/Translate'
+import LayerGroup from 'ol/layer/Group'
 import ImageLayer from 'ol/layer/Image'
 import VectorLayer from 'ol/layer/Vector'
 import TileLayer from 'ol/layer/WebGLTile'
@@ -77,6 +78,7 @@ import {
 import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
+  _buildSparseFramePlacements,
   _computeImagePyramid,
   _createTileLoadFunction,
   _fitImagePyramid,
@@ -143,7 +145,24 @@ function disposeOverviewMapLayers(map) {
  */
 export function disposeLayer(layer, disposeSource = false) {
   console.info('dispose layer:', layer)
-  if (typeof layer?.getSource !== 'function') {
+  if (layer == null) {
+    return
+  }
+
+  /** LayerGroup: dispose children first */
+  if (typeof layer.getLayers === 'function') {
+    layer
+      .getLayers()
+      .getArray()
+      .forEach((child) => {
+        disposeLayer(child, disposeSource)
+      })
+  }
+
+  if (typeof layer.getSource !== 'function') {
+    if (typeof layer.dispose === 'function') {
+      layer.dispose()
+    }
     return
   }
 
@@ -155,6 +174,22 @@ export function disposeLayer(layer, disposeSource = false) {
 
   layer.setSource(undefined)
   layer.dispose()
+}
+
+/**
+ * Tile layers that make up a segment overlay (one layer, or per-frame layers).
+ *
+ * @param {Object} segment
+ * @returns {import('ol/layer/WebGLTile').default[]}
+ */
+function _getSegmentTileLayers(segment) {
+  if (segment?.frameLayers?.length) {
+    return segment.frameLayers
+  }
+  if (segment?.layer && typeof segment.layer.getSource === 'function') {
+    return [segment.layer]
+  }
+  return []
 }
 
 function _getClient(clientMapping, sopClassUID) {
@@ -2663,7 +2698,9 @@ class VolumeImageViewer {
           ...segment.style.paletteColorLookupTable.data.slice(1),
         ],
       })
-      segment.layer.setStyle(newStyle)
+      _getSegmentTileLayers(segment).forEach((layer) => {
+        layer.setStyle(newStyle)
+      })
     }
 
     for (const mappingUID in this[_mappings]) {
@@ -2728,15 +2765,31 @@ class VolumeImageViewer {
     const segments = Object.values(this[_segments])
 
     segments.forEach((segment) => {
-      segment.layer.setSource(
-        new DataTileSource({
-          tileGrid: this[_segmentationTileGrid],
-          projection: this[_projection],
-          wrapX: false,
-          bandCount: 1,
-          interpolate: this[_segmentationInterpolate],
-        }),
-      )
+      if (segment.frameLayers?.length) {
+        segment.frameLayers.forEach((layer, index) => {
+          const oldSource = segment.frameSources[index]
+          const tileGrid = oldSource.getTileGrid()
+          const frameSource = new DataTileSource({
+            tileGrid,
+            projection: this[_projection],
+            wrapX: false,
+            bandCount: 1,
+            interpolate: this[_segmentationInterpolate],
+          })
+          layer.setSource(frameSource)
+          segment.frameSources[index] = frameSource
+        })
+      } else {
+        segment.layer.setSource(
+          new DataTileSource({
+            tileGrid: this[_segmentationTileGrid],
+            projection: this[_projection],
+            wrapX: false,
+            bandCount: 1,
+            interpolate: this[_segmentationInterpolate],
+          }),
+        )
+      }
       segment.hasLoader = false
       if (segment.layer.getVisible() === true) {
         this.showSegment(segment.segment.uid)
@@ -5598,72 +5651,165 @@ class VolumeImageViewer {
         isAbsent,
       }
 
-      const source = new DataTileSource({
-        tileGrid,
-        projection: this[_projection],
-        wrapX: false,
-        bandCount: 1,
-        /** Avoid interpolation for single resolution (avoid blocky pixels) */
-        interpolate: this[_segmentationInterpolate],
-      })
-      source.on('tileloaderror', (event) => {
-        console.error(
-          `error loading tile of segment "${segmentUID}"`,
-          event.tile?.error_?.message || event,
-        )
-        const error = new CustomError(
-          errorTypes.VISUALIZATION,
-          `error loading tile of segment "${segmentUID}": ${event.message}`,
-        )
-        this[_options].errorInterceptor(error)
-      })
-
       const [windowCenter, windowWidth] = createWindow(
         minStoredValue,
         maxStoredValue,
       )
 
-      segment.layer = new TileLayer({
-        source,
-        extent: this[_pyramid].extent,
-        visible: false,
-        opacity: 1,
-        preload: this[_options].preload ? 1 : 0,
-        transition: 0,
-        style: _getColorPaletteStyleForTileLayer({
-          windowCenter,
-          windowWidth,
-          colormap: [
-            [
-              ...segment.style.paletteColorLookupTable.data.at(0),
-              defaultSegmentStyle.backgroundOpacity,
-            ],
-            ...segment.style.paletteColorLookupTable.data.slice(1),
+      const paletteStyle = _getColorPaletteStyleForTileLayer({
+        windowCenter,
+        windowWidth,
+        colormap: [
+          [
+            ...segment.style.paletteColorLookupTable.data.at(0),
+            defaultSegmentStyle.backgroundOpacity,
           ],
-        }),
-        useInterimTilesOnError: false,
-        cacheSize: this[_options].tilesCacheSize,
-        /**
-         * Only clamp overlay visibility to matching pyramid levels. For
-         * non-matching (fitted) single-level SEGs, min/max zoom map to the
-         * closest base index for click-to-zoom, but the overlay must stay
-         * visible at all view resolutions.
-         */
-        minResolution:
-          this[_mapViewResolutions] === undefined || !hasMatchingLevels
-            ? undefined
-            : minZoomLevel > 0
-              ? this[_pyramid].resolutions[minZoomLevel]
-              : undefined,
+          ...segment.style.paletteColorLookupTable.data.slice(1),
+        ],
       })
-      segment.layer.on('error', (event) => {
-        console.error(`error rendering segment "${segmentUID}"`, event)
-        const error = new CustomError(
-          errorTypes.VISUALIZATION,
-          `error rendering segment "${segmentUID}": ${event.message}`,
+
+      const minResolution =
+        this[_mapViewResolutions] === undefined || !hasMatchingLevels
+          ? undefined
+          : minZoomLevel > 0
+            ? this[_pyramid].resolutions[minZoomLevel]
+            : undefined
+
+      /**
+       * When fitted TILED_SPARSE frames have inconsistent sub-tile offsets,
+       * a shared TileGrid cannot place them. One WebGL tile layer per frame
+       * at the PlanePosition extent keeps palette styling and alignment.
+       */
+      if (fittedPyramid.usePerFramePlacement) {
+        const segMetadata =
+          fittedPyramid.metadata[fittedPyramid.metadata.length - 1]
+        const fitResolution =
+          fittedPyramid.fitResolution ?? coordinateScaleFactor
+        const placements = _buildSparseFramePlacements(
+          segMetadata,
+          fitResolution,
+          fittedPyramid.pixelOriginOffset || [0, 0],
+          segmentNumber,
         )
-        this[_options].errorInterceptor(error)
-      })
+
+        const frameLayers = []
+        const frameSources = []
+        const frameLoaderParams = []
+
+        placements.forEach((placement) => {
+          const frameTileGrid = new TileGrid({
+            extent: placement.extent,
+            origins: [placement.origin],
+            resolutions: [fitResolution],
+            sizes: [[1, 1]],
+            tileSizes: [placement.tileSize],
+          })
+          const frameMapping = {
+            [`1-1-${segmentNumber}`]: `${segMetadata.SOPInstanceUID}/frames/${placement.frameNumber}`,
+          }
+          const framePyramid = {
+            extent: placement.extent,
+            origins: [placement.origin],
+            resolutions: [fitResolution],
+            gridSizes: [[1, 1]],
+            tileSizes: [placement.tileSize],
+            pixelSpacings: fittedPyramid.pixelSpacings,
+            metadata: [segMetadata],
+            frameMappings: [frameMapping],
+            dimensionOrganizationTypes: ['TILED_SPARSE'],
+          }
+          const frameSource = new DataTileSource({
+            tileGrid: frameTileGrid,
+            projection: this[_projection],
+            wrapX: false,
+            bandCount: 1,
+            interpolate: this[_segmentationInterpolate],
+          })
+          frameSource.on('tileloaderror', (event) => {
+            console.error(
+              `error loading frame ${placement.frameNumber} of segment "${segmentUID}"`,
+              event.tile?.error_?.message || event,
+            )
+          })
+          const frameLayer = new TileLayer({
+            source: frameSource,
+            extent: placement.extent,
+            visible: false,
+            opacity: 1,
+            preload: 0,
+            transition: 0,
+            style: paletteStyle,
+            useInterimTilesOnError: false,
+            cacheSize: this[_options].tilesCacheSize,
+            minResolution,
+            maxResolution: Infinity,
+          })
+          frameLayers.push(frameLayer)
+          frameSources.push(frameSource)
+          frameLoaderParams.push({
+            pyramid: framePyramid,
+            client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
+            channel: segmentNumber,
+          })
+        })
+
+        segment.frameLayers = frameLayers
+        segment.frameSources = frameSources
+        segment.frameLoaderParams = frameLoaderParams
+        segment.layer = new LayerGroup({
+          layers: frameLayers,
+          visible: false,
+          opacity: 1,
+        })
+      } else {
+        const source = new DataTileSource({
+          tileGrid,
+          projection: this[_projection],
+          wrapX: false,
+          bandCount: 1,
+          /** Avoid interpolation for single resolution (avoid blocky pixels) */
+          interpolate: this[_segmentationInterpolate],
+        })
+        source.on('tileloaderror', (event) => {
+          console.error(
+            `error loading tile of segment "${segmentUID}"`,
+            event.tile?.error_?.message || event,
+          )
+          const error = new CustomError(
+            errorTypes.VISUALIZATION,
+            `error loading tile of segment "${segmentUID}": ${event.message}`,
+          )
+          this[_options].errorInterceptor(error)
+        })
+
+        segment.layer = new TileLayer({
+          source,
+          extent: this[_pyramid].extent,
+          visible: false,
+          opacity: 1,
+          preload: this[_options].preload ? 1 : 0,
+          transition: 0,
+          style: paletteStyle,
+          useInterimTilesOnError: false,
+          cacheSize: this[_options].tilesCacheSize,
+          /**
+           * Only clamp overlay visibility to matching pyramid levels. For
+           * non-matching (fitted) single-level SEGs, min/max zoom map to the
+           * closest base index for click-to-zoom, but the overlay must stay
+           * visible at all view resolutions.
+           */
+          minResolution,
+          maxResolution: Infinity,
+        })
+        segment.layer.on('error', (event) => {
+          console.error(`error rendering segment "${segmentUID}"`, event)
+          const error = new CustomError(
+            errorTypes.VISUALIZATION,
+            `error rendering segment "${segmentUID}": ${event.message}`,
+          )
+          this[_options].errorInterceptor(error)
+        })
+      }
 
       this[_map].addLayer(segment.layer)
       this[_segments][segmentUID] = segment
@@ -5731,15 +5877,27 @@ class VolumeImageViewer {
 
     if (container && !segment.hasLoader) {
       try {
-        const loader = _createTileLoadFunction({
-          targetElement: container,
-          iccProfiles: [],
-          ...segment.loaderParams,
-        })
-        const source = segment.layer.getSource()
-        if (source) {
-          source.setLoader(loader)
+        if (segment.frameLoaderParams?.length) {
+          segment.frameLoaderParams.forEach((loaderParams, index) => {
+            const loader = _createTileLoadFunction({
+              targetElement: container,
+              iccProfiles: [],
+              ...loaderParams,
+            })
+            segment.frameSources[index].setLoader(loader)
+          })
           segment.hasLoader = true
+        } else {
+          const loader = _createTileLoadFunction({
+            targetElement: container,
+            iccProfiles: [],
+            ...segment.loaderParams,
+          })
+          const source = segment.layer.getSource()
+          if (source) {
+            source.setLoader(loader)
+            segment.hasLoader = true
+          }
         }
       } catch (error) {
         console.error(
@@ -5750,6 +5908,9 @@ class VolumeImageViewer {
     }
 
     segment.layer.setVisible(true)
+    _getSegmentTileLayers(segment).forEach((layer) => {
+      layer.setVisible(true)
+    })
     this.setSegmentStyle(segmentUID, styleOptions)
     this._syncStackedDerivedLegendOverlays()
 
@@ -5954,6 +6115,9 @@ class VolumeImageViewer {
     const segment = this[_segments][segmentUID]
     console.info(`hide segment ${segmentUID}`)
     segment.layer.setVisible(false)
+    _getSegmentTileLayers(segment).forEach((layer) => {
+      layer.setVisible(false)
+    })
 
     this._syncStackedDerivedLegendOverlays()
   }
@@ -6461,7 +6625,9 @@ class VolumeImageViewer {
         ],
       })
 
-      segment.layer.setStyle(newStyle)
+      _getSegmentTileLayers(segment).forEach((layer) => {
+        layer.setStyle(newStyle)
+      })
     }
 
     if (segment.segmentationType === 'FRACTIONAL') {
