@@ -620,12 +620,12 @@ function _fitImagePyramid(pyramid, refPyramid) {
 
       /**
        * Calculate resolution based on ratio of pixel spacings.
-       * For TILED_SPARSE, we MUST use the exact resolution (not rounded)
-       * to ensure tiles are rendered at the correct scale and position.
-       * Rounding causes misalignment because the tiles would be scaled incorrectly.
+       * For TILED_SPARSE, we MUST use the exact resolution (not rounded /
+       * toFixed) for the TileGrid, extent, and sub-tile offsets together.
+       * Mixing a rounded grid resolution with exact extent math causes a
+       * slight scale mismatch ("almost aligned" overlays).
        */
       const resolution = segPixelSpacing[0] / refBasePixelSpacing[0]
-      const finalResolution = parseFloat(resolution.toFixed(4))
 
       /**
        * For TILED_SPARSE overlays at non-matching resolutions:
@@ -803,7 +803,7 @@ function _fitImagePyramid(pyramid, refPyramid) {
       fittedPyramid.origins.push(adjustedOrigin)
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
-      fittedPyramid.resolutions.push(finalResolution)
+      fittedPyramid.resolutions.push(resolution)
       fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
