@@ -1,5 +1,6 @@
 const _value = Symbol('value')
 const _subscribers = Symbol('subscribers')
+const _cleanupFunctions = Symbol('cleanupFunctions')
 
 /**
  * A self-contained, DOM-independent reactive value store.
@@ -25,6 +26,7 @@ class Observable {
   constructor(initialValue) {
     this[_value] = initialValue
     this[_subscribers] = []
+    this[_cleanupFunctions] = []
   }
 
   /**
@@ -85,11 +87,34 @@ class Observable {
   }
 
   /**
+   * Registers a cleanup callback to be called when the observable is cleaned up.
+   *
+   * @param {function(): void} cleanup - The cleanup callback.
+   */
+  addCleanup(cleanup) {
+    if (typeof cleanup !== 'function') {
+      throw new TypeError('Observable.addCleanup: cleanup must be a function')
+    }
+    this[_cleanupFunctions].push(cleanup)
+  }
+
+  /**
+   * Removes registered resources and subscribers.
+   */
+  cleanup() {
+    // Note: Splice is used to immediately delete all elements from the array.
+    for (const cleanup of this[_cleanupFunctions].splice(0)) {
+      cleanup()
+    }
+    this[_subscribers] = []
+  }
+
+  /**
    * Removes all subscribers and resets the stored value to `undefined`.
    * After calling `destroy`, the observable should not be used further.
    */
   destroy() {
-    this[_subscribers] = []
+    this.cleanup()
     this[_value] = undefined
   }
 }

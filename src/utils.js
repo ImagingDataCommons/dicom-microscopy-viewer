@@ -696,8 +696,16 @@ function detectDisplayColorSpace() {
     for (const mediaQuery of [p3MediaQuery, srgbMediaQuery]) {
       if (mediaQuery.addEventListener) {
         mediaQuery.addEventListener('change', updateColorSpace)
+        colorSpace.addCleanup(() =>
+          mediaQuery.removeEventListener('change', updateColorSpace),
+        )
       } else {
-        mediaQuery.addListener?.(updateColorSpace)
+        if (mediaQuery.addListener) {
+          mediaQuery.addListener(updateColorSpace)
+          colorSpace.addCleanup(() =>
+            mediaQuery.removeListener?.(updateColorSpace),
+          )
+        }
       }
     }
   }

@@ -2434,6 +2434,7 @@ class VolumeImageViewer {
   getICCProfiles() {
     return this[_iccProfiles] || []
   }
+
   /**
    * Toggle ICC profiles.
    *
@@ -2441,10 +2442,19 @@ class VolumeImageViewer {
    */
   toggleICCProfiles() {
     console.debug('toggle ICC profiles:', this[_isICCProfilesEnabled])
-    this.configureDataLoaders(!this[_isICCProfilesEnabled]).then(() => {
-      // Update the toggle if reloading was successful
-      this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
-    })
+    this.configureDataLoaders(!this[_isICCProfilesEnabled])
+      .then(() => {
+        // Update the toggle if reloading was successful
+        this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+      })
+      .catch((error) => {
+        console.error('Failed to toggle ICC profiles:', error)
+        const customError = new CustomError(
+          errorTypes.VISUALIZATION,
+          'Failed to toggle ICC profiles',
+        )
+        this[_options].errorInterceptor(customError)
+      })
   }
 
   async configureDataLoaders(iccProfilesEnabled) {
@@ -2454,47 +2464,51 @@ class VolumeImageViewer {
       ...Object.values(this[_mappings]),
     ]
 
-    // Update the data loaders of all items asynchronously
-    await Promise.all(
-      itemsRequiringDecodersAndTransformers.map(async (item) => {
-        const metadata = item.pyramid.metadata
-        const client = _getClient(
-          this[_clients],
-          Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
-        )
-        this[_iccProfiles] = await _getIccProfiles({
-          metadata,
-          client,
-          onError: (error) => {
-            console.error('Failed to fetch ICC profiles:', error)
-            const customError = new CustomError(
-              errorTypes.VISUALIZATION,
-              'Failed to fetch ICC profiles',
-            )
-            this[_options].errorInterceptor(customError)
-          },
-        })
+    if (itemsRequiringDecodersAndTransformers.length === 0) {
+      return
+    }
 
-        const source = item.layer.getSource()
-        if (!source) {
-          return
-        }
+    const client = _getClient(
+      this[_clients],
+      Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
+    )
 
-        const loaderConfig = {
-          targetElement: this[_container],
-        }
+    // TODO: We could make this async, however, we would need to determine what this[_iccProfiles] should actually contain (it's overwritten every loop instance)
+    for (const item of itemsRequiringDecodersAndTransformers) {
+      this[_iccProfiles] = await _getIccProfiles({
+        metadata: item.pyramid.metadata,
+        client,
+        onError: (error) => {
+          console.error('Failed to fetch ICC profiles:', error)
+          const customError = new CustomError(
+            errorTypes.VISUALIZATION,
+            'Failed to fetch ICC profiles',
+          )
+          this[_options].errorInterceptor(customError)
+        },
+      })
 
-        // Add ICC profile configuration if enabled
-        if (iccProfilesEnabled) {
-          loaderConfig.iccProfiles = this[_iccProfiles]
-          loaderConfig.iccOutputType = this[_iccOutputType].getValue()
-        }
+      const source = item.layer.getSource()
+      if (!source) {
+        return
+      }
 
-        const loader = _createTileLoadFunction({
-          ...loaderConfig,
-          ...item.loaderParams,
-        })
+      const loaderConfig = {
+        targetElement: this[_container],
+      }
 
+      // Add ICC profile configuration if enabled
+      if (iccProfilesEnabled) {
+        loaderConfig.iccProfiles = this[_iccProfiles]
+        loaderConfig.iccOutputType = this[_iccOutputType].getValue()
+      }
+
+      const loader = _createTileLoadFunction({
+        ...loaderConfig,
+        ...item.loaderParams,
+      })
+
+      const createReplacementSource = () => {
         const replacementSource = new DataTileSource({
           tileGrid: source.getTileGrid(),
           projection: source.getProjection(),
@@ -2504,14 +2518,16 @@ class VolumeImageViewer {
         })
 
         replacementSource.setLoader(loader)
-        item.layer.setSource(replacementSource)
-        item.overviewLayer?.setSource(replacementSource)
-        item.hasLoader = true
         if (item.onTileLoadError) {
           replacementSource.on('tileloaderror', item.onTileLoadError)
         }
-      }),
-    )
+        return replacementSource
+      }
+
+      item.layer.setSource(createReplacementSource())
+      item.overviewLayer?.setSource(createReplacementSource())
+      item.hasLoader = true
+    }
 
     // Force a re-render to let the changes take effect
     this[_map]?.render()
@@ -2848,6 +2864,7 @@ class VolumeImageViewer {
    */
   cleanup() {
     console.info('cleanup memory')
+    this[_iccOutputType]?.cleanup?.()
     this[_unsubscribeDisplayColorSpace]?.()
     const itemsRequiringDisposal = [
       ...Object.values(this[_opticalPaths]),
@@ -5504,17 +5521,18 @@ class VolumeImageViewer {
         /** Avoid interpolation for single resolution (avoid blocky pixels) */
         interpolate: this[_segmentationInterpolate],
       })
-      source.on('tileloaderror', (event) => {
+      segment.onTileLoadError = (event) => {
         console.error(
           `error loading tile of segment "${segmentUID}"`,
           event.tile?.error_?.message || event,
         )
         const error = new CustomError(
           errorTypes.VISUALIZATION,
-          `error loading tile of segment "${segmentUID}": ${event.message}`,
+          `error loading tile of segment "${segmentUID}": ${event.tile?.error_?.message || event.message}`,
         )
         this[_options].errorInterceptor(error)
-      })
+      }
+      source.on('tileloaderror', segment.onTileLoadError)
 
       const [windowCenter, windowWidth] = createWindow(
         minStoredValue,
@@ -6505,17 +6523,18 @@ class VolumeImageViewer {
         bandCount: 1,
         interpolate: this[_parametricMapInterpolate],
       })
-      source.on('tileloaderror', (event) => {
+      mapping.onTileLoadError = (event) => {
         console.error(
           `error loading tile of mapping "${mappingUID}"`,
           event.tile?.error_?.message || event,
         )
         const error = new CustomError(
           errorTypes.VISUALIZATION,
-          `error loading tile of mapping "${mappingUID}": ${event.message}`,
+          `error loading tile of mapping "${mappingUID}": ${event.tile?.error_?.message || event.message}`,
         )
         this[_options].errorInterceptor(error)
-      })
+      }
+      source.on('tileloaderror', mapping.onTileLoadError)
 
       mapping.layer = new TileLayer({
         source,

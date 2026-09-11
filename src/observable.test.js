@@ -170,6 +170,53 @@ describe('Observable', () => {
     })
   })
 
+  describe('cleanup', () => {
+    it('runs all registered cleanup callbacks', () => {
+      const obs = new Observable(0)
+      const calls = []
+
+      obs.addCleanup(() => calls.push('first'))
+      obs.addCleanup(() => calls.push('second'))
+
+      obs.cleanup()
+
+      expect(calls).toEqual(['first', 'second'])
+    })
+
+    it('runs cleanup callbacks only once', () => {
+      const obs = new Observable(0)
+      const cleanup = jest.fn()
+      obs.addCleanup(cleanup)
+
+      obs.cleanup()
+      obs.cleanup()
+
+      expect(cleanup).toHaveBeenCalledTimes(1)
+    })
+
+    it('throws if the cleanup callback is not a function', () => {
+      const obs = new Observable(0)
+
+      expect(() => obs.addCleanup('not-a-function')).toThrow(TypeError)
+    })
+
+    it('removes subscribers and cancels pending notifications', async () => {
+      const obs = new Observable(0)
+      const calls = []
+      obs.subscribe((value) => calls.push(value))
+
+      obs.setValue(1)
+      obs.cleanup()
+
+      await Promise.resolve()
+
+      obs.setValue(2)
+      await Promise.resolve()
+
+      expect(calls).toEqual([])
+    })
+  })
+
   describe('destroy', () => {
     it('stops all subscribers from receiving notifications', async () => {
       const obs = new Observable(0)
