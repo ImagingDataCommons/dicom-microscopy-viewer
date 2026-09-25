@@ -27,6 +27,7 @@ import Overlay from 'ol/Overlay'
 import Projection from 'ol/proj/Projection'
 import Cluster from 'ol/source/Cluster'
 import DataTileSource from 'ol/source/DataTile'
+import ImageCanvasSource from 'ol/source/ImageCanvas'
 import Static from 'ol/source/ImageStatic'
 import TileDebug from 'ol/source/TileDebug'
 import VectorSource from 'ol/source/Vector'
@@ -78,11 +79,14 @@ import {
 import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
+  _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
   _computeImagePyramid,
+  _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _fitImagePyramid,
   _getIccProfiles,
+  _overviewStampRect,
 } from './pyramid.js'
 import { ROI } from './roi.js'
 import {
@@ -177,19 +181,167 @@ export function disposeLayer(layer, disposeSource = false) {
 }
 
 /**
- * Tile layers that make up a segment overlay (one layer, or per-frame layers).
+ * Layers that make up a segment overlay (WebGL tile, ImageStatic frames,
+ * and optional overview markers).
  *
  * @param {Object} segment
- * @returns {import('ol/layer/WebGLTile').default[]}
+ * @returns {Array}
  */
 function _getSegmentTileLayers(segment) {
+  const layers = []
   if (segment?.frameLayers?.length) {
-    return segment.frameLayers
+    layers.push(...segment.frameLayers)
+  } else if (segment?.layer && typeof segment.layer.getSource === 'function') {
+    layers.push(segment.layer)
   }
-  if (segment?.layer && typeof segment.layer.getSource === 'function') {
-    return [segment.layer]
+  if (segment?.overviewLayer) {
+    layers.push(segment.overviewLayer)
   }
-  return []
+  return layers
+}
+
+/**
+ * Invalidate the overview stamp canvas after a palette or opacity change.
+ *
+ * @param {Object} segment
+ */
+function _refreshPerFrameOverview(segment) {
+  const source = segment?.overviewLayer?.getSource?.()
+  if (source && typeof source.changed === 'function') {
+    source.changed()
+  }
+}
+
+/**
+ * Segment color for overview stamps. Layer-group opacity is applied by
+ * OpenLayers, so it is not baked in here.
+ *
+ * @param {Object} segment
+ * @returns {string}
+ */
+function _perFrameOverviewColor(segment) {
+  const colormap = _getSegmentColormap(segment)
+  const fg = colormap[Math.min(1, colormap.length - 1)] || [255, 255, 0, 1]
+  const alpha = fg[3] ?? 1
+  return `rgba(${fg[0]}, ${fg[1]}, ${fg[2]}, ${alpha})`
+}
+
+/**
+ * Viewport-sized canvas of frame stamps. The canvas itself is always large
+ * enough for the ImageLayer renderer (which skips drawImage below 0.5px).
+ * Each stamp is expanded to a minimum screen size so a sparse frame cannot
+ * nearest-neighbor to nothing at full-slide zoom.
+ *
+ * @param {Object} segment
+ * @param {import('ol/proj/Projection').default} projection
+ * @returns {import('ol/source/ImageCanvas').default}
+ */
+function _createPerFrameOverviewSource(segment, projection) {
+  return new ImageCanvasSource({
+    projection,
+    interpolate: false,
+    ratio: 1,
+    canvasFunction: (extent, resolution, pixelRatio, size) => {
+      const canvas = document.createElement('canvas')
+      const width = Math.max(1, Math.round(size[0]))
+      const height = Math.max(1, Math.round(size[1]))
+      canvas.width = width
+      canvas.height = height
+      const frames = segment.overviewFrames
+      if (!frames?.length) {
+        return canvas
+      }
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = _perFrameOverviewColor(segment)
+      frames.forEach((frameExtent) => {
+        const stamp = _overviewStampRect(
+          frameExtent,
+          extent,
+          resolution,
+          pixelRatio,
+        )
+        if (!stamp) {
+          return
+        }
+        if (
+          stamp.x + stamp.w < 0 ||
+          stamp.y + stamp.h < 0 ||
+          stamp.x > width ||
+          stamp.y > height
+        ) {
+          return
+        }
+        ctx.fillRect(stamp.x, stamp.y, stamp.w, stamp.h)
+      })
+      return canvas
+    },
+  })
+}
+
+/**
+ * Build the colormap array used for segment palette styling (index 0 includes
+ * background opacity).
+ *
+ * @param {Object} segment
+ * @returns {number[][]}
+ */
+function _getSegmentColormap(segment) {
+  const backgroundOpacity = segment.defaultStyle?.backgroundOpacity ?? 0
+  return [
+    [...segment.style.paletteColorLookupTable.data[0], backgroundOpacity],
+    ...segment.style.paletteColorLookupTable.data.slice(1),
+  ]
+}
+
+/**
+ * Apply palette style to a segment's render layers. Per-frame ImageStatic
+ * overlays bake the palette into the image; WebGL tile layers use setStyle.
+ *
+ * @param {Object} segment
+ * @param {Object} [paletteStyle] - WebGL palette style (ignored for ImageStatic)
+ */
+function _applySegmentPaletteToLayers(segment, paletteStyle) {
+  if (segment.usePerFrameImages) {
+    _refreshPerFrameSegmentImages(segment)
+    _refreshPerFrameOverview(segment)
+    return
+  }
+  if (!paletteStyle) {
+    return
+  }
+  _getSegmentTileLayers(segment).forEach((layer) => {
+    if (typeof layer.setStyle === 'function') {
+      layer.setStyle(paletteStyle)
+    }
+  })
+}
+
+/**
+ * Rebuild ImageStatic sources so palette changes take effect.
+ *
+ * @param {Object} segment
+ * @param {import('ol/proj/Projection').default} [projection]
+ */
+function _refreshPerFrameSegmentImages(segment, projection) {
+  if (!segment?.frameLayers?.length || !segment.frameLoaderParams?.length) {
+    return
+  }
+  segment.frameLayers.forEach((layer, index) => {
+    const params = segment.frameLoaderParams[index]
+    if (!params?.imageLoadFunction) {
+      return
+    }
+    const frameSource = new Static({
+      imageExtent: params.imageExtent,
+      projection:
+        projection || layer.getSource()?.getProjection?.() || undefined,
+      imageLoadFunction: params.imageLoadFunction,
+      interpolate: params.interpolate !== false,
+      url: `seg-frame-${index}-${Date.now()}`,
+    })
+    layer.setSource(frameSource)
+    segment.frameSources[index] = frameSource
+  })
 }
 
 function _getClient(clientMapping, sopClassUID) {
@@ -2686,21 +2838,12 @@ class VolumeImageViewer {
       }
       const windowCenter = segment.style.windowCenter || 128
       const windowWidth = segment.style.windowWidth || 256
-      const defaultSegmentStyle = segment.defaultStyle
       const newStyle = _getColorPaletteStyleForTileLayer({
         windowCenter,
         windowWidth,
-        colormap: [
-          [
-            ...segment.style.paletteColorLookupTable.data[0],
-            defaultSegmentStyle.backgroundOpacity,
-          ],
-          ...segment.style.paletteColorLookupTable.data.slice(1),
-        ],
+        colormap: _getSegmentColormap(segment),
       })
-      _getSegmentTileLayers(segment).forEach((layer) => {
-        layer.setStyle(newStyle)
-      })
+      _applySegmentPaletteToLayers(segment, newStyle)
     }
 
     for (const mappingUID in this[_mappings]) {
@@ -2765,20 +2908,11 @@ class VolumeImageViewer {
     const segments = Object.values(this[_segments])
 
     segments.forEach((segment) => {
-      if (segment.frameLayers?.length) {
-        segment.frameLayers.forEach((layer, index) => {
-          const oldSource = segment.frameSources[index]
-          const tileGrid = oldSource.getTileGrid()
-          const frameSource = new DataTileSource({
-            tileGrid,
-            projection: this[_projection],
-            wrapX: false,
-            bandCount: 1,
-            interpolate: this[_segmentationInterpolate],
-          })
-          layer.setSource(frameSource)
-          segment.frameSources[index] = frameSource
+      if (segment.usePerFrameImages && segment.frameLayers?.length) {
+        segment.frameLoaderParams.forEach((params) => {
+          params.interpolate = this[_segmentationInterpolate]
         })
+        segment.hasLoader = false
       } else {
         segment.layer.setSource(
           new DataTileSource({
@@ -2789,8 +2923,8 @@ class VolumeImageViewer {
             interpolate: this[_segmentationInterpolate],
           }),
         )
+        segment.hasLoader = false
       }
-      segment.hasLoader = false
       if (segment.layer.getVisible() === true) {
         this.showSegment(segment.segment.uid)
       } else {
@@ -5655,17 +5789,13 @@ class VolumeImageViewer {
         minStoredValue,
         maxStoredValue,
       )
+      segment.style.windowCenter = windowCenter
+      segment.style.windowWidth = windowWidth
 
       const paletteStyle = _getColorPaletteStyleForTileLayer({
         windowCenter,
         windowWidth,
-        colormap: [
-          [
-            ...segment.style.paletteColorLookupTable.data.at(0),
-            defaultSegmentStyle.backgroundOpacity,
-          ],
-          ...segment.style.paletteColorLookupTable.data.slice(1),
-        ],
+        colormap: _getSegmentColormap(segment),
       })
 
       const minResolution =
@@ -5677,8 +5807,9 @@ class VolumeImageViewer {
 
       /**
        * When fitted TILED_SPARSE frames have inconsistent sub-tile offsets,
-       * a shared TileGrid cannot place them. One WebGL tile layer per frame
-       * at the PlanePosition extent keeps palette styling and alignment.
+       * a shared TileGrid cannot place them. One ImageStatic layer per frame
+       * at the PlanePosition extent keeps alignment. Overview stamps cover
+       * resolutions where that raster is skipped or samples to empty.
        */
       if (fittedPyramid.usePerFramePlacement) {
         const segMetadata =
@@ -5695,54 +5826,28 @@ class VolumeImageViewer {
         const frameLayers = []
         const frameSources = []
         const frameLoaderParams = []
+        const overviewFrames = []
 
         placements.forEach((placement) => {
-          const frameTileGrid = new TileGrid({
-            extent: placement.extent,
-            origins: [placement.origin],
-            resolutions: [fitResolution],
-            sizes: [[1, 1]],
-            tileSizes: [placement.tileSize],
-          })
-          const frameMapping = {
-            [`1-1-${segmentNumber}`]: `${segMetadata.SOPInstanceUID}/frames/${placement.frameNumber}`,
-          }
-          const framePyramid = {
-            extent: placement.extent,
-            origins: [placement.origin],
-            resolutions: [fitResolution],
-            gridSizes: [[1, 1]],
-            tileSizes: [placement.tileSize],
-            pixelSpacings: fittedPyramid.pixelSpacings,
-            metadata: [segMetadata],
-            frameMappings: [frameMapping],
-            dimensionOrganizationTypes: ['TILED_SPARSE'],
-          }
-          const frameSource = new DataTileSource({
-            tileGrid: frameTileGrid,
+          const { pyramid: framePyramid, nativeSize } =
+            _buildPerFrameImagePyramid({
+              placement,
+              fitResolution,
+              segmentation: segMetadata,
+              channelId: segmentNumber,
+            })
+          const frameSource = new Static({
+            imageExtent: placement.extent,
             projection: this[_projection],
-            wrapX: false,
-            bandCount: 1,
             interpolate: this[_segmentationInterpolate],
+            imageLoadFunction: () => {},
+            url: '',
           })
-          frameSource.on('tileloaderror', (event) => {
-            console.error(
-              `error loading frame ${placement.frameNumber} of segment "${segmentUID}"`,
-              event.tile?.error_?.message || event,
-            )
-          })
-          const frameLayer = new TileLayer({
+          const frameLayer = new ImageLayer({
             source: frameSource,
             extent: placement.extent,
             visible: false,
             opacity: 1,
-            preload: 0,
-            transition: 0,
-            style: paletteStyle,
-            useInterimTilesOnError: false,
-            cacheSize: this[_options].tilesCacheSize,
-            minResolution,
-            maxResolution: Infinity,
           })
           frameLayers.push(frameLayer)
           frameSources.push(frameSource)
@@ -5750,14 +5855,34 @@ class VolumeImageViewer {
             pyramid: framePyramid,
             client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
             channel: segmentNumber,
+            nativeSize,
+            imageExtent: [...placement.extent],
+            interpolate: this[_segmentationInterpolate],
+            imageLoadFunction: null,
           })
+
+          overviewFrames.push(placement.extent)
         })
 
+        /**
+         * ImageStatic skips drawImage below 0.5 device px, and nearest-neighbor
+         * sampling of a sparse mask is empty long before that. A viewport
+         * canvas of minimum-size stamps stays visible at every resolution.
+         */
+        segment.overviewFrames = overviewFrames
+        const overviewLayer = new ImageLayer({
+          source: _createPerFrameOverviewSource(segment, this[_projection]),
+          visible: false,
+          opacity: 1,
+        })
+
+        segment.usePerFrameImages = true
         segment.frameLayers = frameLayers
         segment.frameSources = frameSources
         segment.frameLoaderParams = frameLoaderParams
+        segment.overviewLayer = overviewLayer
         segment.layer = new LayerGroup({
-          layers: frameLayers,
+          layers: [...frameLayers, overviewLayer],
           visible: false,
           opacity: 1,
         })
@@ -5877,14 +6002,31 @@ class VolumeImageViewer {
 
     if (container && !segment.hasLoader) {
       try {
-        if (segment.frameLoaderParams?.length) {
+        if (segment.usePerFrameImages && segment.frameLoaderParams?.length) {
           segment.frameLoaderParams.forEach((loaderParams, index) => {
-            const loader = _createTileLoadFunction({
+            const imageLoadFunction = _createPerFrameImageLoadFunction({
               targetElement: container,
-              iccProfiles: [],
-              ...loaderParams,
+              pyramid: loaderParams.pyramid,
+              client: loaderParams.client,
+              channel: loaderParams.channel,
+              nativeSize: loaderParams.nativeSize,
+              getPalette: () => ({
+                colormap: _getSegmentColormap(segment),
+                windowCenter: segment.style.windowCenter || 128,
+                windowWidth: segment.style.windowWidth || 256,
+              }),
             })
-            segment.frameSources[index].setLoader(loader)
+            loaderParams.imageLoadFunction = imageLoadFunction
+            loaderParams.interpolate = this[_segmentationInterpolate]
+            const frameSource = new Static({
+              imageExtent: loaderParams.imageExtent,
+              projection: this[_projection],
+              imageLoadFunction,
+              interpolate: this[_segmentationInterpolate],
+              url: `seg-frame-${index}`,
+            })
+            segment.frameLayers[index].setSource(frameSource)
+            segment.frameSources[index] = frameSource
           })
           segment.hasLoader = true
         } else {
@@ -6570,6 +6712,7 @@ class VolumeImageViewer {
     if (styleOptions.opacity != null) {
       segment.style.opacity = styleOptions.opacity
       segment.layer.setOpacity(styleOptions.opacity)
+      _refreshPerFrameOverview(segment)
     }
 
     /** Update palette color lookup table if provided (including FRACTIONAL) */
@@ -6610,24 +6753,13 @@ class VolumeImageViewer {
         return
       }
 
-      /** Update the layer style with the new palette */
-      const defaultSegmentStyle = segment.defaultStyle
-
       const newStyle = _getColorPaletteStyleForTileLayer({
         windowCenter,
         windowWidth,
-        colormap: [
-          [
-            ...segment.style.paletteColorLookupTable.data[0],
-            defaultSegmentStyle.backgroundOpacity,
-          ],
-          ...segment.style.paletteColorLookupTable.data.slice(1),
-        ],
+        colormap: _getSegmentColormap(segment),
       })
 
-      _getSegmentTileLayers(segment).forEach((layer) => {
-        layer.setStyle(newStyle)
-      })
+      _applySegmentPaletteToLayers(segment, newStyle)
     }
 
     if (segment.segmentationType === 'FRACTIONAL') {

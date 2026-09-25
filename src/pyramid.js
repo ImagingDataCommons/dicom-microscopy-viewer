@@ -962,6 +962,229 @@ function _buildSparseFramePlacements(
 }
 
 /**
+ * Single-level pyramid for one sparse frame (used by ImageStatic loaders).
+ * One WebGL tile layer per frame exceeds browser WebGL context limits when
+ * all frames are in view at overview; ImageStatic avoids that.
+ *
+ * @param {Object} options
+ * @param {{extent: number[], origin: number[], tileSize: number[], frameNumber: number}} options.placement
+ * @param {number} options.fitResolution
+ * @param {Object} options.segmentation
+ * @param {string|number} options.channelId
+ * @returns {{pyramid: Object, nativeSize: number[]}}
+ * @private
+ */
+function _buildPerFrameImagePyramid({
+  placement,
+  fitResolution,
+  segmentation,
+  channelId,
+}) {
+  const nativeW = placement.tileSize[0]
+  const nativeH = placement.tileSize[1]
+  const channel = String(channelId)
+  const framePath = `${segmentation.SOPInstanceUID}/frames/${placement.frameNumber}`
+
+  return {
+    pyramid: {
+      extent: [...placement.extent],
+      origins: [[...placement.origin]],
+      resolutions: [fitResolution],
+      gridSizes: [[1, 1]],
+      tileSizes: [[nativeW, nativeH]],
+      pixelSpacings: [[fitResolution, fitResolution]],
+      metadata: [segmentation],
+      frameMappings: [{ [`1-1-${channel}`]: framePath }],
+      dimensionOrganizationTypes: ['TILED_SPARSE'],
+    },
+    nativeSize: [nativeW, nativeH],
+  }
+}
+
+/**
+ * Minimum on-screen stamp size (CSS px). Below this, a frame is expanded so
+ * the overlay cannot vanish at full-slide zoom.
+ */
+const PER_FRAME_OVERVIEW_MIN_PX = 12
+
+/**
+ * Hide overview stamps once each frame is at least this many CSS px. Sparse
+ * nearest-neighbor sampling of a 280px label mask is empty well below that.
+ */
+const PER_FRAME_OVERVIEW_HANDOFF_PX = 128
+
+/**
+ * Screen rectangle for one overview stamp, in device pixels of an ImageCanvas
+ * whose extent is `viewExtent`. Returns null when the frame is large enough
+ * for the raster mask to take over.
+ *
+ * @param {number[]} frameExtent
+ * @param {number[]} viewExtent
+ * @param {number} resolution
+ * @param {number} pixelRatio
+ * @returns {{x: number, y: number, w: number, h: number}|null}
+ */
+function _overviewStampRect(frameExtent, viewExtent, resolution, pixelRatio) {
+  if (!(resolution > 0) || !(pixelRatio > 0)) {
+    return null
+  }
+  const [fMinX, fMinY, fMaxX, fMaxY] = frameExtent
+  const [vMinX, , , vMaxY] = viewExtent
+  const scale = pixelRatio / resolution
+  let x = (fMinX - vMinX) * scale
+  let y = (vMaxY - fMaxY) * scale
+  let w = (fMaxX - fMinX) * scale
+  let h = (fMaxY - fMinY) * scale
+  const handoff = PER_FRAME_OVERVIEW_HANDOFF_PX * pixelRatio
+  if (w >= handoff && h >= handoff) {
+    return null
+  }
+  const minPx = PER_FRAME_OVERVIEW_MIN_PX * pixelRatio
+  if (w < minPx || h < minPx) {
+    const cx = x + w / 2
+    const cy = y + h / 2
+    w = Math.max(w, minPx)
+    h = Math.max(h, minPx)
+    x = cx - w / 2
+    y = cy - h / 2
+  }
+  return { x, y, w, h }
+}
+
+/**
+ * Palette index for one stored label. Window width <= 1 cannot use the VOI
+ * scale (it divides by zero and then rounds both 0 and 1 onto the foreground
+ * entry). Discrete labels map by identity in that case.
+ *
+ * @param {number} stored
+ * @param {number} windowCenter
+ * @param {number} windowWidth
+ * @param {number} maxIndex
+ * @returns {number}
+ * @private
+ */
+function _paletteIndex(stored, windowCenter, windowWidth, maxIndex) {
+  if (!(maxIndex >= 0)) {
+    return 0
+  }
+  let raw
+  if (!(windowWidth > 1)) {
+    raw = stored
+  } else {
+    raw = ((stored - (windowCenter - 0.5)) / (windowWidth - 1) + 0.5) * maxIndex
+  }
+  return Math.max(0, Math.min(maxIndex, Math.round(raw)))
+}
+
+/**
+ * Map single-band label samples through a palette into an RGBA object URL.
+ * Colors are RGB 0–255; optional 4th component is alpha 0–1 (OpenLayers palette).
+ *
+ * @param {TypedArray|ArrayLike<number>} data
+ * @param {number} width
+ * @param {number} height
+ * @param {number[][]} colormap
+ * @param {number} windowCenter
+ * @param {number} windowWidth
+ * @returns {string} object URL (caller must revoke)
+ * @private
+ */
+function _paletteBandToObjectUrl(
+  data,
+  width,
+  height,
+  colormap,
+  windowCenter,
+  windowWidth,
+) {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  const imageData = ctx.createImageData(width, height)
+  const rgba = imageData.data
+  const maxIndex = colormap.length - 1
+
+  for (let i = 0; i < width * height; i++) {
+    const index = _paletteIndex(data[i], windowCenter, windowWidth, maxIndex)
+    const color = colormap[index] || [0, 0, 0, 0]
+    const o = i * 4
+    rgba[o] = color[0]
+    rgba[o + 1] = color[1]
+    rgba[o + 2] = color[2]
+    rgba[o + 3] =
+      color.length > 3
+        ? Math.round(Math.max(0, Math.min(1, color[3])) * 255)
+        : 255
+  }
+
+  ctx.putImageData(imageData, 0, 0)
+  return canvas.toDataURL('image/png')
+}
+
+/**
+ * Build an ImageStatic load function that decodes one sparse frame and paints
+ * it with the current segment palette (scales with the view at every zoom).
+ *
+ * @param {Object} options
+ * @param {Object} options.pyramid
+ * @param {Object} options.client
+ * @param {string|number} options.channel
+ * @param {HTMLElement} options.targetElement
+ * @param {function(): {colormap: number[][], windowCenter: number, windowWidth: number}} options.getPalette
+ * @param {number[]} options.nativeSize
+ * @returns {function}
+ * @private
+ */
+function _createPerFrameImageLoadFunction(options) {
+  const { pyramid, client, channel, targetElement, getPalette, nativeSize } =
+    options
+  const baseLoader = _createTileLoadFunction({
+    pyramid,
+    client,
+    channel,
+    iccProfiles: [],
+    targetElement,
+  })
+  const [nativeW, nativeH] = nativeSize
+  let cachedData = null
+
+  return (image, _src) => {
+    const apply = (data) => {
+      const { colormap, windowCenter, windowWidth } = getPalette()
+      const url = _paletteBandToObjectUrl(
+        data,
+        nativeW,
+        nativeH,
+        colormap,
+        windowCenter,
+        windowWidth,
+      )
+      const img = image.getImage()
+      img.onload = () => {
+        /** data URLs need no revoke; keep handler for decode completion */
+      }
+      img.src = url
+    }
+
+    if (cachedData) {
+      apply(cachedData)
+      return
+    }
+
+    baseLoader(0, 0, 0)
+      .then((data) => {
+        cachedData = data
+        apply(data)
+      })
+      .catch((error) => {
+        console.error('error loading per-frame SEG image', error)
+        image.getImage().src = ''
+      })
+  }
+}
+
+/**
  * Find the index of the resolution closest to a target value.
  *
  * @param {number[]} resolutions - Sorted resolution array (coarsest → finest)
@@ -987,10 +1210,17 @@ function _findClosestResolutionIndex(resolutions, targetResolution) {
 
 export {
   _areImagePyramidsEqual,
+  _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
   _computeImagePyramid,
+  _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _findClosestResolutionIndex,
   _fitImagePyramid,
   _getIccProfiles,
+  _overviewStampRect,
+  _paletteBandToObjectUrl,
+  _paletteIndex,
+  PER_FRAME_OVERVIEW_HANDOFF_PX,
+  PER_FRAME_OVERVIEW_MIN_PX,
 }

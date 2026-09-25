@@ -2,9 +2,15 @@ const testCase1 = require('../test/data/TCGA-LUAD_TCGA-05-4244-01Z-00-DX1.json')
 
 const dmv = require('./dicom-microscopy-viewer.js')
 const {
+  _buildPerFrameImagePyramid,
   _computeImagePyramid,
   _findClosestResolutionIndex,
   _fitImagePyramid,
+  _overviewStampRect,
+  _paletteBandToObjectUrl,
+  _paletteIndex,
+  PER_FRAME_OVERVIEW_HANDOFF_PX,
+  PER_FRAME_OVERVIEW_MIN_PX,
 } = require('./pyramid.js')
 
 describe('_computeImagePyramid', () => {
@@ -51,6 +57,75 @@ describe('_computeImagePyramid', () => {
     for (let i = 1; i < pyramid.resolutions.length; i++) {
       expect(pyramid.resolutions[i]).toBeLessThan(pyramid.resolutions[i - 1])
     }
+  })
+})
+
+describe('_buildPerFrameImagePyramid', () => {
+  it('builds a single-level pyramid matching the frame extent', () => {
+    const placement = {
+      frameNumber: 1,
+      extent: [10, -100, 50, -20],
+      origin: [10, -20],
+      tileSize: [280, 280],
+    }
+    const { pyramid, nativeSize } = _buildPerFrameImagePyramid({
+      placement,
+      fitResolution: 1.1904,
+      segmentation: { SOPInstanceUID: '1.2.3' },
+      channelId: 1,
+    })
+    expect(pyramid.resolutions).toEqual([1.1904])
+    expect(nativeSize).toEqual([280, 280])
+    expect(pyramid.extent).toEqual(placement.extent)
+    expect(pyramid.frameMappings[0]['1-1-1']).toBe('1.2.3/frames/1')
+  })
+})
+
+describe('_paletteIndex', () => {
+  it('keeps binary background transparent when window width is 1', () => {
+    /** createWindow(0, 1) — the live BINARY SEG window. */
+    expect(_paletteIndex(0, 0.5, 1, 1)).toBe(0)
+    expect(_paletteIndex(1, 0.5, 1, 1)).toBe(1)
+  })
+
+  it('clamps fractional VOI samples into the colormap', () => {
+    expect(_paletteIndex(0, 0.5, 2, 1)).toBe(1)
+    expect(_paletteIndex(1, 0.5, 2, 1)).toBe(1)
+  })
+})
+
+describe('_overviewStampRect', () => {
+  const frame = [7000, -45333, 7333, -45000]
+  const view = [0, -100000, 100000, 0]
+
+  it('expands a sub-pixel frame to the minimum stamp', () => {
+    const stamp = _overviewStampRect(frame, view, 390, 2)
+    expect(stamp).not.toBeNull()
+    expect(stamp.w).toBe(PER_FRAME_OVERVIEW_MIN_PX * 2)
+    expect(stamp.h).toBe(PER_FRAME_OVERVIEW_MIN_PX * 2)
+  })
+
+  it('drops the stamp once the frame is large enough for the mask', () => {
+    expect(_overviewStampRect(frame, view, 1.19, 2)).toBeNull()
+    expect(PER_FRAME_OVERVIEW_HANDOFF_PX).toBeGreaterThan(40)
+  })
+})
+
+describe('_paletteBandToObjectUrl', () => {
+  it('maps nonzero labels to an opaque PNG data URL', () => {
+    const data = new Float32Array([0, 1, 0, 1])
+    const url = _paletteBandToObjectUrl(
+      data,
+      2,
+      2,
+      [
+        [0, 0, 0, 0],
+        [255, 0, 0, 1],
+      ],
+      0.5,
+      2,
+    )
+    expect(url.startsWith('data:image/png')).toBe(true)
   })
 })
 
