@@ -10,12 +10,17 @@ allowBuilds:
   unrs-resolver: true
 
 overrides:
-  adm-zip: 0.6.0
+  # Dependabot high: adm-zip unbounded memory on crafted ZIP
+  adm-zip: 0.6.1
   brace-expansion: 1.1.16
   braces: 3.0.3
-  fast-uri: 3.1.5
+  # Dependabot high: browserslist RegExp ReDoS
+  browserslist: 4.28.7
+  # Dependabot high: fast-uri host confusion (backslash authority)
+  fast-uri: 3.1.6
   form-data: 3.0.5
-  js-yaml: 3.15.0
+  # Dependabot high: js-yaml quadratic merge-key chains
+  js-yaml: 3.15.2
   linkify-it: 5.0.2
   minimatch: 3.1.5
   postcss: 8.5.18
