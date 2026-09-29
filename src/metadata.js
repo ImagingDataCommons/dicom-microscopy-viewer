@@ -128,6 +128,12 @@ function getFrameMapping(metadata) {
   let numberOfOpticalPaths = 0
   let numberOfSegments = 0
   let numberOfMappings = 0
+  /**
+   * LABELMAP segmentation encodes all segments in a single frame where pixel
+   * values represent segment numbers. Unlike BINARY/FRACTIONAL, there are no
+   * separate frames per segment.
+   */
+  const isLabelmap = metadata.SegmentationType === 'LABELMAP'
   if (metadata.OpticalPathSequence != null) {
     numberOfOpticalPaths = Number(metadata.NumberOfOpticalPaths || 1)
     numberOfChannels = numberOfOpticalPaths
@@ -152,36 +158,52 @@ function getFrameMapping(metadata) {
     metadata.DimensionOrganizationType || 'TILED_SPARSE'
   if (dimensionOrganizationType === 'TILED_FULL') {
     let number = 1
-    // Forth, along "channels"
-    for (let i = 0; i < numberOfChannels; i++) {
-      // Third, along the depth direction from glass slide -> coverslip
+    /**
+     * For LABELMAP segmentation, frames contain all segments encoded as pixel
+     * values. There is no channel dimension - each frame contains all segments.
+     * We map ALL segment numbers to the same frames so each segment layer can
+     * look up its data by segment number and apply pixel masking.
+     */
+    const channelIterations = isLabelmap ? 1 : numberOfChannels
+    /** Forth, along "channels" */
+    for (let i = 0; i < channelIterations; i++) {
+      /** Third, along the depth direction from glass slide -> coverslip */
       for (let p = 0; p < numberOfFocalPlanes; p++) {
-        // Second, along the column direction from top -> bottom
+        /** Second, along the column direction from top -> bottom */
         for (let r = 0; r < tileRows; r++) {
-          // First, along the row direction from left -> right
+          /** First, along the row direction from left -> right */
           for (let c = 0; c < tileColumns; c++) {
-            /*
-             * The standard currently only defines TILED_FULL for optical paths
-             * and not any other types of "channels" such as segments or
-             * parameter mappings.
-             */
-            let channelIdentifier
-            if (numberOfOpticalPaths > 0) {
-              const opticalPath = metadata.OpticalPathSequence[i]
-              channelIdentifier = String(opticalPath.OpticalPathIdentifier)
-            } else if (numberOfSegments > 0) {
-              const segment = metadata.SegmentSequence[i]
-              channelIdentifier = String(segment.SegmentNumber)
-            } else if (numberOfMappings > 0) {
-              // TODO: ensure that frames are mapped accordingly
-              channelIdentifier = String(frameNumberToMappingNumber[number])
+            const frameUri = `${sopInstanceUID}/frames/${number}`
+            if (isLabelmap && numberOfSegments > 0) {
+              /**
+               * For LABELMAP, map ALL segment numbers to this frame.
+               * Each segment's layer will look up by its segment number and
+               * apply pixel masking to show only pixels matching that segment.
+               */
+              for (let s = 0; s < numberOfSegments; s++) {
+                const segment = metadata.SegmentSequence[s]
+                const channelIdentifier = String(segment.SegmentNumber)
+                const key = `${r + 1}-${c + 1}-${channelIdentifier}`
+                frameMapping[key] = frameUri
+              }
             } else {
-              throw new Error(
-                `Could not determine channel of frame #${number}.`,
-              )
+              let channelIdentifier
+              if (numberOfOpticalPaths > 0) {
+                const opticalPath = metadata.OpticalPathSequence[i]
+                channelIdentifier = String(opticalPath.OpticalPathIdentifier)
+              } else if (numberOfSegments > 0) {
+                const segment = metadata.SegmentSequence[i]
+                channelIdentifier = String(segment.SegmentNumber)
+              } else if (numberOfMappings > 0) {
+                channelIdentifier = String(frameNumberToMappingNumber[number])
+              } else {
+                throw new Error(
+                  `Could not determine channel of frame #${number}.`,
+                )
+              }
+              const key = `${r + 1}-${c + 1}-${channelIdentifier}`
+              frameMapping[key] = frameUri
             }
-            const key = `${r + 1}-${c + 1}-${channelIdentifier}`
-            frameMapping[key] = `${sopInstanceUID}/frames/${number}`
             number += 1
           }
         }
@@ -197,55 +219,73 @@ function getFrameMapping(metadata) {
         planePositions.ColumnPositionInTotalImagePixelMatrix
       const rowIndex = Math.ceil(rowPosition / rows)
       const colIndex = Math.ceil(columnPosition / columns)
-      const number = j + 1
-      let channelIdentifier
-      if (numberOfOpticalPaths === 1) {
-        try {
-          channelIdentifier = String(
-            sharedFuncGroups[0].OpticalPathIdentificationSequence[0]
-              .OpticalPathIdentifier,
-          )
-        } catch {
+      const frameNumber = j + 1
+      const frameUri = `${sopInstanceUID}/frames/${frameNumber}`
+
+      if (isLabelmap && numberOfSegments > 0) {
+        /**
+         * For LABELMAP TILED_SPARSE, frames don't have SegmentIdentificationSequence
+         * because all segments are encoded as pixel values in each frame.
+         * Map ALL segment numbers to this frame position.
+         */
+        for (let s = 0; s < numberOfSegments; s++) {
+          const segment = metadata.SegmentSequence[s]
+          const channelIdentifier = String(segment.SegmentNumber)
+          const key = `${rowIndex}-${colIndex}-${channelIdentifier}`
+          frameMapping[key] = frameUri
+        }
+      } else {
+        let channelIdentifier
+        if (numberOfOpticalPaths === 1) {
+          try {
+            channelIdentifier = String(
+              sharedFuncGroups[0].OpticalPathIdentificationSequence[0]
+                .OpticalPathIdentifier,
+            )
+          } catch {
+            channelIdentifier = String(
+              perframeFuncGroups[j].OpticalPathIdentificationSequence[0]
+                .OpticalPathIdentifier,
+            )
+          }
+        } else if (numberOfOpticalPaths > 1) {
           channelIdentifier = String(
             perframeFuncGroups[j].OpticalPathIdentificationSequence[0]
               .OpticalPathIdentifier,
           )
-        }
-      } else if (numberOfOpticalPaths > 1) {
-        channelIdentifier = String(
-          perframeFuncGroups[j].OpticalPathIdentificationSequence[0]
-            .OpticalPathIdentifier,
-        )
-      } else if (numberOfSegments === 1) {
-        try {
-          channelIdentifier = String(
-            sharedFuncGroups[0].SegmentIdentificationSequence[0]
-              .ReferencedSegmentNumber,
-          )
-        } catch {
+        } else if (numberOfSegments === 1) {
+          try {
+            channelIdentifier = String(
+              sharedFuncGroups[0].SegmentIdentificationSequence[0]
+                .ReferencedSegmentNumber,
+            )
+          } catch {
+            channelIdentifier = String(
+              perframeFuncGroups[j].SegmentIdentificationSequence[0]
+                .ReferencedSegmentNumber,
+            )
+          }
+        } else if (numberOfSegments > 1) {
           channelIdentifier = String(
             perframeFuncGroups[j].SegmentIdentificationSequence[0]
               .ReferencedSegmentNumber,
           )
+        } else if (numberOfMappings > 0) {
+          channelIdentifier = String(frameNumberToMappingNumber[frameNumber])
+        } else {
+          throw new Error(
+            `Could not determine channel of frame ${frameNumber}.`,
+          )
         }
-      } else if (numberOfSegments > 1) {
-        channelIdentifier = String(
-          perframeFuncGroups[j].SegmentIdentificationSequence[0]
-            .ReferencedSegmentNumber,
-        )
-      } else if (numberOfMappings > 0) {
-        channelIdentifier = String(frameNumberToMappingNumber[number])
-      } else {
-        throw new Error(`Could not determine channel of frame ${number}.`)
+        const key = `${rowIndex}-${colIndex}-${channelIdentifier}`
+        frameMapping[key] = frameUri
       }
-      const key = `${rowIndex}-${colIndex}-${channelIdentifier}`
-      const frameNumber = j + 1
-      frameMapping[key] = `${sopInstanceUID}/frames/${frameNumber}`
     }
   }
   return {
     frameMapping,
     numberOfChannels,
+    isLabelmap,
   }
 }
 
@@ -551,7 +591,11 @@ class Segmentation extends SOPClass {
    */
   constructor({ metadata }) {
     super({ metadata })
-    if (this.SOPClassUID !== SOPClassUIDs.SEGMENTATION) {
+    const validSOPClassUIDs = [
+      SOPClassUIDs.SEGMENTATION,
+      SOPClassUIDs.LABELMAP_SEGMENTATION,
+    ]
+    if (!validSOPClassUIDs.includes(this.SOPClassUID)) {
       throw new Error(
         'Cannot construct Segmentation instance ' +
           `given dataset with SOP Class UID "${this.SOPClassUID}"`,

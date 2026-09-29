@@ -16,6 +16,19 @@ window.ResizeObserver = window.ResizeObserver || jest.fn().mockImplementation(()
   unobserve: jest.fn()
 }))
 
+describe('viewer ICC API', () => {
+  it('exposes the active ICC output type', () => {
+    const viewer = new dmv.viewer.VolumeImageViewer({
+      client: {},
+      metadata: [new dmv.metadata.VLWholeSlideMicroscopyImage({
+        metadata: testCase1.images[0]
+      })]
+    })
+
+    expect(viewer.getICCOutputType()).toBe('srgb')
+  })
+})
+
 const testCases = [
   {
     name: 'TCGA-LUAD_TCGA-05-4244-01Z-00-DX1',
