@@ -2685,15 +2685,15 @@ class VolumeImageViewer {
 
     segments.forEach((segment) => {
       const currentSource = segment.layer.getSource()
-      segment.layer.setSource(
-        new DataTileSource({
-          tileGrid: currentSource.getTileGrid(),
-          projection: currentSource.getProjection(),
-          wrapX: false,
-          bandCount: 1,
-          interpolate: this[_segmentationInterpolate],
-        }),
-      )
+      const source = new DataTileSource({
+        tileGrid: currentSource.getTileGrid(),
+        projection: currentSource.getProjection(),
+        wrapX: false,
+        bandCount: 1,
+        interpolate: this[_segmentationInterpolate],
+      })
+      source.on('tileloaderror', segment.onTileLoadError)
+      segment.layer.setSource(source)
       segment.hasLoader = false
       if (segment.layer.getVisible() === true) {
         this.showSegment(segment.segment.uid)
