@@ -6,10 +6,12 @@ const {
   _computeImagePyramid,
   _findClosestResolutionIndex,
   _fitImagePyramid,
+  _isSparseTileMissing,
   _overviewStampRect,
   _paletteBandToObjectUrl,
   _paletteIndex,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
+  PER_FRAME_OVERVIEW_HANDOFF_RATIO,
   PER_FRAME_OVERVIEW_MIN_PX,
 } = require('./pyramid.js')
 
@@ -95,19 +97,31 @@ describe('_paletteIndex', () => {
 })
 
 describe('_overviewStampRect', () => {
+  /** ~280×280 patch at fitResolution 1.19 → map extent width/height ≈ 333 */
   const frame = [7000, -45333, 7333, -45000]
   const view = [0, -100000, 100000, 0]
+  const nativeSize = [280, 280]
 
   it('expands a sub-pixel frame to the minimum stamp', () => {
-    const stamp = _overviewStampRect(frame, view, 390, 2)
+    const stamp = _overviewStampRect(frame, view, 390, 2, nativeSize)
     expect(stamp).not.toBeNull()
     expect(stamp.w).toBe(PER_FRAME_OVERVIEW_MIN_PX * 2)
     expect(stamp.h).toBe(PER_FRAME_OVERVIEW_MIN_PX * 2)
   })
 
-  it('drops the stamp once the frame is large enough for the mask', () => {
-    expect(_overviewStampRect(frame, view, 1.19, 2)).toBeNull()
-    expect(PER_FRAME_OVERVIEW_HANDOFF_PX).toBeGreaterThan(40)
+  it('keeps the stamp through mid-zoom where the sparse mask is still empty', () => {
+    /**
+     * At ~128 CSS px (old handoff) nearest-neighbor nuclei vanish. Native-aware
+     * handoff (~0.9×280) must still show a stamp here.
+     */
+    const mid = _overviewStampRect(frame, view, 2.6, 2, nativeSize)
+    expect(mid).not.toBeNull()
+    expect(PER_FRAME_OVERVIEW_HANDOFF_RATIO).toBeGreaterThan(0.5)
+    expect(PER_FRAME_OVERVIEW_HANDOFF_PX).toBeGreaterThan(128)
+  })
+
+  it('drops the stamp once the frame is near native on-screen size', () => {
+    expect(_overviewStampRect(frame, view, 1.19, 2, nativeSize)).toBeNull()
   })
 })
 
@@ -149,6 +163,28 @@ describe('_findClosestResolutionIndex', () => {
 
   it('returns 0 for an empty resolutions array', () => {
     expect(_findClosestResolutionIndex([], 1.19)).toBe(0)
+  })
+})
+
+describe('_isSparseTileMissing', () => {
+  /** Frame mapping keys are `row-column-channel` (1-based) */
+  const pyramid = {
+    dimensionOrganizationTypes: ['TILED_SPARSE'],
+    frameMappings: [{ '3-5-1': 'seg/frames/1' }],
+  }
+
+  it('keeps tiles that have a frame (OL x = column, y = row)', () => {
+    expect(_isSparseTileMissing(pyramid, 1, 0, 4, 2)).toBe(false)
+  })
+
+  it('flags grid cells without a frame', () => {
+    expect(_isSparseTileMissing(pyramid, 1, 0, 2, 4)).toBe(true)
+    expect(_isSparseTileMissing(pyramid, 2, 0, 4, 2)).toBe(true)
+  })
+
+  it('never skips tiles of non-sparse levels', () => {
+    const full = { ...pyramid, dimensionOrganizationTypes: ['TILED_FULL'] }
+    expect(_isSparseTileMissing(full, 1, 0, 2, 4)).toBe(false)
   })
 })
 

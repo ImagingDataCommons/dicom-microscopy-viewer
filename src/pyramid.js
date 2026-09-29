@@ -394,6 +394,30 @@ function _createEmptyTile({
   return pixelArray
 }
 
+/**
+ * Whether a TILED_SPARSE level has no frame at an OpenLayers tile coordinate.
+ * Uses the same frame mapping key as `_createTileLoadFunction`
+ * (`row-column-channel`, 1-based; OL x is the column, y the row).
+ *
+ * @param {Object} pyramid - Fitted pyramid with frameMappings
+ * @param {string|number} channel - Segment number / channel identifier
+ * @param {number} z - Tile zoom level
+ * @param {number} x - Tile column (OpenLayers)
+ * @param {number} y - Tile row (OpenLayers)
+ * @returns {boolean}
+ * @private
+ */
+function _isSparseTileMissing(pyramid, channel, z, x, y) {
+  if (pyramid.dimensionOrganizationTypes?.[z] !== 'TILED_SPARSE') {
+    return false
+  }
+  const mapping = pyramid.frameMappings?.[z]
+  if (mapping == null) {
+    return false
+  }
+  return mapping[`${y + 1}-${x + 1}-${channel}`] == null
+}
+
 function _createTileLoadFunction({
   pyramid,
   client,
@@ -1031,10 +1055,19 @@ function _buildPerFrameImagePyramid({
 const PER_FRAME_OVERVIEW_MIN_PX = 12
 
 /**
- * Hide overview stamps once each frame is at least this many CSS px. Sparse
- * nearest-neighbor sampling of a 280px label mask is empty well below that.
+ * Fallback handoff size (CSS px) when native frame size is unknown.
+ * Kept high so sparse nearest-neighbor masks are not left without stamps
+ * in the mid-zoom gap (see native-aware handoff below).
  */
-const PER_FRAME_OVERVIEW_HANDOFF_PX = 128
+const PER_FRAME_OVERVIEW_HANDOFF_PX = 256
+
+/**
+ * Hide overview stamps once the frame's on-screen size reaches this fraction
+ * of its native pixel size. Sparse PanopTILs-style masks (tiny nuclei in a
+ * ~280px patch, nearest-neighbor) stay empty well below ~1:1, so handing
+ * off at a fixed ~128 CSS px left a dead zone while zooming out.
+ */
+const PER_FRAME_OVERVIEW_HANDOFF_RATIO = 0.9
 
 /**
  * Screen rectangle for one overview stamp, in device pixels of an ImageCanvas
@@ -1045,9 +1078,16 @@ const PER_FRAME_OVERVIEW_HANDOFF_PX = 128
  * @param {number[]} viewExtent
  * @param {number} resolution
  * @param {number} pixelRatio
+ * @param {number[]} [nativeSize] - `[width, height]` of the decoded frame
  * @returns {{x: number, y: number, w: number, h: number}|null}
  */
-function _overviewStampRect(frameExtent, viewExtent, resolution, pixelRatio) {
+function _overviewStampRect(
+  frameExtent,
+  viewExtent,
+  resolution,
+  pixelRatio,
+  nativeSize,
+) {
   if (!(resolution > 0) || !(pixelRatio > 0)) {
     return null
   }
@@ -1058,8 +1098,17 @@ function _overviewStampRect(frameExtent, viewExtent, resolution, pixelRatio) {
   let y = (vMaxY - fMaxY) * scale
   let w = (fMaxX - fMinX) * scale
   let h = (fMaxY - fMinY) * scale
-  const handoff = PER_FRAME_OVERVIEW_HANDOFF_PX * pixelRatio
-  if (w >= handoff && h >= handoff) {
+  const nativeW = nativeSize?.[0]
+  const nativeH = nativeSize?.[1]
+  const handoffCssW =
+    Number.isFinite(nativeW) && nativeW > 0
+      ? nativeW * PER_FRAME_OVERVIEW_HANDOFF_RATIO
+      : PER_FRAME_OVERVIEW_HANDOFF_PX
+  const handoffCssH =
+    Number.isFinite(nativeH) && nativeH > 0
+      ? nativeH * PER_FRAME_OVERVIEW_HANDOFF_RATIO
+      : PER_FRAME_OVERVIEW_HANDOFF_PX
+  if (w >= handoffCssW * pixelRatio && h >= handoffCssH * pixelRatio) {
     return null
   }
   const minPx = PER_FRAME_OVERVIEW_MIN_PX * pixelRatio
@@ -1241,9 +1290,11 @@ export {
   _findClosestResolutionIndex,
   _fitImagePyramid,
   _getIccProfiles,
+  _isSparseTileMissing,
   _overviewStampRect,
   _paletteBandToObjectUrl,
   _paletteIndex,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
+  PER_FRAME_OVERVIEW_HANDOFF_RATIO,
   PER_FRAME_OVERVIEW_MIN_PX,
 }

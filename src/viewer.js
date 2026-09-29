@@ -9,6 +9,7 @@ import OverviewMap from 'ol/control/OverviewMap'
 import ScaleLine from 'ol/control/ScaleLine'
 import { createEmpty, extend, getCenter, getHeight, getWidth } from 'ol/extent'
 import Feature from 'ol/Feature'
+import { fromExtent as polygonFromExtent } from 'ol/geom/Polygon'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
@@ -27,7 +28,6 @@ import Overlay from 'ol/Overlay'
 import Projection from 'ol/proj/Projection'
 import Cluster from 'ol/source/Cluster'
 import DataTileSource from 'ol/source/DataTile'
-import ImageCanvasSource from 'ol/source/ImageCanvas'
 import Static from 'ol/source/ImageStatic'
 import TileDebug from 'ol/source/TileDebug'
 import VectorSource from 'ol/source/Vector'
@@ -87,7 +87,10 @@ import {
   _createTileLoadFunction,
   _fitImagePyramid,
   _getIccProfiles,
-  _overviewStampRect,
+  _isSparseTileMissing,
+  PER_FRAME_OVERVIEW_HANDOFF_PX,
+  PER_FRAME_OVERVIEW_HANDOFF_RATIO,
+  PER_FRAME_OVERVIEW_MIN_PX,
 } from './pyramid.js'
 import { ROI } from './roi.js'
 import {
@@ -202,14 +205,14 @@ function _getSegmentTileLayers(segment) {
 }
 
 /**
- * Invalidate the overview stamp canvas after a palette or opacity change.
+ * Invalidate overview stamp styles after a palette or opacity change.
  *
  * @param {Object} segment
  */
 function _refreshPerFrameOverview(segment) {
-  const source = segment?.overviewLayer?.getSource?.()
-  if (source && typeof source.changed === 'function') {
-    source.changed()
+  const layer = segment?.overviewLayer
+  if (layer && typeof layer.changed === 'function') {
+    layer.changed()
   }
 }
 
@@ -228,53 +231,92 @@ function _perFrameOverviewColor(segment) {
 }
 
 /**
- * Viewport-sized canvas of frame stamps. The canvas itself is always large
- * enough for the ImageLayer renderer (which skips drawImage below 0.5px).
- * Each stamp is expanded to a minimum screen size so a sparse frame cannot
- * nearest-neighbor to nothing at full-slide zoom.
+ * Vector markers for sparse frames. ImageCanvas stamps went blank while
+ * zooming because ImageLayer freezes during interaction and can keep an
+ * empty canvas from the zoomed-in state. VectorLayer redraws continuously
+ * (`updateWhileAnimating` / `updateWhileInteracting`).
+ *
+ * Stamps expand to a minimum screen size at overview, and hide near native
+ * size so the ImageStatic mask can take over.
  *
  * @param {Object} segment
- * @param {import('ol/proj/Projection').default} projection
- * @returns {import('ol/source/ImageCanvas').default}
+ * @returns {import('ol/layer/Vector').default}
  */
-function _createPerFrameOverviewSource(segment, projection) {
-  return new ImageCanvasSource({
-    projection,
-    interpolate: false,
-    ratio: 1,
-    canvasFunction: (extent, resolution, pixelRatio, size) => {
-      const canvas = document.createElement('canvas')
-      const width = Math.max(1, Math.round(size[0]))
-      const height = Math.max(1, Math.round(size[1]))
-      canvas.width = width
-      canvas.height = height
-      const frames = segment.overviewFrames
-      if (!frames?.length) {
-        return canvas
+function _createPerFrameOverviewLayer(segment) {
+  const features = (segment.overviewFrames || []).map((frame, index) => {
+    const frameExtent = Array.isArray(frame) ? frame : frame.extent
+    const nativeSize = Array.isArray(frame) ? undefined : frame.nativeSize
+    const feature = new Feature({
+      geometry: polygonFromExtent(frameExtent),
+      frameExtent: [...frameExtent],
+      nativeSize: nativeSize ? [...nativeSize] : undefined,
+    })
+    feature.setId(`seg-overview-${index}`)
+    return feature
+  })
+
+  return new VectorLayer({
+    source: new VectorSource({
+      features,
+      wrapX: false,
+    }),
+    updateWhileAnimating: true,
+    updateWhileInteracting: true,
+    zIndex: 1000,
+    style: (feature, resolution) => {
+      if (!(resolution > 0)) {
+        return null
       }
-      const ctx = canvas.getContext('2d')
-      ctx.fillStyle = _perFrameOverviewColor(segment)
-      frames.forEach((frameExtent) => {
-        const stamp = _overviewStampRect(
-          frameExtent,
-          extent,
-          resolution,
-          pixelRatio,
-        )
-        if (!stamp) {
-          return
-        }
-        if (
-          stamp.x + stamp.w < 0 ||
-          stamp.y + stamp.h < 0 ||
-          stamp.x > width ||
-          stamp.y > height
-        ) {
-          return
-        }
-        ctx.fillRect(stamp.x, stamp.y, stamp.w, stamp.h)
+      const frameExtent = feature.get('frameExtent')
+      const nativeSize = feature.get('nativeSize')
+      if (!frameExtent) {
+        return null
+      }
+
+      const cssW = getWidth(frameExtent) / resolution
+      const cssH = getHeight(frameExtent) / resolution
+      const nativeW = nativeSize?.[0]
+      const nativeH = nativeSize?.[1]
+      const handoffW =
+        Number.isFinite(nativeW) && nativeW > 0
+          ? nativeW * PER_FRAME_OVERVIEW_HANDOFF_RATIO
+          : PER_FRAME_OVERVIEW_HANDOFF_PX
+      const handoffH =
+        Number.isFinite(nativeH) && nativeH > 0
+          ? nativeH * PER_FRAME_OVERVIEW_HANDOFF_RATIO
+          : PER_FRAME_OVERVIEW_HANDOFF_PX
+
+      /**
+       * Near native size the ImageStatic mask is readable; hide the marker
+       * so it does not cover nuclei. Keep it through the mid-zoom gap.
+       */
+      if (cssW >= handoffW && cssH >= handoffH) {
+        return null
+      }
+
+      let [minX, minY, maxX, maxY] = frameExtent
+      if (
+        cssW < PER_FRAME_OVERVIEW_MIN_PX ||
+        cssH < PER_FRAME_OVERVIEW_MIN_PX
+      ) {
+        const cx = (minX + maxX) / 2
+        const cy = (minY + maxY) / 2
+        const halfW =
+          (Math.max(cssW, PER_FRAME_OVERVIEW_MIN_PX) * resolution) / 2
+        const halfH =
+          (Math.max(cssH, PER_FRAME_OVERVIEW_MIN_PX) * resolution) / 2
+        minX = cx - halfW
+        maxX = cx + halfW
+        minY = cy - halfH
+        maxY = cy + halfH
+      }
+
+      const color = _perFrameOverviewColor(segment)
+      return new Style({
+        geometry: polygonFromExtent([minX, minY, maxX, maxY]),
+        fill: new Fill({ color }),
+        stroke: new Stroke({ color, width: 1 }),
       })
-      return canvas
     },
   })
 }
@@ -6026,20 +6068,20 @@ class VolumeImageViewer {
             imageLoadFunction: null,
           })
 
-          overviewFrames.push(placement.extent)
+          overviewFrames.push({
+            extent: placement.extent,
+            nativeSize: [...nativeSize],
+          })
         })
 
         /**
          * ImageStatic skips drawImage below 0.5 device px, and nearest-neighbor
-         * sampling of a sparse mask is empty long before that. A viewport
-         * canvas of minimum-size stamps stays visible at every resolution.
+         * sampling of a sparse mask is empty long before that. Vector stamps
+         * redraw during zoom (unlike ImageCanvas) so mid-zoom stays visible.
          */
         segment.overviewFrames = overviewFrames
-        const overviewLayer = new ImageLayer({
-          source: _createPerFrameOverviewSource(segment, this[_projection]),
-          visible: false,
-          opacity: 1,
-        })
+        const overviewLayer = _createPerFrameOverviewLayer(segment)
+        overviewLayer.setVisible(false)
 
         segment.usePerFrameImages = true
         segment.frameLayers = frameLayers
@@ -6060,6 +6102,17 @@ class VolumeImageViewer {
           /** Avoid interpolation for single resolution (avoid blocky pixels) */
           interpolate: this[_segmentationInterpolate],
         })
+        /**
+         * A single-level sparse SEG makes OpenLayers enqueue every grid cell
+         * in view when zoomed out. Blank tiles for missing frames exceed the
+         * tile cache (`tilesCacheSize`) and evict the real frames before they
+         * draw. Returning null is OpenLayers' "no tile here" contract.
+         */
+        const getTile = source.getTile.bind(source)
+        source.getTile = (z, x, y, ...rest) =>
+          _isSparseTileMissing(fittedPyramid, segmentNumber, z, x, y)
+            ? null
+            : getTile(z, x, y, ...rest)
         source.on('tileloaderror', (event) => {
           console.error(
             `error loading tile of segment "${segmentUID}"`,
