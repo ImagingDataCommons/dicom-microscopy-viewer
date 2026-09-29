@@ -286,27 +286,21 @@ function _isAnnotationFeatureLayer(layer) {
  * @returns {import('ol/layer/Vector').default}
  */
 function _createPerFrameOverviewLayer(segment) {
-  const features = (segment.overviewFrames || []).map(
-    (frame) =>
-      new Feature({
-        geometry: polygonFromExtent(frame.extent),
-        frameExtent: [...frame.extent],
-        nativeSize: [...frame.nativeSize],
-      }),
-  )
-
   let styleColor
   let fill
   let stroke
   return new VectorLayer({
     source: new VectorSource({
-      features,
+      features: segment.overviewFeatures,
       wrapX: false,
     }),
     properties: { [SEGMENT_OVERVIEW_LAYER]: true },
     updateWhileAnimating: true,
     updateWhileInteracting: true,
     style: (feature, resolution) => {
+      if (!feature.get('hasLabel')) {
+        return null
+      }
       const stampExtent = _overviewStampExtent(
         feature.get('frameExtent'),
         resolution,
@@ -389,6 +383,48 @@ function _refreshPerFrameSegmentImages(segment) {
 }
 
 /**
+ * Show or hide a LABELMAP segment's overview marker for one frame, based on
+ * whether the frame's samples contain the segment's label.
+ *
+ * @param {Object} segment
+ * @param {number} index - Frame index in the segment's per-frame arrays
+ * @param {Uint8Array|Uint16Array} data - Unmasked frame samples
+ */
+function _updateLabelmapOverviewFeature(segment, index, data) {
+  const label = segment.frameLoaderParams[index].labelmapSegmentNumber
+  if (label == null) {
+    return
+  }
+  const hasLabel = data.includes(label)
+  const feature = segment.overviewFeatures[index]
+  if (feature.get('hasLabel') !== hasLabel) {
+    feature.set('hasLabel', hasLabel)
+  }
+}
+
+/**
+ * Update LABELMAP overview markers from frames that are already cached, e.g.
+ * frames loaded for another segment of the same SEG.
+ *
+ * @param {Object} segment
+ */
+function _syncLabelmapOverviewFeatures(segment) {
+  segment.frameLoaderParams.forEach((params, index) => {
+    if (params.labelmapSegmentNumber == null) {
+      return
+    }
+    params.frameDataCache
+      .get(params.framePath)
+      ?.then((data) => {
+        _updateLabelmapOverviewFeature(segment, index, data)
+      })
+      .catch(() => {
+        /** The frame loader reports failed loads */
+      })
+  })
+}
+
+/**
  * Give every frame layer of a per-frame segment a source that loads its frame.
  *
  * @param {Object} segment
@@ -415,6 +451,9 @@ function _installPerFrameSegmentLoaders(
         windowCenter: segment.style.windowCenter || 128,
         windowWidth: segment.style.windowWidth || 256,
       }),
+      onFrameData: (data) => {
+        _updateLabelmapOverviewFeature(segment, index, data)
+      },
     })
     loaderParams.imageLoadFunction = imageLoadFunction
     loaderParams.interpolate = interpolate
@@ -6015,17 +6054,20 @@ class VolumeImageViewer {
 
         const frameLayers = []
         const frameLoaderParams = []
-        const overviewFrames = []
+        const overviewFeatures = []
         const frameMaxResolution = _perFrameRasterMaxResolution(fitResolution)
 
         placements.forEach((placement) => {
-          const { pyramid: framePyramid, nativeSize } =
-            _buildPerFrameImagePyramid({
-              placement,
-              fitResolution,
-              segmentation: segMetadata,
-              channelId: segmentNumber,
-            })
+          const {
+            pyramid: framePyramid,
+            nativeSize,
+            framePath,
+          } = _buildPerFrameImagePyramid({
+            placement,
+            fitResolution,
+            segmentation: segMetadata,
+            channelId: segmentNumber,
+          })
           const frameLayer = new ImageLayer({
             source: new Static({
               imageExtent: placement.extent,
@@ -6045,16 +6087,25 @@ class VolumeImageViewer {
             channel: segmentNumber,
             labelmapSegmentNumber: segment.loaderParams.labelmapSegmentNumber,
             frameDataCache: perFrameDataCache,
+            framePath,
             nativeSize,
             imageExtent: [...placement.extent],
             interpolate: this[_segmentationInterpolate],
             imageLoadFunction: null,
           })
 
-          overviewFrames.push({
-            extent: placement.extent,
-            nativeSize: [...nativeSize],
-          })
+          overviewFeatures.push(
+            new Feature({
+              geometry: polygonFromExtent(placement.extent),
+              frameExtent: [...placement.extent],
+              nativeSize: [...nativeSize],
+              /**
+               * LABELMAP frames are listed under every segment, so a marker
+               * waits until the frame is loaded and known to hold the label.
+               */
+              hasLabel: !isLabelmap,
+            }),
+          )
         })
 
         /**
@@ -6062,7 +6113,7 @@ class VolumeImageViewer {
          * sampling of a sparse mask is empty long before that. Vector stamps
          * redraw during zoom (unlike ImageCanvas) so mid-zoom stays visible.
          */
-        segment.overviewFrames = overviewFrames
+        segment.overviewFeatures = overviewFeatures
         const overviewLayer = _createPerFrameOverviewLayer(segment)
 
         segment.usePerFrameImages = true
@@ -6217,6 +6268,9 @@ class VolumeImageViewer {
       }
     }
 
+    if (segment.usePerFrameImages) {
+      _syncLabelmapOverviewFeatures(segment)
+    }
     segment.layer.setVisible(true)
     this.setSegmentStyle(segmentUID, styleOptions)
     this._syncStackedDerivedLegendOverlays()

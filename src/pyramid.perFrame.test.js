@@ -108,6 +108,32 @@ describe('_createPerFrameImageLoadFunction', () => {
     expect(frameData).toEqual(new Uint8Array([0, 1, 2, 1]))
   })
 
+  it('hands the unmasked frame to onFrameData', async () => {
+    const onFrameData = jest.fn()
+    const { pyramid, nativeSize } = _buildPerFrameImagePyramid({
+      placement,
+      fitResolution: 1,
+      segmentation,
+      channelId: 2,
+    })
+    const load = _createPerFrameImageLoadFunction({
+      pyramid,
+      client,
+      channel: 2,
+      labelmapSegmentNumber: 2,
+      frameDataCache: new Map(),
+      targetElement: document.createElement('div'),
+      getPalette: () => ({ colormap: [[0, 0, 0, 0]], windowCenter: 0.5, windowWidth: 1 }),
+      onFrameData,
+      nativeSize,
+    })
+
+    load({ getImage: () => ({ src: '' }) })
+    await flushPromises()
+
+    expect(onFrameData).toHaveBeenCalledWith(new Uint8Array([0, 1, 2, 1]))
+  })
+
   it('reuses the frame when the source is rebuilt', async () => {
     const frameDataCache = new Map()
     const { load, image } = createLabelmapLoader({

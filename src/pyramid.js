@@ -987,7 +987,7 @@ function _buildSparseFramePlacements(
  * @param {number} options.fitResolution
  * @param {Object} options.segmentation
  * @param {string|number} options.channelId
- * @returns {{pyramid: Object, nativeSize: number[]}}
+ * @returns {{pyramid: Object, nativeSize: number[], framePath: string}}
  * @private
  */
 function _buildPerFrameImagePyramid({
@@ -1014,6 +1014,7 @@ function _buildPerFrameImagePyramid({
       dimensionOrganizationTypes: ['TILED_SPARSE'],
     },
     nativeSize: [nativeW, nativeH],
+    framePath,
   }
 }
 
@@ -1185,6 +1186,8 @@ function _paletteBandToDataUrl(
  *   LABELMAP frame is fetched once rather than once per segment
  * @param {HTMLElement} options.targetElement
  * @param {function(): {colormap: number[][], windowCenter: number, windowWidth: number}} options.getPalette
+ * @param {function(Uint8Array|Uint16Array): void} [options.onFrameData] -
+ *   Receives the unmasked frame samples each time the frame is painted
  * @param {number[]} options.nativeSize
  * @returns {function}
  * @private
@@ -1198,6 +1201,7 @@ function _createPerFrameImageLoadFunction(options) {
     frameDataCache,
     targetElement,
     getPalette,
+    onFrameData,
     nativeSize,
   } = options
   const baseLoader = _createTileLoadFunction({
@@ -1230,6 +1234,7 @@ function _createPerFrameImageLoadFunction(options) {
   return (image, _src) => {
     loadFrameData()
       .then((data) => {
+        onFrameData?.(data)
         const values =
           labelmapSegmentNumber == null
             ? data

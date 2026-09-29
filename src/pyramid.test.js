@@ -72,7 +72,7 @@ describe('_buildPerFrameImagePyramid', () => {
       origin: [10, -20],
       tileSize: [280, 280],
     }
-    const { pyramid, nativeSize } = _buildPerFrameImagePyramid({
+    const { pyramid, nativeSize, framePath } = _buildPerFrameImagePyramid({
       placement,
       fitResolution: 1.1904,
       segmentation: { SOPInstanceUID: '1.2.3' },
@@ -82,6 +82,7 @@ describe('_buildPerFrameImagePyramid', () => {
     expect(nativeSize).toEqual([280, 280])
     expect(pyramid.extent).toEqual(placement.extent)
     expect(pyramid.frameMappings[0]['1-1-1']).toBe('1.2.3/frames/1')
+    expect(framePath).toBe('1.2.3/frames/1')
   })
 })
 
