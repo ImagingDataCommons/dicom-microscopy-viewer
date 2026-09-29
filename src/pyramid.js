@@ -1180,6 +1180,9 @@ function _paletteBandToDataUrl(
  * @param {Object} options.client
  * @param {string|number} options.channel
  * @param {number} [options.labelmapSegmentNumber] - LABELMAP segment to mask
+ * @param {Map<string, Promise<Uint8Array|Uint16Array>>} options.frameDataCache -
+ *   Decoded frames of the SEG instance, shared by all of its segments so a
+ *   LABELMAP frame is fetched once rather than once per segment
  * @param {HTMLElement} options.targetElement
  * @param {function(): {colormap: number[][], windowCenter: number, windowWidth: number}} options.getPalette
  * @param {number[]} options.nativeSize
@@ -1192,6 +1195,7 @@ function _createPerFrameImageLoadFunction(options) {
     client,
     channel,
     labelmapSegmentNumber,
+    frameDataCache,
     targetElement,
     getPalette,
     nativeSize,
@@ -1200,35 +1204,45 @@ function _createPerFrameImageLoadFunction(options) {
     pyramid,
     client,
     channel,
-    labelmapSegmentNumber,
     iccProfiles: [],
     targetElement,
   })
   const [nativeW, nativeH] = nativeSize
-  let cachedData = null
+  const [framePath] = Object.values(pyramid.frameMappings[0])
+  const bitsAllocated = pyramid.metadata[0].BitsAllocated
+
+  /** Caches the promise, so a source rebuilt mid-load does not refetch */
+  const loadFrameData = () => {
+    let frameData = frameDataCache.get(framePath)
+    if (frameData == null) {
+      /** SEG samples are integers of at most 16 bits; Float32 is only for WebGL */
+      frameData = baseLoader(0, 0, 0).then((data) =>
+        bitsAllocated > 8 ? Uint16Array.from(data) : Uint8Array.from(data),
+      )
+      frameDataCache.set(framePath, frameData)
+      frameData.catch(() => {
+        frameDataCache.delete(framePath)
+      })
+    }
+    return frameData
+  }
 
   return (image, _src) => {
-    const apply = (data) => {
-      const { colormap, windowCenter, windowWidth } = getPalette()
-      image.getImage().src = _paletteBandToDataUrl(
-        data,
-        nativeW,
-        nativeH,
-        colormap,
-        windowCenter,
-        windowWidth,
-      )
-    }
-
-    if (cachedData) {
-      apply(cachedData)
-      return
-    }
-
-    baseLoader(0, 0, 0)
+    loadFrameData()
       .then((data) => {
-        cachedData = data
-        apply(data)
+        const values =
+          labelmapSegmentNumber == null
+            ? data
+            : data.map((value) => (value === labelmapSegmentNumber ? 1 : 0))
+        const { colormap, windowCenter, windowWidth } = getPalette()
+        image.getImage().src = _paletteBandToDataUrl(
+          values,
+          nativeW,
+          nativeH,
+          colormap,
+          windowCenter,
+          windowWidth,
+        )
       })
       .catch((error) => {
         console.error('error loading per-frame SEG image', error)

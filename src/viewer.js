@@ -388,6 +388,49 @@ function _refreshPerFrameSegmentImages(segment) {
   })
 }
 
+/**
+ * Give every frame layer of a per-frame segment a source that loads its frame.
+ *
+ * @param {Object} segment
+ * @param {Object} options
+ * @param {HTMLElement} options.container - Target element for load events
+ * @param {Object} options.projection
+ * @param {boolean} options.interpolate
+ */
+function _installPerFrameSegmentLoaders(
+  segment,
+  { container, projection, interpolate },
+) {
+  segment.frameLoaderParams.forEach((loaderParams, index) => {
+    const imageLoadFunction = _createPerFrameImageLoadFunction({
+      targetElement: container,
+      pyramid: loaderParams.pyramid,
+      client: loaderParams.client,
+      channel: loaderParams.channel,
+      labelmapSegmentNumber: loaderParams.labelmapSegmentNumber,
+      frameDataCache: loaderParams.frameDataCache,
+      nativeSize: loaderParams.nativeSize,
+      getPalette: () => ({
+        colormap: _getSegmentColormap(segment),
+        windowCenter: segment.style.windowCenter || 128,
+        windowWidth: segment.style.windowWidth || 256,
+      }),
+    })
+    loaderParams.imageLoadFunction = imageLoadFunction
+    loaderParams.interpolate = interpolate
+    segment.frameLayers[index].setSource(
+      new Static({
+        imageExtent: loaderParams.imageExtent,
+        projection,
+        imageLoadFunction,
+        interpolate,
+        url: `seg-frame-${index}`,
+      }),
+    )
+  })
+  segment.hasLoader = true
+}
+
 function _getClient(clientMapping, sopClassUID) {
   if (clientMapping[sopClassUID] == null) {
     return clientMapping.default
@@ -3192,8 +3235,17 @@ class VolumeImageViewer {
     }
 
     itemsRequiringDecodersAndTransformers.forEach(async (item) => {
-      /** Per-frame SEG images get their loaders in showSegment */
-      if (item.usePerFrameImages) return
+      if (item.usePerFrameImages) {
+        /** Segments shown before render had no container to load into */
+        if (!item.hasLoader && item.layer.getVisible()) {
+          _installPerFrameSegmentLoaders(item, {
+            container,
+            projection: this[_projection],
+            interpolate: this[_segmentationInterpolate],
+          })
+        }
+        return
+      }
 
       const metadata = item.pyramid.metadata
       const client = _getClient(
@@ -5757,6 +5809,7 @@ class VolumeImageViewer {
       coordinateScaleFactor,
       fittedOriginOffset,
     )
+    const perFrameDataCache = new Map()
 
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
@@ -5991,6 +6044,7 @@ class VolumeImageViewer {
             client: segment.loaderParams.client,
             channel: segmentNumber,
             labelmapSegmentNumber: segment.loaderParams.labelmapSegmentNumber,
+            frameDataCache: perFrameDataCache,
             nativeSize,
             imageExtent: [...placement.extent],
             interpolate: this[_segmentationInterpolate],
@@ -6138,33 +6192,11 @@ class VolumeImageViewer {
     if (container && !segment.hasLoader) {
       try {
         if (segment.usePerFrameImages) {
-          segment.frameLoaderParams.forEach((loaderParams, index) => {
-            const imageLoadFunction = _createPerFrameImageLoadFunction({
-              targetElement: container,
-              pyramid: loaderParams.pyramid,
-              client: loaderParams.client,
-              channel: loaderParams.channel,
-              labelmapSegmentNumber: loaderParams.labelmapSegmentNumber,
-              nativeSize: loaderParams.nativeSize,
-              getPalette: () => ({
-                colormap: _getSegmentColormap(segment),
-                windowCenter: segment.style.windowCenter || 128,
-                windowWidth: segment.style.windowWidth || 256,
-              }),
-            })
-            loaderParams.imageLoadFunction = imageLoadFunction
-            loaderParams.interpolate = this[_segmentationInterpolate]
-            segment.frameLayers[index].setSource(
-              new Static({
-                imageExtent: loaderParams.imageExtent,
-                projection: this[_projection],
-                imageLoadFunction,
-                interpolate: this[_segmentationInterpolate],
-                url: `seg-frame-${index}`,
-              }),
-            )
+          _installPerFrameSegmentLoaders(segment, {
+            container,
+            projection: this[_projection],
+            interpolate: this[_segmentationInterpolate],
           })
-          segment.hasLoader = true
         } else {
           const loader = _createTileLoadFunction({
             targetElement: container,
