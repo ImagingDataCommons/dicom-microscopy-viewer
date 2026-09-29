@@ -1,20 +1,41 @@
 import dcmjs from 'dcmjs'
 
 /**
- * Retrieves the extended region of interest (ROI) based on the provided feature, ROI, and metadata.
- * @param {Object} options - The options object.
- * @param {Object} options.feature - The feature object.
- * @param {Object} options.roi - The ROI object.
- * @param {Object} options.metadata - The metadata object.
- * @param {Object} options.annotationGroup - The annotation group object.
- * @returns {Object} The extended ROI.
+ * Extend an ROI with annotation-group metadata (property category/type +
+ * measurements). Accepts either a legacy OpenLayers Feature or a plain
+ * `{ annotationGroupUID, annotationIndex, measurementValues }` descriptor.
+ *
+ * @param {Object} options
+ * @param {Object} [options.feature] - Legacy OL Feature (optional)
+ * @param {string} [options.annotationGroupUID]
+ * @param {number} [options.annotationIndex]
+ * @param {number[]} [options.measurementValues]
+ * @param {Object} options.roi - roi.ROI instance
+ * @param {Object} options.metadata - MicroscopyBulkSimpleAnnotations metadata
+ * @param {Object} [options.annotationGroup] - Annotation group sequence item
+ * @returns {Object} The extended ROI
  */
-const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
-  const annotationGroupUID = feature.get('annotationGroupUID')
+const getExtendedROI = ({
+  feature,
+  annotationGroupUID: uidArg,
+  annotationIndex,
+  measurementValues,
+  roi,
+  metadata,
+  annotationGroup,
+}) => {
+  const annotationGroupUID =
+    uidArg ??
+    (feature != null && typeof feature.get === 'function'
+      ? feature.get('annotationGroupUID')
+      : undefined)
+
   const annotationGroupMetadata =
-    metadata.AnnotationGroupSequence.find(
+    metadata?.AnnotationGroupSequence?.find(
       (item) => item.AnnotationGroupUID === annotationGroupUID,
-    ) || annotationGroup
+    ) ||
+    (annotationGroup?.AnnotationGroupUID != null ? annotationGroup : null) ||
+    annotationGroup
 
   if (annotationGroupUID == null || annotationGroupMetadata == null) {
     throw new Error(
@@ -63,15 +84,20 @@ const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
     )
   }
 
-  /**
-   * Measurements for some or all annotations in the annotation group.
-   * Each item describes one type of measurement.
-   */
   if (annotationGroupMetadata.MeasurementsSequence != null) {
     annotationGroupMetadata.MeasurementsSequence.forEach(
       (measurementItem, measurementIndex) => {
-        const key = `measurementValue${measurementIndex.toString()}`
-        const value = feature.get(key)
+        let value
+        if (measurementValues != null) {
+          value = measurementValues[measurementIndex]
+        } else if (feature != null && typeof feature.get === 'function') {
+          const key = `measurementValue${measurementIndex.toString()}`
+          value = feature.get(key)
+        }
+        /** No value available (e.g. deck.gl pick without fetched measurements). */
+        if (value == null || Number.isNaN(Number(value))) {
+          return
+        }
         const name = measurementItem.ConceptNameCodeSequence[0]
         const unit = measurementItem.MeasurementUnitsCodeSequence[0]
 
@@ -109,6 +135,18 @@ const getExtendedROI = ({ feature, roi, metadata, annotationGroup }) => {
         roi.addMeasurement(measurement)
       },
     )
+  }
+
+  /** Keep annotationIndex available for callers that need it. */
+  if (annotationIndex != null && typeof roi === 'object') {
+    try {
+      Object.defineProperty(roi, '_bulkAnnotationIndex', {
+        value: annotationIndex,
+        enumerable: false,
+      })
+    } catch {
+      /* ignore */
+    }
   }
 
   return roi
