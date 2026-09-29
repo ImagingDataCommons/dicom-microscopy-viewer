@@ -1190,6 +1190,7 @@ function _paletteBandToDataUrl(
  * @param {Object} options.pyramid
  * @param {Object} options.client
  * @param {string|number} options.channel
+ * @param {number} [options.labelmapSegmentNumber] - LABELMAP segment to mask
  * @param {HTMLElement} options.targetElement
  * @param {function(): {colormap: number[][], windowCenter: number, windowWidth: number}} options.getPalette
  * @param {number[]} options.nativeSize
@@ -1197,12 +1198,20 @@ function _paletteBandToDataUrl(
  * @private
  */
 function _createPerFrameImageLoadFunction(options) {
-  const { pyramid, client, channel, targetElement, getPalette, nativeSize } =
-    options
+  const {
+    pyramid,
+    client,
+    channel,
+    labelmapSegmentNumber,
+    targetElement,
+    getPalette,
+    nativeSize,
+  } = options
   const baseLoader = _createTileLoadFunction({
     pyramid,
     client,
     channel,
+    labelmapSegmentNumber,
     iccProfiles: [],
     targetElement,
   })

@@ -2710,8 +2710,13 @@ class VolumeImageViewer {
       Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
     )
 
+    const segments = new Set(Object.values(this[_segments]))
+
     // TODO: We could make this async, however, we would need to determine what this[_iccProfiles] should actually contain (it's overwritten every loop instance)
     for (const item of itemsRequiringDecodersAndTransformers) {
+      /** Per-frame SEG images get their loaders in showSegment */
+      if (item.usePerFrameImages) continue
+
       this[_iccProfiles] = await _getIccProfiles({
         metadata: item.pyramid.metadata,
         client,
@@ -2746,13 +2751,22 @@ class VolumeImageViewer {
       })
 
       const createReplacementSource = () => {
-        const replacementSource = new DataTileSource({
+        const sourceOptions = {
           tileGrid: source.getTileGrid(),
           projection: source.getProjection(),
-          wrapX: source.getWrapX(),
-          bandCount: source.bandCount,
           interpolate: source.getInterpolate(),
-        })
+        }
+        const replacementSource = segments.has(item)
+          ? _createSegmentTileSource({
+              ...sourceOptions,
+              pyramid: item.loaderParams.pyramid,
+              segmentNumber: item.loaderParams.channel,
+            })
+          : new DataTileSource({
+              ...sourceOptions,
+              wrapX: source.getWrapX(),
+              bandCount: source.bandCount,
+            })
 
         replacementSource.setLoader(loader)
         if (item.onTileLoadError) {
@@ -3176,6 +3190,9 @@ class VolumeImageViewer {
     }
 
     itemsRequiringDecodersAndTransformers.forEach(async (item) => {
+      /** Per-frame SEG images get their loaders in showSegment */
+      if (item.usePerFrameImages) return
+
       const metadata = item.pyramid.metadata
       const client = _getClient(
         this[_clients],
@@ -5902,6 +5919,13 @@ class VolumeImageViewer {
         minStoredValue,
         maxStoredValue,
       )
+
+      /**
+       * Store window values in segment style so setSegmentStyle can use them
+       * later when updating colors. This fixes the issue where color changes
+       * would make LABELMAP/BINARY segments disappear due to incorrect
+       * window defaults (128/256 instead of the actual 0/1 range).
+       */
       segment.style.windowCenter = windowCenter
       segment.style.windowWidth = windowWidth
 
@@ -5964,6 +5988,7 @@ class VolumeImageViewer {
             pyramid: framePyramid,
             client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
             channel: segmentNumber,
+            labelmapSegmentNumber: segment.loaderParams.labelmapSegmentNumber,
             nativeSize,
             imageExtent: [...placement.extent],
             interpolate: this[_segmentationInterpolate],
@@ -6117,6 +6142,7 @@ class VolumeImageViewer {
               pyramid: loaderParams.pyramid,
               client: loaderParams.client,
               channel: loaderParams.channel,
+              labelmapSegmentNumber: loaderParams.labelmapSegmentNumber,
               nativeSize: loaderParams.nativeSize,
               getPalette: () => ({
                 colormap: _getSegmentColormap(segment),
