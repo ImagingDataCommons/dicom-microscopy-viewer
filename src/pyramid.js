@@ -101,6 +101,7 @@ function _computeImagePyramid({ metadata }) {
   const pyramidFrameMappings = []
   const pyramidDimensionOrganizationTypes = []
   let pyramidNumberOfChannels
+  let pyramidIsLabelmap = false
   for (let i = 0; i < metadata.length; i++) {
     if (metadata[0].FrameOfReferenceUID !== metadata[i].FrameOfReferenceUID) {
       throw new Error(
@@ -117,8 +118,12 @@ function _computeImagePyramid({ metadata }) {
     const cols = metadata[i].TotalPixelMatrixColumns || metadata[i].Columns
     const rows = metadata[i].TotalPixelMatrixRows || metadata[i].Rows
 
-    const { frameMapping, numberOfChannels, dimensionOrganizationType } =
-      getFrameMapping(metadata[i])
+    const {
+      frameMapping,
+      numberOfChannels,
+      dimensionOrganizationType,
+      isLabelmap,
+    } = getFrameMapping(metadata[i])
     if (i > 0) {
       if (pyramidNumberOfChannels !== numberOfChannels) {
         throw new Error(
@@ -129,6 +134,8 @@ function _computeImagePyramid({ metadata }) {
     } else {
       pyramidNumberOfChannels = numberOfChannels
     }
+    /** Store LABELMAP flag (only meaningful for segmentation metadata) */
+    pyramidIsLabelmap = isLabelmap
 
     /*
      * Instances may be broken down into multiple concatentation parts.
@@ -285,6 +292,7 @@ function _computeImagePyramid({ metadata }) {
     frameMappings: pyramidFrameMappings,
     numberOfChannels: pyramidNumberOfChannels,
     dimensionOrganizationTypes: pyramidDimensionOrganizationTypes,
+    isLabelmap: pyramidIsLabelmap,
   }
 }
 
@@ -393,6 +401,7 @@ function _createTileLoadFunction({
   iccProfiles,
   iccOutputType,
   targetElement,
+  labelmapSegmentNumber,
 }) {
   /**
    * Pre-cache values that don't change per tile request.
@@ -541,19 +550,34 @@ function _createTileLoadFunction({
             // TODO: handle Float64Array using LUT
             throw new Error('Double Float Pixel Data is not (yet) supported.')
           }
+
+          /**
+           * For LABELMAP segmentation, pixel values represent segment numbers.
+           * Apply masking to create a binary layer for this specific segment:
+           * pixels matching the segment number → 1, others → 0.
+           */
+          let processedArray = pixelArray
+          if (labelmapSegmentNumber != null) {
+            const maskedArray = new pixelArray.constructor(pixelArray.length)
+            for (let i = 0; i < pixelArray.length; i++) {
+              maskedArray[i] = pixelArray[i] === labelmapSegmentNumber ? 1 : 0
+            }
+            processedArray = maskedArray
+          }
+
           publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
-            pixelArray,
+            pixelArray: processedArray,
             ...frameInfo,
           })
           if (samplesPerPixel === 3 && bitsAllocated === 8) {
-            // Rendering of color images requires unsigned 8-bit integers
-            return pixelArray
+            /** Rendering of color images requires unsigned 8-bit integers */
+            return processedArray
           }
-          // Rendering of grayscale images requires floating point values
+          /** Rendering of grayscale images requires floating point values */
           return new Float32Array(
-            pixelArray,
-            pixelArray.byteOffset,
-            pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT,
+            processedArray,
+            processedArray.byteOffset,
+            processedArray.byteLength / processedArray.BYTES_PER_ELEMENT,
           )
         })
       })
