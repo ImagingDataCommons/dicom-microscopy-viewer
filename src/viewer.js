@@ -76,6 +76,7 @@ import {
   groupMonochromeInstances,
   VLWholeSlideMicroscopyImage,
 } from './metadata.js'
+import Observable from './observable.js'
 import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
@@ -1040,6 +1041,7 @@ const _paletteDisplayGammaCorrectionEnabled = Symbol(
   'paletteDisplayGammaCorrectionEnabled',
 )
 const _derivedLegendCollapsed = Symbol('derivedLegendCollapsed')
+const _unsubscribeDisplayColorSpace = Symbol('unsubscribeDisplayColorSpace')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -1105,7 +1107,7 @@ class VolumeImageViewer {
     this[_clients] = {}
     this[_errorInterceptor] = options.errorInterceptor || ((error) => error)
     this[_isICCProfilesEnabled] = true
-    this[_iccOutputType] = 'srgb'
+    this[_iccOutputType] = new Observable('srgb')
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
@@ -1673,7 +1675,7 @@ class VolumeImageViewer {
         opticalPath.layer.on('precompose', (event) => {
           const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
-            gl.drawingBufferColorSpace = this[_iccOutputType]
+            gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
           }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
@@ -1702,7 +1704,7 @@ class VolumeImageViewer {
         opticalPath.overviewLayer.on('precompose', (event) => {
           const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
-            gl.drawingBufferColorSpace = this[_iccOutputType]
+            gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
           }
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
@@ -1754,7 +1756,7 @@ class VolumeImageViewer {
         transition: 0,
         bandCount: 3,
       })
-      source.on('tileloaderror', (event) => {
+      opticalPath.onTileLoadError = (event) => {
         console.error(
           `error loading tile of optical path "${opticalPathIdentifier}"`,
           event.tile?.error_?.message || event,
@@ -1764,7 +1766,8 @@ class VolumeImageViewer {
           `error loading tile of optical path "${opticalPathIdentifier}": ${event.tile?.error_?.message || event.message}`,
         )
         this[_options].errorInterceptor(error)
-      })
+      }
+      source.on('tileloaderror', opticalPath.onTileLoadError)
 
       opticalPath.layer = new TileLayer({
         source,
@@ -1776,7 +1779,7 @@ class VolumeImageViewer {
       opticalPath.layer.on('precompose', (event) => {
         const gl = event.context
         if ('drawingBufferColorSpace' in gl) {
-          gl.drawingBufferColorSpace = this[_iccOutputType]
+          gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
         }
       })
 
@@ -1800,7 +1803,7 @@ class VolumeImageViewer {
       opticalPath.overviewLayer.on('precompose', (event) => {
         const gl = event.context
         if ('drawingBufferColorSpace' in gl) {
-          gl.drawingBufferColorSpace = this[_iccOutputType]
+          gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
         }
       })
 
@@ -2093,6 +2096,15 @@ class VolumeImageViewer {
 
     this._setupMapEventListeners()
     this._setupDrawingSourceEventListeners()
+    this[_unsubscribeDisplayColorSpace] = this[_iccOutputType].subscribe(() => {
+      // Target color space changed
+      // Reconfigure the dataloaders if ICC profiles are enabled
+      if (!this[_isICCProfilesEnabled]) {
+        return
+      }
+
+      this.configureDataLoaders(this[_isICCProfilesEnabled])
+    })
   }
 
   /**
@@ -2697,6 +2709,15 @@ class VolumeImageViewer {
   }
 
   /**
+   * Get ICC output type.
+   *
+   * @returns {string} ICC output type
+   */
+  getICCOutputType() {
+    return this[_iccOutputType].getValue()
+  }
+
+  /**
    * Get ICC profiles.
    *
    * @returns {any[]} ICC profiles
@@ -2706,35 +2727,47 @@ class VolumeImageViewer {
   }
 
   /**
-   * Get ICC output type.
-   *
-   * @returns {string} ICC output type
-   */
-  getICCOutputType() {
-    return this[_iccOutputType]
-  }
-
-  /**
    * Toggle ICC profiles.
    *
    * @returns {void}
    */
   toggleICCProfiles() {
     console.debug('toggle ICC profiles:', this[_isICCProfilesEnabled])
+    this.configureDataLoaders(!this[_isICCProfilesEnabled])
+      .then(() => {
+        // Update the toggle if reloading was successful
+        this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+      })
+      .catch((error) => {
+        console.error('Failed to toggle ICC profiles:', error)
+        const customError = new CustomError(
+          errorTypes.VISUALIZATION,
+          'Failed to toggle ICC profiles',
+        )
+        this[_options].errorInterceptor(customError)
+      })
+  }
+
+  async configureDataLoaders(iccProfilesEnabled) {
     const itemsRequiringDecodersAndTransformers = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
       ...Object.values(this[_mappings]),
     ]
 
-    itemsRequiringDecodersAndTransformers.forEach((item) => {
-      const metadata = item.pyramid.metadata
-      const client = _getClient(
-        this[_clients],
-        Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
-      )
-      _getIccProfiles({
-        metadata,
+    if (itemsRequiringDecodersAndTransformers.length === 0) {
+      return
+    }
+
+    const client = _getClient(
+      this[_clients],
+      Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
+    )
+
+    // TODO: We could make this async, however, we would need to determine what this[_iccProfiles] should actually contain (it's overwritten every loop instance)
+    for (const item of itemsRequiringDecodersAndTransformers) {
+      this[_iccProfiles] = await _getIccProfiles({
+        metadata: item.pyramid.metadata,
         client,
         onError: (error) => {
           console.error('Failed to fetch ICC profiles:', error)
@@ -2744,32 +2777,51 @@ class VolumeImageViewer {
           )
           this[_options].errorInterceptor(customError)
         },
-      }).then((profiles) => {
-        this[_iccProfiles] = profiles
-        const source = item.layer.getSource()
-        if (!source) {
-          return
-        }
-        const loaderWithICCProfiles = _createTileLoadFunction({
-          targetElement: this[_container],
-          iccProfiles: profiles,
-          iccOutputType: this[_iccOutputType],
-          ...item.loaderParams,
-        })
-        const loaderWithoutICCProfiles = _createTileLoadFunction({
-          targetElement: this[_container],
-          ...item.loaderParams,
-        })
-        const loader = this[_isICCProfilesEnabled]
-          ? loaderWithICCProfiles
-          : loaderWithoutICCProfiles
-        source.setLoader(loader)
-        source.refresh()
-        item.hasLoader = true
       })
-    })
 
-    this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+      const source = item.layer.getSource()
+      if (!source) {
+        return
+      }
+
+      const loaderConfig = {
+        targetElement: this[_container],
+      }
+
+      // Add ICC profile configuration if enabled
+      if (iccProfilesEnabled) {
+        loaderConfig.iccProfiles = this[_iccProfiles]
+        loaderConfig.iccOutputType = this[_iccOutputType].getValue()
+      }
+
+      const loader = _createTileLoadFunction({
+        ...loaderConfig,
+        ...item.loaderParams,
+      })
+
+      const createReplacementSource = () => {
+        const replacementSource = new DataTileSource({
+          tileGrid: source.getTileGrid(),
+          projection: source.getProjection(),
+          wrapX: source.getWrapX(),
+          bandCount: source.bandCount,
+          interpolate: source.getInterpolate(),
+        })
+
+        replacementSource.setLoader(loader)
+        if (item.onTileLoadError) {
+          replacementSource.on('tileloaderror', item.onTileLoadError)
+        }
+        return replacementSource
+      }
+
+      item.layer.setSource(createReplacementSource())
+      item.overviewLayer?.setSource(createReplacementSource())
+      item.hasLoader = true
+    }
+
+    // Force a re-render to let the changes take effect
+    this[_map]?.render()
   }
 
   /**
@@ -3024,7 +3076,7 @@ class VolumeImageViewer {
         const loader = _createTileLoadFunction({
           targetElement: container,
           iccProfiles: profiles,
-          iccOutputType: this[_iccOutputType],
+          iccOutputType: this[_iccOutputType].getValue(),
           ...opticalPath.loaderParams,
         })
         const source = opticalPath.layer.getSource()
@@ -3103,6 +3155,8 @@ class VolumeImageViewer {
    */
   cleanup() {
     console.info('cleanup memory')
+    this[_iccOutputType]?.cleanup?.()
+    this[_unsubscribeDisplayColorSpace]?.()
     const itemsRequiringDisposal = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
@@ -3206,7 +3260,7 @@ class VolumeImageViewer {
           this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
         iccOutputType:
           this[_isICCProfilesEnabled] && profiles.length > 0
-            ? this[_iccOutputType]
+            ? this[_iccOutputType].getValue()
             : undefined,
         ...item.loaderParams,
       })
@@ -5691,14 +5745,48 @@ class VolumeImageViewer {
     }
 
     /**
-     * Fractional segments are colorized with distinct, single-hue color maps so
-     * that multiple overlays are easy to tell apart and to match against the
-     * legend (see issue #240). Continue the hue sequence from any fractional
-     * segments that already exist so newly added series do not reuse hues.
+     * LABELMAP segmentation encodes all segments in a single frame where pixel
+     * values represent segment numbers. After pixel masking in the tile loader,
+     * each segment's layer becomes binary (0 or 1).
+     */
+    const isLabelmap = refSegmentation.SegmentationType === 'LABELMAP'
+    if (isLabelmap) {
+      minStoredValue = 0
+      maxStoredValue = 1
+    }
+
+    /**
+     * Fractional segments are colorized with distinct, single-hue color maps
+     * so that multiple overlays are easy to tell apart and to match against
+     * the legend (see issue #240). Continue the hue sequence from any existing
+     * segments that use distinct colormaps so newly added series do not reuse
+     * hues.
+     *
+     * LABELMAP segments are treated like BINARY: they use explicit colors from
+     * RecommendedDisplayCIELabValue when present, or a stable solid hue.
      */
     const isFractional = refSegmentation.SegmentationType === 'FRACTIONAL'
-    let fractionalOrdinal = Object.values(this[_segments]).filter(
+    const useDistinctColormap = isFractional
+    let distinctColormapOrdinal = Object.values(this[_segments]).filter(
       (existing) => existing.segmentationType === 'FRACTIONAL',
+    ).length
+
+    /**
+     * Stable hue palette for LABELMAP segments without
+     * RecommendedDisplayCIELabValue. Cycles through distinct colors.
+     */
+    const stableSegmentColors = [
+      [255, 0, 0], // Red
+      [0, 255, 0], // Green
+      [0, 0, 255], // Blue
+      [255, 255, 0], // Yellow
+      [255, 0, 255], // Magenta
+      [0, 255, 255], // Cyan
+      [255, 128, 0], // Orange
+      [128, 0, 255], // Purple
+    ]
+    let stableColorIndex = Object.values(this[_segments]).filter(
+      (existing) => existing.segmentationType === 'LABELMAP',
     ).length
 
     refSegmentation.SegmentSequence.forEach((item, _index) => {
@@ -5717,15 +5805,66 @@ class VolumeImageViewer {
         segmentUID = item.TrackingUID
       }
 
-      const colormap = isFractional
-        ? createDistinctColormap({
-            index: fractionalOrdinal++,
-            bins: 2 ** 8,
-          })
-        : createColormap({
-            name: ColormapNames.VIRIDIS,
-            bins: 2 ** 8,
-          })
+      /**
+       * Determine colormap based on segmentation type:
+       * - FRACTIONAL: distinct single-hue colormap (256 bins)
+       * - BINARY: VIRIDIS gradient colormap (original behavior, Slim overrides)
+       * - LABELMAP: simple 2-entry palette with explicit color
+       */
+      let colormap
+      let segmentColor = null
+
+      if (useDistinctColormap) {
+        /** FRACTIONAL: use distinct colormap */
+        colormap = createDistinctColormap({
+          index: distinctColormapOrdinal++,
+          bins: 2 ** 8,
+        })
+      } else if (isLabelmap) {
+        /**
+         * LABELMAP: use explicit color from RecommendedDisplayCIELabValue
+         * if present, otherwise use stable solid color. Creates a simple
+         * 2-entry palette since LABELMAP is masked to binary 0/1 values.
+         */
+        if (
+          item.RecommendedDisplayCIELabValue &&
+          Array.isArray(item.RecommendedDisplayCIELabValue) &&
+          item.RecommendedDisplayCIELabValue.length >= 3
+        ) {
+          try {
+            const labValues = item.RecommendedDisplayCIELabValue
+            const rgb = dcmjs.data.Colors.dicomlab2RGB(labValues)
+            segmentColor = [
+              Math.max(0, Math.min(255, Math.round(rgb[0] * 255))),
+              Math.max(0, Math.min(255, Math.round(rgb[1] * 255))),
+              Math.max(0, Math.min(255, Math.round(rgb[2] * 255))),
+            ]
+          } catch (error) {
+            console.warn(
+              `Failed to convert RecommendedDisplayCIELabValue for segment #${segmentNumber}:`,
+              error,
+            )
+          }
+        }
+
+        /** Fallback to stable color if no DICOM color specified */
+        if (!segmentColor) {
+          segmentColor =
+            stableSegmentColors[stableColorIndex++ % stableSegmentColors.length]
+        }
+
+        /** Create simple 2-entry palette: [background, segmentColor] */
+        colormap = [[0, 0, 0], segmentColor]
+      } else {
+        /**
+         * BINARY and unknown types: use VIRIDIS gradient colormap.
+         * For BINARY, Slim typically overrides this with explicit colors.
+         */
+        colormap = createColormap({
+          name: ColormapNames.VIRIDIS,
+          bins: 2 ** 8,
+        })
+      }
 
       const defaultSegmentStyle = {
         opacity: 0.75,
@@ -5751,6 +5890,25 @@ class VolumeImageViewer {
       )
       const isAbsent = boundingBox == null
 
+      /**
+       * Detect if this segment represents background:
+       * 1. SegmentNumber matches PixelPaddingValue (0028,0120)
+       * 2. Segmented Property Type Code is (DCM, 125040, "Background")
+       */
+      let isBackgroundSegment = false
+      const pixelPaddingValue = refSegmentation.PixelPaddingValue
+      if (pixelPaddingValue != null && segmentNumber === pixelPaddingValue) {
+        isBackgroundSegment = true
+      }
+      const propertyType = item.SegmentedPropertyTypeCodeSequence?.[0]
+      if (
+        propertyType &&
+        propertyType.CodingSchemeDesignator === 'DCM' &&
+        propertyType.CodeValue === '125040'
+      ) {
+        isBackgroundSegment = true
+      }
+
       const segment = {
         segment: new Segment({
           uid: segmentUID,
@@ -5766,6 +5924,7 @@ class VolumeImageViewer {
             return element.SOPInstanceUID
           }),
           isAbsent,
+          isBackground: isBackgroundSegment,
         }),
         pyramid,
         style: { ...defaultSegmentStyle },
@@ -5776,8 +5935,14 @@ class VolumeImageViewer {
         maxZoomLevel,
         loaderParams: {
           pyramid: fittedPyramid,
-          client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
+          client: _getClient(this[_clients], refSegmentation.SOPClassUID),
           channel: segmentNumber,
+          /**
+           * For LABELMAP, the tile loader needs to mask pixels after decoding
+           * to create a binary layer where only pixels matching this segment
+           * number are preserved.
+           */
+          labelmapSegmentNumber: isLabelmap ? segmentNumber : undefined,
         },
         hasLoader: false,
         segmentationType: refSegmentation.SegmentationType,
@@ -7082,17 +7247,18 @@ class VolumeImageViewer {
         bandCount: 1,
         interpolate: this[_parametricMapInterpolate],
       })
-      source.on('tileloaderror', (event) => {
+      mapping.onTileLoadError = (event) => {
         console.error(
           `error loading tile of mapping "${mappingUID}"`,
           event.tile?.error_?.message || event,
         )
         const error = new CustomError(
           errorTypes.VISUALIZATION,
-          `error loading tile of mapping "${mappingUID}": ${event.message}`,
+          `error loading tile of mapping "${mappingUID}": ${event.tile?.error_?.message || event.message}`,
         )
         this[_options].errorInterceptor(error)
-      })
+      }
+      source.on('tileloaderror', mapping.onTileLoadError)
 
       mapping.layer = new TileLayer({
         source,
