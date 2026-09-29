@@ -4,7 +4,7 @@ const dmv = require('./dicom-microscopy-viewer.js')
 const {
   _buildPerFrameImagePyramid,
   _computeImagePyramid,
-  _computeSegmentBoundingBox,
+  _computeSegmentBoundingBoxes,
   _findClosestResolutionIndex,
   _fitImagePyramid,
   _isSparseTileMissing,
@@ -154,7 +154,7 @@ describe('_paletteBandToDataUrl', () => {
   })
 })
 
-describe('_computeSegmentBoundingBox', () => {
+describe('_computeSegmentBoundingBoxes', () => {
   const level = (size, tile = 10) => ({
     TotalPixelMatrixColumns: size,
     TotalPixelMatrixRows: size,
@@ -162,12 +162,14 @@ describe('_computeSegmentBoundingBox', () => {
     Rows: tile,
   })
 
-  it('bounds the tiles of the requested segment only', () => {
+  it('bounds the tiles of each segment separately', () => {
     const pyramid = {
       metadata: [level(100)],
       frameMappings: [{ '2-3-1': 'a', '4-5-1': 'b', '9-9-2': 'c' }],
     }
-    expect(_computeSegmentBoundingBox(pyramid, 1)).toEqual([20, -41, 50, -11])
+    const boxes = _computeSegmentBoundingBoxes(pyramid)
+    expect(boxes.get('1')).toEqual([20, -41, 50, -11])
+    expect(boxes.get('2')).toEqual([80, -91, 90, -81])
   })
 
   it('applies scale factor and origin offset', () => {
@@ -175,9 +177,9 @@ describe('_computeSegmentBoundingBox', () => {
       metadata: [level(100)],
       frameMappings: [{ '1-1-1': 'a' }],
     }
-    expect(_computeSegmentBoundingBox(pyramid, 1, 2, [5, 7])).toEqual([
-      5, -28, 25, -8,
-    ])
+    expect(_computeSegmentBoundingBoxes(pyramid, 2, [5, 7]).get('1')).toEqual(
+      [5, -28, 25, -8],
+    )
   })
 
   it('uses the finest level of a multi-level pyramid', () => {
@@ -185,23 +187,27 @@ describe('_computeSegmentBoundingBox', () => {
       metadata: [level(50), level(100)],
       frameMappings: [{ '1-1-1': 'a' }, { '2-2-1': 'b' }],
     }
-    expect(_computeSegmentBoundingBox(pyramid, 1)).toEqual([10, -21, 20, -11])
+    expect(_computeSegmentBoundingBoxes(pyramid).get('1')).toEqual([
+      10, -21, 20, -11,
+    ])
   })
 
-  it('scales a coarser level when the finest level lacks the segment', () => {
+  it('scales a coarser level for segments missing from the finest level', () => {
     const pyramid = {
       metadata: [level(50), level(100)],
-      frameMappings: [{ '1-1-1': 'a' }, { '2-2-2': 'b' }],
+      frameMappings: [{ '1-1-1': 'a', '3-3-2': 'c' }, { '2-2-2': 'b' }],
     }
-    expect(_computeSegmentBoundingBox(pyramid, 1)).toEqual([0, -21, 20, -1])
+    const boxes = _computeSegmentBoundingBoxes(pyramid)
+    expect(boxes.get('1')).toEqual([0, -21, 20, -1])
+    expect(boxes.get('2')).toEqual([10, -21, 20, -11])
   })
 
-  it('returns null when no level has frames for the segment', () => {
+  it('omits segments without frames', () => {
     const pyramid = {
       metadata: [level(100)],
       frameMappings: [{ '1-1-2': 'a' }],
     }
-    expect(_computeSegmentBoundingBox(pyramid, 1)).toBeNull()
+    expect(_computeSegmentBoundingBoxes(pyramid).has('1')).toBe(false)
   })
 })
 

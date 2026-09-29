@@ -83,7 +83,7 @@ import {
   _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
   _computeImagePyramid,
-  _computeSegmentBoundingBox,
+  _computeSegmentBoundingBoxes,
   _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _fitImagePyramid,
@@ -181,26 +181,6 @@ export function disposeLayer(layer, disposeSource = false) {
 
   layer.setSource(undefined)
   layer.dispose()
-}
-
-/**
- * Layers that make up a segment overlay (WebGL tile, ImageStatic frames,
- * and optional overview markers).
- *
- * @param {Object} segment
- * @returns {Array}
- */
-function _getSegmentTileLayers(segment) {
-  const layers = []
-  if (segment?.frameLayers?.length) {
-    layers.push(...segment.frameLayers)
-  } else if (segment?.layer && typeof segment.layer.getSource === 'function') {
-    layers.push(segment.layer)
-  }
-  if (segment?.overviewLayer) {
-    layers.push(segment.overviewLayer)
-  }
-  return layers
 }
 
 /**
@@ -377,14 +357,9 @@ function _applySegmentPaletteToLayers(segment, paletteStyle) {
     _refreshPerFrameOverview(segment)
     return
   }
-  if (!paletteStyle) {
-    return
+  if (paletteStyle) {
+    segment.layer.setStyle(paletteStyle)
   }
-  _getSegmentTileLayers(segment).forEach((layer) => {
-    if (typeof layer.setStyle === 'function') {
-      layer.setStyle(paletteStyle)
-    }
-  })
 }
 
 /**
@@ -5760,6 +5735,12 @@ class VolumeImageViewer {
       (existing) => existing.segmentationType === 'LABELMAP',
     ).length
 
+    const segmentBoundingBoxes = _computeSegmentBoundingBoxes(
+      pyramid,
+      coordinateScaleFactor,
+      fittedOriginOffset,
+    )
+
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment #${segmentNumber}`)
@@ -5853,12 +5834,8 @@ class VolumeImageViewer {
        * pyramid has no frames for that channel (common for TILED_SPARSE
        * where some labels were never found in any patch).
        */
-      const boundingBox = _computeSegmentBoundingBox(
-        pyramid,
-        segmentNumber,
-        coordinateScaleFactor,
-        fittedOriginOffset,
-      )
+      const boundingBox =
+        segmentBoundingBoxes.get(String(segmentNumber)) ?? null
       const isAbsent = boundingBox == null
 
       /**
@@ -5980,7 +5957,6 @@ class VolumeImageViewer {
               url: '',
             }),
             extent: placement.extent,
-            visible: false,
             opacity: 1,
           })
           frameLayers.push(frameLayer)
@@ -6007,7 +5983,6 @@ class VolumeImageViewer {
          */
         segment.overviewFrames = overviewFrames
         const overviewLayer = _createPerFrameOverviewLayer(segment)
-        overviewLayer.setVisible(false)
 
         segment.usePerFrameImages = true
         segment.frameLayers = frameLayers
@@ -6183,9 +6158,6 @@ class VolumeImageViewer {
     }
 
     segment.layer.setVisible(true)
-    _getSegmentTileLayers(segment).forEach((layer) => {
-      layer.setVisible(true)
-    })
     this.setSegmentStyle(segmentUID, styleOptions)
     this._syncStackedDerivedLegendOverlays()
 
@@ -6359,9 +6331,6 @@ class VolumeImageViewer {
     const segment = this[_segments][segmentUID]
     console.info(`hide segment ${segmentUID}`)
     segment.layer.setVisible(false)
-    _getSegmentTileLayers(segment).forEach((layer) => {
-      layer.setVisible(false)
-    })
 
     this._syncStackedDerivedLegendOverlays()
   }

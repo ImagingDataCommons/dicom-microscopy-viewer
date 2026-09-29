@@ -435,10 +435,8 @@ function _createTileLoadFunction({
 
   return async (z, y, x) => {
     /**
-     * Build frame mapping key from tile coordinates.
-     * Note: The function signature uses (z, y, x) where the mapping is:
-     * - x corresponds to row index in the frame mapping
-     * - y corresponds to column index in the frame mapping
+     * OpenLayers calls the loader as (z, column, row), so `y` here is the
+     * column and `x` the row. Frame mapping keys are `row-column-channel`.
      */
     const index = `${x + 1}-${y + 1}${channelSuffix}`
 
@@ -1266,33 +1264,29 @@ function _findClosestResolutionIndex(resolutions, targetResolution) {
 }
 
 /**
- * Compute the bounding box for a segment from its frame mappings.
+ * Compute segment bounding boxes from frame mappings.
+ *
+ * Scans every frame mapping key once for all segments; LABELMAP maps each
+ * frame under every segment number, so a per-segment scan is quadratic.
  *
  * @param {Object} pyramid - Image pyramid with frame mappings (coarsest level first)
- * @param {number} segmentNumber - Segment number to compute bounds for
  * @param {number} [scaleFactor=1] - Scale factor from the finest segment level to base image pixels
  * @param {number[]} [pixelOffset=[0, 0]] - Origin offset `[offsetX, offsetY]` in base image pixels (from the fitted pyramid)
- * @returns {number[]|null} Extent [minX, minY, maxX, maxY] in map coordinates, or null if no frames exist
+ * @returns {Map<string, number[]>} Extent [minX, minY, maxX, maxY] in map
+ * coordinates keyed by segment number; segments without frames are absent
  * @private
  */
-function _computeSegmentBoundingBox(
+function _computeSegmentBoundingBoxes(
   pyramid,
-  segmentNumber,
   scaleFactor = 1,
   pixelOffset = [0, 0],
 ) {
-  const channelId = String(segmentNumber)
-  let minTileRow = Infinity
-  let maxTileRow = -Infinity
-  let minTileCol = Infinity
-  let maxTileCol = -Infinity
-  let foundAnyFrame = false
-  let tileRows = 0
-  let tileCols = 0
-  let levelScaleFactor = scaleFactor
+  const boxes = new Map()
+  const offsetX = pixelOffset[0] || 0
+  const offsetY = pixelOffset[1] || 0
 
   /**
-   * Use the finest level that has frames for this segment. Coarser levels
+   * Use the finest level that has frames for each segment. Coarser levels
    * are scaled by their downsampling relative to the finest level.
    */
   const finestLevel = pyramid.metadata[pyramid.metadata.length - 1]
@@ -1302,53 +1296,48 @@ function _computeSegmentBoundingBox(
 
     if (!frameMapping || !metadata) continue
 
-    tileRows = metadata.Rows
-    tileCols = metadata.Columns
-    levelScaleFactor =
-      scaleFactor *
-      ((finestLevel.TotalPixelMatrixColumns || finestLevel.Columns) /
-        (metadata.TotalPixelMatrixColumns || metadata.Columns))
-
+    const levelBounds = new Map()
     for (const key of Object.keys(frameMapping)) {
       /** Key format is "rowIndex-colIndex-channelIdentifier" */
       const parts = key.split('-')
-      if (parts.length >= 3 && parts[parts.length - 1] === channelId) {
-        const rowIndex = parseInt(parts[0], 10)
-        const colIndex = parseInt(parts[1], 10)
+      if (parts.length < 3) continue
+      const channelId = parts[parts.length - 1]
+      if (boxes.has(channelId)) continue
 
-        minTileRow = Math.min(minTileRow, rowIndex)
-        maxTileRow = Math.max(maxTileRow, rowIndex)
-        minTileCol = Math.min(minTileCol, colIndex)
-        maxTileCol = Math.max(maxTileCol, colIndex)
-        foundAnyFrame = true
+      const rowIndex = parseInt(parts[0], 10)
+      const colIndex = parseInt(parts[1], 10)
+      const bounds = levelBounds.get(channelId)
+      if (bounds == null) {
+        levelBounds.set(channelId, [rowIndex, rowIndex, colIndex, colIndex])
+      } else {
+        bounds[0] = Math.min(bounds[0], rowIndex)
+        bounds[1] = Math.max(bounds[1], rowIndex)
+        bounds[2] = Math.min(bounds[2], colIndex)
+        bounds[3] = Math.max(bounds[3], colIndex)
       }
     }
 
-    if (foundAnyFrame) break
+    const levelScaleFactor =
+      scaleFactor *
+      ((finestLevel.TotalPixelMatrixColumns || finestLevel.Columns) /
+        (metadata.TotalPixelMatrixColumns || metadata.Columns))
+    const tileWidth = metadata.Columns * levelScaleFactor
+    const tileHeight = metadata.Rows * levelScaleFactor
+    for (const [channelId, [minRow, maxRow, minCol, maxCol]] of levelBounds) {
+      /**
+       * Tile indices are 1-based. Apply the fitted-pyramid origin offset,
+       * then convert to map coordinates: map Y = -(pixel Y + 1).
+       */
+      boxes.set(channelId, [
+        offsetX + (minCol - 1) * tileWidth,
+        -(offsetY + maxRow * tileHeight + 1),
+        offsetX + maxCol * tileWidth,
+        -(offsetY + (minRow - 1) * tileHeight + 1),
+      ])
+    }
   }
 
-  if (!foundAnyFrame) {
-    return null
-  }
-
-  /** Tile indices are 1-based; convert to 0-based level pixels, then base pixels */
-  const minX = (minTileCol - 1) * tileCols * levelScaleFactor
-  const maxX = maxTileCol * tileCols * levelScaleFactor
-  const minY = (minTileRow - 1) * tileRows * levelScaleFactor
-  const maxY = maxTileRow * tileRows * levelScaleFactor
-
-  /**
-   * Apply fitted-pyramid origin offset (physical origin between SEG and base),
-   * then convert to map coordinates. Y is inverted: map Y = -(pixel Y + 1).
-   */
-  const offsetX = pixelOffset[0] || 0
-  const offsetY = pixelOffset[1] || 0
-  return [
-    offsetX + minX,
-    -(offsetY + maxY + 1),
-    offsetX + maxX,
-    -(offsetY + minY + 1),
-  ]
+  return boxes
 }
 
 export {
@@ -1356,7 +1345,7 @@ export {
   _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
   _computeImagePyramid,
-  _computeSegmentBoundingBox,
+  _computeSegmentBoundingBoxes,
   _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _findClosestResolutionIndex,
