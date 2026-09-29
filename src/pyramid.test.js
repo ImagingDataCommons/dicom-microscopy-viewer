@@ -7,7 +7,7 @@ const {
   _findClosestResolutionIndex,
   _fitImagePyramid,
   _isSparseTileMissing,
-  _overviewStampRect,
+  _overviewStampExtent,
   _paletteBandToObjectUrl,
   _paletteIndex,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
@@ -96,32 +96,42 @@ describe('_paletteIndex', () => {
   })
 })
 
-describe('_overviewStampRect', () => {
+describe('_overviewStampExtent', () => {
   /** ~280×280 patch at fitResolution 1.19 → map extent width/height ≈ 333 */
   const frame = [7000, -45333, 7333, -45000]
-  const view = [0, -100000, 100000, 0]
   const nativeSize = [280, 280]
 
-  it('expands a sub-pixel frame to the minimum stamp', () => {
-    const stamp = _overviewStampRect(frame, view, 390, 2, nativeSize)
-    expect(stamp).not.toBeNull()
-    expect(stamp.w).toBe(PER_FRAME_OVERVIEW_MIN_PX * 2)
-    expect(stamp.h).toBe(PER_FRAME_OVERVIEW_MIN_PX * 2)
+  it('grows a sub-pixel frame to the minimum stamp around its center', () => {
+    const resolution = 390
+    const stamp = _overviewStampExtent(frame, resolution, nativeSize)
+    const side = PER_FRAME_OVERVIEW_MIN_PX * resolution
+    expect(stamp[2] - stamp[0]).toBeCloseTo(side)
+    expect(stamp[3] - stamp[1]).toBeCloseTo(side)
+    expect((stamp[0] + stamp[2]) / 2).toBeCloseTo((frame[0] + frame[2]) / 2)
+    expect((stamp[1] + stamp[3]) / 2).toBeCloseTo((frame[1] + frame[3]) / 2)
   })
 
-  it('keeps the stamp through mid-zoom where the sparse mask is still empty', () => {
+  it('keeps the frame extent through mid-zoom where the mask is still empty', () => {
     /**
      * At ~128 CSS px (old handoff) nearest-neighbor nuclei vanish. Native-aware
      * handoff (~0.9×280) must still show a stamp here.
      */
-    const mid = _overviewStampRect(frame, view, 2.6, 2, nativeSize)
-    expect(mid).not.toBeNull()
+    expect(_overviewStampExtent(frame, 2.6, nativeSize)).toEqual(frame)
     expect(PER_FRAME_OVERVIEW_HANDOFF_RATIO).toBeGreaterThan(0.5)
-    expect(PER_FRAME_OVERVIEW_HANDOFF_PX).toBeGreaterThan(128)
   })
 
   it('drops the stamp once the frame is near native on-screen size', () => {
-    expect(_overviewStampRect(frame, view, 1.19, 2, nativeSize)).toBeNull()
+    expect(_overviewStampExtent(frame, 1.19, nativeSize)).toBeNull()
+  })
+
+  it('falls back to the fixed handoff when native size is unknown', () => {
+    const atFallback = 333 / PER_FRAME_OVERVIEW_HANDOFF_PX
+    expect(_overviewStampExtent(frame, atFallback * 0.99)).toBeNull()
+    expect(_overviewStampExtent(frame, atFallback * 1.1)).toEqual(frame)
+  })
+
+  it('returns null for an invalid resolution', () => {
+    expect(_overviewStampExtent(frame, 0, nativeSize)).toBeNull()
   })
 })
 
@@ -185,6 +195,19 @@ describe('_isSparseTileMissing', () => {
   it('never skips tiles of non-sparse levels', () => {
     const full = { ...pyramid, dimensionOrganizationTypes: ['TILED_FULL'] }
     expect(_isSparseTileMissing(full, 1, 0, 2, 4)).toBe(false)
+  })
+
+  it('never skips tiles when the organization type is unknown', () => {
+    const unknown = { frameMappings: pyramid.frameMappings }
+    expect(_isSparseTileMissing(unknown, 1, 0, 2, 4)).toBe(false)
+  })
+
+  it('keeps LABELMAP frames, which are mapped under every segment number', () => {
+    const labelmap = {
+      dimensionOrganizationTypes: ['TILED_SPARSE'],
+      frameMappings: [{ '1-1-1': 'seg/frames/1', '1-1-2': 'seg/frames/1' }],
+    }
+    expect(_isSparseTileMissing(labelmap, 2, 0, 0, 0)).toBe(false)
   })
 })
 

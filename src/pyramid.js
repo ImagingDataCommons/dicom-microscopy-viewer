@@ -1070,57 +1070,44 @@ const PER_FRAME_OVERVIEW_HANDOFF_PX = 256
 const PER_FRAME_OVERVIEW_HANDOFF_RATIO = 0.9
 
 /**
- * Screen rectangle for one overview stamp, in device pixels of an ImageCanvas
- * whose extent is `viewExtent`. Returns null when the frame is large enough
- * for the raster mask to take over.
+ * Map extent of one overview stamp at a view resolution. Returns null when
+ * the frame is large enough on screen for the raster mask to take over;
+ * otherwise the frame extent, grown around its center to at least
+ * `PER_FRAME_OVERVIEW_MIN_PX` CSS px.
  *
- * @param {number[]} frameExtent
- * @param {number[]} viewExtent
- * @param {number} resolution
- * @param {number} pixelRatio
+ * @param {number[]} frameExtent - `[minX, minY, maxX, maxY]` in map units
+ * @param {number} resolution - Map units per CSS pixel
  * @param {number[]} [nativeSize] - `[width, height]` of the decoded frame
- * @returns {{x: number, y: number, w: number, h: number}|null}
+ * @returns {number[]|null}
  */
-function _overviewStampRect(
-  frameExtent,
-  viewExtent,
-  resolution,
-  pixelRatio,
-  nativeSize,
-) {
-  if (!(resolution > 0) || !(pixelRatio > 0)) {
+function _overviewStampExtent(frameExtent, resolution, nativeSize) {
+  if (!(resolution > 0) || !frameExtent) {
     return null
   }
-  const [fMinX, fMinY, fMaxX, fMaxY] = frameExtent
-  const [vMinX, , , vMaxY] = viewExtent
-  const scale = pixelRatio / resolution
-  let x = (fMinX - vMinX) * scale
-  let y = (vMaxY - fMaxY) * scale
-  let w = (fMaxX - fMinX) * scale
-  let h = (fMaxY - fMinY) * scale
+  const [minX, minY, maxX, maxY] = frameExtent
+  const cssW = (maxX - minX) / resolution
+  const cssH = (maxY - minY) / resolution
   const nativeW = nativeSize?.[0]
   const nativeH = nativeSize?.[1]
-  const handoffCssW =
+  const handoffW =
     Number.isFinite(nativeW) && nativeW > 0
       ? nativeW * PER_FRAME_OVERVIEW_HANDOFF_RATIO
       : PER_FRAME_OVERVIEW_HANDOFF_PX
-  const handoffCssH =
+  const handoffH =
     Number.isFinite(nativeH) && nativeH > 0
       ? nativeH * PER_FRAME_OVERVIEW_HANDOFF_RATIO
       : PER_FRAME_OVERVIEW_HANDOFF_PX
-  if (w >= handoffCssW * pixelRatio && h >= handoffCssH * pixelRatio) {
+  if (cssW >= handoffW && cssH >= handoffH) {
     return null
   }
-  const minPx = PER_FRAME_OVERVIEW_MIN_PX * pixelRatio
-  if (w < minPx || h < minPx) {
-    const cx = x + w / 2
-    const cy = y + h / 2
-    w = Math.max(w, minPx)
-    h = Math.max(h, minPx)
-    x = cx - w / 2
-    y = cy - h / 2
+  if (cssW >= PER_FRAME_OVERVIEW_MIN_PX && cssH >= PER_FRAME_OVERVIEW_MIN_PX) {
+    return [minX, minY, maxX, maxY]
   }
-  return { x, y, w, h }
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  const halfW = (Math.max(cssW, PER_FRAME_OVERVIEW_MIN_PX) * resolution) / 2
+  const halfH = (Math.max(cssH, PER_FRAME_OVERVIEW_MIN_PX) * resolution) / 2
+  return [cx - halfW, cy - halfH, cx + halfW, cy + halfH]
 }
 
 /**
@@ -1291,7 +1278,7 @@ export {
   _fitImagePyramid,
   _getIccProfiles,
   _isSparseTileMissing,
-  _overviewStampRect,
+  _overviewStampExtent,
   _paletteBandToObjectUrl,
   _paletteIndex,
   PER_FRAME_OVERVIEW_HANDOFF_PX,

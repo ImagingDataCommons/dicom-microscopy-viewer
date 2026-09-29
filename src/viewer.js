@@ -88,9 +88,7 @@ import {
   _fitImagePyramid,
   _getIccProfiles,
   _isSparseTileMissing,
-  PER_FRAME_OVERVIEW_HANDOFF_PX,
-  PER_FRAME_OVERVIEW_HANDOFF_RATIO,
-  PER_FRAME_OVERVIEW_MIN_PX,
+  _overviewStampExtent,
 } from './pyramid.js'
 import { ROI } from './roi.js'
 import {
@@ -205,6 +203,45 @@ function _getSegmentTileLayers(segment) {
 }
 
 /**
+ * Tile source for a segment overlay rendered as a WebGL tile layer.
+ *
+ * A single-level sparse SEG makes OpenLayers enqueue every grid cell in view
+ * when zoomed out. Blank tiles for missing frames exceed the tile cache
+ * (`tilesCacheSize`) and evict the real frames before they draw. Returning
+ * null is OpenLayers' "no tile here" contract; levels that are not
+ * TILED_SPARSE are unaffected.
+ *
+ * @param {Object} options
+ * @param {import('ol/tilegrid/TileGrid').default} options.tileGrid
+ * @param {import('ol/proj/Projection').default} options.projection
+ * @param {boolean} options.interpolate
+ * @param {Object} options.pyramid - Fitted pyramid used by the tile loader
+ * @param {number} options.segmentNumber
+ * @returns {import('ol/source/DataTile').default}
+ */
+function _createSegmentTileSource({
+  tileGrid,
+  projection,
+  interpolate,
+  pyramid,
+  segmentNumber,
+}) {
+  const source = new DataTileSource({
+    tileGrid,
+    projection,
+    wrapX: false,
+    bandCount: 1,
+    interpolate,
+  })
+  const getTile = source.getTile.bind(source)
+  source.getTile = (z, x, y, ...rest) =>
+    _isSparseTileMissing(pyramid, segmentNumber, z, x, y)
+      ? null
+      : getTile(z, x, y, ...rest)
+  return source
+}
+
+/**
  * Invalidate overview stamp styles after a palette or opacity change.
  *
  * @param {Object} segment
@@ -231,6 +268,25 @@ function _perFrameOverviewColor(segment) {
 }
 
 /**
+ * Layer property marking per-frame SEG overview markers. They are not
+ * annotations, so feature hit detection must skip them.
+ */
+const SEGMENT_OVERVIEW_LAYER = 'segmentOverview'
+
+/**
+ * Whether a layer holds annotation features for click / hover handling.
+ *
+ * @param {import('ol/layer/Base').default} layer
+ * @returns {boolean}
+ */
+function _isAnnotationFeatureLayer(layer) {
+  return (
+    (layer instanceof VectorLayer || layer instanceof WebGLVector) &&
+    !layer.get(SEGMENT_OVERVIEW_LAYER)
+  )
+}
+
+/**
  * Vector markers for sparse frames. ImageCanvas stamps went blank while
  * zooming because ImageLayer freezes during interaction and can keep an
  * empty canvas from the zoomed-in state. VectorLayer redraws continuously
@@ -243,79 +299,45 @@ function _perFrameOverviewColor(segment) {
  * @returns {import('ol/layer/Vector').default}
  */
 function _createPerFrameOverviewLayer(segment) {
-  const features = (segment.overviewFrames || []).map((frame, index) => {
-    const frameExtent = Array.isArray(frame) ? frame : frame.extent
-    const nativeSize = Array.isArray(frame) ? undefined : frame.nativeSize
-    const feature = new Feature({
-      geometry: polygonFromExtent(frameExtent),
-      frameExtent: [...frameExtent],
-      nativeSize: nativeSize ? [...nativeSize] : undefined,
-    })
-    feature.setId(`seg-overview-${index}`)
-    return feature
-  })
+  const features = (segment.overviewFrames || []).map(
+    (frame) =>
+      new Feature({
+        geometry: polygonFromExtent(frame.extent),
+        frameExtent: [...frame.extent],
+        nativeSize: [...frame.nativeSize],
+      }),
+  )
 
+  let styleColor
+  let fill
+  let stroke
   return new VectorLayer({
     source: new VectorSource({
       features,
       wrapX: false,
     }),
+    properties: { [SEGMENT_OVERVIEW_LAYER]: true },
     updateWhileAnimating: true,
     updateWhileInteracting: true,
-    zIndex: 1000,
     style: (feature, resolution) => {
-      if (!(resolution > 0)) {
+      const stampExtent = _overviewStampExtent(
+        feature.get('frameExtent'),
+        resolution,
+        feature.get('nativeSize'),
+      )
+      if (!stampExtent) {
         return null
       }
-      const frameExtent = feature.get('frameExtent')
-      const nativeSize = feature.get('nativeSize')
-      if (!frameExtent) {
-        return null
-      }
-
-      const cssW = getWidth(frameExtent) / resolution
-      const cssH = getHeight(frameExtent) / resolution
-      const nativeW = nativeSize?.[0]
-      const nativeH = nativeSize?.[1]
-      const handoffW =
-        Number.isFinite(nativeW) && nativeW > 0
-          ? nativeW * PER_FRAME_OVERVIEW_HANDOFF_RATIO
-          : PER_FRAME_OVERVIEW_HANDOFF_PX
-      const handoffH =
-        Number.isFinite(nativeH) && nativeH > 0
-          ? nativeH * PER_FRAME_OVERVIEW_HANDOFF_RATIO
-          : PER_FRAME_OVERVIEW_HANDOFF_PX
-
-      /**
-       * Near native size the ImageStatic mask is readable; hide the marker
-       * so it does not cover nuclei. Keep it through the mid-zoom gap.
-       */
-      if (cssW >= handoffW && cssH >= handoffH) {
-        return null
-      }
-
-      let [minX, minY, maxX, maxY] = frameExtent
-      if (
-        cssW < PER_FRAME_OVERVIEW_MIN_PX ||
-        cssH < PER_FRAME_OVERVIEW_MIN_PX
-      ) {
-        const cx = (minX + maxX) / 2
-        const cy = (minY + maxY) / 2
-        const halfW =
-          (Math.max(cssW, PER_FRAME_OVERVIEW_MIN_PX) * resolution) / 2
-        const halfH =
-          (Math.max(cssH, PER_FRAME_OVERVIEW_MIN_PX) * resolution) / 2
-        minX = cx - halfW
-        maxX = cx + halfW
-        minY = cy - halfH
-        maxY = cy + halfH
-      }
-
       const color = _perFrameOverviewColor(segment)
+      if (color !== styleColor) {
+        styleColor = color
+        fill = new Fill({ color })
+        stroke = new Stroke({ color, width: 1 })
+      }
       return new Style({
-        geometry: polygonFromExtent([minX, minY, maxX, maxY]),
-        fill: new Fill({ color }),
-        stroke: new Stroke({ color, width: 1 }),
+        geometry: polygonFromExtent(stampExtent),
+        fill,
+        stroke,
       })
     },
   })
@@ -2194,8 +2216,7 @@ class VolumeImageViewer {
     this[_map].on('pointermove', (event) => {
       const features = this[_map].getFeaturesAtPixel(event.pixel, {
         hitTolerance: 1,
-        layerFilter: (layer) =>
-          layer instanceof VectorLayer || layer instanceof WebGLVector,
+        layerFilter: _isAnnotationFeatureLayer,
       })
 
       const featuresWithROIs = []
@@ -2262,8 +2283,7 @@ class VolumeImageViewer {
         },
         {
           hitTolerance: 1,
-          layerFilter: (layer) =>
-            layer instanceof VectorLayer || layer instanceof WebGLVector,
+          layerFilter: _isAnnotationFeatureLayer,
         },
       )
     })
@@ -2280,7 +2300,9 @@ class VolumeImageViewer {
       }
 
       clickEvent = 'click'
-      const features = this[_map].getFeaturesAtPixel(event.pixel)
+      const features = this[_map].getFeaturesAtPixel(event.pixel, {
+        layerFilter: (layer) => !layer.get(SEGMENT_OVERVIEW_LAYER),
+      })
       const rois = features.map((feature) =>
         this._getROIFromFeature(
           feature,
@@ -2314,8 +2336,7 @@ class VolumeImageViewer {
         },
         {
           hitTolerance: 1,
-          layerFilter: (layer) =>
-            layer instanceof VectorLayer || layer instanceof WebGLVector,
+          layerFilter: _isAnnotationFeatureLayer,
         },
       )
     })
@@ -3009,12 +3030,12 @@ class VolumeImageViewer {
         segment.hasLoader = false
       } else {
         segment.layer.setSource(
-          new DataTileSource({
+          _createSegmentTileSource({
             tileGrid: this[_segmentationTileGrid],
             projection: this[_projection],
-            wrapX: false,
-            bandCount: 1,
             interpolate: this[_segmentationInterpolate],
+            pyramid: segment.loaderParams.pyramid,
+            segmentNumber: segment.loaderParams.channel,
           }),
         )
         segment.hasLoader = false
@@ -5156,8 +5177,7 @@ class VolumeImageViewer {
         },
         {
           hitTolerance: 1,
-          layerFilter: (layer) =>
-            layer instanceof VectorLayer || layer instanceof WebGLVector,
+          layerFilter: _isAnnotationFeatureLayer,
         },
       )
     })
@@ -6094,25 +6114,14 @@ class VolumeImageViewer {
           opacity: 1,
         })
       } else {
-        const source = new DataTileSource({
+        const source = _createSegmentTileSource({
           tileGrid,
           projection: this[_projection],
-          wrapX: false,
-          bandCount: 1,
           /** Avoid interpolation for single resolution (avoid blocky pixels) */
           interpolate: this[_segmentationInterpolate],
+          pyramid: fittedPyramid,
+          segmentNumber,
         })
-        /**
-         * A single-level sparse SEG makes OpenLayers enqueue every grid cell
-         * in view when zoomed out. Blank tiles for missing frames exceed the
-         * tile cache (`tilesCacheSize`) and evict the real frames before they
-         * draw. Returning null is OpenLayers' "no tile here" contract.
-         */
-        const getTile = source.getTile.bind(source)
-        source.getTile = (z, x, y, ...rest) =>
-          _isSparseTileMissing(fittedPyramid, segmentNumber, z, x, y)
-            ? null
-            : getTile(z, x, y, ...rest)
         source.on('tileloaderror', (event) => {
           console.error(
             `error loading tile of segment "${segmentUID}"`,
