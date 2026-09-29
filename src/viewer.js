@@ -752,7 +752,6 @@ const _highResSources = Symbol('highResSources')
 const _pointsSources = Symbol('pointsSources')
 const _clustersSources = Symbol('clustersSources')
 const _segmentationInterpolate = Symbol('segmentationInterpolate')
-const _segmentationTileGrid = Symbol('segmentationTileGrid')
 const _parametricMapInterpolate = Symbol('parametricMapInterpolate')
 const _mapViewResolutions = Symbol('mapViewResolutions')
 const _paletteDisplayGammaCorrectionEnabled = Symbol(
@@ -2685,10 +2684,11 @@ class VolumeImageViewer {
     const segments = Object.values(this[_segments])
 
     segments.forEach((segment) => {
+      const currentSource = segment.layer.getSource()
       segment.layer.setSource(
         new DataTileSource({
-          tileGrid: this[_segmentationTileGrid],
-          projection: this[_projection],
+          tileGrid: currentSource.getTileGrid(),
+          projection: currentSource.getProjection(),
           wrapX: false,
           bandCount: 1,
           interpolate: this[_segmentationInterpolate],
@@ -5434,7 +5434,6 @@ class VolumeImageViewer {
       sizes: fittedPyramid.gridSizes,
       tileSizes: fittedPyramid.tileSizes,
     })
-    this[_segmentationTileGrid] = tileGrid
 
     let minStoredValue = 0
     let maxStoredValue = 255
