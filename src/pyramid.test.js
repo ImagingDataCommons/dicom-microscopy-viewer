@@ -11,6 +11,7 @@ const {
   _overviewStampExtent,
   _paletteBandToDataUrl,
   _paletteIndex,
+  _perFrameRasterMaxResolution,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
   PER_FRAME_OVERVIEW_HANDOFF_RATIO,
   PER_FRAME_OVERVIEW_MIN_PX,
@@ -386,8 +387,7 @@ describe('_fitImagePyramid zoom indices', () => {
     expect(maxZoom).toBe(1)
   })
 
-  it('maps non-matching fitted resolution to closest base zoom', () => {
-    const refPyramid = {
+  const buildNonMatchingRefPyramid = () => ({
       extent: [0, -2049, 2048, -1],
       origins: [
         [0, -1],
@@ -447,16 +447,20 @@ describe('_fitImagePyramid zoom indices', () => {
           ],
         },
       ],
-    }
-    /** Spacing ~1.2× finest base → no exact match */
-    const segPyramid = stubLevel({
+  })
+
+  /** Spacing ~1.2× finest base → no exact match */
+  const buildNonMatchingSegPyramid = () =>
+    stubLevel({
       spacing: [0.0006, 0.0006],
       resolution: 1.2,
       sop: 'seg.sparse',
     })
 
+  it('maps non-matching fitted resolution to closest base zoom', () => {
+    const refPyramid = buildNonMatchingRefPyramid()
     const [, minZoom, maxZoom, hasMatchingLevels] = _fitImagePyramid(
-      segPyramid,
+      buildNonMatchingSegPyramid(),
       refPyramid,
     )
 
@@ -467,5 +471,73 @@ describe('_fitImagePyramid zoom indices', () => {
     )
     /** Must not fall back to the full base range 0..n-1 */
     expect(minZoom).not.toBe(0)
+  })
+
+  it('keeps the exact spacing ratio as the fitted resolution', () => {
+    const [fittedPyramid] = _fitImagePyramid(
+      buildNonMatchingSegPyramid(),
+      buildNonMatchingRefPyramid(),
+    )
+
+    expect(fittedPyramid.fitResolution).toBe(0.0006 / 0.0005)
+    expect(fittedPyramid.resolutions).toEqual([0.0006 / 0.0005])
+  })
+
+  it('places the SEG at the base origin when both origins match', () => {
+    const [fittedPyramid] = _fitImagePyramid(
+      buildNonMatchingSegPyramid(),
+      buildNonMatchingRefPyramid(),
+    )
+    const size = 1024 * (0.0006 / 0.0005)
+
+    expect(fittedPyramid.pixelOriginOffset).toEqual([0, 0])
+    expect(fittedPyramid.extent).toEqual([0, -(size + 1), size, -1])
+  })
+
+  it('maps a slide origin offset to base columns and rows by orientation', () => {
+    /**
+     * With ImageOrientationSlide [0,-1,0,-1,0,0], slide X runs against the
+     * row index and slide Y against the column index (0.0005 mm per pixel).
+     */
+    const segPyramid = buildNonMatchingSegPyramid()
+    segPyramid.metadata[0].TotalPixelMatrixOriginSequence = [
+      {
+        XOffsetInSlideCoordinateSystem: -0.05,
+        YOffsetInSlideCoordinateSystem: -0.025,
+      },
+    ]
+    const [fittedPyramid] = _fitImagePyramid(
+      segPyramid,
+      buildNonMatchingRefPyramid(),
+    )
+    const [offsetX, offsetY] = fittedPyramid.pixelOriginOffset
+    const size = 1024 * (0.0006 / 0.0005)
+
+    expect(offsetX).toBeCloseTo(50)
+    expect(offsetY).toBeCloseTo(100)
+    expect(fittedPyramid.extent[0]).toBeCloseTo(50)
+    expect(fittedPyramid.extent[1]).toBeCloseTo(-(100 + size + 1))
+    expect(fittedPyramid.extent[3]).toBeCloseTo(-101)
+  })
+})
+
+describe('_perFrameRasterMaxResolution', () => {
+  /** ~280×280 patch at fitResolution 333/280 → map extent ≈ 333 */
+  const frame = [7000, -45333, 7333, -45000]
+  const nativeSize = [280, 280]
+  const fitResolution = 333 / 280
+
+  it('shows rasters before the overview stamps hand off', () => {
+    const handoffResolution = fitResolution / PER_FRAME_OVERVIEW_HANDOFF_RATIO
+    expect(_perFrameRasterMaxResolution(fitResolution)).toBeGreaterThan(
+      handoffResolution,
+    )
+  })
+
+  it('leaves no gap: stamps still cover frames where rasters are hidden', () => {
+    const maxResolution = _perFrameRasterMaxResolution(fitResolution)
+    expect(_overviewStampExtent(frame, maxResolution, nativeSize)).toEqual(
+      frame,
+    )
   })
 })

@@ -8,8 +8,10 @@ import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import {
   _fetchBulkdata,
+  applyInverseTransform,
   are1DArraysAlmostEqual,
   are2DArraysAlmostEqual,
+  buildInverseTransform,
 } from './utils.js'
 
 /**
@@ -667,75 +669,41 @@ function _fitImagePyramid(pyramid, refPyramid) {
       const segPixelSpacing = getPixelSpacing(segmentation)
 
       /**
-       * Calculate resolution based on ratio of pixel spacings.
-       * For TILED_SPARSE, we MUST use the exact resolution (not rounded)
-       * to ensure tiles are rendered at the correct scale and position.
-       * Rounding causes misalignment because the tiles would be scaled incorrectly.
+       * Exact ratio of pixel spacings. Rounding would scale sparse tiles and
+       * frames differently from the extent and misalign them.
        */
       const resolution = segPixelSpacing[0] / refBasePixelSpacing[0]
-      const finalResolution = parseFloat(resolution.toFixed(4))
 
       /**
-       * For TILED_SPARSE overlays at non-matching resolutions:
-       * Calculate where the SEG's origin is in base image pixel coordinates,
-       * then create an extent that positions the SEG correctly.
+       * Offset of the SEG origin from the base origin, in base image pixels
+       * (column, row). Zero when either origin or the orientation is missing.
        */
       const refOriginSeq = refBaseLevel.TotalPixelMatrixOriginSequence?.[0]
       const segOriginSeq = segmentation.TotalPixelMatrixOriginSequence?.[0]
-
-      /** Default to using scaled SEG extent if origins match or are unavailable */
+      const orientation = refBaseLevel.ImageOrientationSlide
       let offsetX = 0
       let offsetY = 0
-
-      if (refOriginSeq && segOriginSeq) {
-        const refOriginX = Number(
-          refOriginSeq.XOffsetInSlideCoordinateSystem || 0,
-        )
-        const refOriginY = Number(
-          refOriginSeq.YOffsetInSlideCoordinateSystem || 0,
-        )
-        const segOriginX = Number(
-          segOriginSeq.XOffsetInSlideCoordinateSystem || 0,
-        )
-        const segOriginY = Number(
-          segOriginSeq.YOffsetInSlideCoordinateSystem || 0,
-        )
-
-        /**
-         * Calculate the physical offset between origins.
-         * Then convert to base image pixel coordinates.
-         */
-        const physicalOffsetX = segOriginX - refOriginX
-        const physicalOffsetY = segOriginY - refOriginY
-
-        /**
-         * Convert physical offset to base image pixels.
-         * Need to account for ImageOrientationSlide.
-         */
-        const orientation = refBaseLevel.ImageOrientationSlide
-        if (orientation) {
-          const rowCosines = orientation.slice(0, 3)
-          const colCosines = orientation.slice(3, 6)
-
-          /**
-           * For standard orientations, the offset in pixels is:
-           * pixelCol = physicalX / (colCosines[0] * spacing[1]) approximately
-           * But this is complex - for now, use simpler approximation
-           */
-          offsetX = physicalOffsetX / refBasePixelSpacing[1]
-          offsetY = physicalOffsetY / refBasePixelSpacing[0]
-
-          /**
-           * Adjust for orientation - common case is [0,-1,0,-1,0,0]
-           * which means col direction is -X and row direction is -Y
-           */
-          if (Math.abs(colCosines[0]) > 0.5) {
-            offsetX = physicalOffsetX / (colCosines[0] * refBasePixelSpacing[1])
-          }
-          if (Math.abs(rowCosines[1]) > 0.5) {
-            offsetY = physicalOffsetY / (rowCosines[1] * refBasePixelSpacing[0])
-          }
-        }
+      if (refOriginSeq && segOriginSeq && orientation?.length === 6) {
+        const toSlideCoordinate = (originSeq) => [
+          Number(originSeq.XOffsetInSlideCoordinateSystem || 0),
+          Number(originSeq.YOffsetInSlideCoordinateSystem || 0),
+        ]
+        const refOrigin = toSlideCoordinate(refOriginSeq)
+        const affine = buildInverseTransform({
+          offset: refOrigin,
+          orientation: orientation.map(Number),
+          spacing: refBasePixelSpacing,
+        })
+        const [refCol, refRow] = applyInverseTransform({
+          coordinate: refOrigin,
+          affine,
+        })
+        const [segCol, segRow] = applyInverseTransform({
+          coordinate: toSlideCoordinate(segOriginSeq),
+          affine,
+        })
+        offsetX = segCol - refCol
+        offsetY = segRow - refRow
       }
 
       /**
@@ -823,14 +791,14 @@ function _fitImagePyramid(pyramid, refPyramid) {
               `[SPARSE] ${inconsistentCount}/${perframeFuncGroups.length} frames have different sub-tile offsets; using per-frame placement.`,
             )
           } else {
-            const baseRowOffset = firstOffset.subTileRowOffset * finalResolution
-            const baseColOffset = firstOffset.subTileColOffset * finalResolution
+            const baseRowOffset = firstOffset.subTileRowOffset * resolution
+            const baseColOffset = firstOffset.subTileColOffset * resolution
             tileOriginOffset = [baseColOffset, -baseRowOffset]
           }
         }
       }
 
-      fittedPyramid.fitResolution = finalResolution
+      fittedPyramid.fitResolution = resolution
       fittedPyramid.pixelOriginOffset = [offsetX, offsetY]
 
       /**
@@ -850,7 +818,7 @@ function _fitImagePyramid(pyramid, refPyramid) {
       fittedPyramid.origins.push(adjustedOrigin)
       fittedPyramid.gridSizes.push([...pyramid.gridSizes[j]])
       fittedPyramid.tileSizes.push([...pyramid.tileSizes[j]])
-      fittedPyramid.resolutions.push(finalResolution)
+      fittedPyramid.resolutions.push(resolution)
       fittedPyramid.pixelSpacings.push([...pyramid.pixelSpacings[j]])
       fittedPyramid.metadata.push(pyramid.metadata[j])
       fittedPyramid.frameMappings.push(pyramid.frameMappings[j])
@@ -1069,6 +1037,27 @@ const PER_FRAME_OVERVIEW_HANDOFF_PX = 256
  * off at a fixed ~128 CSS px left a dead zone while zooming out.
  */
 const PER_FRAME_OVERVIEW_HANDOFF_RATIO = 0.9
+
+/**
+ * Frame rasters become visible at this multiple of the stamp handoff
+ * resolution, so they are decoded before the stamps disappear.
+ */
+const PER_FRAME_RASTER_PRELOAD_FACTOR = 2
+
+/**
+ * Coarsest view resolution (exclusive) at which per-frame rasters are drawn.
+ * Above it the overview stamps cover every frame, and loading the rasters
+ * would fetch and decode each frame in view for nothing.
+ *
+ * @param {number} fitResolution - Base pixels per SEG pixel
+ * @returns {number}
+ */
+function _perFrameRasterMaxResolution(fitResolution) {
+  return (
+    (fitResolution / PER_FRAME_OVERVIEW_HANDOFF_RATIO) *
+    PER_FRAME_RASTER_PRELOAD_FACTOR
+  )
+}
 
 /**
  * Map extent of one overview stamp at a view resolution. Returns null when
@@ -1364,6 +1353,7 @@ export {
   _overviewStampExtent,
   _paletteBandToDataUrl,
   _paletteIndex,
+  _perFrameRasterMaxResolution,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
   PER_FRAME_OVERVIEW_HANDOFF_RATIO,
   PER_FRAME_OVERVIEW_MIN_PX,

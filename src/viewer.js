@@ -90,6 +90,7 @@ import {
   _getIccProfiles,
   _isSparseTileMissing,
   _overviewStampExtent,
+  _perFrameRasterMaxResolution,
 } from './pyramid.js'
 import { ROI } from './roi.js'
 import {
@@ -981,7 +982,6 @@ const _highResSources = Symbol('highResSources')
 const _pointsSources = Symbol('pointsSources')
 const _clustersSources = Symbol('clustersSources')
 const _segmentationInterpolate = Symbol('segmentationInterpolate')
-const _segmentationTileGrid = Symbol('segmentationTileGrid')
 const _parametricMapInterpolate = Symbol('parametricMapInterpolate')
 const _mapViewResolutions = Symbol('mapViewResolutions')
 const _paletteDisplayGammaCorrectionEnabled = Symbol(
@@ -2920,16 +2920,18 @@ class VolumeImageViewer {
     const segments = Object.values(this[_segments])
 
     segments.forEach((segment) => {
-      if (segment.usePerFrameImages && segment.frameLayers?.length) {
+      if (segment.usePerFrameImages) {
+        /** Rebuilds sources with the cached frame data instead of refetching */
         segment.frameLoaderParams.forEach((params) => {
           params.interpolate = this[_segmentationInterpolate]
         })
-        segment.hasLoader = false
+        _refreshPerFrameSegmentImages(segment)
       } else {
+        const currentSource = segment.layer.getSource()
         segment.layer.setSource(
           _createSegmentTileSource({
-            tileGrid: this[_segmentationTileGrid],
-            projection: this[_projection],
+            tileGrid: currentSource.getTileGrid(),
+            projection: currentSource.getProjection(),
             interpolate: this[_segmentationInterpolate],
             pyramid: segment.loaderParams.pyramid,
             segmentNumber: segment.loaderParams.channel,
@@ -5698,8 +5700,6 @@ class VolumeImageViewer {
       sizes: fittedPyramid.gridSizes,
       tileSizes: fittedPyramid.tileSizes,
     })
-    this[_segmentationTileGrid] = tileGrid
-
     let minStoredValue = 0
     let maxStoredValue = 255
     if (refSegmentation.SegmentationType === 'BINARY') {
@@ -5963,6 +5963,7 @@ class VolumeImageViewer {
         const frameLayers = []
         const frameLoaderParams = []
         const overviewFrames = []
+        const frameMaxResolution = _perFrameRasterMaxResolution(fitResolution)
 
         placements.forEach((placement) => {
           const { pyramid: framePyramid, nativeSize } =
@@ -5981,12 +5982,13 @@ class VolumeImageViewer {
               url: '',
             }),
             extent: placement.extent,
+            maxResolution: frameMaxResolution,
             opacity: 1,
           })
           frameLayers.push(frameLayer)
           frameLoaderParams.push({
             pyramid: framePyramid,
-            client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
+            client: segment.loaderParams.client,
             channel: segmentNumber,
             labelmapSegmentNumber: segment.loaderParams.labelmapSegmentNumber,
             nativeSize,
@@ -6135,7 +6137,7 @@ class VolumeImageViewer {
 
     if (container && !segment.hasLoader) {
       try {
-        if (segment.usePerFrameImages && segment.frameLoaderParams?.length) {
+        if (segment.usePerFrameImages) {
           segment.frameLoaderParams.forEach((loaderParams, index) => {
             const imageLoadFunction = _createPerFrameImageLoadFunction({
               targetElement: container,
@@ -7011,10 +7013,8 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
-      pyramid,
-      this[_pyramid],
-    )
+    const [fittedPyramid, minZoomLevel, maxZoomLevel, hasMatchingLevels] =
+      _fitImagePyramid(pyramid, this[_pyramid])
 
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
@@ -7164,6 +7164,7 @@ class VolumeImageViewer {
         realWorldValueRange: range, // Store real world value range for legend
         minZoomLevel,
         maxZoomLevel,
+        hasMatchingLevels,
         loaderParams: {
           pyramid: fittedPyramid,
           client: _getClient(this[_clients], Enums.SOPClassUIDs.PARAMETRIC_MAP),
@@ -7292,7 +7293,12 @@ class VolumeImageViewer {
     const resolutions = this[_pyramid].resolutions
     const minIndex = mapping.minZoomLevel
     const maxIndex = mapping.maxZoomLevel
+    /**
+     * Without matching levels the range collapses to one closest index, so
+     * this check would move the view on every show. Keep the view as is.
+     */
     if (
+      mapping.hasMatchingLevels &&
       resolutions != null &&
       resolutions.length > 0 &&
       Number.isInteger(minIndex) &&
