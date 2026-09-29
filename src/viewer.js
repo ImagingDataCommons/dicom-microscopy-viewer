@@ -5390,14 +5390,48 @@ class VolumeImageViewer {
     }
 
     /**
-     * Fractional segments are colorized with distinct, single-hue color maps so
-     * that multiple overlays are easy to tell apart and to match against the
-     * legend (see issue #240). Continue the hue sequence from any fractional
-     * segments that already exist so newly added series do not reuse hues.
+     * LABELMAP segmentation encodes all segments in a single frame where pixel
+     * values represent segment numbers. After pixel masking in the tile loader,
+     * each segment's layer becomes binary (0 or 1).
+     */
+    const isLabelmap = refSegmentation.SegmentationType === 'LABELMAP'
+    if (isLabelmap) {
+      minStoredValue = 0
+      maxStoredValue = 1
+    }
+
+    /**
+     * Fractional segments are colorized with distinct, single-hue color maps
+     * so that multiple overlays are easy to tell apart and to match against
+     * the legend (see issue #240). Continue the hue sequence from any existing
+     * segments that use distinct colormaps so newly added series do not reuse
+     * hues.
+     *
+     * LABELMAP segments are treated like BINARY: they use explicit colors from
+     * RecommendedDisplayCIELabValue when present, or a stable solid hue.
      */
     const isFractional = refSegmentation.SegmentationType === 'FRACTIONAL'
-    let fractionalOrdinal = Object.values(this[_segments]).filter(
+    const useDistinctColormap = isFractional
+    let distinctColormapOrdinal = Object.values(this[_segments]).filter(
       (existing) => existing.segmentationType === 'FRACTIONAL',
+    ).length
+
+    /**
+     * Stable hue palette for LABELMAP segments without
+     * RecommendedDisplayCIELabValue. Cycles through distinct colors.
+     */
+    const stableSegmentColors = [
+      [255, 0, 0], // Red
+      [0, 255, 0], // Green
+      [0, 0, 255], // Blue
+      [255, 255, 0], // Yellow
+      [255, 0, 255], // Magenta
+      [0, 255, 255], // Cyan
+      [255, 128, 0], // Orange
+      [128, 0, 255], // Purple
+    ]
+    let stableColorIndex = Object.values(this[_segments]).filter(
+      (existing) => existing.segmentationType === 'LABELMAP',
     ).length
 
     refSegmentation.SegmentSequence.forEach((item, _index) => {
@@ -5416,15 +5450,66 @@ class VolumeImageViewer {
         segmentUID = item.TrackingUID
       }
 
-      const colormap = isFractional
-        ? createDistinctColormap({
-            index: fractionalOrdinal++,
-            bins: 2 ** 8,
-          })
-        : createColormap({
-            name: ColormapNames.VIRIDIS,
-            bins: 2 ** 8,
-          })
+      /**
+       * Determine colormap based on segmentation type:
+       * - FRACTIONAL: distinct single-hue colormap (256 bins)
+       * - BINARY: VIRIDIS gradient colormap (original behavior, Slim overrides)
+       * - LABELMAP: simple 2-entry palette with explicit color
+       */
+      let colormap
+      let segmentColor = null
+
+      if (useDistinctColormap) {
+        /** FRACTIONAL: use distinct colormap */
+        colormap = createDistinctColormap({
+          index: distinctColormapOrdinal++,
+          bins: 2 ** 8,
+        })
+      } else if (isLabelmap) {
+        /**
+         * LABELMAP: use explicit color from RecommendedDisplayCIELabValue
+         * if present, otherwise use stable solid color. Creates a simple
+         * 2-entry palette since LABELMAP is masked to binary 0/1 values.
+         */
+        if (
+          item.RecommendedDisplayCIELabValue &&
+          Array.isArray(item.RecommendedDisplayCIELabValue) &&
+          item.RecommendedDisplayCIELabValue.length >= 3
+        ) {
+          try {
+            const labValues = item.RecommendedDisplayCIELabValue
+            const rgb = dcmjs.data.Colors.dicomlab2RGB(labValues)
+            segmentColor = [
+              Math.max(0, Math.min(255, Math.round(rgb[0] * 255))),
+              Math.max(0, Math.min(255, Math.round(rgb[1] * 255))),
+              Math.max(0, Math.min(255, Math.round(rgb[2] * 255))),
+            ]
+          } catch (error) {
+            console.warn(
+              `Failed to convert RecommendedDisplayCIELabValue for segment #${segmentNumber}:`,
+              error,
+            )
+          }
+        }
+
+        /** Fallback to stable color if no DICOM color specified */
+        if (!segmentColor) {
+          segmentColor =
+            stableSegmentColors[stableColorIndex++ % stableSegmentColors.length]
+        }
+
+        /** Create simple 2-entry palette: [background, segmentColor] */
+        colormap = [[0, 0, 0], segmentColor]
+      } else {
+        /**
+         * BINARY and unknown types: use VIRIDIS gradient colormap.
+         * For BINARY, Slim typically overrides this with explicit colors.
+         */
+        colormap = createColormap({
+          name: ColormapNames.VIRIDIS,
+          bins: 2 ** 8,
+        })
+      }
 
       const defaultSegmentStyle = {
         opacity: 0.75,
@@ -5435,6 +5520,25 @@ class VolumeImageViewer {
           applyDisplayGammaCorrection:
             this[_paletteDisplayGammaCorrectionEnabled],
         }),
+      }
+
+      /**
+       * Detect if this segment represents background:
+       * 1. SegmentNumber matches PixelPaddingValue (0028,0120)
+       * 2. Segmented Property Type Code is (DCM, 125040, "Background")
+       */
+      let isBackgroundSegment = false
+      const pixelPaddingValue = refSegmentation.PixelPaddingValue
+      if (pixelPaddingValue != null && segmentNumber === pixelPaddingValue) {
+        isBackgroundSegment = true
+      }
+      const propertyType = item.SegmentedPropertyTypeCodeSequence?.[0]
+      if (
+        propertyType &&
+        propertyType.CodingSchemeDesignator === 'DCM' &&
+        propertyType.CodeValue === '125040'
+      ) {
+        isBackgroundSegment = true
       }
 
       const segment = {
@@ -5451,6 +5555,7 @@ class VolumeImageViewer {
           sopInstanceUIDs: pyramid.metadata.map((element) => {
             return element.SOPInstanceUID
           }),
+          isBackground: isBackgroundSegment,
         }),
         pyramid,
         style: { ...defaultSegmentStyle },
@@ -5461,8 +5566,14 @@ class VolumeImageViewer {
         maxZoomLevel,
         loaderParams: {
           pyramid: fittedPyramid,
-          client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
+          client: _getClient(this[_clients], refSegmentation.SOPClassUID),
           channel: segmentNumber,
+          /**
+           * For LABELMAP, the tile loader needs to mask pixels after decoding
+           * to create a binary layer where only pixels matching this segment
+           * number are preserved.
+           */
+          labelmapSegmentNumber: isLabelmap ? segmentNumber : undefined,
         },
         hasLoader: false,
         segmentationType: refSegmentation.SegmentationType,
@@ -5492,6 +5603,15 @@ class VolumeImageViewer {
         minStoredValue,
         maxStoredValue,
       )
+
+      /**
+       * Store window values in segment style so setSegmentStyle can use them
+       * later when updating colors. This fixes the issue where color changes
+       * would make LABELMAP/BINARY segments disappear due to incorrect
+       * window defaults (128/256 instead of the actual 0/1 range).
+       */
+      segment.style.windowCenter = windowCenter
+      segment.style.windowWidth = windowWidth
 
       segment.layer = new TileLayer({
         source,
