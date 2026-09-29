@@ -767,7 +767,10 @@ function _fitImagePyramid(pyramid, refPyramid) {
       const tileHeight = segmentation.Rows
       const tileWidth = segmentation.Columns
 
-      if (perframeFuncGroups && perframeFuncGroups.length > 0) {
+      if (
+        pyramid.dimensionOrganizationTypes?.[j] === 'TILED_SPARSE' &&
+        perframeFuncGroups?.length > 0
+      ) {
         /** Check frames to see if they have consistent sub-tile offsets */
         let inconsistentCount = 0
         let firstOffset = null
@@ -1136,7 +1139,7 @@ function _paletteIndex(stored, windowCenter, windowWidth, maxIndex) {
 }
 
 /**
- * Map single-band label samples through a palette into an RGBA object URL.
+ * Map single-band label samples through a palette into an RGBA PNG data URL.
  * Colors are RGB 0–255; optional 4th component is alpha 0–1 (OpenLayers palette).
  *
  * @param {TypedArray|ArrayLike<number>} data
@@ -1145,10 +1148,10 @@ function _paletteIndex(stored, windowCenter, windowWidth, maxIndex) {
  * @param {number[][]} colormap
  * @param {number} windowCenter
  * @param {number} windowWidth
- * @returns {string} object URL (caller must revoke)
+ * @returns {string} PNG data URL
  * @private
  */
-function _paletteBandToObjectUrl(
+function _paletteBandToDataUrl(
   data,
   width,
   height,
@@ -1159,7 +1162,7 @@ function _paletteBandToObjectUrl(
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  const ctx = canvas.getContext('2d')
   const imageData = ctx.createImageData(width, height)
   const rgba = imageData.data
   const maxIndex = colormap.length - 1
@@ -1211,7 +1214,7 @@ function _createPerFrameImageLoadFunction(options) {
   return (image, _src) => {
     const apply = (data) => {
       const { colormap, windowCenter, windowWidth } = getPalette()
-      const url = _paletteBandToObjectUrl(
+      image.getImage().src = _paletteBandToDataUrl(
         data,
         nativeW,
         nativeH,
@@ -1219,11 +1222,6 @@ function _createPerFrameImageLoadFunction(options) {
         windowCenter,
         windowWidth,
       )
-      const img = image.getImage()
-      img.onload = () => {
-        /** data URLs need no revoke; keep handler for decode completion */
-      }
-      img.src = url
     }
 
     if (cachedData) {
@@ -1267,11 +1265,98 @@ function _findClosestResolutionIndex(resolutions, targetResolution) {
   return bestIndex
 }
 
+/**
+ * Compute the bounding box for a segment from its frame mappings.
+ *
+ * @param {Object} pyramid - Image pyramid with frame mappings (coarsest level first)
+ * @param {number} segmentNumber - Segment number to compute bounds for
+ * @param {number} [scaleFactor=1] - Scale factor from the finest segment level to base image pixels
+ * @param {number[]} [pixelOffset=[0, 0]] - Origin offset `[offsetX, offsetY]` in base image pixels (from the fitted pyramid)
+ * @returns {number[]|null} Extent [minX, minY, maxX, maxY] in map coordinates, or null if no frames exist
+ * @private
+ */
+function _computeSegmentBoundingBox(
+  pyramid,
+  segmentNumber,
+  scaleFactor = 1,
+  pixelOffset = [0, 0],
+) {
+  const channelId = String(segmentNumber)
+  let minTileRow = Infinity
+  let maxTileRow = -Infinity
+  let minTileCol = Infinity
+  let maxTileCol = -Infinity
+  let foundAnyFrame = false
+  let tileRows = 0
+  let tileCols = 0
+  let levelScaleFactor = scaleFactor
+
+  /**
+   * Use the finest level that has frames for this segment. Coarser levels
+   * are scaled by their downsampling relative to the finest level.
+   */
+  const finestLevel = pyramid.metadata[pyramid.metadata.length - 1]
+  for (let z = pyramid.frameMappings.length - 1; z >= 0; z--) {
+    const frameMapping = pyramid.frameMappings[z]
+    const metadata = pyramid.metadata[z]
+
+    if (!frameMapping || !metadata) continue
+
+    tileRows = metadata.Rows
+    tileCols = metadata.Columns
+    levelScaleFactor =
+      scaleFactor *
+      ((finestLevel.TotalPixelMatrixColumns || finestLevel.Columns) /
+        (metadata.TotalPixelMatrixColumns || metadata.Columns))
+
+    for (const key of Object.keys(frameMapping)) {
+      /** Key format is "rowIndex-colIndex-channelIdentifier" */
+      const parts = key.split('-')
+      if (parts.length >= 3 && parts[parts.length - 1] === channelId) {
+        const rowIndex = parseInt(parts[0], 10)
+        const colIndex = parseInt(parts[1], 10)
+
+        minTileRow = Math.min(minTileRow, rowIndex)
+        maxTileRow = Math.max(maxTileRow, rowIndex)
+        minTileCol = Math.min(minTileCol, colIndex)
+        maxTileCol = Math.max(maxTileCol, colIndex)
+        foundAnyFrame = true
+      }
+    }
+
+    if (foundAnyFrame) break
+  }
+
+  if (!foundAnyFrame) {
+    return null
+  }
+
+  /** Tile indices are 1-based; convert to 0-based level pixels, then base pixels */
+  const minX = (minTileCol - 1) * tileCols * levelScaleFactor
+  const maxX = maxTileCol * tileCols * levelScaleFactor
+  const minY = (minTileRow - 1) * tileRows * levelScaleFactor
+  const maxY = maxTileRow * tileRows * levelScaleFactor
+
+  /**
+   * Apply fitted-pyramid origin offset (physical origin between SEG and base),
+   * then convert to map coordinates. Y is inverted: map Y = -(pixel Y + 1).
+   */
+  const offsetX = pixelOffset[0] || 0
+  const offsetY = pixelOffset[1] || 0
+  return [
+    offsetX + minX,
+    -(offsetY + maxY + 1),
+    offsetX + maxX,
+    -(offsetY + minY + 1),
+  ]
+}
+
 export {
   _areImagePyramidsEqual,
   _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
   _computeImagePyramid,
+  _computeSegmentBoundingBox,
   _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _findClosestResolutionIndex,
@@ -1279,7 +1364,7 @@ export {
   _getIccProfiles,
   _isSparseTileMissing,
   _overviewStampExtent,
-  _paletteBandToObjectUrl,
+  _paletteBandToDataUrl,
   _paletteIndex,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
   PER_FRAME_OVERVIEW_HANDOFF_RATIO,

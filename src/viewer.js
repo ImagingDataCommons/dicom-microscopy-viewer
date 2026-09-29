@@ -83,6 +83,7 @@ import {
   _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
   _computeImagePyramid,
+  _computeSegmentBoundingBox,
   _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _fitImagePyramid,
@@ -217,6 +218,7 @@ function _getSegmentTileLayers(segment) {
  * @param {boolean} options.interpolate
  * @param {Object} options.pyramid - Fitted pyramid used by the tile loader
  * @param {number} options.segmentNumber
+ * @param {function(Object): void} [options.onTileLoadError]
  * @returns {import('ol/source/DataTile').default}
  */
 function _createSegmentTileSource({
@@ -225,6 +227,7 @@ function _createSegmentTileSource({
   interpolate,
   pyramid,
   segmentNumber,
+  onTileLoadError,
 }) {
   const source = new DataTileSource({
     tileGrid,
@@ -238,6 +241,9 @@ function _createSegmentTileSource({
     _isSparseTileMissing(pyramid, segmentNumber, z, x, y)
       ? null
       : getTile(z, x, y, ...rest)
+  if (onTileLoadError) {
+    source.on('tileloaderror', onTileLoadError)
+  }
   return source
 }
 
@@ -385,9 +391,8 @@ function _applySegmentPaletteToLayers(segment, paletteStyle) {
  * Rebuild ImageStatic sources so palette changes take effect.
  *
  * @param {Object} segment
- * @param {import('ol/proj/Projection').default} [projection]
  */
-function _refreshPerFrameSegmentImages(segment, projection) {
+function _refreshPerFrameSegmentImages(segment) {
   if (!segment?.frameLayers?.length || !segment.frameLoaderParams?.length) {
     return
   }
@@ -398,14 +403,12 @@ function _refreshPerFrameSegmentImages(segment, projection) {
     }
     const frameSource = new Static({
       imageExtent: params.imageExtent,
-      projection:
-        projection || layer.getSource()?.getProjection?.() || undefined,
+      projection: layer.getSource()?.getProjection?.() || undefined,
       imageLoadFunction: params.imageLoadFunction,
       interpolate: params.interpolate !== false,
       url: `seg-frame-${index}-${Date.now()}`,
     })
     layer.setSource(frameSource)
-    segment.frameSources[index] = frameSource
   })
 }
 
@@ -965,101 +968,6 @@ function _getColorInterpolationStyleForTileLayer({
   }
 
   return { color: expression, variables }
-}
-
-/**
- * Compute the bounding box for a segment from its frame mappings.
- *
- * @param {Object} pyramid - The image pyramid containing frame mappings
- * @param {number} segmentNumber - The segment number to compute bounds for
- * @param {number} [scaleFactor=1] - Scale factor to transform from segment coordinates to base image coordinates
- * @param {number[]} [pixelOffset=[0, 0]] - Origin offset `[offsetX, offsetY]` in base image pixels (from the fitted pyramid)
- * @returns {number[]|null} The extent [minX, minY, maxX, maxY] in map coordinates, or null if no frames exist
- * @private
- */
-function _computeSegmentBoundingBox(
-  pyramid,
-  segmentNumber,
-  scaleFactor = 1,
-  pixelOffset = [0, 0],
-) {
-  const channelId = String(segmentNumber)
-  let minTileRow = Infinity
-  let maxTileRow = -Infinity
-  let minTileCol = Infinity
-  let maxTileCol = -Infinity
-  let foundAnyFrame = false
-  let tileRows = 0
-  let tileCols = 0
-
-  /**
-   * Search all pyramid levels for frames belonging to this segment.
-   * Use the finest resolution level (last in array) for tile size.
-   */
-  for (let z = 0; z < pyramid.frameMappings.length; z++) {
-    const frameMapping = pyramid.frameMappings[z]
-    const metadata = pyramid.metadata[z]
-
-    if (!frameMapping || !metadata) continue
-
-    tileRows = metadata.Rows
-    tileCols = metadata.Columns
-
-    for (const key of Object.keys(frameMapping)) {
-      /** Key format is "rowIndex-colIndex-channelIdentifier" */
-      const parts = key.split('-')
-      if (parts.length >= 3 && parts[parts.length - 1] === channelId) {
-        const rowIndex = parseInt(parts[0], 10)
-        const colIndex = parseInt(parts[1], 10)
-
-        minTileRow = Math.min(minTileRow, rowIndex)
-        maxTileRow = Math.max(maxTileRow, rowIndex)
-        minTileCol = Math.min(minTileCol, colIndex)
-        maxTileCol = Math.max(maxTileCol, colIndex)
-        foundAnyFrame = true
-      }
-    }
-
-    /** Only need to check one level since all levels should have same frames */
-    if (foundAnyFrame) break
-  }
-
-  if (!foundAnyFrame) {
-    return null
-  }
-
-  /**
-   * Convert tile indices to pixel coordinates in the segment's coordinate system.
-   * Tile indices are 1-based, so we subtract 1 for 0-based pixel calculation.
-   */
-  const minPixelX = (minTileCol - 1) * tileCols
-  const maxPixelX = maxTileCol * tileCols
-  const minPixelY = (minTileRow - 1) * tileRows
-  const maxPixelY = maxTileRow * tileRows
-
-  /**
-   * Apply scale factor to transform from segment coordinates to base image coordinates.
-   * This is needed when the segment is at a different resolution than the base image.
-   */
-  const scaledMinX = minPixelX * scaleFactor
-  const scaledMaxX = maxPixelX * scaleFactor
-  const scaledMinY = minPixelY * scaleFactor
-  const scaledMaxY = maxPixelY * scaleFactor
-
-  /**
-   * Apply fitted-pyramid origin offset (physical origin between SEG and base),
-   * then convert to map coordinates. Y is inverted: map Y = -(pixel Y + 1).
-   */
-  const offsetX = pixelOffset[0] || 0
-  const offsetY = pixelOffset[1] || 0
-  const extent = [
-    offsetX + scaledMinX,
-    -(offsetY + scaledMaxY + 1),
-    offsetX + scaledMaxX,
-    -(offsetY + scaledMinY + 1),
-  ]
-
-  return extent
 }
 
 const _errorInterceptor = Symbol('errorInterceptor')
@@ -3036,6 +2944,7 @@ class VolumeImageViewer {
             interpolate: this[_segmentationInterpolate],
             pyramid: segment.loaderParams.pyramid,
             segmentNumber: segment.loaderParams.channel,
+            onTileLoadError: segment.onTileLoadError,
           }),
         )
         segment.hasLoader = false
@@ -6051,7 +5960,6 @@ class VolumeImageViewer {
         )
 
         const frameLayers = []
-        const frameSources = []
         const frameLoaderParams = []
         const overviewFrames = []
 
@@ -6063,21 +5971,19 @@ class VolumeImageViewer {
               segmentation: segMetadata,
               channelId: segmentNumber,
             })
-          const frameSource = new Static({
-            imageExtent: placement.extent,
-            projection: this[_projection],
-            interpolate: this[_segmentationInterpolate],
-            imageLoadFunction: () => {},
-            url: '',
-          })
           const frameLayer = new ImageLayer({
-            source: frameSource,
+            source: new Static({
+              imageExtent: placement.extent,
+              projection: this[_projection],
+              interpolate: this[_segmentationInterpolate],
+              imageLoadFunction: () => {},
+              url: '',
+            }),
             extent: placement.extent,
             visible: false,
             opacity: 1,
           })
           frameLayers.push(frameLayer)
-          frameSources.push(frameSource)
           frameLoaderParams.push({
             pyramid: framePyramid,
             client: _getClient(this[_clients], Enums.SOPClassUIDs.SEGMENTATION),
@@ -6105,7 +6011,6 @@ class VolumeImageViewer {
 
         segment.usePerFrameImages = true
         segment.frameLayers = frameLayers
-        segment.frameSources = frameSources
         segment.frameLoaderParams = frameLoaderParams
         segment.overviewLayer = overviewLayer
         segment.layer = new LayerGroup({
@@ -6114,6 +6019,17 @@ class VolumeImageViewer {
           opacity: 1,
         })
       } else {
+        segment.onTileLoadError = (event) => {
+          console.error(
+            `error loading tile of segment "${segmentUID}"`,
+            event.tile?.error_?.message || event,
+          )
+          const error = new CustomError(
+            errorTypes.VISUALIZATION,
+            `error loading tile of segment "${segmentUID}": ${event.tile?.error_?.message || event.message}`,
+          )
+          this[_options].errorInterceptor(error)
+        }
         const source = _createSegmentTileSource({
           tileGrid,
           projection: this[_projection],
@@ -6121,17 +6037,7 @@ class VolumeImageViewer {
           interpolate: this[_segmentationInterpolate],
           pyramid: fittedPyramid,
           segmentNumber,
-        })
-        source.on('tileloaderror', (event) => {
-          console.error(
-            `error loading tile of segment "${segmentUID}"`,
-            event.tile?.error_?.message || event,
-          )
-          const error = new CustomError(
-            errorTypes.VISUALIZATION,
-            `error loading tile of segment "${segmentUID}": ${event.message}`,
-          )
-          this[_options].errorInterceptor(error)
+          onTileLoadError: segment.onTileLoadError,
         })
 
         segment.layer = new TileLayer({
@@ -6151,7 +6057,6 @@ class VolumeImageViewer {
            * visible at all view resolutions.
            */
           minResolution,
-          maxResolution: Infinity,
         })
         segment.layer.on('error', (event) => {
           console.error(`error rendering segment "${segmentUID}"`, event)
@@ -6205,6 +6110,7 @@ class VolumeImageViewer {
    * @param {string} segmentUID - Unique tracking identifier of a segment
    * @param {Object} [styleOptions]
    * @param {number} [styleOptions.opacity] - Opacity
+   * @param {boolean} [shouldZoomIn=false] - Zoom to the segment (see `zoomToSegment`)
    */
   showSegment(segmentUID, styleOptions = {}, shouldZoomIn = false) {
     if (!(segmentUID in this[_segments])) {
@@ -6245,15 +6151,15 @@ class VolumeImageViewer {
             })
             loaderParams.imageLoadFunction = imageLoadFunction
             loaderParams.interpolate = this[_segmentationInterpolate]
-            const frameSource = new Static({
-              imageExtent: loaderParams.imageExtent,
-              projection: this[_projection],
-              imageLoadFunction,
-              interpolate: this[_segmentationInterpolate],
-              url: `seg-frame-${index}`,
-            })
-            segment.frameLayers[index].setSource(frameSource)
-            segment.frameSources[index] = frameSource
+            segment.frameLayers[index].setSource(
+              new Static({
+                imageExtent: loaderParams.imageExtent,
+                projection: this[_projection],
+                imageLoadFunction,
+                interpolate: this[_segmentationInterpolate],
+                url: `seg-frame-${index}`,
+              }),
+            )
           })
           segment.hasLoader = true
         } else {
@@ -6291,38 +6197,7 @@ class VolumeImageViewer {
     }
 
     if (shouldZoomIn) {
-      const view = this[_map].getView()
-
-      if (segment.boundingBox != null) {
-        /**
-         * Zoom to the segment's bounding box.
-         * Cap with pyramid resolution (not OL zoom index): Slim and other
-         * hosts often use free zoom (`useTileGridResolutions: false`), where
-         * view zoom ≠ pyramid level index.
-         */
-        const padding = [50, 50, 50, 50]
-        view.fit(segment.boundingBox, {
-          padding,
-          duration: 500,
-          minResolution: this._getSegmentTargetResolution(segment),
-        })
-      } else {
-        /**
-         * No bounding box available (segment has no frames).
-         * Just ensure we're at an appropriate zoom level.
-         */
-        const targetResolution = this._getSegmentTargetResolution(segment)
-        const currentResolution = view.getResolution()
-        if (
-          currentResolution == null ||
-          currentResolution > targetResolution * 1.01
-        ) {
-          view.animate({ resolution: targetResolution, duration: 500 })
-        }
-        console.warn(
-          `Segment "${segmentUID}" has no bounding box - it may have no frame data`,
-        )
-      }
+      this.zoomToSegment(segmentUID)
     }
   }
 

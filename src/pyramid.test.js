@@ -4,11 +4,12 @@ const dmv = require('./dicom-microscopy-viewer.js')
 const {
   _buildPerFrameImagePyramid,
   _computeImagePyramid,
+  _computeSegmentBoundingBox,
   _findClosestResolutionIndex,
   _fitImagePyramid,
   _isSparseTileMissing,
   _overviewStampExtent,
-  _paletteBandToObjectUrl,
+  _paletteBandToDataUrl,
   _paletteIndex,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
   PER_FRAME_OVERVIEW_HANDOFF_RATIO,
@@ -135,10 +136,10 @@ describe('_overviewStampExtent', () => {
   })
 })
 
-describe('_paletteBandToObjectUrl', () => {
+describe('_paletteBandToDataUrl', () => {
   it('maps nonzero labels to an opaque PNG data URL', () => {
     const data = new Float32Array([0, 1, 0, 1])
-    const url = _paletteBandToObjectUrl(
+    const url = _paletteBandToDataUrl(
       data,
       2,
       2,
@@ -150,6 +151,57 @@ describe('_paletteBandToObjectUrl', () => {
       2,
     )
     expect(url.startsWith('data:image/png')).toBe(true)
+  })
+})
+
+describe('_computeSegmentBoundingBox', () => {
+  const level = (size, tile = 10) => ({
+    TotalPixelMatrixColumns: size,
+    TotalPixelMatrixRows: size,
+    Columns: tile,
+    Rows: tile,
+  })
+
+  it('bounds the tiles of the requested segment only', () => {
+    const pyramid = {
+      metadata: [level(100)],
+      frameMappings: [{ '2-3-1': 'a', '4-5-1': 'b', '9-9-2': 'c' }],
+    }
+    expect(_computeSegmentBoundingBox(pyramid, 1)).toEqual([20, -41, 50, -11])
+  })
+
+  it('applies scale factor and origin offset', () => {
+    const pyramid = {
+      metadata: [level(100)],
+      frameMappings: [{ '1-1-1': 'a' }],
+    }
+    expect(_computeSegmentBoundingBox(pyramid, 1, 2, [5, 7])).toEqual([
+      5, -28, 25, -8,
+    ])
+  })
+
+  it('uses the finest level of a multi-level pyramid', () => {
+    const pyramid = {
+      metadata: [level(50), level(100)],
+      frameMappings: [{ '1-1-1': 'a' }, { '2-2-1': 'b' }],
+    }
+    expect(_computeSegmentBoundingBox(pyramid, 1)).toEqual([10, -21, 20, -11])
+  })
+
+  it('scales a coarser level when the finest level lacks the segment', () => {
+    const pyramid = {
+      metadata: [level(50), level(100)],
+      frameMappings: [{ '1-1-1': 'a' }, { '2-2-2': 'b' }],
+    }
+    expect(_computeSegmentBoundingBox(pyramid, 1)).toEqual([0, -21, 20, -1])
+  })
+
+  it('returns null when no level has frames for the segment', () => {
+    const pyramid = {
+      metadata: [level(100)],
+      frameMappings: [{ '1-1-2': 'a' }],
+    }
+    expect(_computeSegmentBoundingBox(pyramid, 1)).toBeNull()
   })
 })
 
