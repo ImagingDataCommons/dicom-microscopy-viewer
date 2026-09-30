@@ -12,7 +12,8 @@ allowBuilds:
 overrides:
   # Dependabot high: adm-zip unbounded memory on crafted ZIP
   adm-zip: 0.6.1
-  brace-expansion: 1.1.16
+  # Dependabot high: brace-expansion DoS
+  brace-expansion: 1.1.21
   braces: 3.0.3
   # Dependabot high: browserslist RegExp ReDoS
   browserslist: 4.28.7
@@ -23,9 +24,13 @@ overrides:
   js-yaml: 3.15.2
   linkify-it: 5.0.2
   minimatch: 3.1.5
+  # Dependabot high: nanoid generators can loop indefinitely (GHSA-28wg-ghj8-5hjv, GHSA-2v37-7h3g-55p8)
+  nanoid@3: 3.3.19
   postcss: 8.5.18
   serialize-javascript: 7.0.5
   shell-quote: 1.9.0
+  # Dependabot high: webpack-dev-middleware path traversal (GHSA-g84c-rxfj-3j2c; no 5.x patch, dev server 4.x runs on 7.x)
+  webpack-dev-middleware: 7.4.6
 
 minimumReleaseAgeExclude:
   - dicomweb-client@0.11.3
