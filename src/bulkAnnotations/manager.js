@@ -785,8 +785,21 @@ export class BulkAnnotationManager {
     return g
   }
 
-  /** Ask OL for a render frame so a changed deck layer list actually paints. */
+  /**
+   * Ask OL for a render frame so a changed deck layer list actually paints.
+   * Also directly updates the deck instance to ensure immediate visual feedback
+   * for style changes (opacity/color) that don't involve viewport movement.
+   */
   _requestRender() {
+    /**
+     * Directly update deck.gl with current layers for immediate render.
+     * OpenLayers' render cycle may not trigger without viewport changes,
+     * so we push the new layers directly to deck and request a redraw.
+     */
+    if (this._deck != null) {
+      this._deck.setProps({ layers: this._collectDeckLayers() })
+      this._deck.redraw(true)
+    }
     if (this._olLayer != null) {
       this._olLayer.changed()
     }
