@@ -787,23 +787,27 @@ export class BulkAnnotationManager {
 
   /**
    * Ask OL for a render frame so a changed deck layer list actually paints.
-   * Also directly updates the deck instance to ensure immediate visual feedback
-   * for style changes (opacity/color) that don't involve viewport movement.
+   * Uses renderSync() for immediate visual feedback on style changes.
    */
   _requestRender() {
-    /**
-     * Directly update deck.gl with current layers for immediate render.
-     * OpenLayers' render cycle may not trigger without viewport changes,
-     * so we push the new layers directly to deck and request a redraw.
-     */
-    if (this._deck != null) {
-      this._deck.setProps({ layers: this._collectDeckLayers() })
-      this._deck.redraw(true)
-    }
     if (this._olLayer != null) {
       this._olLayer.changed()
     }
-    this._getMap()?.render?.()
+    /**
+     * Use renderSync() instead of render() to force immediate synchronous
+     * rendering. This ensures style changes (opacity/color) are visible
+     * immediately without requiring viewport movement.
+     */
+    const map = this._getMap()
+    if (map?.renderSync != null) {
+      try {
+        map.renderSync()
+      } catch {
+        map?.render?.()
+      }
+    } else {
+      map?.render?.()
+    }
   }
 
   _enqueueHydrate(uid) {
@@ -1197,7 +1201,6 @@ export class BulkAnnotationManager {
    * @param {GroupRecord} g
    */
   _updateLayerColors(g) {
-    // Add to pending set and schedule debounced flush
     this._pendingColorUpdates.add(g.annotationGroup.uid)
     this._debouncedRender()
   }
@@ -1233,15 +1236,33 @@ export class BulkAnnotationManager {
         ),
       ]
 
-      // Clone each layer with updated color props
+      /**
+       * Clone each layer with updated color props.
+       * - ScatterplotLayer (point centers): uses getFillColor with opacity
+       * - SolidPolygonLayer (polygon fills): uses getFillColor with fillOpacity
+       * - PathLayer (outlines/lines): uses getColor with opacity
+       */
       g.deckLayers = g.deckLayers.map((layer) => {
         const layerId = layer.id || ''
-        // Determine if this is a fill layer (polygon fill) or outline layer
+        /**
+         * PathLayer IDs contain '-tile-' but NOT '-fill-'.
+         * ScatterplotLayer IDs contain '-centers'.
+         * SolidPolygonLayer IDs contain '-fill-'.
+         */
+        const isPathLayer =
+          layerId.includes('-tile-') && !layerId.includes('-fill-')
         const isFillLayer = layerId.includes('-fill-')
 
-        // deck.gl layers are immutable - clone with new props
-        // SolidPolygonLayer uses getFillColor, PathLayer/ScatterplotLayer use getColor
+        if (isPathLayer) {
+          return layer.clone({
+            getColor: rgba,
+            updateTriggers: {
+              getColor: [color, opacity],
+            },
+          })
+        }
         if (isFillLayer) {
+          /** SolidPolygonLayer uses fillOpacity for polygon fills */
           return layer.clone({
             getFillColor: fillRgba,
             updateTriggers: {
@@ -1249,10 +1270,11 @@ export class BulkAnnotationManager {
             },
           })
         }
+        /** ScatterplotLayer (points) uses getFillColor with regular opacity */
         return layer.clone({
-          getColor: rgba,
+          getFillColor: rgba,
           updateTriggers: {
-            getColor: [color, opacity],
+            getFillColor: [color, opacity],
           },
         })
       })
@@ -1261,7 +1283,6 @@ export class BulkAnnotationManager {
 
     this._pendingColorUpdates.clear()
 
-    // Single render call for all updates
     if (updatedCount > 0) {
       this._requestRender()
     }
