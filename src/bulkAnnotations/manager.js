@@ -751,6 +751,7 @@ export class BulkAnnotationManager {
   }
 
   cleanup() {
+    this._isCleaningUp = true
     // Cancel any pending debounced updates
     if (this._debouncedRender != null) {
       this._debouncedRender.cancel()
@@ -790,6 +791,10 @@ export class BulkAnnotationManager {
    * Uses renderSync() for immediate visual feedback on style changes.
    */
   _requestRender() {
+    /** Skip rendering during cleanup to avoid errors with unready tile layers */
+    if (this._isCleaningUp) {
+      return
+    }
     if (this._olLayer != null) {
       this._olLayer.changed()
     }
