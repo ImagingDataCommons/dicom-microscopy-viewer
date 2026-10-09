@@ -34,7 +34,8 @@ module.exports = {
     },
   },
   module: {
-    noParse: [/(codec)/, /(dicomicc)/],
+    /** codec-libjxl ships an ES module loader, which webpack must parse */
+    noParse: [/codec-(?!libjxl)/, /(dicomicc)/],
     rules: [
       {
         test: /\.css$/,

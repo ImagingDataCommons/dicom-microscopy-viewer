@@ -1,13 +1,18 @@
 import imageType from 'image-type'
 import { logger } from '../logger.js'
+import HTJ2KDecoder from './decoders/decoderHTJ2K.js'
 import JPEG2000Decoder from './decoders/decoderJPEG2000.js'
 import JPEGDecoder from './decoders/decoderJPEGBaseline8Bit.js'
 import JPEGLSDecoder from './decoders/decoderJPEGLS.js'
+import JPEGXLDecoder from './decoders/decoderJPEGXL.js'
+import { isHTJ2K, isJPEGXL } from './frameMediaType.js'
 import ColorTransformer from './transformers/transformerICC.js'
 
 const decoderJPEG2000 = new JPEG2000Decoder()
+const decoderHTJ2K = new HTJ2KDecoder()
 const decoderJPEGLS = new JPEGLSDecoder()
 const decoderJPEG = new JPEGDecoder()
+const decoderJPEGXL = new JPEGXLDecoder()
 let transformerColor
 let transformerColorICCOutputType
 
@@ -107,7 +112,11 @@ async function _checkImageTypeAndDecode({
   const toHex = (value) => value.toString(16).padStart(2, '0').toUpperCase()
 
   let mediaType
-  if (imageTypeObject == null) {
+  if (isJPEGXL(byteArray)) {
+    mediaType = 'image/jxl'
+  } else if (isHTJ2K(byteArray)) {
+    mediaType = 'image/jphc'
+  } else if (imageTypeObject == null) {
     /**
      * This hack is required to recognize JPEG 2000 bit streams that are zero
      * padded, i.e., that have a "00" byte after the JPEG 2000 End of Image
@@ -160,7 +169,10 @@ async function _checkImageTypeAndDecode({
 
   logger.debug(`decode compressed frame with media type "${mediaType}"`)
 
-  const { frameBuffer, frameInfo } = await _decode(mediaType, byteArray)
+  const { frameBuffer, frameInfo } = await _decode(mediaType, byteArray, {
+    bitsAllocated,
+    samplesPerPixel,
+  })
   if (frameInfo.bitsPerSample !== bitsAllocated) {
     throw new Error(
       'Frame does not have expected Bits Allocated: ' +
@@ -214,17 +226,22 @@ async function _checkImageTypeAndDecode({
  *
  * @param {string} mediaType - Media Type
  * @param {Uint8Array} byteArray - Image array
+ * @param {object} expected - Expected Bits Allocated and Samples per Pixel
  *
  * @returns {object} decoded array and frameInfo
  * @private
  */
-async function _decode(mediaType, byteArray) {
+async function _decode(mediaType, byteArray, expected) {
   if (mediaType === 'image/jpeg') {
     return await decoderJPEG.decode(byteArray)
   } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
     return await decoderJPEG2000.decode(byteArray)
+  } else if (mediaType === 'image/jphc') {
+    return await decoderHTJ2K.decode(byteArray)
   } else if (mediaType === 'image/jls') {
     return await decoderJPEGLS.decode(byteArray)
+  } else if (mediaType === 'image/jxl') {
+    return await decoderJPEGXL.decode(byteArray, expected)
   }
 }
 
