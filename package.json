@@ -59,7 +59,7 @@
     "@cornerstonejs/codec-openjph": "^2.4.5",
     "@imagingdatacommons/dicomicc": "^0.2.3",
     "colormap": "^2.3",
-    "dcmjs": "^0.41.0",
+    "dcmjs": "^0.52.0",
     "dicomweb-client": "0.11.3",
     "image-type": "^4.1",
     "mathjs": "^11.2",
