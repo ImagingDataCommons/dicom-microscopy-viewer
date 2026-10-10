@@ -1954,7 +1954,9 @@ class VolumeImageViewer {
       }
 
       clickEvent = 'click'
-      const features = this[_map].getFeaturesAtPixel(event.pixel)
+      const features = this[_map].getFeaturesAtPixel(event.pixel, {
+        layerFilter: (layer) => !layer.get(SEGMENT_OVERVIEW_LAYER),
+      })
       const rois = features
         .map((feature) =>
           this._getROIFromFeature(

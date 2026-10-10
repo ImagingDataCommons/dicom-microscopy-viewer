@@ -50,7 +50,7 @@
     "webpack": "^5.94.0",
     "webpack-bundle-analyzer": "^4.10.2",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.2"
+    "webpack-dev-server": "^5.2.6"
   },
   "dependencies": {
     "@cornerstonejs/codec-charls": "^1.2.3",
@@ -62,7 +62,7 @@
     "@deck.gl/layers": "9.1.15",
     "@imagingdatacommons/dicomicc": "^0.2.3",
     "colormap": "^2.3",
-    "dcmjs": "^0.41.0",
+    "dcmjs": "^0.52.0",
     "dicomweb-client": "0.11.3",
     "flatbush": "4.4.0",
     "image-type": "^4.1",
