@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>dicom-microscopy-viewer verification harness</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font-family: system-ui, sans-serif;
+        background: #1e1e1e;
+        color: #eee;
+      }
+      #status {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 28px;
+        line-height: 28px;
+        padding: 0 8px;
+        font-size: 12px;
+        background: #333;
+        z-index: 10;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      #status[data-state="error"] {
+        background: #8b1e1e;
+      }
+      #status[data-state="ready"] {
+        background: #1e5b2b;
+      }
+      #viewport {
+        position: absolute;
+        top: 28px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="status" data-testid="harness-status" data-state="loading">loading…</div>
+    <div id="viewport" data-testid="viewport"></div>
+    <script src="/node_modules/dicomweb-client/build/dicomweb-client.js"></script>
+    <script src="./harness.js"></script>
+  </body>
+</html>
