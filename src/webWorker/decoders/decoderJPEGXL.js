@@ -1,15 +1,19 @@
 import libjxlWasm from '@cornerstonejs/codec-libjxl/decodewasm'
 import libjxlFactory from '@cornerstonejs/codec-libjxl/decodewasmjs'
+import { logger } from '../../logger.js'
 import Decoder from './decoderAbstract.js'
 
 /**
- * Whether the browser can decode JPEG XL. Unknown until the first native
- * decode; set to false only when the native decode fails and the WASM decode
- * of the same frame succeeds, so a corrupt frame does not disable it.
+ * Whether the browser can decode JPEG XL. Set to false after
+ * MAX_NATIVE_FAILURES consecutive frames where the native decode fails and the
+ * WASM decode of the same frame succeeds, so neither a corrupt frame nor a
+ * single transient error disables it.
  */
 let isNativeDecodeSupported =
   typeof createImageBitmap === 'function' &&
   typeof OffscreenCanvas === 'function'
+const MAX_NATIVE_FAILURES = 3
+let nativeFailureCount = 0
 
 export default class JPEGXLDecoder extends Decoder {
   _initialize() {
@@ -61,11 +65,16 @@ export default class JPEGXLDecoder extends Decoder {
     }
 
     try {
-      return await _decodeNatively(byteArray, samplesPerPixel)
+      const result = await _decodeNatively(byteArray, samplesPerPixel)
+      nativeFailureCount = 0
+      return result
     } catch (nativeError) {
       const result = await super.decode(byteArray)
-      isNativeDecodeSupported = false
-      console.warn(
+      nativeFailureCount++
+      if (nativeFailureCount >= MAX_NATIVE_FAILURES) {
+        isNativeDecodeSupported = false
+      }
+      logger.warn(
         'Native JPEG XL decode failed, using the WASM decoder',
         nativeError,
       )
@@ -91,6 +100,10 @@ async function _decodeNatively(byteArray, samplesPerPixel) {
   const { width, height } = bitmap
   const canvas = new OffscreenCanvas(width, height)
   const context = canvas.getContext('2d', { willReadFrequently: true })
+  if (!context) {
+    bitmap.close()
+    throw new Error('OffscreenCanvas 2D context is not available')
+  }
   context.drawImage(bitmap, 0, 0)
   bitmap.close()
   const rgba = context.getImageData(0, 0, width, height).data

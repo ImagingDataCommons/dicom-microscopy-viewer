@@ -46,6 +46,10 @@ module.exports = {
         type: 'asset/resource',
       },
       {
+        test: /codec-libjxl[\\/].*\.js$/,
+        loader: path.join(__dirname, 'importMetaUrlLoader.js'),
+      },
+      {
         test: /\.js$/,
         /**
          * Only transpile this package's own sources. Excluding on a bare

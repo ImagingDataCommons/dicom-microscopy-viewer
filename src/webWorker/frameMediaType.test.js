@@ -24,4 +24,11 @@ describe('frame media type detection', () => {
     expect(isHTJ2K(codeStream(0x50))).toBe(true)
     expect(isHTJ2K(codeStream(0x52))).toBe(false)
   })
+
+  test('rejects empty and truncated frames', () => {
+    expect(isJPEGXL(new Uint8Array([]))).toBe(false)
+    expect(isJPEGXL(new Uint8Array([0x00, 0x00, 0x00, 0x0c]))).toBe(false)
+    expect(isHTJ2K(new Uint8Array([]))).toBe(false)
+    expect(isHTJ2K(new Uint8Array([0xff, 0x4f]))).toBe(false)
+  })
 })

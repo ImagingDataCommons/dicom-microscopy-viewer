@@ -5,7 +5,12 @@ import JPEG2000Decoder from './decoders/decoderJPEG2000.js'
 import JPEGDecoder from './decoders/decoderJPEGBaseline8Bit.js'
 import JPEGLSDecoder from './decoders/decoderJPEGLS.js'
 import JPEGXLDecoder from './decoders/decoderJPEGXL.js'
-import { isHTJ2K, isJPEGXL } from './frameMediaType.js'
+import {
+  isHTJ2K,
+  isJPEGXL,
+  MEDIA_TYPE_HTJ2K,
+  MEDIA_TYPE_JPEG_XL,
+} from './frameMediaType.js'
 import ColorTransformer from './transformers/transformerICC.js'
 
 const decoderJPEG2000 = new JPEG2000Decoder()
@@ -113,9 +118,9 @@ async function _checkImageTypeAndDecode({
 
   let mediaType
   if (isJPEGXL(byteArray)) {
-    mediaType = 'image/jxl'
+    mediaType = MEDIA_TYPE_JPEG_XL
   } else if (isHTJ2K(byteArray)) {
-    mediaType = 'image/jphc'
+    mediaType = MEDIA_TYPE_HTJ2K
   } else if (imageTypeObject == null) {
     /**
      * This hack is required to recognize JPEG 2000 bit streams that are zero
@@ -236,13 +241,14 @@ async function _decode(mediaType, byteArray, expected) {
     return await decoderJPEG.decode(byteArray)
   } else if (mediaType === 'image/jp2' || mediaType === 'image/jpx') {
     return await decoderJPEG2000.decode(byteArray)
-  } else if (mediaType === 'image/jphc') {
+  } else if (mediaType === MEDIA_TYPE_HTJ2K) {
     return await decoderHTJ2K.decode(byteArray)
   } else if (mediaType === 'image/jls') {
     return await decoderJPEGLS.decode(byteArray)
-  } else if (mediaType === 'image/jxl') {
+  } else if (mediaType === MEDIA_TYPE_JPEG_XL) {
     return await decoderJPEGXL.decode(byteArray, expected)
   }
+  throw new Error(`No decoder for media type "${mediaType}".`)
 }
 
 export default {

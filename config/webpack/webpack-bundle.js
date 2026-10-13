@@ -50,6 +50,10 @@ module.exports = {
         type: 'asset/inline',
       },
       {
+        test: /codec-libjxl[\\/].*\.js$/,
+        loader: path.join(__dirname, 'importMetaUrlLoader.js'),
+      },
+      {
         test: /\.js$/,
         /** See webpack-base.js: include (not exclude) so builds work from
          * paths containing "node_modules" (pnpm git-dependency store). */

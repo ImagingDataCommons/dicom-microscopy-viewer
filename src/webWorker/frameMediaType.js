@@ -1,3 +1,6 @@
+const MEDIA_TYPE_JPEG_XL = 'image/jxl'
+const MEDIA_TYPE_HTJ2K = 'image/jphc'
+
 const JPEG_XL_CONTAINER_SIGNATURE = [
   0x00, 0x00, 0x00, 0x0c, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a,
 ]
@@ -51,4 +54,4 @@ function isHTJ2K(byteArray) {
   return false
 }
 
-export { isHTJ2K, isJPEGXL }
+export { isHTJ2K, isJPEGXL, MEDIA_TYPE_HTJ2K, MEDIA_TYPE_JPEG_XL }
