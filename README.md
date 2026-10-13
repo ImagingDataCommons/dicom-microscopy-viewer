@@ -32,7 +32,7 @@ The viewer visualizes slide microscopy images stored in a [DICOMweb](https://www
 - Display of different image types: `VOLUME` / `THUMBNAIL`, `OVERVIEW`, `LABEL`
 - Annotation of regions of interest (ROI) as vector graphics based on 3-dimensional spatial coordinates (SCOORD3D): `POINT`, `MULTIPOINT`, `POLYLINE`, `POLYGON`, `ELLIPSE`, `ELLIPSOID`
 - Assembly of concatenations
-- Decoding of compressed pixel data, supporting baseline JPEG, JPEG 2000, and JPEG-LS codecs
+- Decoding of compressed pixel data, supporting baseline JPEG, JPEG 2000, JPEG-LS, High-Throughput JPEG 2000 (HTJ2K), and JPEG XL codecs
 - Correction of color images using ICC profiles
 - Additive blending and coloring of monochromatic images of multiple optical paths (channels), supporting highly multiplexed immunofluorescence imaging
 - Overlay of image analysis results in the form of [DICOM Segmentation](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.51.html), [Parametric Map](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.75.html), [Comprehensive 3D SR](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.35.13.html), or [Microscopy Bulk Simple Annotations](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.87.html)
