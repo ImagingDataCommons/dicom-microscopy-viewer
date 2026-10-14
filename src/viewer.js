@@ -1,15 +1,14 @@
 import 'ol/ol.css'
 import dcmjs from 'dcmjs'
-import { debounce, has } from 'lodash'
+import { has } from 'lodash'
 import Collection from 'ol/Collection'
 import { Zoom, ZoomSlider } from 'ol/control'
 import FullScreen from 'ol/control/FullScreen'
 import MousePosition from 'ol/control/MousePosition'
 import OverviewMap from 'ol/control/OverviewMap'
 import ScaleLine from 'ol/control/ScaleLine'
-import { createEmpty, extend, getCenter, getHeight, getWidth } from 'ol/extent'
+import { getCenter, getHeight, getWidth } from 'ol/extent'
 import Feature from 'ol/Feature'
-import { fromExtent as polygonFromExtent } from 'ol/geom/Polygon'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
@@ -18,7 +17,6 @@ import Modify from 'ol/interaction/Modify'
 import Select from 'ol/interaction/Select'
 import Snap from 'ol/interaction/Snap'
 import Translate from 'ol/interaction/Translate'
-import LayerGroup from 'ol/layer/Group'
 import ImageLayer from 'ol/layer/Image'
 import VectorLayer from 'ol/layer/Vector'
 import TileLayer from 'ol/layer/WebGLTile'
@@ -26,7 +24,6 @@ import WebGLVector from 'ol/layer/WebGLVector'
 import OlMap from 'ol/Map'
 import Overlay from 'ol/Overlay'
 import Projection from 'ol/proj/Projection'
-import Cluster from 'ol/source/Cluster'
 import DataTileSource from 'ol/source/DataTile'
 import Static from 'ol/source/ImageStatic'
 import TileDebug from 'ol/source/TileDebug'
@@ -40,24 +37,10 @@ import Style from 'ol/style/Style'
 import TileGrid from 'ol/tilegrid/TileGrid'
 import View from 'ol/View'
 import WebGLHelper from 'ol/webgl/Helper'
-import {
-  _fetchGraphicData,
-  _fetchGraphicIndex,
-  // _fetchMeasurements,
-  _getCommonZCoordinate,
-  _getCoordinateDimensionality,
-  AnnotationGroup,
-} from './annotation.js'
+import { AnnotationGroup } from './annotation.js'
 import _AnnotationManager from './annotations/_AnnotationManager'
 import getExtendedROI from './bulkAnnotations/getExtendedROI'
-import {
-  getEllipseFeature,
-  getFeaturesFromBulkAnnotations,
-  getPointFeature,
-  getPolygonFeature,
-  getRectangleFeature,
-} from './bulkAnnotations/utils'
-import { getClusterStyleFunc } from './clusterStyles.js'
+import { BulkAnnotationManager } from './bulkAnnotations/manager.js'
 import {
   buildPaletteColorLookupTable,
   ColormapNames,
@@ -80,19 +63,13 @@ import Observable from './observable.js'
 import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
-  _buildPerFrameImagePyramid,
-  _buildSparseFramePlacements,
   _computeImagePyramid,
-  _computeSegmentBoundingBoxes,
-  _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _fitImagePyramid,
   _getIccProfiles,
-  _isSparseTileMissing,
-  _overviewStampExtent,
-  _perFrameRasterMaxResolution,
 } from './pyramid.js'
 import { ROI } from './roi.js'
+import { Point, Polygon, Polyline } from './scoord3d.js'
 import {
   _geometry2Scoord3d,
   _geometryCoordinates2scoord3dCoordinates,
@@ -107,15 +84,12 @@ import {
   _generateUID,
   _getUnitSuffix,
   applyTransform,
-  areCodedConceptsEqual,
   buildInverseTransform,
   buildTransform,
   computeRotation,
   createWindow,
   detectDisplayColorSpace,
   doContentItemsMatch,
-  getContentItemNameCodedConcept,
-  rgb2hex,
 } from './utils.js'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
@@ -153,24 +127,7 @@ function disposeOverviewMapLayers(map) {
  */
 export function disposeLayer(layer, disposeSource = false) {
   console.info('dispose layer:', layer)
-  if (layer == null) {
-    return
-  }
-
-  /** LayerGroup: dispose children first */
-  if (typeof layer.getLayers === 'function') {
-    layer
-      .getLayers()
-      .getArray()
-      .forEach((child) => {
-        disposeLayer(child, disposeSource)
-      })
-  }
-
-  if (typeof layer.getSource !== 'function') {
-    if (typeof layer.dispose === 'function') {
-      layer.dispose()
-    }
+  if (typeof layer?.getSource !== 'function') {
     return
   }
 
@@ -182,292 +139,6 @@ export function disposeLayer(layer, disposeSource = false) {
 
   layer.setSource(undefined)
   layer.dispose()
-}
-
-/**
- * Tile source for a segment overlay rendered as a WebGL tile layer.
- *
- * A single-level sparse SEG makes OpenLayers enqueue every grid cell in view
- * when zoomed out. Blank tiles for missing frames exceed the tile cache
- * (`tilesCacheSize`) and evict the real frames before they draw. Returning
- * null is OpenLayers' "no tile here" contract; levels that are not
- * TILED_SPARSE are unaffected.
- *
- * @param {Object} options
- * @param {import('ol/tilegrid/TileGrid').default} options.tileGrid
- * @param {import('ol/proj/Projection').default} options.projection
- * @param {boolean} options.interpolate
- * @param {Object} options.pyramid - Fitted pyramid used by the tile loader
- * @param {number} options.segmentNumber
- * @param {function(Object): void} [options.onTileLoadError]
- * @returns {import('ol/source/DataTile').default}
- */
-function _createSegmentTileSource({
-  tileGrid,
-  projection,
-  interpolate,
-  pyramid,
-  segmentNumber,
-  onTileLoadError,
-}) {
-  const source = new DataTileSource({
-    tileGrid,
-    projection,
-    wrapX: false,
-    bandCount: 1,
-    interpolate,
-  })
-  const getTile = source.getTile.bind(source)
-  source.getTile = (z, x, y, ...rest) =>
-    _isSparseTileMissing(pyramid, segmentNumber, z, x, y)
-      ? null
-      : getTile(z, x, y, ...rest)
-  if (onTileLoadError) {
-    source.on('tileloaderror', onTileLoadError)
-  }
-  return source
-}
-
-/**
- * Invalidate overview stamp styles after a palette or opacity change.
- *
- * @param {Object} segment
- */
-function _refreshPerFrameOverview(segment) {
-  const layer = segment?.overviewLayer
-  if (layer && typeof layer.changed === 'function') {
-    layer.changed()
-  }
-}
-
-/**
- * Segment color for overview stamps. Layer-group opacity is applied by
- * OpenLayers, so it is not baked in here.
- *
- * @param {Object} segment
- * @returns {string}
- */
-function _perFrameOverviewColor(segment) {
-  const colormap = _getSegmentColormap(segment)
-  const fg = colormap[Math.min(1, colormap.length - 1)] || [255, 255, 0, 1]
-  const alpha = fg[3] ?? 1
-  return `rgba(${fg[0]}, ${fg[1]}, ${fg[2]}, ${alpha})`
-}
-
-/**
- * Layer property marking per-frame SEG overview markers. They are not
- * annotations, so feature hit detection must skip them.
- */
-const SEGMENT_OVERVIEW_LAYER = 'segmentOverview'
-
-/**
- * Whether a layer holds annotation features for click / hover handling.
- *
- * @param {import('ol/layer/Base').default} layer
- * @returns {boolean}
- */
-function _isAnnotationFeatureLayer(layer) {
-  return (
-    (layer instanceof VectorLayer || layer instanceof WebGLVector) &&
-    !layer.get(SEGMENT_OVERVIEW_LAYER)
-  )
-}
-
-/**
- * Vector markers for sparse frames. ImageCanvas stamps went blank while
- * zooming because ImageLayer freezes during interaction and can keep an
- * empty canvas from the zoomed-in state. VectorLayer redraws continuously
- * (`updateWhileAnimating` / `updateWhileInteracting`).
- *
- * Stamps expand to a minimum screen size at overview, and hide near native
- * size so the ImageStatic mask can take over.
- *
- * @param {Object} segment
- * @returns {import('ol/layer/Vector').default}
- */
-function _createPerFrameOverviewLayer(segment) {
-  let styleColor
-  let fill
-  let stroke
-  return new VectorLayer({
-    source: new VectorSource({
-      features: segment.overviewFeatures,
-      wrapX: false,
-    }),
-    properties: { [SEGMENT_OVERVIEW_LAYER]: true },
-    updateWhileAnimating: true,
-    updateWhileInteracting: true,
-    style: (feature, resolution) => {
-      if (!feature.get('hasLabel')) {
-        return null
-      }
-      const stampExtent = _overviewStampExtent(
-        feature.get('frameExtent'),
-        resolution,
-        feature.get('nativeSize'),
-      )
-      if (!stampExtent) {
-        return null
-      }
-      const color = _perFrameOverviewColor(segment)
-      if (color !== styleColor) {
-        styleColor = color
-        fill = new Fill({ color })
-        stroke = new Stroke({ color, width: 1 })
-      }
-      return new Style({
-        geometry: polygonFromExtent(stampExtent),
-        fill,
-        stroke,
-      })
-    },
-  })
-}
-
-/**
- * Build the colormap array used for segment palette styling (index 0 includes
- * background opacity).
- *
- * @param {Object} segment
- * @returns {number[][]}
- */
-function _getSegmentColormap(segment) {
-  const backgroundOpacity = segment.defaultStyle?.backgroundOpacity ?? 0
-  return [
-    [...segment.style.paletteColorLookupTable.data[0], backgroundOpacity],
-    ...segment.style.paletteColorLookupTable.data.slice(1),
-  ]
-}
-
-/**
- * Apply palette style to a segment's render layers. Per-frame ImageStatic
- * overlays bake the palette into the image; WebGL tile layers use setStyle.
- *
- * @param {Object} segment
- * @param {Object} [paletteStyle] - WebGL palette style (ignored for ImageStatic)
- */
-function _applySegmentPaletteToLayers(segment, paletteStyle) {
-  if (segment.usePerFrameImages) {
-    _refreshPerFrameSegmentImages(segment)
-    _refreshPerFrameOverview(segment)
-    return
-  }
-  if (paletteStyle) {
-    segment.layer.setStyle(paletteStyle)
-  }
-}
-
-/**
- * Rebuild ImageStatic sources so palette changes take effect.
- *
- * @param {Object} segment
- */
-function _refreshPerFrameSegmentImages(segment) {
-  if (!segment?.frameLayers?.length || !segment.frameLoaderParams?.length) {
-    return
-  }
-  segment.frameLayers.forEach((layer, index) => {
-    const params = segment.frameLoaderParams[index]
-    if (!params?.imageLoadFunction) {
-      return
-    }
-    const frameSource = new Static({
-      imageExtent: params.imageExtent,
-      projection: layer.getSource()?.getProjection?.() || undefined,
-      imageLoadFunction: params.imageLoadFunction,
-      interpolate: params.interpolate !== false,
-      url: `seg-frame-${index}-${Date.now()}`,
-    })
-    layer.setSource(frameSource)
-  })
-}
-
-/**
- * Show or hide a LABELMAP segment's overview marker for one frame, based on
- * whether the frame's samples contain the segment's label.
- *
- * @param {Object} segment
- * @param {number} index - Frame index in the segment's per-frame arrays
- * @param {Uint8Array|Uint16Array} data - Unmasked frame samples
- */
-function _updateLabelmapOverviewFeature(segment, index, data) {
-  const label = segment.frameLoaderParams[index].labelmapSegmentNumber
-  if (label == null) {
-    return
-  }
-  const hasLabel = data.includes(label)
-  const feature = segment.overviewFeatures[index]
-  if (feature.get('hasLabel') !== hasLabel) {
-    feature.set('hasLabel', hasLabel)
-  }
-}
-
-/**
- * Update LABELMAP overview markers from frames that are already cached, e.g.
- * frames loaded for another segment of the same SEG.
- *
- * @param {Object} segment
- */
-function _syncLabelmapOverviewFeatures(segment) {
-  segment.frameLoaderParams.forEach((params, index) => {
-    if (params.labelmapSegmentNumber == null) {
-      return
-    }
-    params.frameDataCache
-      .get(params.framePath)
-      ?.then((data) => {
-        _updateLabelmapOverviewFeature(segment, index, data)
-      })
-      .catch(() => {
-        /** The frame loader reports failed loads */
-      })
-  })
-}
-
-/**
- * Give every frame layer of a per-frame segment a source that loads its frame.
- *
- * @param {Object} segment
- * @param {Object} options
- * @param {HTMLElement} options.container - Target element for load events
- * @param {Object} options.projection
- * @param {boolean} options.interpolate
- */
-function _installPerFrameSegmentLoaders(
-  segment,
-  { container, projection, interpolate },
-) {
-  segment.frameLoaderParams.forEach((loaderParams, index) => {
-    const imageLoadFunction = _createPerFrameImageLoadFunction({
-      targetElement: container,
-      pyramid: loaderParams.pyramid,
-      client: loaderParams.client,
-      channel: loaderParams.channel,
-      labelmapSegmentNumber: loaderParams.labelmapSegmentNumber,
-      frameDataCache: loaderParams.frameDataCache,
-      nativeSize: loaderParams.nativeSize,
-      getPalette: () => ({
-        colormap: _getSegmentColormap(segment),
-        windowCenter: segment.style.windowCenter || 128,
-        windowWidth: segment.style.windowWidth || 256,
-      }),
-      onFrameData: (data) => {
-        _updateLabelmapOverviewFeature(segment, index, data)
-      },
-    })
-    loaderParams.imageLoadFunction = imageLoadFunction
-    loaderParams.interpolate = interpolate
-    segment.frameLayers[index].setSource(
-      new Static({
-        imageExtent: loaderParams.imageExtent,
-        projection,
-        imageLoadFunction,
-        interpolate,
-        url: `seg-frame-${index}`,
-      }),
-    )
-  })
-  segment.hasLoader = true
 }
 
 function _getClient(clientMapping, sopClassUID) {
@@ -1060,10 +731,9 @@ const _isICCProfilesEnabled = Symbol('isICCProfilesEnabled')
 const _iccOutputType = Symbol('iccOutputType')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
-const _highResSources = Symbol('highResSources')
-const _pointsSources = Symbol('pointsSources')
-const _clustersSources = Symbol('clustersSources')
+const _bulkAnnotationManager = Symbol('bulkAnnotationManager')
 const _segmentationInterpolate = Symbol('segmentationInterpolate')
+const _segmentationTileGrid = Symbol('segmentationTileGrid')
 const _parametricMapInterpolate = Symbol('parametricMapInterpolate')
 const _mapViewResolutions = Symbol('mapViewResolutions')
 const _paletteDisplayGammaCorrectionEnabled = Symbol(
@@ -1140,9 +810,7 @@ class VolumeImageViewer {
     this[_container] = null
     this[_clients] = {}
     this[_iccProfiles] = []
-    this[_highResSources] = {}
-    this[_pointsSources] = {}
-    this[_clustersSources] = {}
+    this[_bulkAnnotationManager] = null
     this[_segmentationInterpolate] = false
     this[_parametricMapInterpolate] = true
     this[_paletteDisplayGammaCorrectionEnabled] =
@@ -2181,7 +1849,8 @@ class VolumeImageViewer {
     this[_map].on('pointermove', (event) => {
       const features = this[_map].getFeaturesAtPixel(event.pixel, {
         hitTolerance: 1,
-        layerFilter: _isAnnotationFeatureLayer,
+        layerFilter: (layer) =>
+          layer instanceof VectorLayer || layer instanceof WebGLVector,
       })
 
       const featuresWithROIs = []
@@ -2197,6 +1866,25 @@ class VolumeImageViewer {
                 this[_affine],
               ),
               annotationGroupUID: annotationGroupUID || null,
+            })
+          }
+        }
+      }
+
+      /** Merge deck.gl bulk-annotation CPU picks (pickable:false on layers). */
+      if (this[_bulkAnnotationManager] != null && event.coordinate) {
+        const hit = this[_bulkAnnotationManager].pickAtMapCoordinate(
+          event.coordinate,
+        )
+        if (hit != null) {
+          const record = this[_bulkAnnotationManager].getGroupRecord(
+            hit.annotationGroupUID,
+          )
+          const roi = this._buildBulkAnnotationROI(hit, record)
+          if (roi != null) {
+            featuresWithROIs.push({
+              feature: roi,
+              annotationGroupUID: hit.annotationGroupUID,
             })
           }
         }
@@ -2248,7 +1936,8 @@ class VolumeImageViewer {
         },
         {
           hitTolerance: 1,
-          layerFilter: _isAnnotationFeatureLayer,
+          layerFilter: (layer) =>
+            layer instanceof VectorLayer || layer instanceof WebGLVector,
         },
       )
     })
@@ -2268,18 +1957,37 @@ class VolumeImageViewer {
       const features = this[_map].getFeaturesAtPixel(event.pixel, {
         layerFilter: (layer) => !layer.get(SEGMENT_OVERVIEW_LAYER),
       })
-      const rois = features.map((feature) =>
-        this._getROIFromFeature(
-          feature,
-          this[_pyramid].metadata,
-          this[_affine],
-        ),
-      )
+      const rois = features
+        .map((feature) =>
+          this._getROIFromFeature(
+            feature,
+            this[_pyramid].metadata,
+            this[_affine],
+          ),
+        )
+        .filter(Boolean)
+
+      let bulkRoi = null
+      if (this[_bulkAnnotationManager] != null && event.coordinate) {
+        const hit = this[_bulkAnnotationManager].pickAtMapCoordinate(
+          event.coordinate,
+        )
+        if (hit != null) {
+          const record = this[_bulkAnnotationManager].getGroupRecord(
+            hit.annotationGroupUID,
+          )
+          bulkRoi = this._buildBulkAnnotationROI(hit, record)
+          if (bulkRoi != null) {
+            rois.push(bulkRoi)
+          }
+        }
+      }
 
       publish(this[_map].getTargetElement(), EVENT.VIEWPORT_CLICKED, {
         rois,
       })
 
+      let selected = false
       this[_map].forEachFeatureAtPixel(
         event.pixel,
         (feature) => {
@@ -2295,15 +2003,22 @@ class VolumeImageViewer {
                   this[_affine],
                 ),
               )
+              selected = true
             }
             clickEvent = null
           }
         },
         {
           hitTolerance: 1,
-          layerFilter: _isAnnotationFeatureLayer,
+          layerFilter: (layer) =>
+            layer instanceof VectorLayer || layer instanceof WebGLVector,
         },
       )
+
+      if (!selected && bulkRoi != null) {
+        publish(this[_map].getTargetElement(), EVENT.ROI_SELECTED, bulkRoi)
+        clickEvent = null
+      }
     })
   }
 
@@ -2792,13 +2507,8 @@ class VolumeImageViewer {
       Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
     )
 
-    const segments = new Set(Object.values(this[_segments]))
-
     // TODO: We could make this async, however, we would need to determine what this[_iccProfiles] should actually contain (it's overwritten every loop instance)
     for (const item of itemsRequiringDecodersAndTransformers) {
-      /** Per-frame SEG images get their loaders in showSegment */
-      if (item.usePerFrameImages) continue
-
       this[_iccProfiles] = await _getIccProfiles({
         metadata: item.pyramid.metadata,
         client,
@@ -2833,22 +2543,13 @@ class VolumeImageViewer {
       })
 
       const createReplacementSource = () => {
-        const sourceOptions = {
+        const replacementSource = new DataTileSource({
           tileGrid: source.getTileGrid(),
           projection: source.getProjection(),
+          wrapX: source.getWrapX(),
+          bandCount: source.bandCount,
           interpolate: source.getInterpolate(),
-        }
-        const replacementSource = segments.has(item)
-          ? _createSegmentTileSource({
-              ...sourceOptions,
-              pyramid: item.loaderParams.pyramid,
-              segmentNumber: item.loaderParams.channel,
-            })
-          : new DataTileSource({
-              ...sourceOptions,
-              wrapX: source.getWrapX(),
-              bandCount: source.bandCount,
-            })
+        })
 
         replacementSource.setLoader(loader)
         if (item.onTileLoadError) {
@@ -2932,12 +2633,19 @@ class VolumeImageViewer {
       }
       const windowCenter = segment.style.windowCenter || 128
       const windowWidth = segment.style.windowWidth || 256
+      const defaultSegmentStyle = segment.defaultStyle
       const newStyle = _getColorPaletteStyleForTileLayer({
         windowCenter,
         windowWidth,
-        colormap: _getSegmentColormap(segment),
+        colormap: [
+          [
+            ...segment.style.paletteColorLookupTable.data[0],
+            defaultSegmentStyle.backgroundOpacity,
+          ],
+          ...segment.style.paletteColorLookupTable.data.slice(1),
+        ],
       })
-      _applySegmentPaletteToLayers(segment, newStyle)
+      segment.layer.setStyle(newStyle)
     }
 
     for (const mappingUID in this[_mappings]) {
@@ -3002,26 +2710,16 @@ class VolumeImageViewer {
     const segments = Object.values(this[_segments])
 
     segments.forEach((segment) => {
-      if (segment.usePerFrameImages) {
-        /** Rebuilds sources with the cached frame data instead of refetching */
-        segment.frameLoaderParams.forEach((params) => {
-          params.interpolate = this[_segmentationInterpolate]
-        })
-        _refreshPerFrameSegmentImages(segment)
-      } else {
-        const currentSource = segment.layer.getSource()
-        segment.layer.setSource(
-          _createSegmentTileSource({
-            tileGrid: currentSource.getTileGrid(),
-            projection: currentSource.getProjection(),
-            interpolate: this[_segmentationInterpolate],
-            pyramid: segment.loaderParams.pyramid,
-            segmentNumber: segment.loaderParams.channel,
-            onTileLoadError: segment.onTileLoadError,
-          }),
-        )
-        segment.hasLoader = false
-      }
+      segment.layer.setSource(
+        new DataTileSource({
+          tileGrid: this[_segmentationTileGrid],
+          projection: this[_projection],
+          wrapX: false,
+          bandCount: 1,
+          interpolate: this[_segmentationInterpolate],
+        }),
+      )
+      segment.hasLoader = false
       if (segment.layer.getVisible() === true) {
         this.showSegment(segment.segment.uid)
       } else {
@@ -3200,13 +2898,18 @@ class VolumeImageViewer {
    */
   cleanup() {
     console.info('cleanup memory')
+    if (this[_bulkAnnotationManager] != null) {
+      this[_bulkAnnotationManager].cleanup()
+      this[_bulkAnnotationManager] = null
+    }
+    this[_annotationGroups] = {}
+
     this[_iccOutputType]?.cleanup?.()
     this[_unsubscribeDisplayColorSpace]?.()
     const itemsRequiringDisposal = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
       ...Object.values(this[_mappings]),
-      ...Object.values(this[_annotationGroups]),
     ]
 
     console.info('items requiring disposal:', itemsRequiringDisposal)
@@ -3274,18 +2977,6 @@ class VolumeImageViewer {
     }
 
     itemsRequiringDecodersAndTransformers.forEach(async (item) => {
-      if (item.usePerFrameImages) {
-        /** Segments shown before render had no container to load into */
-        if (!item.hasLoader && item.layer.getVisible()) {
-          _installPerFrameSegmentLoaders(item, {
-            container,
-            projection: this[_projection],
-            interpolate: this[_segmentationInterpolate],
-          })
-        }
-        return
-      }
-
       const metadata = item.pyramid.metadata
       const client = _getClient(
         this[_clients],
@@ -3775,36 +3466,34 @@ class VolumeImageViewer {
    * @param {string} uid - Unique identifier of the region of interest or annotation group UID
    */
   zoomToROI(uid) {
-    const feature =
-      this[_drawingSource].getFeatureById(uid) ||
-      this[_highResSources]?.[uid]?.getFeatures()?.[0] ||
-      this[_pointsSources]?.[uid]?.getFeatures()?.[0] ||
-      this[_clustersSources]?.[uid]?.getFeatures()?.[0]
-    if (!feature) {
-      console.warn(`Could not find a ROI with UID "${uid}" to zoom to.`)
+    const feature = this[_drawingSource].getFeatureById(uid)
+    if (feature) {
+      const geometry = feature.getGeometry()
+      if (!geometry) {
+        console.warn(`Feature with UID "${uid}" has no geometry to zoom to.`)
+        return
+      }
+      const view = this[_map].getView()
+      const extent = geometry.getExtent()
+      const center = getCenter(extent)
+      const width = getWidth(extent)
+      const height = getHeight(extent)
+      const scale = 7
+      const expandedExtent = [
+        center[0] - (width * scale) / 2,
+        center[1] - (height * scale) / 2,
+        center[0] + (width * scale) / 2,
+        center[1] + (height * scale) / 2,
+      ]
+      view.fit(expandedExtent, { duration: 500 })
       return
     }
-    const geometry = feature.getGeometry()
-    if (!geometry) {
-      console.warn(`Feature with UID "${uid}" has no geometry to zoom to.`)
+
+    /** Annotation-group UID — zoom to first annotation (parity with prior OL path). */
+    if (this[_bulkAnnotationManager]?.zoomToAnnotationGroup(uid)) {
       return
     }
-    const view = this[_map].getView()
-    // Expand the extent by a scale factor (e.g., 1.5x)
-    const extent = geometry.getExtent()
-    const center = getCenter(extent)
-    const width = getWidth(extent)
-    const height = getHeight(extent)
-    const scale = 7
-    const newWidth = width * scale
-    const newHeight = height * scale
-    const expandedExtent = [
-      center[0] - newWidth / 2,
-      center[1] - newHeight / 2,
-      center[0] + newWidth / 2,
-      center[1] + newHeight / 2,
-    ]
-    view.fit(expandedExtent, { duration: 500 })
+    console.warn(`Could not find a ROI with UID "${uid}" to zoom to.`)
   }
 
   /**
@@ -3840,6 +3529,95 @@ class VolumeImageViewer {
     if (uid) {
       return new ROI({ scoord3d, properties, uid })
     }
+  }
+
+  /**
+   * Build a frozen roi.ROI for a deck.gl bulk-annotation pick.
+   * @private
+   */
+  _buildBulkAnnotationROI(hit, record) {
+    if (hit == null || record?.decoded == null) {
+      return null
+    }
+    const { positions, startIndices, graphicType } = record.decoded
+    const start = startIndices[hit.annotationIndex]
+    const end = startIndices[hit.annotationIndex + 1]
+    const affine = this[_affine]
+    const frameOfReferenceUID =
+      this[_pyramid]?.metadata?.[0]?.FrameOfReferenceUID
+
+    const mapToSlide = (mapX, mapY) => {
+      const col = mapX
+      const row = -mapY - 1
+      return applyTransform({ coordinate: [col, row], affine })
+    }
+
+    const coords = []
+    for (let i = start; i < end; i++) {
+      const slide = mapToSlide(positions[i * 2], positions[i * 2 + 1])
+      coords.push([slide[0], slide[1], 0])
+    }
+
+    let scoord3d
+    try {
+      if (graphicType === 'POINT') {
+        scoord3d = new Point({
+          coordinates: coords[0],
+          frameOfReferenceUID,
+        })
+      } else if (graphicType === 'POLYLINE') {
+        scoord3d = new Polyline({
+          coordinates: coords,
+          frameOfReferenceUID,
+        })
+      } else {
+        /** POLYGON / RECTANGLE / ELLIPSE */
+        scoord3d = new Polygon({
+          coordinates: coords,
+          frameOfReferenceUID,
+        })
+      }
+    } catch (error) {
+      console.warn('[bulkAnnotations] failed to build scoord3d for pick', error)
+      return null
+    }
+
+    const uid = `${hit.annotationGroupUID}-${hit.annotationIndex}`
+    let roi = new ROI({ scoord3d, properties: {}, uid })
+    try {
+      /** One value per MeasurementsSequence item, when already fetched. */
+      const measurementValues = Array.isArray(record.measurements)
+        ? record.measurements.map((item) => item?.values?.[hit.annotationIndex])
+        : undefined
+      roi = getExtendedROI({
+        annotationGroupUID: hit.annotationGroupUID,
+        annotationIndex: hit.annotationIndex,
+        measurementValues,
+        roi,
+        metadata: record.metadata,
+        annotationGroup: record.metadataItem,
+      })
+    } catch (error) {
+      console.warn('[bulkAnnotations] getExtendedROI failed', error)
+    }
+    return roi
+  }
+
+  /**
+   * Measurement value range for an annotation group (for slim limitValues UI).
+   *
+   * Returns `null` until the group's measurement values have been fetched
+   * (a lazy fetch is triggered by the call, so retry after selection).
+   *
+   * @param {string} annotationGroupUID
+   * @param {Object} [measurement]
+   * @returns {{ min: number, max: number } | null}
+   */
+  getAnnotationGroupMeasurementRange(annotationGroupUID, measurement) {
+    return this._getBulkAnnotationManager().getAnnotationGroupMeasurementRange(
+      annotationGroupUID,
+      measurement,
+    )
   }
 
   /**
@@ -4565,7 +4343,37 @@ class VolumeImageViewer {
   }
 
   /**
+   * Lazily construct the deck.gl bulk-annotation manager.
+   * @private
+   */
+  _getBulkAnnotationManager() {
+    if (this[_bulkAnnotationManager] != null) {
+      return this[_bulkAnnotationManager]
+    }
+    this[_bulkAnnotationManager] = new BulkAnnotationManager({
+      getMap: () => this[_map],
+      getPyramid: () => this[_pyramid],
+      getAffineInverse: () => this[_affineInverse],
+      getClient: () =>
+        _getClient(
+          this[_clients],
+          Enums.SOPClassUIDs.MICROSCOPY_BULK_SIMPLE_ANNOTATIONS ||
+            Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
+        ),
+      getContainer: () =>
+        this[_container] || this[_map]?.getTargetElement?.() || null,
+      annotationOptions: this[_annotationOptions],
+      errorInterceptor: this[_options].errorInterceptor,
+      primaryColor: this[_options].primaryColor,
+    })
+    return this[_bulkAnnotationManager]
+  }
+
+  /**
    * Add annotation groups.
+   *
+   * Registers Microscopy Bulk Simple Annotation groups with the deck.gl
+   * renderer. Coordinate data is fetched lazily on showAnnotationGroup.
    *
    * @param {metadata.MicroscopyBulkSimpleAnnotations} metadata - Metadata of a
    * DICOM Microscopy Simple Bulk Annotations instance
@@ -4575,755 +4383,47 @@ class VolumeImageViewer {
       'add annotation groups of Microscopy Bulk Simple Annotation instances ' +
         `of series "${metadata.SeriesInstanceUID}"`,
     )
-    const defaultAnnotationGroupStyle = {
-      opacity: 1.0,
-      color: this[_options].primaryColor,
-    }
-
-    // Helper function to extract color from annotation group metadata
-    const extractAnnotationGroupColor = (annotationGroupItem) => {
-      if (
-        annotationGroupItem.RecommendedDisplayCIELabValue &&
-        Array.isArray(annotationGroupItem.RecommendedDisplayCIELabValue)
-      ) {
-        try {
-          // Convert CIELab to RGB using dcmjs
-          const labValues = annotationGroupItem.RecommendedDisplayCIELabValue
-          if (labValues.length >= 3) {
-            const rgb = dcmjs.data.Colors.dicomlab2RGB(labValues)
-            // Convert from 0-1 range to 0-255 range and round to integers
-            return [
-              Math.max(0, Math.min(255, Math.round(rgb[0] * 255))),
-              Math.max(0, Math.min(255, Math.round(rgb[1] * 255))),
-              Math.max(0, Math.min(255, Math.round(rgb[2] * 255))),
-            ]
-          }
-        } catch (error) {
-          console.warn(
-            'Failed to convert CIELab to RGB for annotation group:',
-            error,
-          )
-        }
-      }
-      return null
-    }
-
-    // We need to bind those variables to constants for the loader function
-    const client = _getClient(
-      this[_clients],
-      Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
-    )
-    const pyramid = this[_pyramid].metadata
-    const affineInverse = this[_affineInverse]
-    const affine = this[_affine]
-    const map = this[_map]
-    const view = map.getView()
-    const isHighResolution = () => this._computeIsHighResolution(view)
+    const manager = this._getBulkAnnotationManager()
+    manager.addAnnotationGroups(metadata)
 
     /**
-     * Groups of annotations sharing common characteristics, such as graphic type,
-     * properties or measurements.
+     * Keep a lightweight mirror on `_annotationGroups` for cleanup / legacy
+     * readers. Rendering is owned by BulkAnnotationManager.
      */
-    metadata.AnnotationGroupSequence.forEach((item) => {
-      const annotationGroupUID = item.AnnotationGroupUID
-
-      // Extract color from metadata if available
-      const extractedColor = extractAnnotationGroupColor(item)
-      const annotationGroupStyle = {
-        opacity: defaultAnnotationGroupStyle.opacity,
-        color: extractedColor || defaultAnnotationGroupStyle.color,
+    for (const group of manager.getAllAnnotationGroups()) {
+      const uid = group.uid
+      if (this[_annotationGroups][uid]) {
+        continue
       }
-
-      const annotationGroup = {
-        annotationGroup: new AnnotationGroup({
-          uid: annotationGroupUID,
-          number: item.AnnotationGroupNumber,
-          label: item.AnnotationGroupLabel,
-          algorithmType: item.AnnotationGroupGenerationType,
-          algorithmName: item.AnnotationGroupAlgorithmIdentificationSequence
-            ? item.AnnotationGroupAlgorithmIdentificationSequence[0]
-                .AlgorithmName
-            : '',
-          propertyCategory: item.AnnotationPropertyCategoryCodeSequence[0],
-          propertyType: item.AnnotationPropertyTypeCodeSequence[0],
-          studyInstanceUID: metadata.StudyInstanceUID,
-          seriesInstanceUID: metadata.SeriesInstanceUID,
-          sopInstanceUIDs: [metadata.SOPInstanceUID],
-          referencedSeriesInstanceUID:
-            metadata.ReferencedSeriesSequence[0].SeriesInstanceUID,
-          referencedSOPInstanceUID:
-            metadata.ReferencedImageSequence[0].ReferencedSOPInstanceUID,
+      this[_annotationGroups][uid] = {
+        annotationGroup: group,
+        style: manager.getAnnotationGroupStyle(uid),
+        defaultStyle: manager.getAnnotationGroupDefaultStyle(uid),
+        metadata: manager.getAnnotationGroupMetadata(uid),
+        layers: [],
+        activeLayer: () => ({
+          getVisible: () => manager.isAnnotationGroupVisible(uid),
+          setVisible: (v) => {
+            if (v) manager.showAnnotationGroup(uid)
+            else manager.hideAnnotationGroup(uid)
+          },
+          setOpacity: () => {},
+          setStyle: () => {},
+          getSource: () => null,
         }),
-        style: { ...annotationGroupStyle },
-        defaultStyle: annotationGroupStyle,
-        metadata,
       }
-
-      if (this[_annotationGroups][annotationGroupUID]) {
-        console.info('annotation group already added', annotationGroupUID)
-        return
-      }
-
-      const { bulkdataReferences } = annotationGroup.metadata
-
-      // TODO: figure out how to use "loader" with bbox or tile "strategy"?
-      const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
-      const metadataItem =
-        annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
-      if (!metadataItem) {
-        console.warn(
-          `skip annotation group "${annotationGroupUID}": invalid annotation group number or annotation group sequence`,
-        )
-        return
-      }
-
-      /**
-       * Bulkdata may not be available, since it's possible that all information
-       * has been included into the metadata by value as InlineBinary. It must
-       * only be provided if information has been included by reference as
-       * BulkDataURI.
-       */
-      let bulkdataItem
-      if (bulkdataReferences.AnnotationGroupSequence != null) {
-        bulkdataItem =
-          bulkdataReferences.AnnotationGroupSequence[annotationGroupIndex]
-      }
-
-      /**
-       * The number of Annotations in this Annotation Group.
-       * Each point, open polyline or closed polygon, circle,
-       * ellipse or rectangle is counted as one Annotation.
-       */
-      const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-
-      /** Point, Open/Closed Polygon, Circle, Ellipse, etc. */
-      const graphicType = metadataItem.GraphicType
-      /** 2D or 3D dimentionality: (x, y) if value 2 and (x, y, z) if value 3. */
-      const coordinateDimensionality = _getCoordinateDimensionality(
-        metadataItem,
-        annotationGroup.metadata.AnnotationCoordinateType,
-      )
-
-      const refImage = this[_pyramid].metadata[0]
-      /** TODO: This should throw error? */
-      if (
-        coordinateDimensionality === '3D' &&
-        refImage.FrameOfReferenceUID !== metadata.FrameOfReferenceUID
-      ) {
-        throw new Error(
-          'Microscopy Bulk Simple Annotation instances must have the same ' +
-            'Frame of Reference UID as the corresponding source images.',
-        )
-      }
-
-      /** Required if all points are in the same Z plane. */
-      const commonZCoordinate = _getCommonZCoordinate(metadataItem)
-      let areAnnotationsLoaded = false
-
-      const cacheBulkAnnotations = (id, data) => {
-        this[_retrievedBulkdata][id] = data
-      }
-      const getCachedBulkAnnotations = (id) => this[_retrievedBulkdata][id]
-
-      const errorInterceptor = this[_options].errorInterceptor
-
-      const bulkAnnotationsLoader = function (
-        featureFunction,
-        success,
-        failure,
-      ) {
-        console.info('load bulk annotations layer')
-
-        const processBulkAnnotations = (retrievedBulkdata) => {
-          console.info('process bulk annotations', retrievedBulkdata)
-          areAnnotationsLoaded = true
-
-          const [graphicData, graphicIndex, measurements] = retrievedBulkdata
-
-          console.debug('graphic data:', graphicData?.length)
-          console.debug('graphic index:', graphicIndex?.length)
-          console.debug('measurements:', measurements?.length)
-
-          console.info(
-            'compute statistics for measurement values ' +
-              `of annotation group "${annotationGroupUID}"`,
-          )
-          const properties = {}
-          measurements.forEach((measurementItem, measurementIndex) => {
-            /*
-             * Ideally, we would compute quantiles, but that is an expensive
-             * operation. For now, just compute mininum and maximum.
-             */
-            const min = measurementItem.values.reduce(
-              (a, b) => Math.min(a, b),
-              Infinity,
-            )
-            const max = measurementItem.values.reduce(
-              (a, b) => Math.max(a, b),
-              -Infinity,
-            )
-            const key = `measurementValue${measurementIndex.toString()}`
-            properties[key] = { min, max }
-          })
-          this.setProperties(properties, true)
-
-          const features = getFeaturesFromBulkAnnotations({
-            graphicType,
-            graphicData,
-            graphicIndex,
-            measurements,
-            commonZCoordinate,
-            coordinateDimensionality,
-            numberOfAnnotations,
-            annotationGroupUID,
-            annotationGroup,
-            metadataItem,
-            pyramid,
-            affine,
-            affineInverse,
-            view,
-            featureFunction,
-            isHighResolution: isHighResolution(),
-          })
-
-          console.info(
-            `add n=${features.length} annotations ` +
-              `for annotation group "${annotationGroupUID}"`,
-          )
-          this.addFeatures(features)
-          success(features)
-          console.info('number of annotations:', numberOfAnnotations)
-        }
-
-        const cachedBulkAnnotations =
-          getCachedBulkAnnotations(annotationGroupUID)
-        if (cachedBulkAnnotations) {
-          try {
-            console.info('use cached bulk annotations')
-            processBulkAnnotations(cachedBulkAnnotations)
-          } catch (error) {
-            console.error('Failed to process cached bulk annotations', error)
-            const customError = new CustomError(
-              errorTypes.VISUALIZATION,
-              `Failed to process cached bulk annotations: ${error.message}`,
-            )
-            errorInterceptor(customError)
-            failure()
-          }
-        } else {
-          const promises = [
-            _fetchGraphicData({
-              metadata,
-              annotationGroupIndex,
-              metadataItem,
-              bulkdataItem,
-              client,
-            }),
-            _fetchGraphicIndex({
-              metadata,
-              annotationGroupIndex,
-              metadataItem,
-              bulkdataItem,
-              client,
-            }),
-            // TODO: Only fetch measurements if required
-            // _fetchMeasurements({ metadata, annotationGroupIndex, metadataItem, bulkdataItem, client })
-          ]
-          Promise.allSettled(promises)
-            .then((results) => {
-              const errors = {
-                0: 'Failed to retrieve point coordiante data of annotation group',
-                1: 'Failed to retrieve point index list of annotation group',
-                // 2: 'Failed to fetch measurements of annotation group'
-              }
-              const retrievedBulkdata = [[], [], []]
-              results.forEach((result, index) => {
-                if (result.status === 'fulfilled') {
-                  retrievedBulkdata[index] = result.value
-                } else {
-                  console.error(errors[index], result.reason)
-                  const customError = new CustomError(
-                    errorTypes.VISUALIZATION,
-                    `${errors[index]}: ${result.reason}`,
-                  )
-                  errorInterceptor(customError)
-                  failure()
-                }
-              })
-              console.info('retrieve and cache bulk annotations')
-              cacheBulkAnnotations(annotationGroupUID, retrievedBulkdata)
-              processBulkAnnotations(retrievedBulkdata)
-            })
-            .catch((error) => {
-              console.error(
-                'Failed to retrieve and cache bulk annotations',
-                error,
-              )
-              const customError = new CustomError(
-                errorTypes.VISUALIZATION,
-                `Failed to retrieve and cache bulk annotations: ${error.message}`,
-              )
-              errorInterceptor(customError)
-              failure()
-            })
-        }
-      }
-
-      /**
-       * The loader function used to load features, from a remote source for example.
-       * The 'featuresloadend' and 'featuresloaderror' events will only fire if the success
-       * and failure callbacks are used.
-       * https://openlayers.org/en/latest/apidoc/module-ol_source_Vector-VectorSource.html
-       *
-       * In the loader function "this" is bound to the vector source.
-       */
-      function pointsLoader(
-        _extent,
-        _resolution,
-        _projection,
-        success,
-        failure,
-      ) {
-        bulkAnnotationsLoader.call(this, getPointFeature, success, failure)
-      }
-      function polygonsLoader(
-        _extent,
-        _resolution,
-        _projection,
-        success,
-        failure,
-      ) {
-        bulkAnnotationsLoader.call(this, getPolygonFeature, success, failure)
-      }
-      function rectanglesLoader(
-        _extent,
-        _resolution,
-        _projection,
-        success,
-        failure,
-      ) {
-        bulkAnnotationsLoader.call(this, getRectangleFeature, success, failure)
-      }
-      function ellipseLoader(
-        _extent,
-        _resolution,
-        _projection,
-        success,
-        failure,
-      ) {
-        bulkAnnotationsLoader.call(this, getEllipseFeature, success, failure)
-      }
-
-      const getGraphicTypeLoader = (graphicType) => {
-        switch (graphicType) {
-          case 'POINT':
-            return pointsLoader
-          case 'POLYGON':
-          case 'POLYLINE':
-            return polygonsLoader
-          case 'RECTANGLE':
-            return rectanglesLoader
-          case 'ELLIPSE':
-            return ellipseLoader
-          default:
-            console.warn(`Unsupported graphic type "${graphicType}"`)
-            return polygonsLoader
-        }
-      }
-
-      const getHighResFeatureFunc = (graphicType) => {
-        switch (graphicType) {
-          case 'POINT':
-            return getPointFeature
-          case 'POLYGON':
-          case 'POLYLINE':
-            return getPolygonFeature
-          case 'RECTANGLE':
-            return getRectangleFeature
-          case 'ELLIPSE':
-            return getEllipseFeature
-          default:
-            console.warn(`Unsupported graphic type "${graphicType}"`)
-            return getPolygonFeature
-        }
-      }
-
-      const highResLoader = getGraphicTypeLoader(graphicType)
-      const highResFeatureFunc = getHighResFeatureFunc(graphicType)
-
-      const pointsSource = new VectorSource({
-        loader: pointsLoader,
-        wrapX: false,
-        rotateWithView: true,
-        overlaps: false,
-      })
-      const highResSource = new VectorSource({
-        loader: highResLoader,
-        wrapX: false,
-        rotateWithView: true,
-        overlaps: false,
-      })
-      const clustersSource = new Cluster({
-        distance: 100,
-        minDistance: 0,
-        source: pointsSource,
-      })
-
-      pointsSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
-      )
-      pointsSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
-      pointsSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
-      )
-      highResSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
-      )
-      highResSource.on(
-        'featuresloadend',
-        this._onBulkAnnotationsFeaturesLoadEnd,
-      )
-      highResSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
-      )
-      clustersSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
-      )
-      clustersSource.on(
-        'featuresloadend',
-        this._onBulkAnnotationsFeaturesLoadEnd,
-      )
-      clustersSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
-      )
-
-      /**
-       * Reload annotations when panning.
-       * The annotations will be drawn inside the viewport area for better performance.
-       */
-      const debouncedUpdate = debounce(() => {
-        console.info('change:center event')
-        const isVisible = annotationGroup.activeLayer().getVisible()
-        if (
-          isVisible &&
-          graphicType !== 'POINT' &&
-          areAnnotationsLoaded === true &&
-          isHighResolution()
-        ) {
-          console.info('load high resolution bulk annotations')
-          bulkAnnotationsLoader.call(
-            highResSource,
-            highResFeatureFunc,
-            this._onBulkAnnotationsFeaturesLoadEnd,
-            this._onBulkAnnotationsFeaturesLoadError,
-          )
-        }
-      }, 500)
-      view.on('change:center', debouncedUpdate)
-
-      const getHighResLayer = ({
-        pointsSource,
-        highResSource,
-        annotationGroup,
-      }) => {
-        return graphicType === 'POINT'
-          ? new WebGLVector({
-              source: pointsSource,
-              style: this.getGraphicTypeLayerStyle(annotationGroup),
-              disableHitDetection: true,
-            })
-          : new VectorLayer({
-              source: highResSource,
-              style: this.getGraphicTypeLayerStyle(annotationGroup),
-              extent: this[_pyramid].extent,
-            })
-      }
-
-      const highResLayer = getHighResLayer({
-        pointsSource,
-        highResSource,
-        annotationGroup,
-      })
-      const lowResLayer =
-        numberOfAnnotations > 1000
-          ? new VectorLayer({
-              source: clustersSource,
-              style: getClusterStyleFunc(annotationGroup.style, clustersSource),
-              extent: this[_pyramid].extent,
-            })
-          : getHighResLayer({ pointsSource, highResSource, annotationGroup })
-
-      annotationGroup.layers = []
-      annotationGroup.layers[0] = highResLayer
-      annotationGroup.layers[1] = lowResLayer
-      annotationGroup.activeLayer = () =>
-        isHighResolution() || graphicType === 'POINT'
-          ? annotationGroup.layers[0]
-          : annotationGroup.layers[1]
-
-      /** Switch low and high res layers when zoom changes */
-      if (graphicType !== 'POINT') {
-        this[_map].on('moveend', () => {
-          console.info('moveend event')
-          const atLeastOneVisible = annotationGroup.layers.some(
-            (l) => l.getVisible() === true,
-          )
-          if (atLeastOneVisible === true && areAnnotationsLoaded === true) {
-            annotationGroup.layers[0].setVisible(isHighResolution() === true)
-            annotationGroup.layers[1].setVisible(isHighResolution() === false)
-          }
-        })
-      }
-
-      /**
-       * Zoom in inside clusters (low res layer) when clicking on them.
-       */
-      if (graphicType !== 'POINT') {
-        const mapView = this[_map].getView()
-        this[_map].on('click', (event) => {
-          annotationGroup.layers[1]
-            .getFeatures(event.pixel)
-            .then((features) => {
-              if (features.length > 0) {
-                const clusterMembers = features[0].get('features')
-                /** Calculate the extent of the cluster members */
-                if (clusterMembers && clusterMembers.length > 1) {
-                  const extent = createEmpty()
-                  clusterMembers.forEach((feature) => {
-                    extend(extent, feature.getGeometry().getExtent())
-                  })
-                  /** Zoom to the extent of the cluster members */
-                  mapView.fit(extent, {
-                    duration: 500,
-                    padding: [50, 50, 50, 50],
-                  })
-                }
-              }
-            })
-        })
-      }
-
-      annotationGroup.layers[0].setVisible(false)
-      this[_map].addLayer(annotationGroup.layers[0])
-
-      if (graphicType !== 'POINT') {
-        annotationGroup.layers[1].setVisible(false)
-        this[_map].addLayer(annotationGroup.layers[1])
-      }
-
-      this[_annotationGroups][annotationGroupUID] = annotationGroup
-
-      this[_pointsSources][annotationGroupUID] = pointsSource
-      this[_highResSources][annotationGroupUID] = highResSource
-      this[_clustersSources][annotationGroupUID] = clustersSource
-    })
-
-    /**
-     * Select an annotation when clicked.
-     * Opens a dialog with ROI information.
-     */
-    let selectedAnnotation = null
-    this[_map].on('singleclick', (event) => {
-      if (selectedAnnotation !== null) {
-        selectedAnnotation.set('selected', 0)
-        selectedAnnotation = null
-      }
-
-      const container = this[_map].getTargetElement()
-      if (!container) {
-        return
-      }
-
-      /**
-       * Select an annotation when clicked.
-       * Opens a dialog with ROI information.
-       */
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          if (feature !== null && feature.getId() !== undefined) {
-            feature.set('selected', 1)
-            selectedAnnotation = feature
-            const roi = this._getROIFromFeature(
-              feature,
-              this[_pyramid].metadata,
-              this[_affine],
-            )
-            if (roi) {
-              const annotationGroupUID = feature.get('annotationGroupUID')
-              const extendedROI = getExtendedROI({
-                feature,
-                roi,
-                metadata,
-                annotationGroup: this[_annotationGroups][annotationGroupUID],
-              })
-              publish(container, EVENT.ROI_SELECTED, extendedROI)
-              return true
-            }
-          }
-          return false
-        },
-        {
-          hitTolerance: 1,
-          layerFilter: _isAnnotationFeatureLayer,
-        },
-      )
-    })
+    }
   }
 
   /**
-   * Returns the layer style for a given annotation group based on its graphic type.
-   * @param {Object} annotationGroup - The annotation group object.
-   * @returns {Object|Function} - The layer style object or an empty function.
+   * @deprecated OpenLayers vector styles are no longer used for bulk annotations.
+   * Kept for API compatibility.
    */
-  getGraphicTypeLayerStyle(annotationGroup) {
-    const { style } = annotationGroup
-    const color = `rgba(${style.color[0]}, ${style.color[1]}, ${style.color[2]}, ${style.opacity})`
-
-    const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
-    const metadataItem =
-      annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
-    const graphicType = metadataItem.GraphicType
-
-    if (graphicType === 'POINT') {
-      const topLayerIndex = 0
-      const topLayerPixelSpacing = this[_pyramid].pixelSpacings[topLayerIndex]
-      const baseLayerIndex = this[_pyramid].metadata.length - 1
-      const baseLayerPixelSpacing = this[_pyramid].pixelSpacings[baseLayerIndex]
-      const diameter = 5 * 10 ** -3 /** micrometer */
-
-      /*
-       * TODO: Determine optimal sizes based on number of zoom levels and
-       * number of objects, and zoom factor between levels.
-       * Use style variable(s) that can subsequently be updated.
-       */
-      const pointsStyle = {
-        'circle-radius': [
-          'interpolate',
-          ['exponential', 2],
-          ['zoom'],
-          1,
-          Math.max(diameter / topLayerPixelSpacing[0], 2),
-          this[_pyramid].resolutions.length,
-          Math.min(diameter / baseLayerPixelSpacing[0], 20),
-        ],
-        'circle-displacement': [0, 0],
-        'circle-opacity': annotationGroup.style.opacity,
-        'circle-fill-color': [
-          'match',
-          ['get', 'hover'],
-          1,
-          rgb2hex(this[_options].highlightColor),
-          rgb2hex(annotationGroup.style.color),
-        ],
-      }
-
-      const name = annotationGroup.style.measurement
-      if (name) {
-        const measurementIndex =
-          annotationGroup.groupItem.MeasurementsSequence.findIndex((item) => {
-            return areCodedConceptsEqual(
-              name,
-              getContentItemNameCodedConcept(item),
-            )
-          })
-        if (measurementIndex == null) {
-          throw new Error(
-            'Cannot set style of annotation group. ' +
-              `Could not find measurement "${name.CodeMeaning}" ` +
-              `of annotation group "${metadataItem.AnnotationGroupUID}".`,
-          )
-        }
-        const source = annotationGroup.layers[0].getSource()
-        const properties = source.getProperties()
-        const key = `measurementValue${measurementIndex.toString()}`
-
-        if (properties[key]) {
-          /*
-           * Ideally, we would use a color palette to colorize objects.
-           * However, it appears the "palette" expression is not yet supported for
-           * styling PointLayer.
-           *
-           * Create a heat map effect: normalize property values to 0-1 range and
-           * interpolate colors from white to annotation color.
-           */
-          Object.assign(pointsStyle, {
-            'circle-fill-color': [
-              'interpolate',
-              ['linear'],
-              [
-                '+',
-                [
-                  '/',
-                  [
-                    '*',
-                    ['-', ['get', key], properties[key].min],
-                    ['-', properties[key].min, properties[key].max],
-                  ],
-                  ['-', properties[key].max, properties[key].min],
-                ],
-                properties[key].min,
-              ],
-              0,
-              [255, 255, 255, 1],
-              1,
-              annotationGroup.style.color,
-            ],
-          })
-        }
-      }
-
-      if (annotationGroup.style.color !== null) {
-        Object.assign(pointsStyle, {
-          'circle-fill-color': [
-            'match',
-            ['get', 'selected'],
-            1,
-            rgb2hex(this[_options].highlightColor),
-            rgb2hex(annotationGroup.style.color),
-          ],
-        })
-      }
-
-      return pointsStyle
-    }
-
-    // For area-based annotations (POLYGON, RECTANGLE, ELLIPSE), add fill
-    // When style.fill is true, use the annotation color with fillOpacity
-    // Otherwise use transparent fill for hit detection only
-    if (
-      graphicType === 'POLYGON' ||
-      graphicType === 'RECTANGLE' ||
-      graphicType === 'ELLIPSE'
-    ) {
-      let fillColor = 'rgba(0, 0, 255, 0)' // transparent by default for hit detection
-      if (style.fill === true) {
-        const fillOpacity = Math.max(0, Math.min(1, style.fillOpacity ?? 0.5))
-        fillColor = `rgba(${style.color[0]}, ${style.color[1]}, ${style.color[2]}, ${fillOpacity})`
-      }
-      return new Style({
-        stroke: new Stroke({
-          color,
-          width: 2,
-          opacity: style.opacity,
-        }),
-        fill: new Fill({ color: fillColor }),
-      })
-    }
-
-    return new Style({
-      stroke: new Stroke({
-        color,
-        width: 2,
-        opacity: style.opacity,
-      }),
-    })
+  getGraphicTypeLayerStyle(_annotationGroup) {
+    console.warn(
+      '[bulkAnnotations] getGraphicTypeLayerStyle is deprecated; bulk annotations use deck.gl styles.',
+    )
+    return null
   }
 
   /**
@@ -5341,17 +4441,8 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-
     console.info(`remove annotation group ${annotationGroupUID}`)
-
-    annotationGroup.layers.forEach((layer) => {
-      this[_map].removeLayer(layer)
-      disposeLayer(layer)
-    })
-
-    delete this[_retrievedBulkdata][annotationGroupUID]
+    this._getBulkAnnotationManager().removeAnnotationGroup(annotationGroupUID)
     delete this[_annotationGroups][annotationGroupUID]
   }
 
@@ -5372,6 +4463,10 @@ class VolumeImageViewer {
    * @param {Object} styleOptions
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.color] - RGB color triplet
+   * @param {boolean} [styleOptions.filled] - Whether closed graphic types
+   * (POLYGON, RECTANGLE, ELLIPSE) are rendered filled
+   * @param {number} [styleOptions.fillOpacity] - Fill opacity, applied when
+   * `filled` is true
    * @param {Object} [styleOptions.measurement] - Selected measurement
    */
   showAnnotationGroup(annotationGroupUID, styleOptions = {}) {
@@ -5383,11 +4478,20 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.info(`show annotation group ${annotationGroupUID}`, annotationGroup)
-    this.setAnnotationGroupStyle(annotationGroupUID, styleOptions)
-    annotationGroup.activeLayer().setVisible(true)
+    console.info(`show annotation group ${annotationGroupUID}`)
+    this._getBulkAnnotationManager().showAnnotationGroup(
+      annotationGroupUID,
+      styleOptions,
+    )
+    const mirror = this[_annotationGroups][annotationGroupUID]
+    if (mirror) {
+      mirror.style = {
+        ...mirror.style,
+        ...this._getBulkAnnotationManager().getAnnotationGroupStyle(
+          annotationGroupUID,
+        ),
+      }
+    }
   }
 
   /**
@@ -5405,10 +4509,8 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    console.info(`hide annotation group ${annotationGroupUID}`, annotationGroup)
-    annotationGroup.activeLayer().setVisible(false)
+    console.info(`hide annotation group ${annotationGroupUID}`)
+    this._getBulkAnnotationManager().hideAnnotationGroup(annotationGroupUID)
   }
 
   /**
@@ -5426,9 +4528,9 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-    return annotationGroup.activeLayer().getVisible()
+    return this._getBulkAnnotationManager().isAnnotationGroupVisible(
+      annotationGroupUID,
+    )
   }
 
   /**
@@ -5447,54 +4549,13 @@ class VolumeImageViewer {
         this[_annotationOptions].clusteringPixelSizeThreshold =
           options.clusteringPixelSizeThreshold
       } else {
-        if (
-          this[_annotationOptions].clusteringPixelSizeThreshold !== undefined
-        ) {
-          delete this[_annotationOptions].clusteringPixelSizeThreshold
-        }
+        delete this[_annotationOptions].clusteringPixelSizeThreshold
       }
-
-      const view = this[_map].getView()
-
-      /**
-       * Update visibility for all annotation groups
-       * Only update if the annotation group is currently visible to avoid triggering unnecessary loads
-       */
-      Object.values(this[_annotationGroups]).forEach((annotationGroup) => {
-        const layers = annotationGroup.layers
-        if (
-          !layers ||
-          layers.length < 2 ||
-          layers[0] == null ||
-          layers[1] == null
-        ) {
-          return
-        }
-
-        /** Check if annotation group is currently visible (at least one layer is visible) */
-        const isCurrentlyVisible = layers.some(
-          (layer) => layer && layer.getVisible() === true,
-        )
-
-        /**
-         * Only update visibility if the annotation group is already visible
-         * If it's not visible, just update the config and let moveend handler take care of it
-         */
-        if (isCurrentlyVisible) {
-          /** When clustering is disabled (undefined), always use high-res layer; otherwise use shared helper */
-          const shouldShowHighRes = this._computeIsHighResolution(view)
-
-          /** Only update visibility if it's actually changing to avoid triggering unnecessary loads */
-          const currentlyHighResVisible = layers[0].getVisible()
-          if (currentlyHighResVisible !== shouldShowHighRes) {
-            layers[0].setVisible(shouldShowHighRes)
-            layers[1].setVisible(!shouldShowHighRes)
-          }
-        }
-        // If annotation group is not visible, don't touch layers - just let the config update
-        // The moveend handler will apply the correct layer when the group becomes visible
-      })
     }
+    if ('lodLevelsFromFinest' in options) {
+      this[_annotationOptions].lodLevelsFromFinest = options.lodLevelsFromFinest
+    }
+    this._getBulkAnnotationManager().setAnnotationOptions(options)
   }
 
   /**
@@ -5505,6 +4566,10 @@ class VolumeImageViewer {
    * @param {Object} styleOptions - Style options
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.color] - RGB color triplet
+   * @param {boolean} [styleOptions.filled] - Whether closed graphic types
+   * (POLYGON, RECTANGLE, ELLIPSE) are rendered filled
+   * @param {number} [styleOptions.fillOpacity] - Fill opacity, applied when
+   * `filled` is true
    * @param {Object} [styleOptions.measurement] - Selected measurement for
    * pseudo-coloring of annotations using measurement values
    * @param {boolean} [styleOptions.fill] - Whether to fill polygon annotations
@@ -5520,82 +4585,20 @@ class VolumeImageViewer {
       )
       throw this[_options].errorInterceptor(error)
     }
-
-    const annotationGroup = this[_annotationGroups][annotationGroupUID]
-
     console.info(
       `set style for annotation group "${annotationGroupUID}"`,
       styleOptions,
     )
-
-    if (styleOptions.opacity != null) {
-      annotationGroup.style.opacity = styleOptions.opacity
-      annotationGroup.layers.forEach((layer) => {
-        layer.setOpacity(styleOptions.opacity)
-      })
-    }
-
-    if (styleOptions.color != null) {
-      annotationGroup.style.color = styleOptions.color
-    }
-
-    if (styleOptions.measurement != null) {
-      annotationGroup.style.measurement = styleOptions.measurement
-    }
-
-    if (styleOptions.fill != null) {
-      annotationGroup.style.fill = styleOptions.fill
-    }
-
-    if (styleOptions.fillOpacity != null) {
-      annotationGroup.style.fillOpacity = Math.max(
-        0,
-        Math.min(1, styleOptions.fillOpacity),
-      )
-    }
-
-    const annotationGroupIndex = annotationGroup.annotationGroup.number - 1
-    const metadataItem =
-      annotationGroup.metadata.AnnotationGroupSequence[annotationGroupIndex]
-    const graphicType = metadataItem.GraphicType
-    const numberOfAnnotations = Number(metadataItem.NumberOfAnnotations)
-    const metadata = annotationGroup.metadata
-    const groupItem = metadata.AnnotationGroupSequence.find((item) => {
-      return item.AnnotationGroupUID === annotationGroupUID
-    })
-
-    if (groupItem == null) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Cannot set style of annotation group. ' +
-          `Could not find metadata of annotation group "${annotationGroupUID}".`,
-      )
-      throw this[_options].errorInterceptor(error) || error
-    }
-
-    annotationGroup.groupItem = groupItem
-    annotationGroup.graphicType = graphicType
-    annotationGroup.numberOfAnnotations = numberOfAnnotations
-
-    if (annotationGroup.layers[0]) {
-      annotationGroup.layers[0].setStyle(
-        this.getGraphicTypeLayerStyle(annotationGroup),
-      )
-    }
-
-    if (annotationGroup.graphicType !== 'POINT' && annotationGroup.layers[1]) {
-      if (annotationGroup.numberOfAnnotations > 1000) {
-        annotationGroup.layers[1].setStyle(
-          getClusterStyleFunc(
-            annotationGroup.style,
-            annotationGroup.layers[1].getSource(),
-          ),
+    this._getBulkAnnotationManager().setAnnotationGroupStyle(
+      annotationGroupUID,
+      styleOptions,
+    )
+    const mirror = this[_annotationGroups][annotationGroupUID]
+    if (mirror) {
+      mirror.style =
+        this._getBulkAnnotationManager().getAnnotationGroupStyle(
+          annotationGroupUID,
         )
-      } else {
-        annotationGroup.layers[1].setStyle(
-          this.getGraphicTypeLayerStyle(annotationGroup),
-        )
-      }
     }
   }
 
@@ -5621,6 +4624,8 @@ class VolumeImageViewer {
     return {
       opacity: annotationGroup.defaultStyle.opacity,
       color: annotationGroup.defaultStyle.color,
+      filled: annotationGroup.defaultStyle.filled,
+      fillOpacity: annotationGroup.defaultStyle.fillOpacity,
     }
   }
 
@@ -5646,6 +4651,8 @@ class VolumeImageViewer {
     return {
       opacity: annotationGroup.style.opacity,
       color: annotationGroup.style.color,
+      filled: annotationGroup.style.filled,
+      fillOpacity: annotationGroup.style.fillOpacity,
     }
   }
 
@@ -5760,29 +4767,10 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const [fittedPyramid, minZoomLevel, maxZoomLevel, hasMatchingLevels] =
-      _fitImagePyramid(pyramid, this[_pyramid])
-
-    /**
-     * Calculate scale factor for coordinate transformation.
-     * This is needed for TILED_SPARSE overlays at different resolutions.
-     * Scale factor = SEG pixel spacing / Base pixel spacing
-     */
-    const refBaseLevel =
-      this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
-    const segLevel = pyramid.metadata[pyramid.metadata.length - 1]
-    const basePixelSpacing = getPixelSpacing(refBaseLevel)
-    const segPixelSpacing = getPixelSpacing(segLevel)
-    const coordinateScaleFactor = segPixelSpacing[0] / basePixelSpacing[0]
-
-    /**
-     * Fitted extent encodes the SEG origin in base pixels:
-     *   [offsetX, -(offsetY + scaledHeight + 1), offsetX + scaledWidth, -(offsetY + 1)]
-     */
-    const fittedOriginOffset = [
-      fittedPyramid.extent[0],
-      -(fittedPyramid.extent[3] + 1),
-    ]
+    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
+      pyramid,
+      this[_pyramid],
+    )
 
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
@@ -5791,6 +4779,8 @@ class VolumeImageViewer {
       sizes: fittedPyramid.gridSizes,
       tileSizes: fittedPyramid.tileSizes,
     })
+    this[_segmentationTileGrid] = tileGrid
+
     let minStoredValue = 0
     let maxStoredValue = 255
     if (refSegmentation.SegmentationType === 'BINARY') {
@@ -5842,13 +4832,6 @@ class VolumeImageViewer {
     let stableColorIndex = Object.values(this[_segments]).filter(
       (existing) => existing.segmentationType === 'LABELMAP',
     ).length
-
-    const segmentBoundingBoxes = _computeSegmentBoundingBoxes(
-      pyramid,
-      coordinateScaleFactor,
-      fittedOriginOffset,
-    )
-    const perFrameDataCache = new Map()
 
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
@@ -5939,15 +4922,6 @@ class VolumeImageViewer {
       }
 
       /**
-       * A segment is absent when Segment Sequence declares it but the
-       * pyramid has no frames for that channel (common for TILED_SPARSE
-       * where some labels were never found in any patch).
-       */
-      const boundingBox =
-        segmentBoundingBoxes.get(String(segmentNumber)) ?? null
-      const isAbsent = boundingBox == null
-
-      /**
        * Detect if this segment represents background:
        * 1. SegmentNumber matches PixelPaddingValue (0028,0120)
        * 2. Segmented Property Type Code is (DCM, 125040, "Background")
@@ -5980,7 +4954,6 @@ class VolumeImageViewer {
           sopInstanceUIDs: pyramid.metadata.map((element) => {
             return element.SOPInstanceUID
           }),
-          isAbsent,
           isBackground: isBackgroundSegment,
         }),
         pyramid,
@@ -6003,9 +4976,28 @@ class VolumeImageViewer {
         },
         hasLoader: false,
         segmentationType: refSegmentation.SegmentationType,
-        boundingBox,
-        isAbsent,
       }
+
+      const source = new DataTileSource({
+        tileGrid,
+        projection: this[_projection],
+        wrapX: false,
+        bandCount: 1,
+        /** Avoid interpolation for single resolution (avoid blocky pixels) */
+        interpolate: this[_segmentationInterpolate],
+      })
+      segment.onTileLoadError = (event) => {
+        console.error(
+          `error loading tile of segment "${segmentUID}"`,
+          event.tile?.error_?.message || event,
+        )
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
+          `error loading tile of segment "${segmentUID}": ${event.tile?.error_?.message || event.message}`,
+        )
+        this[_options].errorInterceptor(error)
+      }
+      source.on('tileloaderror', segment.onTileLoadError)
 
       const [windowCenter, windowWidth] = createWindow(
         minStoredValue,
@@ -6021,159 +5013,41 @@ class VolumeImageViewer {
       segment.style.windowCenter = windowCenter
       segment.style.windowWidth = windowWidth
 
-      const paletteStyle = _getColorPaletteStyleForTileLayer({
-        windowCenter,
-        windowWidth,
-        colormap: _getSegmentColormap(segment),
+      segment.layer = new TileLayer({
+        source,
+        extent: this[_pyramid].extent,
+        visible: false,
+        opacity: 1,
+        preload: this[_options].preload ? 1 : 0,
+        transition: 0,
+        style: _getColorPaletteStyleForTileLayer({
+          windowCenter,
+          windowWidth,
+          colormap: [
+            [
+              ...segment.style.paletteColorLookupTable.data.at(0),
+              defaultSegmentStyle.backgroundOpacity,
+            ],
+            ...segment.style.paletteColorLookupTable.data.slice(1),
+          ],
+        }),
+        useInterimTilesOnError: false,
+        cacheSize: this[_options].tilesCacheSize,
+        minResolution:
+          this[_mapViewResolutions] === undefined
+            ? undefined
+            : minZoomLevel > 0
+              ? this[_pyramid].resolutions[minZoomLevel]
+              : undefined,
       })
-
-      const minResolution =
-        this[_mapViewResolutions] === undefined || !hasMatchingLevels
-          ? undefined
-          : minZoomLevel > 0
-            ? this[_pyramid].resolutions[minZoomLevel]
-            : undefined
-
-      /**
-       * When fitted TILED_SPARSE frames have inconsistent sub-tile offsets,
-       * a shared TileGrid cannot place them. One ImageStatic layer per frame
-       * at the PlanePosition extent keeps alignment. Overview stamps cover
-       * resolutions where that raster is skipped or samples to empty.
-       */
-      if (fittedPyramid.usePerFramePlacement) {
-        const segMetadata =
-          fittedPyramid.metadata[fittedPyramid.metadata.length - 1]
-        const fitResolution =
-          fittedPyramid.fitResolution ?? coordinateScaleFactor
-        const placements = _buildSparseFramePlacements(
-          segMetadata,
-          fitResolution,
-          fittedPyramid.pixelOriginOffset || [0, 0],
-          segmentNumber,
+      segment.layer.on('error', (event) => {
+        console.error(`error rendering segment "${segmentUID}"`, event)
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
+          `error rendering segment "${segmentUID}": ${event.message}`,
         )
-
-        const frameLayers = []
-        const frameLoaderParams = []
-        const overviewFeatures = []
-        const frameMaxResolution = _perFrameRasterMaxResolution(fitResolution)
-
-        placements.forEach((placement) => {
-          const {
-            pyramid: framePyramid,
-            nativeSize,
-            framePath,
-          } = _buildPerFrameImagePyramid({
-            placement,
-            fitResolution,
-            segmentation: segMetadata,
-            channelId: segmentNumber,
-          })
-          const frameLayer = new ImageLayer({
-            source: new Static({
-              imageExtent: placement.extent,
-              projection: this[_projection],
-              interpolate: this[_segmentationInterpolate],
-              imageLoadFunction: () => {},
-              url: '',
-            }),
-            extent: placement.extent,
-            maxResolution: frameMaxResolution,
-            opacity: 1,
-          })
-          frameLayers.push(frameLayer)
-          frameLoaderParams.push({
-            pyramid: framePyramid,
-            client: segment.loaderParams.client,
-            channel: segmentNumber,
-            labelmapSegmentNumber: segment.loaderParams.labelmapSegmentNumber,
-            frameDataCache: perFrameDataCache,
-            framePath,
-            nativeSize,
-            imageExtent: [...placement.extent],
-            interpolate: this[_segmentationInterpolate],
-            imageLoadFunction: null,
-          })
-
-          overviewFeatures.push(
-            new Feature({
-              geometry: polygonFromExtent(placement.extent),
-              frameExtent: [...placement.extent],
-              nativeSize: [...nativeSize],
-              /**
-               * LABELMAP frames are listed under every segment, so a marker
-               * waits until the frame is loaded and known to hold the label.
-               */
-              hasLabel: !isLabelmap,
-            }),
-          )
-        })
-
-        /**
-         * ImageStatic skips drawImage below 0.5 device px, and nearest-neighbor
-         * sampling of a sparse mask is empty long before that. Vector stamps
-         * redraw during zoom (unlike ImageCanvas) so mid-zoom stays visible.
-         */
-        segment.overviewFeatures = overviewFeatures
-        const overviewLayer = _createPerFrameOverviewLayer(segment)
-
-        segment.usePerFrameImages = true
-        segment.frameLayers = frameLayers
-        segment.frameLoaderParams = frameLoaderParams
-        segment.overviewLayer = overviewLayer
-        segment.layer = new LayerGroup({
-          layers: [...frameLayers, overviewLayer],
-          visible: false,
-          opacity: 1,
-        })
-      } else {
-        segment.onTileLoadError = (event) => {
-          console.error(
-            `error loading tile of segment "${segmentUID}"`,
-            event.tile?.error_?.message || event,
-          )
-          const error = new CustomError(
-            errorTypes.VISUALIZATION,
-            `error loading tile of segment "${segmentUID}": ${event.tile?.error_?.message || event.message}`,
-          )
-          this[_options].errorInterceptor(error)
-        }
-        const source = _createSegmentTileSource({
-          tileGrid,
-          projection: this[_projection],
-          /** Avoid interpolation for single resolution (avoid blocky pixels) */
-          interpolate: this[_segmentationInterpolate],
-          pyramid: fittedPyramid,
-          segmentNumber,
-          onTileLoadError: segment.onTileLoadError,
-        })
-
-        segment.layer = new TileLayer({
-          source,
-          extent: this[_pyramid].extent,
-          visible: false,
-          opacity: 1,
-          preload: this[_options].preload ? 1 : 0,
-          transition: 0,
-          style: paletteStyle,
-          useInterimTilesOnError: false,
-          cacheSize: this[_options].tilesCacheSize,
-          /**
-           * Only clamp overlay visibility to matching pyramid levels. For
-           * non-matching (fitted) single-level SEGs, min/max zoom map to the
-           * closest base index for click-to-zoom, but the overlay must stay
-           * visible at all view resolutions.
-           */
-          minResolution,
-        })
-        segment.layer.on('error', (event) => {
-          console.error(`error rendering segment "${segmentUID}"`, event)
-          const error = new CustomError(
-            errorTypes.VISUALIZATION,
-            `error rendering segment "${segmentUID}": ${event.message}`,
-          )
-          this[_options].errorInterceptor(error)
-        })
-      }
+        this[_options].errorInterceptor(error)
+      })
 
       this[_map].addLayer(segment.layer)
       this[_segments][segmentUID] = segment
@@ -6217,7 +5091,6 @@ class VolumeImageViewer {
    * @param {string} segmentUID - Unique tracking identifier of a segment
    * @param {Object} [styleOptions]
    * @param {number} [styleOptions.opacity] - Opacity
-   * @param {boolean} [shouldZoomIn=false] - Zoom to the segment (see `zoomToSegment`)
    */
   showSegment(segmentUID, styleOptions = {}, shouldZoomIn = false) {
     if (!(segmentUID in this[_segments])) {
@@ -6229,36 +5102,21 @@ class VolumeImageViewer {
     }
 
     const segment = this[_segments][segmentUID]
-    if (segment.isAbsent) {
-      console.warn(
-        `Cannot show segment "${segmentUID}": segment is absent ` +
-          '(no frame data).',
-      )
-      return
-    }
     console.info(`show segment ${segmentUID}`)
 
     const container = this[_map].getTargetElement() || this[_container]
 
     if (container && !segment.hasLoader) {
       try {
-        if (segment.usePerFrameImages) {
-          _installPerFrameSegmentLoaders(segment, {
-            container,
-            projection: this[_projection],
-            interpolate: this[_segmentationInterpolate],
-          })
-        } else {
-          const loader = _createTileLoadFunction({
-            targetElement: container,
-            iccProfiles: [],
-            ...segment.loaderParams,
-          })
-          const source = segment.layer.getSource()
-          if (source) {
-            source.setLoader(loader)
-            segment.hasLoader = true
-          }
+        const loader = _createTileLoadFunction({
+          targetElement: container,
+          iccProfiles: [],
+          ...segment.loaderParams,
+        })
+        const source = segment.layer.getSource()
+        if (source) {
+          source.setLoader(loader)
+          segment.hasLoader = true
         }
       } catch (error) {
         console.error(
@@ -6268,9 +5126,6 @@ class VolumeImageViewer {
       }
     }
 
-    if (segment.usePerFrameImages) {
-      _syncLabelmapOverviewFeatures(segment)
-    }
     segment.layer.setVisible(true)
     this.setSegmentStyle(segmentUID, styleOptions)
     this._syncStackedDerivedLegendOverlays()
@@ -6283,148 +5138,15 @@ class VolumeImageViewer {
     }
 
     if (shouldZoomIn) {
-      this.zoomToSegment(segmentUID)
-    }
-  }
+      const view = this[_map].getView()
+      const currentZoomLevel = view.getZoom()
 
-  /**
-   * Map a segment's preferred pyramid level to a view resolution.
-   *
-   * `minZoomLevel` / `maxZoomLevel` are indices into the base image pyramid
-   * resolutions. With free zoom (no constrained view resolutions), those
-   * indices are not OpenLayers zoom levels — callers must animate/fit by
-   * resolution instead of `zoom` / `maxZoom`.
-   *
-   * @param {Object} segment - Internal segment record
-   * @returns {number} Target map resolution (map units per pixel)
-   * @private
-   */
-  _getSegmentTargetResolution(segment) {
-    const resolutions = this[_pyramid].resolutions
-    const index = segment.maxZoomLevel
-    if (
-      resolutions != null &&
-      resolutions.length > 0 &&
-      Number.isInteger(index) &&
-      index >= 0 &&
-      index < resolutions.length
-    ) {
-      return resolutions[index]
-    }
-    return resolutions[resolutions.length - 1]
-  }
-
-  /**
-   * Zoom to a segment's bounding box.
-   *
-   * For segments with compact bounding boxes, fits the view to show the
-   * entire segment with some context. For segments with large bounding boxes
-   * (e.g., TILED_SPARSE with scattered features), zooms to the segment's
-   * preferred (fitted) resolution centered on the bounding box.
-   *
-   * `minZoomLevel` / `maxZoomLevel` come from `_fitImagePyramid`. When the
-   * SEG has no matching base pyramid levels, those values are the closest
-   * base zoom indices to the fitted resolution — not the full base range —
-   * so click-to-zoom lands on the overlay's native scale (slim#371).
-   *
-   * @param {string} segmentUID - Unique tracking identifier of a segment
-   */
-  zoomToSegment(segmentUID) {
-    if (!(segmentUID in this[_segments])) {
-      console.warn(
-        `Cannot zoom to segment. Could not find segment "${segmentUID}".`,
-      )
-      return
-    }
-
-    const segment = this[_segments][segmentUID]
-    if (segment.isAbsent || segment.boundingBox == null) {
-      console.warn(
-        `Cannot zoom to segment "${segmentUID}": segment is absent ` +
-          '(no frame data / bounding box).',
-      )
-      return
-    }
-
-    const view = this[_map].getView()
-    const extent = segment.boundingBox
-    const center = getCenter(extent)
-    const extentWidth = getWidth(extent)
-    const extentHeight = getHeight(extent)
-
-    if (
-      !Number.isFinite(extentWidth) ||
-      !Number.isFinite(extentHeight) ||
-      extentWidth <= 0 ||
-      extentHeight <= 0
-    ) {
-      console.warn(
-        `Cannot zoom to segment "${segmentUID}": invalid bounding box.`,
-      )
-      return
-    }
-
-    /**
-     * Get the viewport size in map coordinates at the target resolution.
-     * If the segment bounding box is extremely large relative to the viewport
-     * (indicating scattered features like TILED_SPARSE nuclei spread across
-     * a large region), zoom to the fitted resolution centered on the
-     * segment rather than fitting the entire bounding box.
-     *
-     * We use a high threshold (10x) to avoid affecting normal segments like
-     * tumor regions that may span several tiles but should still be shown
-     * in full. Only truly scattered segments (e.g., nuclei across an entire
-     * slide region) will trigger the centered zoom behavior.
-     */
-    const viewportSize = this[_map].getSize()
-    if (!viewportSize) {
-      console.warn('Cannot get map size for zoom calculation')
-      return
-    }
-
-    /**
-     * Prefer the finest fitted pyramid resolution (not OL zoom index).
-     * Free-zoom hosts (Slim) must animate/fit by resolution.
-     */
-    const targetResolution = this._getSegmentTargetResolution(segment)
-    const viewportWidthAtTarget = viewportSize[0] * targetResolution
-    const viewportHeightAtTarget = viewportSize[1] * targetResolution
-
-    /**
-     * Threshold of 10x viewport size - only extremely large/scattered
-     * segments trigger centered zoom behavior. Normal segments (tumor
-     * regions, lesions, etc.) will still fit their bounding box.
-     */
-    const scatterThreshold = 10
-    const isScatteredSegment =
-      extentWidth > viewportWidthAtTarget * scatterThreshold ||
-      extentHeight > viewportHeightAtTarget * scatterThreshold
-
-    if (isScatteredSegment) {
-      /**
-       * Bounding box is extremely large (scattered features across a wide
-       * region), zoom to fitted resolution centered on the segment's bounding
-       * box.
-       */
-      view.animate({
-        center: center,
-        resolution: targetResolution,
-        duration: 500,
-      })
-    } else {
-      /** Expand extent slightly for context (scale factor 1.5) */
-      const scale = 1.5
-      const expandedExtent = [
-        center[0] - (extentWidth * scale) / 2,
-        center[1] - (extentHeight * scale) / 2,
-        center[0] + (extentWidth * scale) / 2,
-        center[1] + (extentHeight * scale) / 2,
-      ]
-
-      view.fit(expandedExtent, {
-        duration: 500,
-        minResolution: targetResolution,
-      })
+      if (
+        currentZoomLevel < segment.minZoomLevel ||
+        currentZoomLevel > segment.maxZoomLevel
+      ) {
+        view.animate({ zoom: segment.minZoomLevel })
+      }
     }
   }
 
@@ -6897,7 +5619,6 @@ class VolumeImageViewer {
     if (styleOptions.opacity != null) {
       segment.style.opacity = styleOptions.opacity
       segment.layer.setOpacity(styleOptions.opacity)
-      _refreshPerFrameOverview(segment)
     }
 
     /** Update palette color lookup table if provided (including FRACTIONAL) */
@@ -6938,13 +5659,22 @@ class VolumeImageViewer {
         return
       }
 
+      /** Update the layer style with the new palette */
+      const defaultSegmentStyle = segment.defaultStyle
+
       const newStyle = _getColorPaletteStyleForTileLayer({
         windowCenter,
         windowWidth,
-        colormap: _getSegmentColormap(segment),
+        colormap: [
+          [
+            ...segment.style.paletteColorLookupTable.data[0],
+            defaultSegmentStyle.backgroundOpacity,
+          ],
+          ...segment.style.paletteColorLookupTable.data.slice(1),
+        ],
       })
 
-      _applySegmentPaletteToLayers(segment, newStyle)
+      segment.layer.setStyle(newStyle)
     }
 
     if (segment.segmentationType === 'FRACTIONAL') {
@@ -7099,8 +5829,10 @@ class VolumeImageViewer {
     )
 
     const pyramid = _computeImagePyramid({ metadata })
-    const [fittedPyramid, minZoomLevel, maxZoomLevel, hasMatchingLevels] =
-      _fitImagePyramid(pyramid, this[_pyramid])
+    const [fittedPyramid, minZoomLevel, maxZoomLevel] = _fitImagePyramid(
+      pyramid,
+      this[_pyramid],
+    )
 
     const tileGrid = new TileGrid({
       extent: fittedPyramid.extent,
@@ -7250,7 +5982,6 @@ class VolumeImageViewer {
         realWorldValueRange: range, // Store real world value range for legend
         minZoomLevel,
         maxZoomLevel,
-        hasMatchingLevels,
         loaderParams: {
           pyramid: fittedPyramid,
           client: _getClient(this[_clients], Enums.SOPClassUIDs.PARAMETRIC_MAP),
@@ -7371,37 +6102,12 @@ class VolumeImageViewer {
     }
 
     const view = this[_map].getView()
-    /**
-     * Prefer pyramid resolution over OL zoom index. With free zoom (Slim),
-     * view zoom ≠ pyramid level; after non-matching fit, min/max collapse to
-     * the closest base index and animate({ zoom }) would jump incorrectly.
-     */
-    const resolutions = this[_pyramid].resolutions
-    const minIndex = mapping.minZoomLevel
-    const maxIndex = mapping.maxZoomLevel
-    /**
-     * Without matching levels the range collapses to one closest index, so
-     * this check would move the view on every show. Keep the view as is.
-     */
+    const currentZoomLevel = view.getZoom()
     if (
-      mapping.hasMatchingLevels &&
-      resolutions != null &&
-      resolutions.length > 0 &&
-      Number.isInteger(minIndex) &&
-      Number.isInteger(maxIndex) &&
-      minIndex >= 0 &&
-      maxIndex < resolutions.length
+      currentZoomLevel < mapping.minZoomLevel ||
+      currentZoomLevel > mapping.maxZoomLevel
     ) {
-      const coarsestResolution = resolutions[minIndex]
-      const finestResolution = resolutions[maxIndex]
-      const currentResolution = view.getResolution()
-      if (
-        currentResolution == null ||
-        currentResolution > coarsestResolution * 1.01 ||
-        currentResolution < finestResolution * 0.99
-      ) {
-        view.animate({ resolution: coarsestResolution })
-      }
+      view.animate({ zoom: mapping.minZoomLevel })
     }
 
     mapping.layer.setVisible(true)
