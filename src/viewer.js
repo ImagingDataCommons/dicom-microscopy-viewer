@@ -1128,6 +1128,8 @@ class VolumeImageViewer {
    * @param {boolean} [options.skipThumbnails=false] If true, thumbnail images will not be loaded as part of the pyramid.
    * @param {boolean} [options.paletteDisplayGammaCorrection=true] If true, palette
    * color lookup applies display gamma compensation (~sRGB). Set false for linear mapping.
+   * @param {boolean} [options.showDerivedLegend=true] When false, skip the
+   * in-viewport SEG/PM color legend overlay so hosts can render their own UI.
    */
   constructor(options) {
     this[_options] = options
@@ -1147,6 +1149,9 @@ class VolumeImageViewer {
     this[_parametricMapInterpolate] = true
     this[_paletteDisplayGammaCorrectionEnabled] =
       options.paletteDisplayGammaCorrection !== false
+    if (this[_options].showDerivedLegend == null) {
+      this[_options].showDerivedLegend = true
+    }
 
     this._onBulkAnnotationsFeaturesLoadStart =
       this._onBulkAnnotationsFeaturesLoadStart.bind(this)
@@ -6533,6 +6538,13 @@ class VolumeImageViewer {
    * @private
    */
   _syncStackedDerivedLegendOverlays() {
+    if (this[_options].showDerivedLegend === false) {
+      if (this.segmentOverlay.getMap() != null) {
+        this[_map].removeOverlay(this.segmentOverlay)
+      }
+      return
+    }
+
     for (const uid in this[_segments]) {
       const rec = this[_segments][uid]
       if (rec.legendOverlay != null) {
