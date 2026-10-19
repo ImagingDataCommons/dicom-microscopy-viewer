@@ -2999,35 +2999,89 @@ class VolumeImageViewer {
     )
     this[_segmentationInterpolate] = !this[_segmentationInterpolate]
 
+    const interpolate = this[_segmentationInterpolate]
+    const container = this[_map].getTargetElement() || this[_container]
     const segments = Object.values(this[_segments])
 
+    /**
+     * Rebuild every segment's sources/loaders with the new flag (visible or
+     * not). Do not read layer.getSource() — a null source throws and aborts
+     * the loop after the first segment. Mirror parametric-map toggle: new
+     * TileGrid from pyramid, reinstall loaders, restore visibility.
+     */
     segments.forEach((segment) => {
-      if (segment.usePerFrameImages) {
-        /** Rebuilds sources with the cached frame data instead of refetching */
-        segment.frameLoaderParams.forEach((params) => {
-          params.interpolate = this[_segmentationInterpolate]
-        })
-        _refreshPerFrameSegmentImages(segment)
-      } else {
-        const currentSource = segment.layer.getSource()
-        segment.layer.setSource(
-          _createSegmentTileSource({
-            tileGrid: currentSource.getTileGrid(),
-            projection: currentSource.getProjection(),
-            interpolate: this[_segmentationInterpolate],
-            pyramid: segment.loaderParams.pyramid,
-            segmentNumber: segment.loaderParams.channel,
-            onTileLoadError: segment.onTileLoadError,
-          }),
-        )
-        segment.hasLoader = false
+      const uid = segment.segment?.uid
+      if (uid == null || segment.isAbsent) {
+        return
       }
-      if (segment.layer.getVisible() === true) {
-        this.showSegment(segment.segment.uid)
-      } else {
-        this.hideSegment(segment.segment.uid)
+      const wasVisible = segment.layer.getVisible() === true
+      try {
+        if (segment.usePerFrameImages) {
+          segment.frameLoaderParams.forEach((params) => {
+            params.interpolate = interpolate
+            params.imageLoadFunction = null
+          })
+          segment.hasLoader = false
+          if (container) {
+            _installPerFrameSegmentLoaders(segment, {
+              container,
+              projection: this[_projection],
+              interpolate,
+            })
+          }
+        } else {
+          const pyramid = segment.loaderParams?.pyramid
+          if (pyramid == null) {
+            console.warn(
+              `skip interpolation toggle for segment "${uid}": no pyramid`,
+            )
+            return
+          }
+          const tileGrid = new TileGrid({
+            extent: pyramid.extent,
+            origins: pyramid.origins,
+            resolutions: pyramid.resolutions,
+            sizes: pyramid.gridSizes,
+            tileSizes: pyramid.tileSizes,
+          })
+          segment.layer.setSource(
+            _createSegmentTileSource({
+              tileGrid,
+              projection: this[_projection],
+              interpolate,
+              pyramid,
+              segmentNumber: segment.loaderParams.channel,
+              onTileLoadError: segment.onTileLoadError,
+            }),
+          )
+          segment.hasLoader = false
+          if (container) {
+            const loader = _createTileLoadFunction({
+              targetElement: container,
+              iccProfiles: [],
+              ...segment.loaderParams,
+            })
+            const source = segment.layer.getSource()
+            if (source) {
+              source.setLoader(loader)
+              segment.hasLoader = true
+            }
+          }
+        }
+        if (wasVisible) {
+          this.showSegment(uid)
+        } else {
+          this.hideSegment(uid)
+        }
+        segment.layer.changed()
+      } catch (error) {
+        console.error(
+          `failed to toggle interpolation for segment "${uid}":`,
+          error,
+        )
       }
     })
+    this[_map]?.render()
   }
 
   /**
@@ -6510,10 +6564,12 @@ class VolumeImageViewer {
     root.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.12)'
 
     /**
-     * Collect fractional segments / parametric maps that have a palette so
-     * the in-viewport legend doubles as a visibility control: hidden
-     * overlays appear dimmed with an "off" toggle and can be re-enabled
-     * without opening the host application's side panel (see issue #240).
+     * Collect segments / parametric maps that have a palette so the
+     * in-viewport legend doubles as a visibility control: hidden overlays
+     * appear dimmed with an "off" toggle and can be re-enabled without
+     * opening the host application's side panel (see issue #240).
+     * BINARY and FRACTIONAL both appear when they have a palette — otherwise
+     * showing extra segments from a host panel never updates the legend.
      * The whole legend stays hidden until at least one of those overlays is
      * visible (see ImagingDataCommons/slim#409).
      */
@@ -6524,7 +6580,7 @@ class VolumeImageViewer {
     for (let s = 0; s < segmentUids.length; s++) {
       const uid = segmentUids[s]
       const rec = this[_segments][uid]
-      if (rec.segmentationType !== 'FRACTIONAL') {
+      if (rec.isAbsent || rec.segment?.isBackground === true) {
         continue
       }
       const data = rec.style.paletteColorLookupTable?.data
@@ -6539,7 +6595,7 @@ class VolumeImageViewer {
       const title =
         prop?.CodeMeaning != null && String(prop.CodeMeaning).trim() !== ''
           ? prop.CodeMeaning
-          : (rec.segment?.label ?? 'Fractional')
+          : (rec.segment?.label ?? 'Segment')
 
       rows.push({
         title,
