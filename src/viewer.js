@@ -6564,12 +6564,10 @@ class VolumeImageViewer {
     root.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.12)'
 
     /**
-     * Collect segments / parametric maps that have a palette so the
-     * in-viewport legend doubles as a visibility control: hidden overlays
-     * appear dimmed with an "off" toggle and can be re-enabled without
-     * opening the host application's side panel (see issue #240).
-     * BINARY and FRACTIONAL both appear when they have a palette — otherwise
-     * showing extra segments from a host panel never updates the legend.
+     * Collect fractional segments / parametric maps that have a palette so
+     * the in-viewport legend doubles as a visibility control: hidden
+     * overlays appear dimmed with an "off" toggle and can be re-enabled
+     * without opening the host application's side panel (see issue #240).
      * The whole legend stays hidden until at least one of those overlays is
      * visible (see ImagingDataCommons/slim#409).
      */
@@ -6580,7 +6578,7 @@ class VolumeImageViewer {
     for (let s = 0; s < segmentUids.length; s++) {
       const uid = segmentUids[s]
       const rec = this[_segments][uid]
-      if (rec.isAbsent || rec.segment?.isBackground === true) {
+      if (rec.segmentationType !== 'FRACTIONAL') {
         continue
       }
       const data = rec.style.paletteColorLookupTable?.data
@@ -6595,7 +6593,7 @@ class VolumeImageViewer {
       const title =
         prop?.CodeMeaning != null && String(prop.CodeMeaning).trim() !== ''
           ? prop.CodeMeaning
-          : (rec.segment?.label ?? 'Segment')
+          : (rec.segment?.label ?? 'Fractional')
 
       rows.push({
         title,
