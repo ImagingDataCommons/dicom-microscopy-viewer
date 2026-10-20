@@ -13,7 +13,7 @@ import Style from 'ol/style/Style'
 
 import Enums from '../../enums'
 import { coordinateWithOffset } from '../../scoord3dUtils'
-import { _getUnitSuffix } from '../../utils'
+import { _getUnitSuffix, _toCssColor } from '../../utils'
 import defaultStyles from '../styles'
 
 /**
@@ -87,6 +87,9 @@ class _MarkupManager {
     this._markups = new Map()
     this._listeners = new Map()
     this._links = new Collection([], { unique: true })
+    /** @type {'μm'|'mm'|undefined} Preferred measurement unit from the host app */
+    this._measurementUnit = undefined
+    this._getMeasurementUnit = undefined
 
     const defaultColor = defaultStyles.stroke.color
     this._styleTag = document.createElement('style')
@@ -267,7 +270,10 @@ class _MarkupManager {
       console.debug('feature changed', id)
       if (this.has(id)) {
         const view = this._map.getView()
-        const unitSuffix = _getUnitSuffix(view)
+        const unitSuffix = _getUnitSuffix(
+          view,
+          this._getMeasurementUnit?.() ?? this._measurementUnit,
+        )
         const format = this._getFormatter(event.target)
         const output = format(
           event.target,
@@ -362,13 +368,14 @@ class _MarkupManager {
     const styleOptions = feature.get(Enums.InternalProperties.StyleOptions)
     if (styleOptions?.stroke) {
       const { color } = styleOptions.stroke
-      const tooltipColor = color || defaultStyles.stroke.color
+      const strokeColor = color || defaultStyles.stroke.color
+      const tooltipColor = _toCssColor(strokeColor, defaultStyles.stroke.color)
       const links = this._links.getArray()
       const link = links.find((link) => link.getId() === feature.getId())
       if (link) {
         const styles = link.getStyle()
         const stroke = styles.getStroke()
-        stroke.setColor(tooltipColor)
+        stroke.setColor(strokeColor)
         styles.setStroke(stroke)
         link.setStyle(styles)
       }
@@ -377,6 +384,27 @@ class _MarkupManager {
         marker.element.style.color = tooltipColor
       }
     }
+  }
+
+  /**
+   * Preferred measurement unit for markup labels (`μm` / `mm`), or undefined
+   * to pick automatically from the view scale.
+   *
+   * @param {'μm'|'mm'|undefined} unit
+   * @returns {void}
+   */
+  setMeasurementUnit(unit) {
+    this._measurementUnit = unit
+  }
+
+  /**
+   * Optional getter used when the host keeps the preferred unit on the viewer.
+   *
+   * @param {Function|undefined} getter
+   * @returns {void}
+   */
+  setMeasurementUnitGetter(getter) {
+    this._getMeasurementUnit = getter
   }
 
   /**

@@ -104,6 +104,8 @@ import {
 } from './scoord3dUtils'
 import { Segment } from './segment.js'
 import {
+  _convertAreaFromMm,
+  _convertLengthFromMm,
   _generateUID,
   _getUnitSuffix,
   applyTransform,
@@ -690,13 +692,20 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents(
   feature,
   pyramid,
   affine,
+  getMeasurementUnit,
 ) {
   /**
    * Update feature measurement properties first and then measurements
    */
-  _updateFeatureMeasurements(map, feature, pyramid, affine)
+  _updateFeatureMeasurements(map, feature, pyramid, affine, getMeasurementUnit)
   feature.on(Enums.FeatureEvents.CHANGE, (event) => {
-    _updateFeatureMeasurements(map, event.target, pyramid, affine)
+    _updateFeatureMeasurements(
+      map,
+      event.target,
+      pyramid,
+      affine,
+      getMeasurementUnit,
+    )
   })
 
   /**
@@ -753,7 +762,13 @@ function _updateFeatureEvaluations(feature) {
  *
  * @private
  */
-function _updateFeatureMeasurements(map, feature, pyramid, affine) {
+function _updateFeatureMeasurements(
+  map,
+  feature,
+  pyramid,
+  affine,
+  getMeasurementUnit,
+) {
   if (
     Enums.Markup.Measurement !== feature.get(Enums.InternalProperties.Markup)
   ) {
@@ -775,23 +790,30 @@ function _updateFeatureMeasurements(map, feature, pyramid, affine) {
     mm2: 'square millimeter',
     m: 'meters',
     m2: 'square meters',
+    km: 'kilometers',
     km2: 'square kilometers',
   }
 
   let measurement
   const view = map.getView()
-  const unitSuffix = _getUnitSuffix(view)
+  const preferredUnit =
+    typeof getMeasurementUnit === 'function'
+      ? getMeasurementUnit()
+      : getMeasurementUnit
+  const unitSuffix = _getUnitSuffix(view, preferredUnit)
 
   if (area != null) {
     const unitCodedConceptValue = `${unitSuffix}2`
-    const unitCodedConceptMeaning = unitSuffixToMeaningMap[unitSuffix]
+    const unitCodedConceptMeaning =
+      unitSuffixToMeaningMap[unitCodedConceptValue] ??
+      unitSuffixToMeaningMap[unitSuffix]
     measurement = new dcmjs.sr.valueTypes.NumContentItem({
       name: new dcmjs.sr.coding.CodedConcept({
         meaning: 'Area',
         value: '42798000',
         schemeDesignator: 'SCT',
       }),
-      value: area,
+      value: _convertAreaFromMm(area, unitSuffix),
       unit: new dcmjs.sr.coding.CodedConcept({
         value: unitCodedConceptValue,
         meaning: unitCodedConceptMeaning,
@@ -809,7 +831,7 @@ function _updateFeatureMeasurements(map, feature, pyramid, affine) {
         value: '410668003',
         schemeDesignator: 'SCT',
       }),
-      value: length,
+      value: _convertLengthFromMm(length, unitSuffix),
       unit: new dcmjs.sr.coding.CodedConcept({
         value: unitCodedConceptValue,
         meaning: unitCodedConceptMeaning,
@@ -3732,6 +3754,7 @@ class VolumeImageViewer {
         event.feature,
         this[_pyramid].metadata,
         this[_affine],
+        () => this[_annotationManager].getMeasurementUnit(),
       )
     })
 
@@ -4146,6 +4169,7 @@ class VolumeImageViewer {
           feature,
           this[_pyramid].metadata,
           this[_affine],
+          () => this[_annotationManager].getMeasurementUnit(),
         )
         this[_annotationManager].onUpdate(feature)
         publish(
@@ -4349,12 +4373,32 @@ class VolumeImageViewer {
       feature,
       this[_pyramid].metadata,
       this[_affine],
+      () => this[_annotationManager].getMeasurementUnit(),
     )
 
     this[_features].push(feature)
     _setFeatureStyle(feature, styleOptions)
     const isVisible = Object.keys(styleOptions).length !== 0
     this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
+  }
+
+  /**
+   * Preferred unit for measurement markup labels and ROI measurement content
+   * items. Pass `µm` / `μm` / `mm`, or `undefined` / `null` / `''` to restore
+   * automatic units from the view scale.
+   *
+   * @param {string|undefined|null} unit
+   * @returns {void}
+   */
+  setMeasurementUnit(unit) {
+    this[_annotationManager].setMeasurementUnit(unit)
+  }
+
+  /**
+   * @returns {'μm'|'mm'|undefined}
+   */
+  getMeasurementUnit() {
+    return this[_annotationManager].getMeasurementUnit()
   }
 
   /**

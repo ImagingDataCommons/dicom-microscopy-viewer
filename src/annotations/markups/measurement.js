@@ -1,6 +1,10 @@
 import Enums from '../../enums'
 import { _getFeatureArea, _getFeatureLength } from '../../scoord3dUtils.js'
-import { _getUnitSuffix } from '../../utils'
+import {
+  _convertAreaFromMm,
+  _convertLengthFromMm,
+  _getUnitSuffix,
+} from '../../utils'
 
 /**
  * Format measure output.
@@ -15,10 +19,15 @@ import { _getUnitSuffix } from '../../utils'
 export const _format = (feature, units, pyramid, affine) => {
   const area = _getFeatureArea(feature, pyramid, affine)
   const length = _getFeatureLength(feature, pyramid, affine)
-  const value = length || area || 0
-  return length
-    ? `${value.toFixed(2)} ${units}`
-    : `${value.toFixed(2)} ${units}²`
+  if (length) {
+    const value = _convertLengthFromMm(length, units)
+    return `${value.toFixed(2)} ${units}`
+  }
+  if (area) {
+    const value = _convertAreaFromMm(area, units)
+    return `${value.toFixed(2)} ${units}²`
+  }
+  return `0.00 ${units}`
 }
 
 /**
@@ -41,15 +50,24 @@ const _isMeasurement = (feature) =>
  * @param {object} dependencies.pyramid - Pyramid metadata
  * @param {number[][]} dependencies.affine - 3x3 affine transformation matrix
  * @param {object} dependencies.markupManager - MarkupManager shared instance
+ * @param {Function} [dependencies.getMeasurementUnit] - Preferred unit getter
  *
  * @private
  */
-const MeasurementMarkup = ({ map, pyramid, affine, markupManager }) => {
+const MeasurementMarkup = ({
+  map,
+  pyramid,
+  affine,
+  markupManager,
+  getMeasurementUnit,
+}) => {
+  const resolveUnit = () =>
+    _getUnitSuffix(map.getView(), getMeasurementUnit?.())
+
   return {
     onAdd: (feature) => {
       if (_isMeasurement(feature)) {
-        const view = map.getView()
-        const unitSuffix = _getUnitSuffix(view)
+        const unitSuffix = resolveUnit()
         markupManager.create({
           feature,
           value: _format(feature, unitSuffix, pyramid, affine),
@@ -67,8 +85,7 @@ const MeasurementMarkup = ({ map, pyramid, affine, markupManager }) => {
     },
     onDrawStart: ({ feature }) => {
       if (_isMeasurement(feature)) {
-        const view = map.getView()
-        const unitSuffix = _getUnitSuffix(view)
+        const unitSuffix = resolveUnit()
         markupManager.create({
           feature,
           value: _format(feature, unitSuffix, pyramid, affine),

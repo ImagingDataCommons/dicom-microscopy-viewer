@@ -2,7 +2,11 @@ import dcmjs from 'dcmjs'
 /** Enums */
 import Enums from '../enums'
 /** Utils */
-import { areCodedConceptsEqual, getContentItemNameCodedConcept } from '../utils'
+import {
+  _normalizeMeasurementUnit,
+  areCodedConceptsEqual,
+  getContentItemNameCodedConcept,
+} from '../utils'
 
 /** Markers */
 import ArrowMarker, { _format as arrowFormat } from './markers/arrow'
@@ -31,11 +35,19 @@ class _AnnotationManager {
       },
     })
 
+    /** @type {'μm'|'mm'|undefined} */
+    this._measurementUnit = undefined
+
     this.props = {
       map,
       pyramid,
       affine,
       markupManager,
+      getMeasurementUnit: () => this._measurementUnit,
+    }
+
+    if (typeof markupManager.setMeasurementUnitGetter === 'function') {
+      markupManager.setMeasurementUnitGetter(() => this._measurementUnit)
     }
 
     /** Markups */
@@ -44,6 +56,26 @@ class _AnnotationManager {
 
     /** Markers */
     this[Marker.Arrow] = ArrowMarker(this.props)
+  }
+
+  /**
+   * Preferred measurement unit for on-slide labels and ROI NumContentItems.
+   *
+   * @param {string|undefined|null} unit - `µm` / `μm` / `mm`, or empty for auto
+   * @returns {void}
+   */
+  setMeasurementUnit(unit) {
+    this._measurementUnit = _normalizeMeasurementUnit(unit)
+    if (typeof this.props.markupManager.setMeasurementUnit === 'function') {
+      this.props.markupManager.setMeasurementUnit(this._measurementUnit)
+    }
+  }
+
+  /**
+   * @returns {'μm'|'mm'|undefined}
+   */
+  getMeasurementUnit() {
+    return this._measurementUnit
   }
 
   /**

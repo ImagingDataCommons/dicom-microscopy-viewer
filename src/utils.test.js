@@ -333,5 +333,27 @@ describe('test detectDisplayColorSpace function', () => {
     expect(colorSpace.getValue()).toEqual('display-p3')
   })
 
+  it('normalizes preferred measurement units', () => {
+    expect(utils._normalizeMeasurementUnit('µm')).toBe('μm')
+    expect(utils._normalizeMeasurementUnit('μm')).toBe('μm')
+    expect(utils._normalizeMeasurementUnit('um')).toBe('μm')
+    expect(utils._normalizeMeasurementUnit('mm')).toBe('mm')
+    expect(utils._normalizeMeasurementUnit('')).toBeUndefined()
+    expect(utils._normalizeMeasurementUnit('inch')).toBeUndefined()
+  })
+
+  it('converts millimeter lengths and areas into preferred units', () => {
+    expect(utils._convertLengthFromMm(1, 'μm')).toBe(1000)
+    expect(utils._convertLengthFromMm(1, 'mm')).toBe(1)
+    expect(utils._convertAreaFromMm(1, 'μm')).toBe(1e6)
+    expect(utils._convertAreaFromMm(1, 'mm')).toBe(1)
+  })
+
+  it('formats OpenLayers colors as CSS for markup text', () => {
+    expect(utils._toCssColor([31, 90, 209])).toBe('rgba(31, 90, 209, 1)')
+    expect(utils._toCssColor([255, 0, 0, 0.5])).toBe('rgba(255, 0, 0, 0.5)')
+    expect(utils._toCssColor('#abc')).toBe('#abc')
+  })
+
 })
 
