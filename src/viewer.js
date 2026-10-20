@@ -2957,7 +2957,7 @@ class VolumeImageViewer {
       /** Per-frame SEG images get their loaders in showSegment */
       if (item.usePerFrameImages) continue
 
-      this[_iccProfiles] = await _getIccProfiles({
+      const profiles = await _getIccProfiles({
         metadata: item.pyramid.metadata,
         client,
         onError: (error) => {
@@ -2969,6 +2969,13 @@ class VolumeImageViewer {
           this[_options].errorInterceptor(customError)
         },
       })
+      /**
+       * Keep the last non-empty fetch. SEG/PM items often have no ICC; the
+       * previous loop overwrote volume profiles with [] and broke re-enable.
+       */
+      if (profiles.length > 0) {
+        this[_iccProfiles] = profiles
+      }
 
       const source = item.layer.getSource()
       if (!source) {
