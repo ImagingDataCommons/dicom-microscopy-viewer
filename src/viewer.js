@@ -1128,6 +1128,8 @@ class VolumeImageViewer {
    * @param {boolean} [options.skipThumbnails=false] If true, thumbnail images will not be loaded as part of the pyramid.
    * @param {boolean} [options.paletteDisplayGammaCorrection=true] If true, palette
    * color lookup applies display gamma compensation (~sRGB). Set false for linear mapping.
+   * @param {boolean} [options.showDerivedLegend=true] When false, skip the
+   * in-viewport SEG/PM color legend overlay so hosts can render their own UI.
    */
   constructor(options) {
     this[_options] = options
@@ -1147,6 +1149,9 @@ class VolumeImageViewer {
     this[_parametricMapInterpolate] = true
     this[_paletteDisplayGammaCorrectionEnabled] =
       options.paletteDisplayGammaCorrection !== false
+    if (this[_options].showDerivedLegend == null) {
+      this[_options].showDerivedLegend = true
+    }
 
     this._onBulkAnnotationsFeaturesLoadStart =
       this._onBulkAnnotationsFeaturesLoadStart.bind(this)
@@ -2999,35 +3004,89 @@ class VolumeImageViewer {
     )
     this[_segmentationInterpolate] = !this[_segmentationInterpolate]
 
+    const interpolate = this[_segmentationInterpolate]
+    const container = this[_map].getTargetElement() || this[_container]
     const segments = Object.values(this[_segments])
 
+    /**
+     * Rebuild every segment's sources/loaders with the new flag (visible or
+     * not). Do not read layer.getSource() — a null source throws and aborts
+     * the loop after the first segment. Mirror parametric-map toggle: new
+     * TileGrid from pyramid, reinstall loaders, restore visibility.
+     */
     segments.forEach((segment) => {
-      if (segment.usePerFrameImages) {
-        /** Rebuilds sources with the cached frame data instead of refetching */
-        segment.frameLoaderParams.forEach((params) => {
-          params.interpolate = this[_segmentationInterpolate]
-        })
-        _refreshPerFrameSegmentImages(segment)
-      } else {
-        const currentSource = segment.layer.getSource()
-        segment.layer.setSource(
-          _createSegmentTileSource({
-            tileGrid: currentSource.getTileGrid(),
-            projection: currentSource.getProjection(),
-            interpolate: this[_segmentationInterpolate],
-            pyramid: segment.loaderParams.pyramid,
-            segmentNumber: segment.loaderParams.channel,
-            onTileLoadError: segment.onTileLoadError,
-          }),
-        )
-        segment.hasLoader = false
+      const uid = segment.segment?.uid
+      if (uid == null || segment.isAbsent) {
+        return
       }
-      if (segment.layer.getVisible() === true) {
-        this.showSegment(segment.segment.uid)
-      } else {
-        this.hideSegment(segment.segment.uid)
+      const wasVisible = segment.layer.getVisible() === true
+      try {
+        if (segment.usePerFrameImages) {
+          segment.frameLoaderParams.forEach((params) => {
+            params.interpolate = interpolate
+            params.imageLoadFunction = null
+          })
+          segment.hasLoader = false
+          if (container) {
+            _installPerFrameSegmentLoaders(segment, {
+              container,
+              projection: this[_projection],
+              interpolate,
+            })
+          }
+        } else {
+          const pyramid = segment.loaderParams?.pyramid
+          if (pyramid == null) {
+            console.warn(
+              `skip interpolation toggle for segment "${uid}": no pyramid`,
+            )
+            return
+          }
+          const tileGrid = new TileGrid({
+            extent: pyramid.extent,
+            origins: pyramid.origins,
+            resolutions: pyramid.resolutions,
+            sizes: pyramid.gridSizes,
+            tileSizes: pyramid.tileSizes,
+          })
+          segment.layer.setSource(
+            _createSegmentTileSource({
+              tileGrid,
+              projection: this[_projection],
+              interpolate,
+              pyramid,
+              segmentNumber: segment.loaderParams.channel,
+              onTileLoadError: segment.onTileLoadError,
+            }),
+          )
+          segment.hasLoader = false
+          if (container) {
+            const loader = _createTileLoadFunction({
+              targetElement: container,
+              iccProfiles: [],
+              ...segment.loaderParams,
+            })
+            const source = segment.layer.getSource()
+            if (source) {
+              source.setLoader(loader)
+              segment.hasLoader = true
+            }
+          }
+        }
+        if (wasVisible) {
+          this.showSegment(uid)
+        } else {
+          this.hideSegment(uid)
+        }
+        segment.layer.changed()
+      } catch (error) {
+        console.error(
+          `failed to toggle interpolation for segment "${uid}":`,
+          error,
+        )
       }
     })
+    this[_map]?.render()
   }
 
   /**
@@ -6479,6 +6538,13 @@ class VolumeImageViewer {
    * @private
    */
   _syncStackedDerivedLegendOverlays() {
+    if (this[_options].showDerivedLegend === false) {
+      if (this.segmentOverlay.getMap() != null) {
+        this[_map].removeOverlay(this.segmentOverlay)
+      }
+      return
+    }
+
     for (const uid in this[_segments]) {
       const rec = this[_segments][uid]
       if (rec.legendOverlay != null) {
