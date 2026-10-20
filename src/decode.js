@@ -23,7 +23,9 @@ function _slimMetadataForWorker(metadata) {
 }
 
 /**
- * Transferable buffer for the compressed frame, when present.
+ * Transferable buffer for the compressed frame, when the caller uniquely owns
+ * the whole ArrayBuffer. Skip views into pooled/shared buffers (byteOffset or
+ * partial length) — transferring those would detach unrelated data.
  *
  * @param {ArrayBuffer|TypedArray|*} frame
  * @returns {Transferable[]|undefined}
@@ -32,7 +34,12 @@ function _frameTransferList(frame) {
   if (frame instanceof ArrayBuffer) {
     return [frame]
   }
-  if (ArrayBuffer.isView(frame) && frame.buffer instanceof ArrayBuffer) {
+  if (
+    ArrayBuffer.isView(frame) &&
+    frame.buffer instanceof ArrayBuffer &&
+    frame.byteOffset === 0 &&
+    frame.byteLength === frame.buffer.byteLength
+  ) {
     return [frame.buffer]
   }
   return undefined
@@ -150,4 +157,4 @@ async function _decodeAndTransformFrame({
   return pixelArray
 }
 
-export { _decodeAndTransformFrame, _slimMetadataForWorker }
+export { _decodeAndTransformFrame, _frameTransferList, _slimMetadataForWorker }

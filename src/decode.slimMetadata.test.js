@@ -1,4 +1,4 @@
-const { _slimMetadataForWorker } = require('./decode.js')
+const { _slimMetadataForWorker, _frameTransferList } = require('./decode.js')
 
 describe('_slimMetadataForWorker', () => {
   it('keeps only fields the worker ColorTransformer needs', () => {
@@ -30,5 +30,20 @@ describe('_slimMetadataForWorker', () => {
   it('passes through non-arrays unchanged', () => {
     expect(_slimMetadataForWorker(null)).toBe(null)
     expect(_slimMetadataForWorker(undefined)).toBe(undefined)
+  })
+})
+
+describe('_frameTransferList', () => {
+  it('transfers whole ArrayBuffers and views that own the buffer', () => {
+    const buffer = new ArrayBuffer(8)
+    expect(_frameTransferList(buffer)).toEqual([buffer])
+    const view = new Uint8Array(buffer)
+    expect(_frameTransferList(view)).toEqual([buffer])
+  })
+
+  it('does not transfer partial views into a larger buffer', () => {
+    const buffer = new ArrayBuffer(16)
+    const slice = new Uint8Array(buffer, 4, 8)
+    expect(_frameTransferList(slice)).toBeUndefined()
   })
 })

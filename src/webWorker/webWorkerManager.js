@@ -204,7 +204,32 @@ function initialize(configObject) {
 }
 
 /**
+ * Viewers that share this singleton pool. Terminate only when the last one
+ * releases — Slim mounts many VolumeImageViewer thumbnails alongside the
+ * active slide viewer; cleaning up one must not kill in-flight tile decodes.
+ */
+let viewerRetainCount = 0
+
+/**
+ * Register a viewer that may enqueue decode tasks.
+ */
+function retain() {
+  viewerRetainCount += 1
+}
+
+/**
+ * Drop a viewer registration; terminate the pool when none remain.
+ */
+function release() {
+  viewerRetainCount = Math.max(0, viewerRetainCount - 1)
+  if (viewerRetainCount === 0) {
+    terminateAllWebWorkers()
+  }
+}
+
+/**
  * Terminate all running web workers and reject any queued / in-flight tasks.
+ * Prefer {@link release} from viewer cleanup so concurrent viewers stay alive.
  */
 function terminateAllWebWorkers() {
   const shutdownError = new Error('Web workers terminated')
@@ -382,5 +407,9 @@ export default {
   setTaskPriority,
   cancelTask,
   webWorkers,
+  retain,
+  release,
+  /** Test helper */
+  getRetainCount: () => viewerRetainCount,
   terminateAllWebWorkers,
 }

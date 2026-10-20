@@ -174,9 +174,6 @@ function disposeOverviewMapLayers(map) {
 }
 
 /**
- * Dispose layer and its dependencies to free up memory.
- */
-/**
  * Clear and dispose a tile/vector source after it is detached from a layer.
  *
  * @param {import('ol/source/Source').default|null|undefined} source
@@ -185,14 +182,25 @@ export function disposeDetachedSource(source) {
   if (source == null) {
     return
   }
-  if (typeof source.clear === 'function') {
-    source.clear()
+  try {
+    if (typeof source.clear === 'function') {
+      source.clear()
+    }
+  } catch {
+    /** Source may already be clearing or disposed mid-load */
   }
-  if (typeof source.dispose === 'function') {
-    source.dispose()
+  try {
+    if (typeof source.dispose === 'function') {
+      source.dispose()
+    }
+  } catch {
+    /** Ignore double-dispose from OpenLayers */
   }
 }
 
+/**
+ * Dispose layer and its dependencies to free up memory.
+ */
 export function disposeLayer(layer, disposeSource = false) {
   console.info('dispose layer:', layer)
   if (layer == null) {
@@ -1203,6 +1211,8 @@ const _derivedLegendCollapsed = Symbol('derivedLegendCollapsed')
 const _unsubscribeDisplayColorSpace = Symbol('unsubscribeDisplayColorSpace')
 /** Set when {@link VolumeImageViewer#cleanup} runs; guards in-flight async work */
 const _isCleanedUp = Symbol('isCleanedUp')
+/** Whether this instance currently holds a webWorkerManager.retain() */
+const _workersRetained = Symbol('workersRetained')
 /** OpenLayers keys from {@link VolumeImageViewer#_setupMapEventListeners} */
 const _mapListenerKeys = Symbol('mapListenerKeys')
 /** OpenLayers keys from {@link VolumeImageViewer#_setupDrawingSourceEventListeners} */
@@ -1295,6 +1305,8 @@ class VolumeImageViewer {
     if (this[_options].showDerivedLegend == null) {
       this[_options].showDerivedLegend = true
     }
+    webWorkerManager.retain()
+    this[_workersRetained] = true
 
     this._onBulkAnnotationsFeaturesLoadStart =
       this._onBulkAnnotationsFeaturesLoadStart.bind(this)
@@ -3389,7 +3401,10 @@ class VolumeImageViewer {
           ...opticalPath.loaderParams,
         })
         const source = opticalPath.layer.getSource()
-        source?.setLoader?.(loader)
+        if (!source) {
+          return
+        }
+        source.setLoader(loader)
         opticalPath.hasLoader = true
       })
     }
@@ -3550,7 +3565,10 @@ class VolumeImageViewer {
     this[_clustersSources] = {}
     this[_retrievedBulkdata] = {}
     this[_iccProfiles] = []
-    webWorkerManager.terminateAllWebWorkers()
+    if (this[_workersRetained]) {
+      this[_workersRetained] = false
+      webWorkerManager.release()
+    }
   }
 
   /**
