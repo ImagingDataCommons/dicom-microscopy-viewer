@@ -24,6 +24,7 @@ import VectorLayer from 'ol/layer/Vector'
 import TileLayer from 'ol/layer/WebGLTile'
 import WebGLVector from 'ol/layer/WebGLVector'
 import OlMap from 'ol/Map'
+import { unByKey } from 'ol/Observable'
 import Overlay from 'ol/Overlay'
 import Projection from 'ol/proj/Projection'
 import Cluster from 'ol/source/Cluster'
@@ -122,15 +123,38 @@ import {
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
 /**
- * Dispose all map layers to free up memory.
+ * Unsubscribe OpenLayers listener key(s). Safe with null / undefined.
+ *
+ * @param {import('ol/events').EventsKey|Array|undefined|null} keys
+ * @returns {void}
+ */
+function unlistenKeys(keys) {
+  if (keys == null) return
+  const list = Array.isArray(keys) ? keys : [keys]
+  for (const key of list) {
+    if (key != null) unByKey(key)
+  }
+}
+
+/**
+ * Dispose all map layers to free up memory, then dispose the view once.
+ *
+ * @param {import('ol/Map').default|undefined|null} map
+ * @returns {void}
  */
 function disposeMapLayers(map) {
+  if (map == null) return
   console.info('dispose map layers...')
-  map.getAllLayers().forEach((layer) => {
+  const layers =
+    typeof map.getAllLayers === 'function' ? [...map.getAllLayers()] : []
+  for (const layer of layers) {
     disposeLayer(layer, true)
-    map.getView().dispose()
     map.removeLayer(layer)
-  })
+  }
+  const view = typeof map.getView === 'function' ? map.getView() : undefined
+  if (view != null && typeof view.dispose === 'function') {
+    view.dispose()
+  }
 }
 
 /**
@@ -748,6 +772,22 @@ function _wireMeasurementsAndQualitativeEvaluationsEvents(
   getMeasurementUnit,
 ) {
   /**
+   * DRAW_START and addROI can both see the same feature; wire listeners once.
+   */
+  if (feature.get(Enums.InternalProperties.MeasurementsWired)) {
+    _updateFeatureMeasurements(
+      map,
+      feature,
+      pyramid,
+      affine,
+      getMeasurementUnit,
+    )
+    _updateFeatureEvaluations(feature)
+    return
+  }
+  feature.set(Enums.InternalProperties.MeasurementsWired, true, true)
+
+  /**
    * Update feature measurement properties first and then measurements
    */
   _updateFeatureMeasurements(map, feature, pyramid, affine, getMeasurementUnit)
@@ -1146,6 +1186,16 @@ const _paletteDisplayGammaCorrectionEnabled = Symbol(
 )
 const _derivedLegendCollapsed = Symbol('derivedLegendCollapsed')
 const _unsubscribeDisplayColorSpace = Symbol('unsubscribeDisplayColorSpace')
+/** OpenLayers keys from {@link VolumeImageViewer#_setupMapEventListeners} */
+const _mapListenerKeys = Symbol('mapListenerKeys')
+/** OpenLayers keys from {@link VolumeImageViewer#_setupDrawingSourceEventListeners} */
+const _drawingSourceListenerKeys = Symbol('drawingSourceListenerKeys')
+/** One-shot bulk-annotation singleclick handler key */
+const _bulkAnnotationSelectKey = Symbol('bulkAnnotationSelectKey')
+/** Bound `window.*` debug hooks installed by {@link VolumeImageViewer#render} */
+const _windowDebugHooks = Symbol('windowDebugHooks')
+/** Teardown for the overview collapse button DOM listener */
+const _overviewCollapseCleanup = Symbol('overviewCollapseCleanup')
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -1234,6 +1284,12 @@ class VolumeImageViewer {
       this._onBulkAnnotationsFeaturesLoadEnd.bind(this)
     this._onBulkAnnotationsFeaturesLoadError =
       this._onBulkAnnotationsFeaturesLoadError.bind(this)
+
+    this[_mapListenerKeys] = []
+    this[_drawingSourceListenerKeys] = []
+    this[_bulkAnnotationSelectKey] = undefined
+    this[_windowDebugHooks] = undefined
+    this[_overviewCollapseCleanup] = undefined
 
     this.segmentOverlay = new Overlay({
       element: document.createElement('div'),
@@ -2236,21 +2292,31 @@ class VolumeImageViewer {
    * @private
    */
   _setupMapEventListeners() {
+    unlistenKeys(this[_mapListenerKeys])
+    this[_mapListenerKeys] = []
+    const track = (key) => {
+      if (key != null) this[_mapListenerKeys].push(key)
+    }
+
     /**
      * Handle the start of a movement event.
      * @private
      */
-    this[_map].on('movestart', (event) => {
-      publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
-    })
+    track(
+      this[_map].on('movestart', (event) => {
+        publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
+      }),
+    )
 
     /**
      * Handle the end of a movement event.
      * @private
      */
-    this[_map].on('moveend', (event) => {
-      publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
-    })
+    track(
+      this[_map].on('moveend', (event) => {
+        publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
+      }),
+    )
 
     let clickEvent = null
 
@@ -2258,133 +2324,133 @@ class VolumeImageViewer {
      * Handle pointer movement events.
      * @private
      */
-    this[_map].on('pointermove', (event) => {
-      const features = this[_map].getFeaturesAtPixel(event.pixel, {
-        hitTolerance: 1,
-        layerFilter: _isAnnotationFeatureLayer,
-      })
+    track(
+      this[_map].on('pointermove', (event) => {
+        const features = this[_map].getFeaturesAtPixel(event.pixel, {
+          hitTolerance: 1,
+          layerFilter: _isAnnotationFeatureLayer,
+        })
 
-      const featuresWithROIs = []
-      for (const feature of features) {
-        if (feature !== null && feature.getId() !== undefined) {
-          const correctFeature = feature.values_?.features?.[0] || feature
-          if (correctFeature?.getId()) {
-            const annotationGroupUID = correctFeature.get('annotationGroupUID')
-            featuresWithROIs.push({
-              feature: this._getROIFromFeature(
-                correctFeature,
-                this[_pyramid].metadata,
-                this[_affine],
-              ),
-              annotationGroupUID: annotationGroupUID || null,
-            })
+        const featuresWithROIs = []
+        for (const feature of features) {
+          if (feature !== null && feature.getId() !== undefined) {
+            const correctFeature = feature.values_?.features?.[0] || feature
+            if (correctFeature?.getId()) {
+              const annotationGroupUID =
+                correctFeature.get('annotationGroupUID')
+              featuresWithROIs.push({
+                feature: this._getROIFromFeature(
+                  correctFeature,
+                  this[_pyramid].metadata,
+                  this[_affine],
+                ),
+                annotationGroupUID: annotationGroupUID || null,
+              })
+            }
           }
         }
-      }
 
-      publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
-        features: featuresWithROIs,
-        event,
-      })
-    })
+        publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
+          features: featuresWithROIs,
+          event,
+        })
+      }),
+    )
 
     /**
      * Handle double-click events.
      * @private
      */
-    this[_map].on('dblclick', (event) => {
-      if (this[_interactions].draw !== undefined) {
-        return
-      }
+    track(
+      this[_map].on('dblclick', (event) => {
+        if (this[_interactions].draw !== undefined) {
+          return
+        }
 
-      clickEvent = 'dblclick'
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          if (feature !== null && feature.getId() !== undefined) {
-            const correctFeature = feature.values_?.features?.[0] || feature
-            if (correctFeature?.getId()) {
-              publish(
-                this[_map].getTargetElement(),
-                EVENT.ROI_SELECTED,
-                this._getROIFromFeature(
+        clickEvent = 'dblclick'
+        this[_map].forEachFeatureAtPixel(
+          event.pixel,
+          (feature) => {
+            if (feature !== null && feature.getId() !== undefined) {
+              const correctFeature = feature.values_?.features?.[0] || feature
+              if (correctFeature?.getId()) {
+                const roi = this._getROIFromFeature(
                   correctFeature,
                   this[_pyramid].metadata,
                   this[_affine],
-                ),
-              )
-              publish(
-                this[_map].getTargetElement(),
-                EVENT.ROI_DOUBLE_CLICKED,
-                this._getROIFromFeature(
-                  correctFeature,
-                  this[_pyramid].metadata,
-                  this[_affine],
-                ),
-              )
+                )
+                publish(this[_map].getTargetElement(), EVENT.ROI_SELECTED, roi)
+                publish(
+                  this[_map].getTargetElement(),
+                  EVENT.ROI_DOUBLE_CLICKED,
+                  roi,
+                )
+              }
+              clickEvent = null
             }
-            clickEvent = null
-          }
-        },
-        {
-          hitTolerance: 1,
-          layerFilter: _isAnnotationFeatureLayer,
-        },
-      )
-    })
+          },
+          {
+            hitTolerance: 1,
+            layerFilter: _isAnnotationFeatureLayer,
+          },
+        )
+      }),
+    )
 
     /**
      * Handle click events.
      * @private
      */
-    this[_map].on('click', (event) => {
-      if (clickEvent === 'dblclick') {
-        event.preventDefault()
-        event.stopPropagation()
-        return
-      }
+    track(
+      this[_map].on('click', (event) => {
+        if (clickEvent === 'dblclick') {
+          event.preventDefault()
+          event.stopPropagation()
+          return
+        }
 
-      clickEvent = 'click'
-      const features = this[_map].getFeaturesAtPixel(event.pixel, {
-        layerFilter: (layer) => !layer.get(SEGMENT_OVERVIEW_LAYER),
-      })
-      const rois = features.map((feature) =>
-        this._getROIFromFeature(
-          feature,
-          this[_pyramid].metadata,
-          this[_affine],
-        ),
-      )
+        clickEvent = 'click'
+        const features = this[_map].getFeaturesAtPixel(event.pixel, {
+          layerFilter: (layer) => !layer.get(SEGMENT_OVERVIEW_LAYER),
+        })
+        const rois = features.map((feature) =>
+          this._getROIFromFeature(
+            feature,
+            this[_pyramid].metadata,
+            this[_affine],
+          ),
+        )
 
-      publish(this[_map].getTargetElement(), EVENT.VIEWPORT_CLICKED, {
-        rois,
-      })
+        publish(this[_map].getTargetElement(), EVENT.VIEWPORT_CLICKED, {
+          rois,
+        })
 
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          if (feature !== null && feature.getId() !== undefined) {
-            const correctFeature = feature.values_?.features?.[0] || feature
-            if (correctFeature?.getId()) {
-              publish(
-                this[_map].getTargetElement(),
-                EVENT.ROI_SELECTED,
-                this._getROIFromFeature(
-                  correctFeature,
-                  this[_pyramid].metadata,
-                  this[_affine],
-                ),
-              )
+        this[_map].forEachFeatureAtPixel(
+          event.pixel,
+          (feature) => {
+            if (feature !== null && feature.getId() !== undefined) {
+              const correctFeature = feature.values_?.features?.[0] || feature
+              if (correctFeature?.getId()) {
+                publish(
+                  this[_map].getTargetElement(),
+                  EVENT.ROI_SELECTED,
+                  this._getROIFromFeature(
+                    correctFeature,
+                    this[_pyramid].metadata,
+                    this[_affine],
+                  ),
+                )
+              }
+              clickEvent = null
             }
-            clickEvent = null
-          }
-        },
-        {
-          hitTolerance: 1,
-          layerFilter: _isAnnotationFeatureLayer,
-        },
-      )
-    })
+          },
+          {
+            hitTolerance: 1,
+            layerFilter: _isAnnotationFeatureLayer,
+          },
+        )
+      }),
+    )
   }
 
   /**
@@ -2392,103 +2458,115 @@ class VolumeImageViewer {
    * @private
    */
   _setupDrawingSourceEventListeners() {
+    unlistenKeys(this[_drawingSourceListenerKeys])
+    this[_drawingSourceListenerKeys] = []
+    const track = (key) => {
+      if (key != null) this[_drawingSourceListenerKeys].push(key)
+    }
+
     /**
      * Handle adding a feature to the drawing source.
      * @private
      */
-    this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
-      const container = this[_map].getTargetElement()
-      if (!container) {
-        return
-      }
-      publish(
-        container,
-        EVENT.ROI_ADDED,
-        this._getROIFromFeature(
-          e.feature,
-          this[_pyramid].metadata,
-          this[_affine],
-        ),
-      )
-    })
+    track(
+      this[_drawingSource].on(VectorEventType.ADDFEATURE, (e) => {
+        const container = this[_map].getTargetElement()
+        if (!container) {
+          return
+        }
+        publish(
+          container,
+          EVENT.ROI_ADDED,
+          this._getROIFromFeature(
+            e.feature,
+            this[_pyramid].metadata,
+            this[_affine],
+          ),
+        )
+      }),
+    )
 
     /**
      * Handle changes to a feature in the drawing source.
      * @private
      */
-    this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
-      const container = this[_map].getTargetElement()
-      if (!container) {
-        return
-      }
-      if (e.feature !== undefined && e.feature !== null) {
-        const geometry = e.feature.getGeometry()
-        const type = geometry.getType()
-        /*
-         * The first and last point of a polygon must be identical. The
-         * last point is an implementation detail and is hidden from the
-         * user in the graphical interface. However, we must update the
-         * last point in case the first point has been modified by the
-         * user.
-         *
-         * Note: the POLYGON GraphicType value for ANN specifies that the
-         * first and last points are implicitly joined, so the first point
-         * should not be repeated at the end (unlike other uses in other IODs).
-         * Reference: https://github.com/ImagingDataCommons/slim/issues/298#issuecomment-2959241315
-         */
-        if (type === 'Polygon') {
+    track(
+      this[_drawingSource].on(VectorEventType.CHANGEFEATURE, (e) => {
+        const container = this[_map].getTargetElement()
+        if (!container) {
+          return
+        }
+        if (e.feature !== undefined && e.feature !== null) {
+          const geometry = e.feature.getGeometry()
+          const type = geometry.getType()
           /*
-           * Polygon in GeoJSON format contains an array of geometries,
-           * where the first element represents the coordinates of the
-           * outer ring and the second element represents the coordinates
-           * of the inner ring (in our case the inner ring should not be
-           * present).
+           * The first and last point of a polygon must be identical. The
+           * last point is an implementation detail and is hidden from the
+           * user in the graphical interface. However, we must update the
+           * last point in case the first point has been modified by the
+           * user.
+           *
+           * Note: the POLYGON GraphicType value for ANN specifies that the
+           * first and last points are implicitly joined, so the first point
+           * should not be repeated at the end (unlike other uses in other IODs).
+           * Reference: https://github.com/ImagingDataCommons/slim/issues/298#issuecomment-2959241315
            */
-          const layout = geometry.getLayout()
-          const coordinates = geometry.getCoordinates()
-          const firstPoint = coordinates[0][0]
-          const lastPoint = coordinates[0][coordinates[0].length - 1]
-          if (
-            firstPoint[0] !== lastPoint[0] ||
-            firstPoint[1] !== lastPoint[1]
-          ) {
-            coordinates[0][coordinates[0].length - 1] = firstPoint
-            geometry.setCoordinates(coordinates, layout)
-            e.feature.setGeometry(geometry)
+          if (type === 'Polygon') {
+            /*
+             * Polygon in GeoJSON format contains an array of geometries,
+             * where the first element represents the coordinates of the
+             * outer ring and the second element represents the coordinates
+             * of the inner ring (in our case the inner ring should not be
+             * present).
+             */
+            const layout = geometry.getLayout()
+            const coordinates = geometry.getCoordinates()
+            const firstPoint = coordinates[0][0]
+            const lastPoint = coordinates[0][coordinates[0].length - 1]
+            if (
+              firstPoint[0] !== lastPoint[0] ||
+              firstPoint[1] !== lastPoint[1]
+            ) {
+              coordinates[0][coordinates[0].length - 1] = firstPoint
+              geometry.setCoordinates(coordinates, layout)
+              e.feature.setGeometry(geometry)
+            }
           }
         }
-      }
 
-      publish(
-        container,
-        EVENT.ROI_MODIFIED,
-        this._getROIFromFeature(
-          e.feature,
-          this[_pyramid].metadata,
-          this[_affine],
-        ),
-      )
-    })
+        publish(
+          container,
+          EVENT.ROI_MODIFIED,
+          this._getROIFromFeature(
+            e.feature,
+            this[_pyramid].metadata,
+            this[_affine],
+          ),
+        )
+      }),
+    )
 
     /**
      * Remove a feature from the drawing source.
      * @private
      */
-    this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
-      const container = this[_map].getTargetElement()
-      if (!container) {
-        return
-      }
-      publish(
-        container,
-        EVENT.ROI_REMOVED,
-        this._getROIFromFeature(
-          e.feature,
-          this[_pyramid].metadata,
-          this[_affine],
-        ),
-      )
-    })
+    track(
+      this[_drawingSource].on(VectorEventType.REMOVEFEATURE, (e) => {
+        const container = this[_map].getTargetElement()
+        if (!container) {
+          return
+        }
+        publish(
+          container,
+          EVENT.ROI_REMOVED,
+          this._getROIFromFeature(
+            e.feature,
+            this[_pyramid].metadata,
+            this[_affine],
+          ),
+        )
+      }),
+    )
   }
 
   /**
@@ -3336,14 +3414,47 @@ class VolumeImageViewer {
     console.info('cleanup memory')
     this[_iccOutputType]?.cleanup?.()
     this[_unsubscribeDisplayColorSpace]?.()
+    this[_unsubscribeDisplayColorSpace] = undefined
+
+    if (typeof this[_overviewCollapseCleanup] === 'function') {
+      this[_overviewCollapseCleanup]()
+      this[_overviewCollapseCleanup] = undefined
+    }
+
+    unlistenKeys(this[_mapListenerKeys])
+    this[_mapListenerKeys] = []
+    unlistenKeys(this[_drawingSourceListenerKeys])
+    this[_drawingSourceListenerKeys] = []
+    unlistenKeys(this[_bulkAnnotationSelectKey])
+    this[_bulkAnnotationSelectKey] = undefined
+
+    Object.values(this[_annotationGroups] || {}).forEach((group) => {
+      unlistenKeys(group.listenerKeys)
+      group.listenerKeys = []
+      if (typeof group.cancelDebouncedUpdate === 'function') {
+        group.cancelDebouncedUpdate()
+      }
+    })
+
     if (typeof this[_annotationManager]?.destroy === 'function') {
       this[_annotationManager].destroy()
     }
+
+    const hooks = this[_windowDebugHooks]
+    if (hooks != null) {
+      for (const [name, bound] of Object.entries(hooks)) {
+        if (window[name] === bound) {
+          delete window[name]
+        }
+      }
+      this[_windowDebugHooks] = undefined
+    }
+
     const itemsRequiringDisposal = [
-      ...Object.values(this[_opticalPaths]),
-      ...Object.values(this[_segments]),
-      ...Object.values(this[_mappings]),
-      ...Object.values(this[_annotationGroups]),
+      ...Object.values(this[_opticalPaths] || {}),
+      ...Object.values(this[_segments] || {}),
+      ...Object.values(this[_mappings] || {}),
+      ...Object.values(this[_annotationGroups] || {}),
     ]
 
     console.info('items requiring disposal:', itemsRequiringDisposal)
@@ -3351,23 +3462,27 @@ class VolumeImageViewer {
     itemsRequiringDisposal.forEach((item) => {
       if (item.layer) {
         disposeLayer(item.layer)
-        this[_map].removeLayer(item.layer)
+        this[_map]?.removeLayer(item.layer)
       }
       if (item.overlay) {
         disposeLayer(item.overlay)
-        this[_map].removeOverlay(item.overlay)
+        this[_map]?.removeOverlay(item.overlay)
       }
       if (item.layers) {
         item.layers.forEach((layer) => {
           disposeLayer(layer)
-          this[_map].removeLayer(layer)
+          this[_map]?.removeLayer(layer)
         })
       }
-      this[_features].clear()
     })
+    this[_features]?.clear()
 
     disposeMapLayers(this[_map])
     disposeOverviewMapLayers(this[_overviewMap])
+    if (typeof this[_map]?.setTarget === 'function') {
+      this[_map].setTarget(null)
+    }
+    this[_container] = null
     webWorkerManager.terminateAllWebWorkers()
   }
 
@@ -3378,12 +3493,24 @@ class VolumeImageViewer {
    * @param {(string|HTMLElement)} options.container - HTML Element in which the viewer should be injected.
    */
   render({ container }) {
-    window.toggleICCProfiles = this.toggleICCProfiles.bind(this)
-    window.getICCProfiles = this.getICCProfiles.bind(this)
-    window.cleanup = this.cleanup.bind(this)
-    window.zoomToROI = this.zoomToROI.bind(this)
-    window.toggleSegmentationInterpolation =
-      this.toggleSegmentationInterpolation.bind(this)
+    const previousHooks = this[_windowDebugHooks]
+    if (previousHooks != null) {
+      for (const [name, bound] of Object.entries(previousHooks)) {
+        if (window[name] === bound) {
+          delete window[name]
+        }
+      }
+    }
+    const hooks = {
+      toggleICCProfiles: this.toggleICCProfiles.bind(this),
+      getICCProfiles: this.getICCProfiles.bind(this),
+      cleanup: this.cleanup.bind(this),
+      zoomToROI: this.zoomToROI.bind(this),
+      toggleSegmentationInterpolation:
+        this.toggleSegmentationInterpolation.bind(this),
+    }
+    this[_windowDebugHooks] = hooks
+    Object.assign(window, hooks)
 
     if (container == null) {
       console.error('container must be provided for rendering images')
@@ -3501,9 +3628,18 @@ class VolumeImageViewer {
           syncOverviewCollapseButton()
           if (!buttonElement.dataset.slimOverviewCollapseBound) {
             buttonElement.dataset.slimOverviewCollapseBound = '1'
-            buttonElement.addEventListener('click', () => {
+            const onOverviewCollapseClick = () => {
               requestAnimationFrame(syncOverviewCollapseButton)
-            })
+            }
+            buttonElement.addEventListener('click', onOverviewCollapseClick)
+            this[_overviewCollapseCleanup] = () => {
+              buttonElement.removeEventListener(
+                'click',
+                onOverviewCollapseClick,
+              )
+              delete buttonElement.dataset.slimOverviewCollapseBound
+              this[_overviewCollapseCleanup] = undefined
+            }
           }
           const spanElement = buttonElement.children[0]
           spanElement.style.color = 'black'
@@ -4861,6 +4997,9 @@ class VolumeImageViewer {
         style: { ...annotationGroupStyle },
         defaultStyle: annotationGroupStyle,
         metadata,
+        /** OpenLayers keys owned by this group (unsubscribed on remove/cleanup) */
+        listenerKeys: [],
+        cancelDebouncedUpdate: undefined,
       }
 
       if (this[_annotationGroups][annotationGroupUID]) {
@@ -5229,7 +5368,11 @@ class VolumeImageViewer {
           )
         }
       }, 500)
-      view.on('change:center', debouncedUpdate)
+      annotationGroup.cancelDebouncedUpdate = () => debouncedUpdate.cancel()
+      const trackGroupKey = (key) => {
+        if (key != null) annotationGroup.listenerKeys.push(key)
+      }
+      trackGroupKey(view.on('change:center', debouncedUpdate))
 
       const getHighResLayer = ({
         pointsSource,
@@ -5273,16 +5416,18 @@ class VolumeImageViewer {
 
       /** Switch low and high res layers when zoom changes */
       if (graphicType !== 'POINT') {
-        this[_map].on('moveend', () => {
-          console.info('moveend event')
-          const atLeastOneVisible = annotationGroup.layers.some(
-            (l) => l.getVisible() === true,
-          )
-          if (atLeastOneVisible === true && areAnnotationsLoaded === true) {
-            annotationGroup.layers[0].setVisible(isHighResolution() === true)
-            annotationGroup.layers[1].setVisible(isHighResolution() === false)
-          }
-        })
+        trackGroupKey(
+          this[_map].on('moveend', () => {
+            console.info('moveend event')
+            const atLeastOneVisible = annotationGroup.layers.some(
+              (l) => l.getVisible() === true,
+            )
+            if (atLeastOneVisible === true && areAnnotationsLoaded === true) {
+              annotationGroup.layers[0].setVisible(isHighResolution() === true)
+              annotationGroup.layers[1].setVisible(isHighResolution() === false)
+            }
+          }),
+        )
       }
 
       /**
@@ -5290,27 +5435,29 @@ class VolumeImageViewer {
        */
       if (graphicType !== 'POINT') {
         const mapView = this[_map].getView()
-        this[_map].on('click', (event) => {
-          annotationGroup.layers[1]
-            .getFeatures(event.pixel)
-            .then((features) => {
-              if (features.length > 0) {
-                const clusterMembers = features[0].get('features')
-                /** Calculate the extent of the cluster members */
-                if (clusterMembers && clusterMembers.length > 1) {
-                  const extent = createEmpty()
-                  clusterMembers.forEach((feature) => {
-                    extend(extent, feature.getGeometry().getExtent())
-                  })
-                  /** Zoom to the extent of the cluster members */
-                  mapView.fit(extent, {
-                    duration: 500,
-                    padding: [50, 50, 50, 50],
-                  })
+        trackGroupKey(
+          this[_map].on('click', (event) => {
+            annotationGroup.layers[1]
+              .getFeatures(event.pixel)
+              .then((features) => {
+                if (features.length > 0) {
+                  const clusterMembers = features[0].get('features')
+                  /** Calculate the extent of the cluster members */
+                  if (clusterMembers && clusterMembers.length > 1) {
+                    const extent = createEmpty()
+                    clusterMembers.forEach((feature) => {
+                      extend(extent, feature.getGeometry().getExtent())
+                    })
+                    /** Zoom to the extent of the cluster members */
+                    mapView.fit(extent, {
+                      duration: 500,
+                      padding: [50, 50, 50, 50],
+                    })
+                  }
                 }
-              }
-            })
-        })
+              })
+          }),
+        )
       }
 
       annotationGroup.layers[0].setVisible(false)
@@ -5329,56 +5476,58 @@ class VolumeImageViewer {
     })
 
     /**
-     * Select an annotation when clicked.
-     * Opens a dialog with ROI information.
+     * Select an annotation when clicked. Registered once per viewer so repeated
+     * addAnnotationGroups calls do not stack handlers.
      */
-    let selectedAnnotation = null
-    this[_map].on('singleclick', (event) => {
-      if (selectedAnnotation !== null) {
-        selectedAnnotation.set('selected', 0)
-        selectedAnnotation = null
-      }
+    if (this[_bulkAnnotationSelectKey] == null) {
+      let selectedAnnotation = null
+      this[_bulkAnnotationSelectKey] = this[_map].on('singleclick', (event) => {
+        if (selectedAnnotation !== null) {
+          selectedAnnotation.set('selected', 0)
+          selectedAnnotation = null
+        }
 
-      const container = this[_map].getTargetElement()
-      if (!container) {
-        return
-      }
+        const container = this[_map].getTargetElement()
+        if (!container) {
+          return
+        }
 
-      /**
-       * Select an annotation when clicked.
-       * Opens a dialog with ROI information.
-       */
-      this[_map].forEachFeatureAtPixel(
-        event.pixel,
-        (feature) => {
-          if (feature !== null && feature.getId() !== undefined) {
-            feature.set('selected', 1)
-            selectedAnnotation = feature
-            const roi = this._getROIFromFeature(
-              feature,
-              this[_pyramid].metadata,
-              this[_affine],
-            )
-            if (roi) {
-              const annotationGroupUID = feature.get('annotationGroupUID')
-              const extendedROI = getExtendedROI({
+        this[_map].forEachFeatureAtPixel(
+          event.pixel,
+          (feature) => {
+            if (feature !== null && feature.getId() !== undefined) {
+              feature.set('selected', 1)
+              selectedAnnotation = feature
+              const roi = this._getROIFromFeature(
                 feature,
-                roi,
-                metadata,
-                annotationGroup: this[_annotationGroups][annotationGroupUID],
-              })
-              publish(container, EVENT.ROI_SELECTED, extendedROI)
-              return true
+                this[_pyramid].metadata,
+                this[_affine],
+              )
+              if (roi) {
+                const annotationGroupUID = feature.get('annotationGroupUID')
+                const group = this[_annotationGroups][annotationGroupUID]
+                if (group?.metadata == null) {
+                  return false
+                }
+                const extendedROI = getExtendedROI({
+                  feature,
+                  roi,
+                  metadata: group.metadata,
+                  annotationGroup: group,
+                })
+                publish(container, EVENT.ROI_SELECTED, extendedROI)
+                return true
+              }
             }
-          }
-          return false
-        },
-        {
-          hitTolerance: 1,
-          layerFilter: _isAnnotationFeatureLayer,
-        },
-      )
-    })
+            return false
+          },
+          {
+            hitTolerance: 1,
+            layerFilter: _isAnnotationFeatureLayer,
+          },
+        )
+      })
+    }
   }
 
   /**
@@ -5550,6 +5699,12 @@ class VolumeImageViewer {
 
     console.info(`remove annotation group ${annotationGroupUID}`)
 
+    unlistenKeys(annotationGroup.listenerKeys)
+    annotationGroup.listenerKeys = []
+    if (typeof annotationGroup.cancelDebouncedUpdate === 'function') {
+      annotationGroup.cancelDebouncedUpdate()
+    }
+
     annotationGroup.layers.forEach((layer) => {
       this[_map].removeLayer(layer)
       disposeLayer(layer)
@@ -5557,6 +5712,9 @@ class VolumeImageViewer {
 
     delete this[_retrievedBulkdata][annotationGroupUID]
     delete this[_annotationGroups][annotationGroupUID]
+    delete this[_pointsSources][annotationGroupUID]
+    delete this[_highResSources][annotationGroupUID]
+    delete this[_clustersSources][annotationGroupUID]
   }
 
   /**
@@ -7832,6 +7990,7 @@ class _NonVolumeImageViewer {
    */
   constructor(options) {
     this[_errorInterceptor] = options.errorInterceptor || ((error) => error)
+    this[_mapListenerKeys] = []
 
     if (options.disableInteractions === undefined) {
       options.disableInteractions = false
@@ -7964,13 +8123,19 @@ class _NonVolumeImageViewer {
       keyboardEventTarget: document,
     })
 
-    this[_map].on('movestart', (event) => {
-      publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
-    })
-
-    this[_map].on('moveend', (event) => {
-      publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
-    })
+    const track = (key) => {
+      if (key != null) this[_mapListenerKeys].push(key)
+    }
+    track(
+      this[_map].on('movestart', (event) => {
+        publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
+      }),
+    )
+    track(
+      this[_map].on('moveend', (event) => {
+        publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
+      }),
+    )
 
     view.fit(projection.getExtent(), { size: this[_map].getSize() })
   }
@@ -7981,7 +8146,12 @@ class _NonVolumeImageViewer {
    * Release allocated memory and clear the viewport.
    */
   cleanup() {
+    unlistenKeys(this[_mapListenerKeys])
+    this[_mapListenerKeys] = []
     disposeMapLayers(this[_map])
+    if (typeof this[_map]?.setTarget === 'function') {
+      this[_map].setTarget(null)
+    }
   }
 
   /**
@@ -7997,7 +8167,7 @@ class _NonVolumeImageViewer {
         errorTypes.VISUALIZATION,
         'container must be provided for rendering images',
       )
-      this[_options].errorInterceptor(error)
+      this[_errorInterceptor](error)
       return
     }
 

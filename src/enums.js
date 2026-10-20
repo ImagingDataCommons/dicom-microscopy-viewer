@@ -5,6 +5,8 @@ export const InternalProperties = {
   Label: 'label',
   Measurements: 'measurements',
   Evaluations: 'evaluations',
+  /** Set once when measurement/evaluation CHANGE listeners are wired */
+  MeasurementsWired: 'measurementsWired',
 }
 
 export const Marker = {
