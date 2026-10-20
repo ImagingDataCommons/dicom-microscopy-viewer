@@ -1,6 +1,43 @@
 import dcmjs from 'dcmjs'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
+/**
+ * Fields the worker ColorTransformer needs per pyramid level. Avoids
+ * structured-cloning full SOP instances (often with huge PFGS) on every tile.
+ *
+ * @param {object[]} metadata
+ * @returns {object[]}
+ */
+function _slimMetadataForWorker(metadata) {
+  if (!Array.isArray(metadata)) {
+    return metadata
+  }
+  return metadata.map((item) => ({
+    SOPInstanceUID: item.SOPInstanceUID,
+    Columns: item.Columns,
+    Rows: item.Rows,
+    BitsAllocated: item.BitsAllocated,
+    SamplesPerPixel: item.SamplesPerPixel,
+    PlanarConfiguration: item.PlanarConfiguration,
+  }))
+}
+
+/**
+ * Transferable buffer for the compressed frame, when present.
+ *
+ * @param {ArrayBuffer|TypedArray|*} frame
+ * @returns {Transferable[]|undefined}
+ */
+function _frameTransferList(frame) {
+  if (frame instanceof ArrayBuffer) {
+    return [frame]
+  }
+  if (ArrayBuffer.isView(frame) && frame.buffer instanceof ArrayBuffer) {
+    return [frame.buffer]
+  }
+  return undefined
+}
+
 function _processDecodeAndTransformTask(
   frame,
   bitsAllocated,
@@ -14,7 +51,7 @@ function _processDecodeAndTransformTask(
   iccOutputType = 'srgb', // "srgb" or "display-p3"
 ) {
   const priority = undefined
-  const transferList = undefined
+  const transferList = _frameTransferList(frame)
 
   return webWorkerManager.addTask(
     'decodeAndTransformTask',
@@ -26,7 +63,7 @@ function _processDecodeAndTransformTask(
       rows,
       samplesPerPixel,
       sopInstanceUID,
-      metadata,
+      metadata: _slimMetadataForWorker(metadata),
       iccProfiles,
       iccOutputType,
     },
@@ -113,4 +150,4 @@ async function _decodeAndTransformFrame({
   return pixelArray
 }
 
-export { _decodeAndTransformFrame }
+export { _decodeAndTransformFrame, _slimMetadataForWorker }

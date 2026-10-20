@@ -88,4 +88,18 @@ describe('viewer cleanup lifecycle', () => {
       viewer.cleanup()
     }).not.toThrow()
   })
+
+  it('cleanup clears optical-path and bulk-data bookkeeping', () => {
+    const viewer = createVolumeViewer()
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    viewer.render({ container })
+    expect(viewer.getAllOpticalPaths().length).toBeGreaterThan(0)
+
+    viewer.cleanup()
+
+    expect(viewer.getAllOpticalPaths()).toEqual([])
+    expect(viewer.getICCProfiles()).toEqual([])
+    document.body.removeChild(container)
+  })
 })

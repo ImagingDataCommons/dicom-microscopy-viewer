@@ -204,13 +204,22 @@ function initialize(configObject) {
 }
 
 /**
- * Terminate all running web workers.
+ * Terminate all running web workers and reject any queued / in-flight tasks.
  */
 function terminateAllWebWorkers() {
+  const shutdownError = new Error('Web workers terminated')
   for (let i = 0; i < webWorkers.length; i++) {
+    const inFlight = webWorkers[i].task
+    if (inFlight?.deferred?.reject) {
+      inFlight.deferred.reject(shutdownError)
+    }
     webWorkers[i].worker.terminate()
   }
   webWorkers.length = 0
+  while (tasks.length > 0) {
+    const task = tasks.pop()
+    task.deferred?.reject?.(shutdownError)
+  }
   config = undefined
 }
 

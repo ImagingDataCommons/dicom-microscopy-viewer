@@ -123,6 +123,16 @@ self.onmessage = (msg) => {
 
   // dispatch the message if there is a handler registered for it
   if (taskHandlers[msg.data.taskType]) {
+    const postFailed = (error) => {
+      const message = error?.message ?? String(error)
+      console.error(`task "${msg.data.taskType}" failed: ${message}`)
+      self.postMessage({
+        taskType: msg.data.taskType,
+        status: 'failed',
+        result: message,
+        workerIndex: msg.data.workerIndex,
+      })
+    }
     try {
       taskHandlers[msg.data.taskType]._handler(
         msg.data,
@@ -137,15 +147,10 @@ self.onmessage = (msg) => {
             transferList,
           )
         },
+        postFailed,
       )
     } catch (error) {
-      console.error(`task "${msg.data.taskType}" failed: ${error.message}`)
-      self.postMessage({
-        taskType: msg.data.taskType,
-        status: 'failed',
-        result: error.message,
-        workerIndex: msg.data.workerIndex,
-      })
+      postFailed(error)
     }
 
     return
