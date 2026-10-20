@@ -5255,6 +5255,11 @@ class VolumeImageViewer {
             `add n=${features.length} annotations ` +
               `for annotation group "${annotationGroupUID}"`,
           )
+          /**
+           * High-res pan reloads call this again for the same source. Clear
+           * first so features do not accumulate unboundedly.
+           */
+          this.clear()
           this.addFeatures(features)
           success(features)
           console.info('number of annotations:', numberOfAnnotations)
@@ -5439,38 +5444,62 @@ class VolumeImageViewer {
         source: pointsSource,
       })
 
-      pointsSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
+      const trackGroupKey = (key) => {
+        if (key != null) annotationGroup.listenerKeys.push(key)
+      }
+      trackGroupKey(
+        pointsSource.on(
+          'featuresloadstart',
+          this._onBulkAnnotationsFeaturesLoadStart,
+        ),
       )
-      pointsSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
-      pointsSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
+      trackGroupKey(
+        pointsSource.on(
+          'featuresloadend',
+          this._onBulkAnnotationsFeaturesLoadEnd,
+        ),
       )
-      highResSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
+      trackGroupKey(
+        pointsSource.on(
+          'featuresloaderror',
+          this._onBulkAnnotationsFeaturesLoadError,
+        ),
       )
-      highResSource.on(
-        'featuresloadend',
-        this._onBulkAnnotationsFeaturesLoadEnd,
+      trackGroupKey(
+        highResSource.on(
+          'featuresloadstart',
+          this._onBulkAnnotationsFeaturesLoadStart,
+        ),
       )
-      highResSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
+      trackGroupKey(
+        highResSource.on(
+          'featuresloadend',
+          this._onBulkAnnotationsFeaturesLoadEnd,
+        ),
       )
-      clustersSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
+      trackGroupKey(
+        highResSource.on(
+          'featuresloaderror',
+          this._onBulkAnnotationsFeaturesLoadError,
+        ),
       )
-      clustersSource.on(
-        'featuresloadend',
-        this._onBulkAnnotationsFeaturesLoadEnd,
+      trackGroupKey(
+        clustersSource.on(
+          'featuresloadstart',
+          this._onBulkAnnotationsFeaturesLoadStart,
+        ),
       )
-      clustersSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
+      trackGroupKey(
+        clustersSource.on(
+          'featuresloadend',
+          this._onBulkAnnotationsFeaturesLoadEnd,
+        ),
+      )
+      trackGroupKey(
+        clustersSource.on(
+          'featuresloaderror',
+          this._onBulkAnnotationsFeaturesLoadError,
+        ),
       )
 
       /**
@@ -5496,9 +5525,6 @@ class VolumeImageViewer {
         }
       }, 500)
       annotationGroup.cancelDebouncedUpdate = () => debouncedUpdate.cancel()
-      const trackGroupKey = (key) => {
-        if (key != null) annotationGroup.listenerKeys.push(key)
-      }
       trackGroupKey(view.on('change:center', debouncedUpdate))
 
       const getHighResLayer = ({
@@ -5834,7 +5860,7 @@ class VolumeImageViewer {
 
     annotationGroup.layers.forEach((layer) => {
       this[_map].removeLayer(layer)
-      disposeLayer(layer)
+      disposeLayer(layer, true)
     })
 
     delete this[_retrievedBulkdata][annotationGroupUID]
@@ -6685,7 +6711,7 @@ class VolumeImageViewer {
 
     const segment = this[_segments][segmentUID]
     this[_map].removeLayer(segment.layer)
-    disposeLayer(segment.layer)
+    disposeLayer(segment.layer, true)
     delete this[_segments][segmentUID]
 
     this._syncStackedDerivedLegendOverlays()
@@ -7821,7 +7847,7 @@ class VolumeImageViewer {
 
     const mapping = this[_mappings][mappingUID]
     this[_map].removeLayer(mapping.layer)
-    disposeLayer(mapping.layer)
+    disposeLayer(mapping.layer, true)
     delete this[_mappings][mappingUID]
     this._syncStackedDerivedLegendOverlays()
   }
