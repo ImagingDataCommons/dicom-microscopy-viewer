@@ -1305,8 +1305,7 @@ class VolumeImageViewer {
     if (this[_options].showDerivedLegend == null) {
       this[_options].showDerivedLegend = true
     }
-    webWorkerManager.retain()
-    this[_workersRetained] = true
+    this[_workersRetained] = false
 
     this._onBulkAnnotationsFeaturesLoadStart =
       this._onBulkAnnotationsFeaturesLoadStart.bind(this)
@@ -2296,6 +2295,10 @@ class VolumeImageViewer {
 
       this.configureDataLoaders(this[_isICCProfilesEnabled])
     })
+
+    /** Retain only after construction succeeds so failed `new` cannot leak the count */
+    webWorkerManager.retain()
+    this[_workersRetained] = true
   }
 
   /**
@@ -2988,7 +2991,12 @@ class VolumeImageViewer {
       if (item.usePerFrameImages) continue
 
       const metadata = item.pyramid.metadata
-      const seriesKey = metadata?.[0]?.SOPInstanceUID ?? 'none'
+      const seriesKey = Array.isArray(metadata)
+        ? metadata
+            .map((m) => m?.SOPInstanceUID)
+            .filter(Boolean)
+            .join('|') || 'none'
+        : 'none'
       if (!iccFetchBySeries.has(seriesKey)) {
         iccFetchBySeries.set(
           seriesKey,
@@ -3011,8 +3019,8 @@ class VolumeImageViewer {
         return
       }
       /**
-       * Keep the last non-empty fetch. SEG/PM items often have no ICC; the
-       * previous loop overwrote volume profiles with [] and broke re-enable.
+       * Remember non-empty profiles for getICCProfiles / toggle. Loaders below
+       * must use this item's own `profiles` so SEG/PM never inherit volume ICC.
        */
       if (profiles.length > 0) {
         this[_iccProfiles] = profiles
@@ -3027,8 +3035,8 @@ class VolumeImageViewer {
         targetElement: this[_container],
       }
 
-      if (iccProfilesEnabled) {
-        loaderConfig.iccProfiles = this[_iccProfiles]
+      if (iccProfilesEnabled && profiles.length > 0) {
+        loaderConfig.iccProfiles = profiles
         loaderConfig.iccOutputType = this[_iccOutputType].getValue()
       }
 
@@ -3392,11 +3400,10 @@ class VolumeImageViewer {
         if (profiles.length > 0) {
           this[_iccProfiles] = profiles
         }
-        const activeProfiles = this[_iccProfiles]
-        const useIcc = this[_isICCProfilesEnabled] && activeProfiles.length > 0
+        const useIcc = this[_isICCProfilesEnabled] && profiles.length > 0
         const loader = _createTileLoadFunction({
           targetElement: container,
-          iccProfiles: useIcc ? activeProfiles : null,
+          iccProfiles: useIcc ? profiles : null,
           iccOutputType: useIcc ? this[_iccOutputType].getValue() : undefined,
           ...opticalPath.loaderParams,
         })
@@ -3705,66 +3712,77 @@ class VolumeImageViewer {
     const iccFetchBySeries = new Map()
 
     itemsRequiringDecodersAndTransformers.forEach(async (item) => {
-      if (item.usePerFrameImages) {
-        /** Segments shown before render had no container to load into */
-        if (!item.hasLoader && item.layer.getVisible()) {
-          _installPerFrameSegmentLoaders(item, {
-            container,
-            projection: this[_projection],
-            interpolate: this[_segmentationInterpolate],
-          })
+      try {
+        if (item.usePerFrameImages) {
+          /** Segments shown before render had no container to load into */
+          if (!item.hasLoader && item.layer.getVisible()) {
+            _installPerFrameSegmentLoaders(item, {
+              container,
+              projection: this[_projection],
+              interpolate: this[_segmentationInterpolate],
+            })
+          }
+          return
         }
-        return
-      }
 
-      const metadata = item.pyramid.metadata
-      const seriesKey = metadata?.[0]?.SOPInstanceUID ?? 'none'
-      if (!iccFetchBySeries.has(seriesKey)) {
-        iccFetchBySeries.set(
-          seriesKey,
-          _getIccProfiles({
-            metadata,
-            client,
-            onError: (error) => {
-              console.error('Failed to fetch ICC profiles:', error)
-              const customError = new CustomError(
-                errorTypes.VISUALIZATION,
-                'Failed to fetch ICC profiles',
-              )
-              this[_options].errorInterceptor(customError)
-            },
-          }),
+        const metadata = item.pyramid.metadata
+        const seriesKey = Array.isArray(metadata)
+          ? metadata
+              .map((m) => m?.SOPInstanceUID)
+              .filter(Boolean)
+              .join('|') || 'none'
+          : 'none'
+        if (!iccFetchBySeries.has(seriesKey)) {
+          iccFetchBySeries.set(
+            seriesKey,
+            _getIccProfiles({
+              metadata,
+              client,
+              onError: (error) => {
+                console.error('Failed to fetch ICC profiles:', error)
+                const customError = new CustomError(
+                  errorTypes.VISUALIZATION,
+                  'Failed to fetch ICC profiles',
+                )
+                this[_options].errorInterceptor(customError)
+              },
+            }),
+          )
+        }
+        const profiles = await iccFetchBySeries.get(seriesKey)
+        if (this[_isCleanedUp]) {
+          return
+        }
+        /**
+         * Remember non-empty profiles for getICCProfiles / toggle. Loaders must
+         * use this item's own `profiles` so SEG/PM never inherit volume ICC.
+         */
+        if (profiles.length > 0) {
+          this[_iccProfiles] = profiles
+        }
+
+        const source = item.layer.getSource()
+        if (!source) {
+          return
+        }
+
+        const useIcc = this[_isICCProfilesEnabled] && profiles.length > 0
+        const loader = _createTileLoadFunction({
+          targetElement: container,
+          iccProfiles: useIcc ? profiles : null,
+          iccOutputType: useIcc ? this[_iccOutputType].getValue() : undefined,
+          ...item.loaderParams,
+        })
+        source.setLoader(loader)
+        item.hasLoader = true
+      } catch (error) {
+        console.error('Failed to configure tile loader during render:', error)
+        const customError = new CustomError(
+          errorTypes.VISUALIZATION,
+          'Failed to configure tile loader during render',
         )
+        this[_options].errorInterceptor(customError)
       }
-      const profiles = await iccFetchBySeries.get(seriesKey)
-      if (this[_isCleanedUp]) {
-        return
-      }
-      /** SEG/PM often have no ICC; keep the last non-empty volume profiles */
-      if (profiles.length > 0) {
-        this[_iccProfiles] = profiles
-      }
-
-      const source = item.layer.getSource()
-      if (!source) {
-        return
-      }
-
-      const activeProfiles = this[_iccProfiles]
-      const loader = _createTileLoadFunction({
-        targetElement: container,
-        iccProfiles:
-          this[_isICCProfilesEnabled] && activeProfiles.length > 0
-            ? activeProfiles
-            : null,
-        iccOutputType:
-          this[_isICCProfilesEnabled] && activeProfiles.length > 0
-            ? this[_iccOutputType].getValue()
-            : undefined,
-        ...item.loaderParams,
-      })
-      source.setLoader(loader)
-      item.hasLoader = true
     })
 
     // Style scale element (overriding Openlayers CSS "ol-scale-line")

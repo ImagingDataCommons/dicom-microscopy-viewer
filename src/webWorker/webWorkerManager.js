@@ -73,14 +73,22 @@ function startTaskOnWebWorker() {
       // assign this task to this web worker and send the web worker
       // a message to execute it
       webWorkers[i].task = task
-      webWorkers[i].worker.postMessage(
-        {
-          taskType: task.taskType,
-          workerIndex: i,
-          data: task.data,
-        },
-        task.transferList,
-      )
+      try {
+        webWorkers[i].worker.postMessage(
+          {
+            taskType: task.taskType,
+            workerIndex: i,
+            data: task.data,
+          },
+          task.transferList,
+        )
+      } catch (error) {
+        webWorkers[i].task = undefined
+        webWorkers[i].status = 'ready'
+        task.deferred?.reject?.(error)
+        startTaskOnWebWorker()
+        return
+      }
       statistics.numTasksExecuting++
 
       return

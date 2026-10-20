@@ -13,12 +13,12 @@ function _slimMetadataForWorker(metadata) {
     return metadata
   }
   return metadata.map((item) => ({
-    SOPInstanceUID: item.SOPInstanceUID,
-    Columns: item.Columns,
-    Rows: item.Rows,
-    BitsAllocated: item.BitsAllocated,
-    SamplesPerPixel: item.SamplesPerPixel,
-    PlanarConfiguration: item.PlanarConfiguration,
+    SOPInstanceUID: item?.SOPInstanceUID,
+    Columns: item?.Columns,
+    Rows: item?.Rows,
+    BitsAllocated: item?.BitsAllocated,
+    SamplesPerPixel: item?.SamplesPerPixel,
+    PlanarConfiguration: item?.PlanarConfiguration,
   }))
 }
 

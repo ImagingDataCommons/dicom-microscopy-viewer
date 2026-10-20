@@ -31,6 +31,11 @@ describe('_slimMetadataForWorker', () => {
     expect(_slimMetadataForWorker(null)).toBe(null)
     expect(_slimMetadataForWorker(undefined)).toBe(undefined)
   })
+
+  it('tolerates null metadata entries without throwing', () => {
+    expect(() => _slimMetadataForWorker([null])).not.toThrow()
+    expect(_slimMetadataForWorker([null])[0].SOPInstanceUID).toBeUndefined()
+  })
 })
 
 describe('_frameTransferList', () => {
