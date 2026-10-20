@@ -73,14 +73,22 @@ function startTaskOnWebWorker() {
       // assign this task to this web worker and send the web worker
       // a message to execute it
       webWorkers[i].task = task
-      webWorkers[i].worker.postMessage(
-        {
-          taskType: task.taskType,
-          workerIndex: i,
-          data: task.data,
-        },
-        task.transferList,
-      )
+      try {
+        webWorkers[i].worker.postMessage(
+          {
+            taskType: task.taskType,
+            workerIndex: i,
+            data: task.data,
+          },
+          task.transferList,
+        )
+      } catch (error) {
+        webWorkers[i].task = undefined
+        webWorkers[i].status = 'ready'
+        task.deferred?.reject?.(error)
+        startTaskOnWebWorker()
+        return
+      }
       statistics.numTasksExecuting++
 
       return
@@ -204,13 +212,47 @@ function initialize(configObject) {
 }
 
 /**
- * Terminate all running web workers.
+ * Viewers that share this singleton pool. Terminate only when the last one
+ * releases — Slim mounts many VolumeImageViewer thumbnails alongside the
+ * active slide viewer; cleaning up one must not kill in-flight tile decodes.
+ */
+let viewerRetainCount = 0
+
+/**
+ * Register a viewer that may enqueue decode tasks.
+ */
+function retain() {
+  viewerRetainCount += 1
+}
+
+/**
+ * Drop a viewer registration; terminate the pool when none remain.
+ */
+function release() {
+  viewerRetainCount = Math.max(0, viewerRetainCount - 1)
+  if (viewerRetainCount === 0) {
+    terminateAllWebWorkers()
+  }
+}
+
+/**
+ * Terminate all running web workers and reject any queued / in-flight tasks.
+ * Prefer {@link release} from viewer cleanup so concurrent viewers stay alive.
  */
 function terminateAllWebWorkers() {
+  const shutdownError = new Error('Web workers terminated')
   for (let i = 0; i < webWorkers.length; i++) {
+    const inFlight = webWorkers[i].task
+    if (inFlight?.deferred?.reject) {
+      inFlight.deferred.reject(shutdownError)
+    }
     webWorkers[i].worker.terminate()
   }
   webWorkers.length = 0
+  while (tasks.length > 0) {
+    const task = tasks.pop()
+    task.deferred?.reject?.(shutdownError)
+  }
   config = undefined
 }
 
@@ -373,5 +415,9 @@ export default {
   setTaskPriority,
   cancelTask,
   webWorkers,
+  retain,
+  release,
+  /** Test helper */
+  getRetainCount: () => viewerRetainCount,
   terminateAllWebWorkers,
 }

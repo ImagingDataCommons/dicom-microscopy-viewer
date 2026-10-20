@@ -102,7 +102,7 @@ export default class ColorTransformer extends Transformer {
         console.warn(
           `Skipping ICC color transformation for SOP Instance UID ${sopInstanceUID} because the ICC profile could not be parsed.`,
         )
-        return
+        continue
       }
 
       this.transformers[sopInstanceUID] = new this.codec.ColorManager(

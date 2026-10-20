@@ -19,17 +19,31 @@ const decoderJPEGLS = new JPEGLSDecoder()
 const decoderJPEG = new JPEGDecoder()
 const decoderJPEGXL = new JPEGXLDecoder()
 let transformerColor
-let transformerColorICCOutputType
+/** Cache key: output type + SOP UIDs so a reused worker pool cannot skip ICC on a new slide */
+let transformerColorKey
+
+/**
+ * @param {object[]|undefined} metadata
+ * @param {string} iccOutputType
+ * @returns {string}
+ */
+function _iccTransformerCacheKey(metadata, iccOutputType) {
+  const sops = Array.isArray(metadata)
+    ? metadata.map((item) => item?.SOPInstanceUID ?? '').join('|')
+    : ''
+  return `${iccOutputType}:${sops}`
+}
 
 /**
  * Task handler function
  *
- * @param {object} - handler data
- * @param {function} - handler done call back
+ * @param {object} data - handler data
+ * @param {function} doneCallback - success callback (result, transferList)
+ * @param {function} [failCallback] - failure callback; must free the worker
  *
  * @private
  */
-function _handler(data, doneCallback) {
+function _handler(data, doneCallback, failCallback) {
   const {
     bitsAllocated,
     columns,
@@ -43,6 +57,14 @@ function _handler(data, doneCallback) {
     iccOutputType = 'srgb', // "srgb" or "display-p3"
   } = data.data
 
+  const fail = (error) => {
+    if (typeof failCallback === 'function') {
+      failCallback(error)
+      return
+    }
+    throw error instanceof Error ? error : new Error(String(error))
+  }
+
   _checkImageTypeAndDecode({
     bitsAllocated,
     columns,
@@ -53,17 +75,17 @@ function _handler(data, doneCallback) {
   })
     .then((decodedFrame) => {
       if (iccProfiles?.length) {
-        // Only instantiate transformer if ICC profiles are provided and if not already instantiated with the same ICC output type
+        const cacheKey = _iccTransformerCacheKey(metadata, iccOutputType)
         if (
           transformerColor === undefined ||
-          transformerColorICCOutputType !== iccOutputType
+          transformerColorKey !== cacheKey
         ) {
           transformerColor = new ColorTransformer(
             metadata,
             iccProfiles,
             iccOutputType,
           )
-          transformerColorICCOutputType = iccOutputType
+          transformerColorKey = cacheKey
         }
         // Apply ICC color transform
         transformerColor
@@ -88,7 +110,7 @@ function _handler(data, doneCallback) {
       }
     })
     .catch((error) => {
-      throw new Error(`Failed to decode frame: ${error}`)
+      fail(new Error(`Failed to decode frame: ${error}`))
     })
 }
 

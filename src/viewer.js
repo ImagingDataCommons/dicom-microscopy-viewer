@@ -40,7 +40,6 @@ import Stroke from 'ol/style/Stroke'
 import Style from 'ol/style/Style'
 import TileGrid from 'ol/tilegrid/TileGrid'
 import View from 'ol/View'
-import WebGLHelper from 'ol/webgl/Helper'
 import {
   _fetchGraphicData,
   _fetchGraphicIndex,
@@ -175,6 +174,31 @@ function disposeOverviewMapLayers(map) {
 }
 
 /**
+ * Clear and dispose a tile/vector source after it is detached from a layer.
+ *
+ * @param {import('ol/source/Source').default|null|undefined} source
+ */
+export function disposeDetachedSource(source) {
+  if (source == null) {
+    return
+  }
+  try {
+    if (typeof source.clear === 'function') {
+      source.clear()
+    }
+  } catch {
+    /** Source may already be clearing or disposed mid-load */
+  }
+  try {
+    if (typeof source.dispose === 'function') {
+      source.dispose()
+    }
+  } catch {
+    /** Ignore double-dispose from OpenLayers */
+  }
+}
+
+/**
  * Dispose layer and its dependencies to free up memory.
  */
 export function disposeLayer(layer, disposeSource = false) {
@@ -201,13 +225,20 @@ export function disposeLayer(layer, disposeSource = false) {
   }
 
   const source = layer.getSource()
-  if (disposeSource === true && source && source.clear) {
-    source.clear()
-    source.dispose()
+  if (disposeSource === true) {
+    disposeDetachedSource(source)
   }
 
-  layer.setSource(undefined)
-  layer.dispose()
+  try {
+    layer.setSource(undefined)
+  } catch {
+    /** Renderer may still be reading the source this frame */
+  }
+  try {
+    layer.dispose()
+  } catch {
+    /** Ignore double-dispose from OpenLayers */
+  }
 }
 
 /**
@@ -1186,6 +1217,10 @@ const _paletteDisplayGammaCorrectionEnabled = Symbol(
 )
 const _derivedLegendCollapsed = Symbol('derivedLegendCollapsed')
 const _unsubscribeDisplayColorSpace = Symbol('unsubscribeDisplayColorSpace')
+/** Set when {@link VolumeImageViewer#cleanup} runs; guards in-flight async work */
+const _isCleanedUp = Symbol('isCleanedUp')
+/** Whether this instance currently holds a webWorkerManager.retain() */
+const _workersRetained = Symbol('workersRetained')
 /** OpenLayers keys from {@link VolumeImageViewer#_setupMapEventListeners} */
 const _mapListenerKeys = Symbol('mapListenerKeys')
 /** OpenLayers keys from {@link VolumeImageViewer#_setupDrawingSourceEventListeners} */
@@ -1265,6 +1300,7 @@ class VolumeImageViewer {
     this[_isICCProfilesEnabled] = true
     this[_iccOutputType] = new Observable('srgb')
     this[_container] = null
+    this[_isCleanedUp] = false
     this[_clients] = {}
     this[_iccProfiles] = []
     this[_highResSources] = {}
@@ -1277,6 +1313,7 @@ class VolumeImageViewer {
     if (this[_options].showDerivedLegend == null) {
       this[_options].showDerivedLegend = true
     }
+    this[_workersRetained] = false
 
     this._onBulkAnnotationsFeaturesLoadStart =
       this._onBulkAnnotationsFeaturesLoadStart.bind(this)
@@ -1690,8 +1727,6 @@ class VolumeImageViewer {
     const overviewLayers = []
     this[_opticalPaths] = {}
     if (numChannels > 0) {
-      const helper = new WebGLHelper()
-      const overviewHelper = new WebGLHelper()
       for (const opticalPathIdentifier in monochromeImageInformation) {
         const info = monochromeImageInformation[opticalPathIdentifier]
         const pyramid = _computeImagePyramid({ metadata: info.metadata })
@@ -1836,7 +1871,6 @@ class VolumeImageViewer {
           useInterimTilesOnError: false,
           cacheSize: this[_options].tilesCacheSize,
         })
-        opticalPath.layer.helper = helper
         opticalPath.layer.on('precompose', (event) => {
           const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
@@ -1865,7 +1899,6 @@ class VolumeImageViewer {
           visible: false,
           useInterimTilesOnError: false,
         })
-        opticalPath.overviewLayer.helper = overviewHelper
         opticalPath.overviewLayer.on('precompose', (event) => {
           const gl = event.context
           if ('drawingBufferColorSpace' in gl) {
@@ -2270,6 +2303,10 @@ class VolumeImageViewer {
 
       this.configureDataLoaders(this[_isICCProfilesEnabled])
     })
+
+    /** Retain only after construction succeeds so failed `new` cannot leak the count */
+    webWorkerManager.retain()
+    this[_workersRetained] = true
   }
 
   /**
@@ -2951,27 +2988,47 @@ class VolumeImageViewer {
     )
 
     const segments = new Set(Object.values(this[_segments]))
+    /** Coalesce concurrent ICC fetches for the same pyramid series */
+    const iccFetchBySeries = new Map()
 
-    // TODO: We could make this async, however, we would need to determine what this[_iccProfiles] should actually contain (it's overwritten every loop instance)
     for (const item of itemsRequiringDecodersAndTransformers) {
+      if (this[_isCleanedUp]) {
+        return
+      }
       /** Per-frame SEG images get their loaders in showSegment */
       if (item.usePerFrameImages) continue
 
-      const profiles = await _getIccProfiles({
-        metadata: item.pyramid.metadata,
-        client,
-        onError: (error) => {
-          console.error('Failed to fetch ICC profiles:', error)
-          const customError = new CustomError(
-            errorTypes.VISUALIZATION,
-            'Failed to fetch ICC profiles',
-          )
-          this[_options].errorInterceptor(customError)
-        },
-      })
+      const metadata = item.pyramid.metadata
+      const seriesKey = Array.isArray(metadata)
+        ? metadata
+            .map((m) => m?.SOPInstanceUID)
+            .filter(Boolean)
+            .join('|') || 'none'
+        : 'none'
+      if (!iccFetchBySeries.has(seriesKey)) {
+        iccFetchBySeries.set(
+          seriesKey,
+          _getIccProfiles({
+            metadata,
+            client,
+            onError: (error) => {
+              console.error('Failed to fetch ICC profiles:', error)
+              const customError = new CustomError(
+                errorTypes.VISUALIZATION,
+                'Failed to fetch ICC profiles',
+              )
+              this[_options].errorInterceptor(customError)
+            },
+          }),
+        )
+      }
+      const profiles = await iccFetchBySeries.get(seriesKey)
+      if (this[_isCleanedUp]) {
+        return
+      }
       /**
-       * Keep the last non-empty fetch. SEG/PM items often have no ICC; the
-       * previous loop overwrote volume profiles with [] and broke re-enable.
+       * Remember non-empty profiles for getICCProfiles / toggle. Loaders below
+       * must use this item's own `profiles` so SEG/PM never inherit volume ICC.
        */
       if (profiles.length > 0) {
         this[_iccProfiles] = profiles
@@ -2979,16 +3036,15 @@ class VolumeImageViewer {
 
       const source = item.layer.getSource()
       if (!source) {
-        return
+        continue
       }
 
       const loaderConfig = {
         targetElement: this[_container],
       }
 
-      // Add ICC profile configuration if enabled
-      if (iccProfilesEnabled) {
-        loaderConfig.iccProfiles = this[_iccProfiles]
+      if (iccProfilesEnabled && profiles.length > 0) {
+        loaderConfig.iccProfiles = profiles
         loaderConfig.iccOutputType = this[_iccOutputType].getValue()
       }
 
@@ -3022,13 +3078,20 @@ class VolumeImageViewer {
         return replacementSource
       }
 
+      const previousSource = source
+      const previousOverviewSource = item.overviewLayer?.getSource?.()
       item.layer.setSource(createReplacementSource())
-      item.overviewLayer?.setSource(createReplacementSource())
+      if (item.overviewLayer) {
+        item.overviewLayer.setSource(createReplacementSource())
+      }
+      disposeDetachedSource(previousSource)
+      disposeDetachedSource(previousOverviewSource)
       item.hasLoader = true
     }
 
-    // Force a re-render to let the changes take effect
-    this[_map]?.render()
+    if (!this[_isCleanedUp]) {
+      this[_map]?.render()
+    }
   }
 
   /**
@@ -3209,6 +3272,7 @@ class VolumeImageViewer {
             sizes: pyramid.gridSizes,
             tileSizes: pyramid.tileSizes,
           })
+          const previousSegmentSource = segment.layer.getSource()
           segment.layer.setSource(
             _createSegmentTileSource({
               tileGrid,
@@ -3219,6 +3283,7 @@ class VolumeImageViewer {
               onTileLoadError: segment.onTileLoadError,
             }),
           )
+          disposeDetachedSource(previousSegmentSource)
           segment.hasLoader = false
           if (container) {
             const loader = _createTileLoadFunction({
@@ -3272,6 +3337,7 @@ class VolumeImageViewer {
         tileSizes: mapping.loaderParams.pyramid.tileSizes,
       })
 
+      const previousMappingSource = mapping.layer.getSource()
       mapping.layer.setSource(
         new DataTileSource({
           tileGrid,
@@ -3281,7 +3347,7 @@ class VolumeImageViewer {
           interpolate: this[_parametricMapInterpolate],
         }),
       )
-      // Reset hasLoader flag since we created a new source
+      disposeDetachedSource(previousMappingSource)
       mapping.hasLoader = false
       if (mapping.layer.getVisible() === true) {
         this.showParameterMapping(mapping.mapping.uid)
@@ -3336,15 +3402,25 @@ class VolumeImageViewer {
           this[_options].errorInterceptor(customError)
         },
       }).then((profiles) => {
-        this[_iccProfiles] = profiles
+        if (this[_isCleanedUp]) {
+          return
+        }
+        if (profiles.length > 0) {
+          this[_iccProfiles] = profiles
+        }
+        const useIcc = this[_isICCProfilesEnabled] && profiles.length > 0
         const loader = _createTileLoadFunction({
           targetElement: container,
-          iccProfiles: profiles,
-          iccOutputType: this[_iccOutputType].getValue(),
+          iccProfiles: useIcc ? profiles : null,
+          iccOutputType: useIcc ? this[_iccOutputType].getValue() : undefined,
           ...opticalPath.loaderParams,
         })
         const source = opticalPath.layer.getSource()
+        if (!source) {
+          return
+        }
         source.setLoader(loader)
+        opticalPath.hasLoader = true
       })
     }
 
@@ -3419,6 +3495,19 @@ class VolumeImageViewer {
    */
   cleanup() {
     console.info('cleanup memory')
+    this[_isCleanedUp] = true
+    /**
+     * Detach both maps before disposing sources so an in-flight WebGL frame
+     * cannot call `getRenderSource` on a layer whose source is already gone.
+     * Overview shares the volume source, so it must be detached too.
+     */
+    if (typeof this[_map]?.setTarget === 'function') {
+      this[_map].setTarget(null)
+    }
+    const overviewMap = this[_overviewMap]?.getOverviewMap?.()
+    if (typeof overviewMap?.setTarget === 'function') {
+      overviewMap.setTarget(null)
+    }
     this[_iccOutputType]?.cleanup?.()
     this[_unsubscribeDisplayColorSpace]?.()
     this[_unsubscribeDisplayColorSpace] = undefined
@@ -3468,29 +3557,45 @@ class VolumeImageViewer {
 
     itemsRequiringDisposal.forEach((item) => {
       if (item.layer) {
-        disposeLayer(item.layer)
+        disposeLayer(item.layer, true)
         this[_map]?.removeLayer(item.layer)
       }
+      if (item.overviewLayer) {
+        disposeLayer(item.overviewLayer, true)
+        this[_overviewMap]?.getOverviewMap()?.removeLayer?.(item.overviewLayer)
+      }
       if (item.overlay) {
-        disposeLayer(item.overlay)
+        disposeLayer(item.overlay, true)
         this[_map]?.removeOverlay(item.overlay)
       }
       if (item.layers) {
         item.layers.forEach((layer) => {
-          disposeLayer(layer)
+          disposeLayer(layer, true)
           this[_map]?.removeLayer(layer)
         })
       }
     })
     this[_features]?.clear()
 
-    disposeMapLayers(this[_map])
-    disposeOverviewMapLayers(this[_overviewMap])
+    disposeMapLayers(this[_map], true)
+    disposeOverviewMapLayers(this[_overviewMap], true)
     if (typeof this[_map]?.setTarget === 'function') {
       this[_map].setTarget(null)
     }
     this[_container] = null
-    webWorkerManager.terminateAllWebWorkers()
+    this[_opticalPaths] = {}
+    this[_segments] = {}
+    this[_mappings] = {}
+    this[_annotationGroups] = {}
+    this[_pointsSources] = {}
+    this[_highResSources] = {}
+    this[_clustersSources] = {}
+    this[_retrievedBulkdata] = {}
+    this[_iccProfiles] = []
+    if (this[_workersRetained]) {
+      this[_workersRetained] = false
+      webWorkerManager.release()
+    }
   }
 
   /**
@@ -3530,6 +3635,7 @@ class VolumeImageViewer {
     }
 
     this[_container] = container
+    this[_isCleanedUp] = false
 
     const itemsRequiringDecodersAndTransformers = [
       ...Object.values(this[_opticalPaths]),
@@ -3544,9 +3650,13 @@ class VolumeImageViewer {
       element.style.margin = '1px'
     }
 
-    itemsRequiringDecodersAndTransformers.forEach(async (item) => {
+    /**
+     * OpenLayers requests tiles as soon as `setTarget` runs. Install a loader
+     * first (ICC applied below once profiles resolve) so the source is never
+     * asked to load with `loader` unset.
+     */
+    for (const item of itemsRequiringDecodersAndTransformers) {
       if (item.usePerFrameImages) {
-        /** Segments shown before render had no container to load into */
         if (!item.hasLoader && item.layer.getVisible()) {
           _installPerFrameSegmentLoaders(item, {
             container,
@@ -3554,104 +3664,78 @@ class VolumeImageViewer {
             interpolate: this[_segmentationInterpolate],
           })
         }
-        return
+        continue
       }
-
-      const metadata = item.pyramid.metadata
-      const client = _getClient(
-        this[_clients],
-        Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
-      )
-
-      const profiles = await _getIccProfiles({
-        metadata,
-        client,
-        onError: (error) => {
-          console.error('Failed to fetch ICC profiles:', error)
-          const customError = new CustomError(
-            errorTypes.VISUALIZATION,
-            'Failed to fetch ICC profiles',
-          )
-          this[_options].errorInterceptor(customError)
-        },
-      })
-      this[_iccProfiles] = profiles
-
       const source = item.layer.getSource()
       if (!source) {
-        return
+        continue
       }
-
-      const loader = _createTileLoadFunction({
-        targetElement: container,
-        iccProfiles:
-          this[_isICCProfilesEnabled] && profiles.length > 0 ? profiles : null,
-        iccOutputType:
-          this[_isICCProfilesEnabled] && profiles.length > 0
-            ? this[_iccOutputType].getValue()
-            : undefined,
-        ...item.loaderParams,
-      })
-      source.setLoader(loader)
+      source.setLoader(
+        _createTileLoadFunction({
+          targetElement: container,
+          iccProfiles: null,
+          ...item.loaderParams,
+        }),
+      )
       item.hasLoader = true
-      this[_map].setTarget(container)
-      const view = this[_map].getView()
-      const projection = view.getProjection()
-      view.fit(projection.getExtent(), { size: this[_map].getSize() })
-      this[_updateOverviewMapSize]()
+    }
 
-      if (this[_controls].overview && this[_overviewMap]) {
-        // Style overview element (overriding Openlayers CSS "ol-overviewmap")
-        const overviewElement = this[_controls].overview.element
-        const overviewChildren = overviewElement.children
-        const overviewmapElement = Object.values(overviewChildren).find(
-          (c) => c.className === 'ol-overviewmap-map',
-        )
-        const buttonElement = Object.values(overviewChildren).find(
-          (c) => c.type === 'button',
-        )
-        if (buttonElement) {
-          buttonElement.title = 'Overview'
-          buttonElement.style.border = '0.25px solid black'
-          buttonElement.style.backgroundColor = 'white'
-          buttonElement.style.cursor = 'pointer'
-          buttonElement.style.margin = '0'
-          /**
-           * When expanded, pin the collapse control over the map so it cannot
-           * sit in normal flow and add dead space under the mini-map. Re-apply
-           * after every collapse toggle (OL flips `ol-collapsed` on click).
-           */
-          const syncOverviewCollapseButton = () => {
-            if (overviewElement.classList.contains('ol-collapsed')) {
-              buttonElement.style.position = ''
-              buttonElement.style.bottom = ''
-              buttonElement.style.left = ''
-            } else {
-              buttonElement.style.position = 'absolute'
-              buttonElement.style.bottom = '0'
-              buttonElement.style.left = '0'
-            }
+    this[_map].setTarget(container)
+    const view = this[_map].getView()
+    const projection = view.getProjection()
+    view.fit(projection.getExtent(), { size: this[_map].getSize() })
+    this[_updateOverviewMapSize]()
+
+    if (this[_controls].overview && this[_overviewMap]) {
+      /** Style overview element (overriding Openlayers CSS "ol-overviewmap") */
+      const overviewElement = this[_controls].overview.element
+      const overviewChildren = overviewElement.children
+      const overviewmapElement = Object.values(overviewChildren).find(
+        (c) => c.className === 'ol-overviewmap-map',
+      )
+      const buttonElement = Object.values(overviewChildren).find(
+        (c) => c.type === 'button',
+      )
+      if (buttonElement) {
+        buttonElement.title = 'Overview'
+        buttonElement.style.border = '0.25px solid black'
+        buttonElement.style.backgroundColor = 'white'
+        buttonElement.style.cursor = 'pointer'
+        buttonElement.style.margin = '0'
+        /**
+         * When expanded, pin the collapse control over the map so it cannot
+         * sit in normal flow and add dead space under the mini-map. Re-apply
+         * after every collapse toggle (OL flips `ol-collapsed` on click).
+         */
+        const syncOverviewCollapseButton = () => {
+          if (overviewElement.classList.contains('ol-collapsed')) {
+            buttonElement.style.position = ''
+            buttonElement.style.bottom = ''
+            buttonElement.style.left = ''
+          } else {
+            buttonElement.style.position = 'absolute'
+            buttonElement.style.bottom = '0'
+            buttonElement.style.left = '0'
           }
-          syncOverviewCollapseButton()
-          if (!buttonElement.dataset.slimOverviewCollapseBound) {
-            buttonElement.dataset.slimOverviewCollapseBound = '1'
-            const onOverviewCollapseClick = () => {
-              requestAnimationFrame(syncOverviewCollapseButton)
-            }
-            buttonElement.addEventListener('click', onOverviewCollapseClick)
-            this[_overviewCollapseCleanup] = () => {
-              buttonElement.removeEventListener(
-                'click',
-                onOverviewCollapseClick,
-              )
-              delete buttonElement.dataset.slimOverviewCollapseBound
-              this[_overviewCollapseCleanup] = undefined
-            }
-          }
-          const spanElement = buttonElement.children[0]
-          spanElement.style.color = 'black'
-          spanElement.style.backgroundColor = 'white'
         }
+        syncOverviewCollapseButton()
+        if (!buttonElement.dataset.slimOverviewCollapseBound) {
+          buttonElement.dataset.slimOverviewCollapseBound = '1'
+          const onOverviewCollapseClick = () => {
+            requestAnimationFrame(syncOverviewCollapseButton)
+          }
+          buttonElement.addEventListener('click', onOverviewCollapseClick)
+          this[_overviewCollapseCleanup] = () => {
+            buttonElement.removeEventListener('click', onOverviewCollapseClick)
+            delete buttonElement.dataset.slimOverviewCollapseBound
+            this[_overviewCollapseCleanup] = undefined
+          }
+        }
+        const spanElement = buttonElement.children[0]
+        spanElement.style.color = 'black'
+        spanElement.style.backgroundColor = 'white'
+      }
+      if (overviewmapElement) {
         styleControlElement(overviewmapElement)
         overviewmapElement.style.border = '1px solid black'
         overviewmapElement.style.color = 'black'
@@ -3662,12 +3746,98 @@ class VolumeImageViewer {
          */
         overviewmapElement.style.margin = '0'
         overviewmapElement.style.padding = '0'
-        overviewElement.style.margin = '0'
-        overviewElement.style.padding = '0'
-        overviewElement.style.left = '8px'
-        overviewElement.style.bottom = '8px'
-        this[_updateOverviewMapSize]()
       }
+      overviewElement.style.margin = '0'
+      overviewElement.style.padding = '0'
+      overviewElement.style.left = '8px'
+      overviewElement.style.bottom = '8px'
+      this[_updateOverviewMapSize]()
+    }
+
+    const client = _getClient(
+      this[_clients],
+      Enums.SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE,
+    )
+    /** Coalesce concurrent ICC fetches for the same pyramid series */
+    const iccFetchBySeries = new Map()
+
+    const attachItemLoader = async (item) => {
+      try {
+        if (item.usePerFrameImages) {
+          /** Segments shown before render had no container to load into */
+          if (!item.hasLoader && item.layer.getVisible()) {
+            _installPerFrameSegmentLoaders(item, {
+              container,
+              projection: this[_projection],
+              interpolate: this[_segmentationInterpolate],
+            })
+          }
+          return
+        }
+
+        const metadata = item.pyramid.metadata
+        const seriesKey = Array.isArray(metadata)
+          ? metadata
+              .map((m) => m?.SOPInstanceUID)
+              .filter(Boolean)
+              .join('|') || 'none'
+          : 'none'
+        if (!iccFetchBySeries.has(seriesKey)) {
+          iccFetchBySeries.set(
+            seriesKey,
+            _getIccProfiles({
+              metadata,
+              client,
+              onError: (error) => {
+                console.error('Failed to fetch ICC profiles:', error)
+                const customError = new CustomError(
+                  errorTypes.VISUALIZATION,
+                  'Failed to fetch ICC profiles',
+                )
+                this[_options].errorInterceptor(customError)
+              },
+            }),
+          )
+        }
+        const profiles = await iccFetchBySeries.get(seriesKey)
+        if (this[_isCleanedUp]) {
+          return
+        }
+        /**
+         * Remember non-empty profiles for getICCProfiles / toggle. Loaders must
+         * use this item's own `profiles` so SEG/PM never inherit volume ICC.
+         */
+        if (profiles.length > 0) {
+          this[_iccProfiles] = profiles
+        }
+
+        const source = item.layer.getSource()
+        if (!source) {
+          return
+        }
+
+        const useIcc = this[_isICCProfilesEnabled] && profiles.length > 0
+        const loader = _createTileLoadFunction({
+          targetElement: container,
+          iccProfiles: useIcc ? profiles : null,
+          iccOutputType: useIcc ? this[_iccOutputType].getValue() : undefined,
+          ...item.loaderParams,
+        })
+        source.setLoader(loader)
+        item.hasLoader = true
+      } catch (error) {
+        console.error('Failed to configure tile loader during render:', error)
+        const customError = new CustomError(
+          errorTypes.VISUALIZATION,
+          'Failed to configure tile loader during render',
+        )
+        this[_options].errorInterceptor(customError)
+      }
+    }
+
+    /** Upgrade the sync no-ICC loaders once profiles are available. */
+    itemsRequiringDecodersAndTransformers.forEach((item) => {
+      void attachItemLoader(item)
     })
 
     // Style scale element (overriding Openlayers CSS "ol-scale-line")
@@ -3892,7 +4062,7 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         'geometry type must be specified for drawing interaction',
       )
-      this[_options].errorInterceptor(error)
+      throw this[_options].errorInterceptor(error)
     }
 
     if (!(options.geometryType in geometryOptionsMapping)) {
@@ -3901,7 +4071,7 @@ class VolumeImageViewer {
         errorTypes.VISUALIZATION,
         `unsupported geometry type "${options.geometryType}"`,
       )
-      this[_options].errorInterceptor(error)
+      throw this[_options].errorInterceptor(error)
     }
 
     const internalDrawOptions = { source: this[_drawingSource] }
@@ -5140,6 +5310,11 @@ class VolumeImageViewer {
             `add n=${features.length} annotations ` +
               `for annotation group "${annotationGroupUID}"`,
           )
+          /**
+           * High-res pan reloads call this again for the same source. Clear
+           * first so features do not accumulate unboundedly.
+           */
+          this.clear()
           this.addFeatures(features)
           success(features)
           console.info('number of annotations:', numberOfAnnotations)
@@ -5187,10 +5362,12 @@ class VolumeImageViewer {
                 // 2: 'Failed to fetch measurements of annotation group'
               }
               const retrievedBulkdata = [[], [], []]
+              let hasFailure = false
               results.forEach((result, index) => {
                 if (result.status === 'fulfilled') {
                   retrievedBulkdata[index] = result.value
                 } else {
+                  hasFailure = true
                   console.error(errors[index], result.reason)
                   const customError = new CustomError(
                     errorTypes.VISUALIZATION,
@@ -5200,6 +5377,9 @@ class VolumeImageViewer {
                   failure()
                 }
               })
+              if (hasFailure) {
+                return
+              }
               console.info('retrieve and cache bulk annotations')
               cacheBulkAnnotations(annotationGroupUID, retrievedBulkdata)
               processBulkAnnotations(retrievedBulkdata)
@@ -5319,38 +5499,62 @@ class VolumeImageViewer {
         source: pointsSource,
       })
 
-      pointsSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
+      const trackGroupKey = (key) => {
+        if (key != null) annotationGroup.listenerKeys.push(key)
+      }
+      trackGroupKey(
+        pointsSource.on(
+          'featuresloadstart',
+          this._onBulkAnnotationsFeaturesLoadStart,
+        ),
       )
-      pointsSource.on('featuresloadend', this._onBulkAnnotationsFeaturesLoadEnd)
-      pointsSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
+      trackGroupKey(
+        pointsSource.on(
+          'featuresloadend',
+          this._onBulkAnnotationsFeaturesLoadEnd,
+        ),
       )
-      highResSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
+      trackGroupKey(
+        pointsSource.on(
+          'featuresloaderror',
+          this._onBulkAnnotationsFeaturesLoadError,
+        ),
       )
-      highResSource.on(
-        'featuresloadend',
-        this._onBulkAnnotationsFeaturesLoadEnd,
+      trackGroupKey(
+        highResSource.on(
+          'featuresloadstart',
+          this._onBulkAnnotationsFeaturesLoadStart,
+        ),
       )
-      highResSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
+      trackGroupKey(
+        highResSource.on(
+          'featuresloadend',
+          this._onBulkAnnotationsFeaturesLoadEnd,
+        ),
       )
-      clustersSource.on(
-        'featuresloadstart',
-        this._onBulkAnnotationsFeaturesLoadStart,
+      trackGroupKey(
+        highResSource.on(
+          'featuresloaderror',
+          this._onBulkAnnotationsFeaturesLoadError,
+        ),
       )
-      clustersSource.on(
-        'featuresloadend',
-        this._onBulkAnnotationsFeaturesLoadEnd,
+      trackGroupKey(
+        clustersSource.on(
+          'featuresloadstart',
+          this._onBulkAnnotationsFeaturesLoadStart,
+        ),
       )
-      clustersSource.on(
-        'featuresloaderror',
-        this._onBulkAnnotationsFeaturesLoadError,
+      trackGroupKey(
+        clustersSource.on(
+          'featuresloadend',
+          this._onBulkAnnotationsFeaturesLoadEnd,
+        ),
+      )
+      trackGroupKey(
+        clustersSource.on(
+          'featuresloaderror',
+          this._onBulkAnnotationsFeaturesLoadError,
+        ),
       )
 
       /**
@@ -5376,9 +5580,6 @@ class VolumeImageViewer {
         }
       }, 500)
       annotationGroup.cancelDebouncedUpdate = () => debouncedUpdate.cancel()
-      const trackGroupKey = (key) => {
-        if (key != null) annotationGroup.listenerKeys.push(key)
-      }
       trackGroupKey(view.on('change:center', debouncedUpdate))
 
       const getHighResLayer = ({
@@ -5714,7 +5915,7 @@ class VolumeImageViewer {
 
     annotationGroup.layers.forEach((layer) => {
       this[_map].removeLayer(layer)
-      disposeLayer(layer)
+      disposeLayer(layer, true)
     })
 
     delete this[_retrievedBulkdata][annotationGroupUID]
@@ -6565,7 +6766,7 @@ class VolumeImageViewer {
 
     const segment = this[_segments][segmentUID]
     this[_map].removeLayer(segment.layer)
-    disposeLayer(segment.layer)
+    disposeLayer(segment.layer, true)
     delete this[_segments][segmentUID]
 
     this._syncStackedDerivedLegendOverlays()
@@ -7701,7 +7902,7 @@ class VolumeImageViewer {
 
     const mapping = this[_mappings][mappingUID]
     this[_map].removeLayer(mapping.layer)
-    disposeLayer(mapping.layer)
+    disposeLayer(mapping.layer, true)
     delete this[_mappings][mappingUID]
     this._syncStackedDerivedLegendOverlays()
   }

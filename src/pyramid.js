@@ -56,7 +56,10 @@ async function _getIccProfiles({ metadata, client, onError }) {
         return _fetchBulkdata({
           client,
           reference: iccProfile,
-        }).catch(onError)
+        }).catch((error) => {
+          onError(error)
+          return Promise.reject(error)
+        })
       } else {
         return iccProfile
       }
