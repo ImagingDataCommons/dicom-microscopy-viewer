@@ -229,8 +229,16 @@ export function disposeLayer(layer, disposeSource = false) {
     disposeDetachedSource(source)
   }
 
-  layer.setSource(undefined)
-  layer.dispose()
+  try {
+    layer.setSource(undefined)
+  } catch {
+    /** Renderer may still be reading the source this frame */
+  }
+  try {
+    layer.dispose()
+  } catch {
+    /** Ignore double-dispose from OpenLayers */
+  }
 }
 
 /**
@@ -3488,6 +3496,18 @@ class VolumeImageViewer {
   cleanup() {
     console.info('cleanup memory')
     this[_isCleanedUp] = true
+    /**
+     * Detach both maps before disposing sources so an in-flight WebGL frame
+     * cannot call `getRenderSource` on a layer whose source is already gone.
+     * Overview shares the volume source, so it must be detached too.
+     */
+    if (typeof this[_map]?.setTarget === 'function') {
+      this[_map].setTarget(null)
+    }
+    const overviewMap = this[_overviewMap]?.getOverviewMap?.()
+    if (typeof overviewMap?.setTarget === 'function') {
+      overviewMap.setTarget(null)
+    }
     this[_iccOutputType]?.cleanup?.()
     this[_unsubscribeDisplayColorSpace]?.()
     this[_unsubscribeDisplayColorSpace] = undefined
@@ -3630,6 +3650,36 @@ class VolumeImageViewer {
       element.style.margin = '1px'
     }
 
+    /**
+     * OpenLayers requests tiles as soon as `setTarget` runs. Install a loader
+     * first (ICC applied below once profiles resolve) so the source is never
+     * asked to load with `loader` unset.
+     */
+    for (const item of itemsRequiringDecodersAndTransformers) {
+      if (item.usePerFrameImages) {
+        if (!item.hasLoader && item.layer.getVisible()) {
+          _installPerFrameSegmentLoaders(item, {
+            container,
+            projection: this[_projection],
+            interpolate: this[_segmentationInterpolate],
+          })
+        }
+        continue
+      }
+      const source = item.layer.getSource()
+      if (!source) {
+        continue
+      }
+      source.setLoader(
+        _createTileLoadFunction({
+          targetElement: container,
+          iccProfiles: null,
+          ...item.loaderParams,
+        }),
+      )
+      item.hasLoader = true
+    }
+
     this[_map].setTarget(container)
     const view = this[_map].getView()
     const projection = view.getProjection()
@@ -3711,7 +3761,7 @@ class VolumeImageViewer {
     /** Coalesce concurrent ICC fetches for the same pyramid series */
     const iccFetchBySeries = new Map()
 
-    itemsRequiringDecodersAndTransformers.forEach(async (item) => {
+    const attachItemLoader = async (item) => {
       try {
         if (item.usePerFrameImages) {
           /** Segments shown before render had no container to load into */
@@ -3783,6 +3833,11 @@ class VolumeImageViewer {
         )
         this[_options].errorInterceptor(customError)
       }
+    }
+
+    /** Upgrade the sync no-ICC loaders once profiles are available. */
+    itemsRequiringDecodersAndTransformers.forEach((item) => {
+      void attachItemLoader(item)
     })
 
     // Style scale element (overriding Openlayers CSS "ol-scale-line")
