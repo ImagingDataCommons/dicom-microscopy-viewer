@@ -643,6 +643,59 @@ function _getOpenLayersStyle(styleOptions) {
 }
 
 /**
+ * Style function for the Draw interaction overlay. OpenLayers sketches use
+ * Point (vertices), LineString, and Polygon features; a single Style object
+ * often only paints one of those, so we mirror createEditingStyle() with the
+ * caller's stroke / fill / vertex colors.
+ *
+ * @param {Object} styleOptions
+ * @returns {function}
+ *
+ * @private
+ */
+function _getOpenLayersDrawStyle(styleOptions) {
+  const strokeColor = styleOptions?.stroke?.color ?? '#3399CC'
+  const strokeWidth = styleOptions?.stroke?.width ?? 2
+  const fillColor = styleOptions?.fill?.color ?? [255, 255, 255, 0.2]
+  const vertexRadius =
+    styleOptions?.image?.circle?.radius ?? Math.max(5 - strokeWidth, 1)
+  const vertexStroke = styleOptions?.image?.circle?.stroke ?? {
+    color: strokeColor,
+    width: strokeWidth,
+  }
+  const vertexFill = styleOptions?.image?.circle?.fill ?? {
+    color: strokeColor,
+  }
+
+  const stroke = new Stroke({ color: strokeColor, width: strokeWidth })
+  const fill = new Fill({ color: fillColor })
+  const vertex = new Circle({
+    radius: vertexRadius,
+    stroke: new Stroke(vertexStroke),
+    fill: new Fill(vertexFill),
+  })
+
+  const byType = {
+    Point: [new Style({ image: vertex, zIndex: Infinity })],
+    MultiPoint: [new Style({ image: vertex, zIndex: Infinity })],
+    LineString: [new Style({ stroke })],
+    MultiLineString: [new Style({ stroke })],
+    Polygon: [new Style({ stroke, fill })],
+    MultiPolygon: [new Style({ stroke, fill })],
+    Circle: [new Style({ stroke, fill })],
+    GeometryCollection: [
+      new Style({ stroke, fill }),
+      new Style({ image: vertex }),
+    ],
+  }
+
+  return (feature) => {
+    const type = feature.getGeometry()?.getType()
+    return byType[type] ?? byType.Polygon
+  }
+}
+
+/**
  * Add ROI properties to feature in a safe way
  *
  * @param {Object} feature - The feature instance that represents the ROI
@@ -3283,6 +3336,9 @@ class VolumeImageViewer {
     console.info('cleanup memory')
     this[_iccOutputType]?.cleanup?.()
     this[_unsubscribeDisplayColorSpace]?.()
+    if (typeof this[_annotationManager]?.destroy === 'function') {
+      this[_annotationManager].destroy()
+    }
     const itemsRequiringDisposal = [
       ...Object.values(this[_opticalPaths]),
       ...Object.values(this[_segments]),
@@ -3721,6 +3777,17 @@ class VolumeImageViewer {
     )
 
     /**
+     * OpenLayers Draw paints the in-progress sketch with `style`, not the
+     * feature style set on drawstart. Without this the preview stays the
+     * library default blue until DRAW_END.
+     */
+    const sketchStyleOptions =
+      options[Enums.InternalProperties.StyleOptions] ?? options.styleOptions
+    if (sketchStyleOptions !== undefined) {
+      drawOptions.style = _getOpenLayersDrawStyle(sketchStyleOptions)
+    }
+
+    /**
      * This used to define which mouse buttons will fire the action.
      *
      * bindings: {
@@ -3742,10 +3809,7 @@ class VolumeImageViewer {
       event.feature.setId(_generateUID())
 
       /** Set external styles before calling internal annotation hooks */
-      _setFeatureStyle(
-        event.feature,
-        options[Enums.InternalProperties.StyleOptions],
-      )
+      _setFeatureStyle(event.feature, sketchStyleOptions)
 
       this[_annotationManager].onDrawStart(event)
 
@@ -4337,17 +4401,17 @@ class VolumeImageViewer {
   addROI(roi, styleOptions = {}) {
     console.info(`add ROI "${roi.uid}"`)
 
-    // Avoid insertion of duplicates
-    let exists = false
+    /** Drawn features are already on the source; restyle instead of duplicating. */
     for (let i = 0; i < this[_features].getLength(); i++) {
-      const feature = this[_features].item(i)
-      if (feature.getId() === roi.uid) {
-        exists = true
-        break
+      const existing = this[_features].item(i)
+      if (existing.getId() === roi.uid) {
+        console.warn(`ROI "${roi.uid}" not added because it already exists`)
+        _addROIPropertiesToFeature(existing, roi.properties, true)
+        _setFeatureStyle(existing, styleOptions)
+        const isVisible = Object.keys(styleOptions).length !== 0
+        this[_annotationManager].setMarkupVisibility(roi.uid, isVisible)
+        return
       }
-    }
-    if (exists) {
-      console.warn(`ROI "${roi.uid}" not added because it already exists`)
     }
 
     // TODO: Check for 3D coordinate dimentionality?
@@ -4399,6 +4463,43 @@ class VolumeImageViewer {
    */
   getMeasurementUnit() {
     return this[_annotationManager].getMeasurementUnit()
+  }
+
+  /**
+   * Color for measurement-value labels and the dotted link line to the ROI.
+   * Pass a CSS color string or `[r,g,b]` / `[r,g,b,a]`. Empty / null clears
+   * the preference so labels follow each ROI stroke color again.
+   *
+   * @param {string|number[]|undefined|null} color
+   * @returns {void}
+   */
+  setMarkupLabelColor(color) {
+    this[_annotationManager].setMarkupLabelColor(color)
+  }
+
+  /**
+   * @returns {string|number[]|undefined}
+   */
+  getMarkupLabelColor() {
+    return this[_annotationManager].getMarkupLabelColor()
+  }
+
+  /**
+   * Font size (px) for measurement-value labels on the slide. Pass empty /
+   * null / undefined to restore the library default.
+   *
+   * @param {number|string|undefined|null} size
+   * @returns {void}
+   */
+  setMarkupLabelFontSize(size) {
+    this[_annotationManager].setMarkupLabelFontSize(size)
+  }
+
+  /**
+   * @returns {number|undefined}
+   */
+  getMarkupLabelFontSize() {
+    return this[_annotationManager].getMarkupLabelFontSize()
   }
 
   /**

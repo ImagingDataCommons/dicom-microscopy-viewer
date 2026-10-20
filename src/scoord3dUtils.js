@@ -121,10 +121,11 @@ function _scoord3d2Geometry(scoord3d, affine) {
 }
 
 /**
- * Get coordinate with offset.
+ * Get coordinate with offset from the feature tip (map units). Callers that
+ * want a stable on-screen gap should pass `offsetPx * view.getResolution()`.
  *
  * @param {object} feature feature
- * @param {number} offset offset
+ * @param {number} offset Offset in map units (default keeps legacy ~70)
  * @returns {array} coordinates with offset
  * @private
  */
