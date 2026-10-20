@@ -1,5 +1,6 @@
 import Circle from 'ol/geom/Circle'
 import LineString from 'ol/geom/LineString'
+import Point from 'ol/geom/Point'
 import DragPan from 'ol/interaction/DragPan'
 import VectorLayer from 'ol/layer/Vector'
 import Overlay from 'ol/Overlay'
@@ -7,6 +8,7 @@ import 'ol/ol.css'
 import Collection from 'ol/Collection'
 import Feature from 'ol/Feature'
 import { fromCircle } from 'ol/geom/Polygon'
+import { unByKey } from 'ol/Observable'
 import VectorSource from 'ol/source/Vector'
 import Stroke from 'ol/style/Stroke'
 import Style from 'ol/style/Style'
@@ -16,84 +18,130 @@ import { coordinateWithOffset } from '../../scoord3dUtils'
 import { _getUnitSuffix, _toCssColor } from '../../utils'
 import defaultStyles from '../styles'
 
+const DRAG_PROPERTY = 'dragging'
+const DRAGGABLE_CLASS = 'markup-label--draggable'
+/** Default on-slide measurement label size (px) */
+const DEFAULT_MARKUP_LABEL_FONT_SIZE_PX = 13
+const MIN_MARKUP_LABEL_FONT_SIZE_PX = 10
+const MAX_MARKUP_LABEL_FONT_SIZE_PX = 24
 /**
- * Build a new LineString instance with the shortest
- * distance between a given overlay and a feature.
+ * Screen-space gap between the ROI tip and the measurement label. Converted to
+ * map units with the view resolution so spacing stays readable when zoomed out.
+ */
+const DEFAULT_MARKUP_LABEL_OFFSET_PX = 36
+
+/**
+ * Collect vertex-like coordinates from a geometry for link anchoring.
  *
- * @param {object} feature The feature
- * @param {object} overlay The overlay instance
+ * @param {import('ol/geom/Geometry').default} geometry
+ * @returns {number[][]}
  *
- * @returns {LineString} The smallest line between the overlay and feature
+ * @private
+ */
+const _geometryAnchorPoints = (geometry) => {
+  if (!geometry) return []
+  if (geometry instanceof Point) {
+    return [geometry.getCoordinates()]
+  }
+  let geom = geometry
+  if (geom instanceof Circle) {
+    geom = fromCircle(geom).clone()
+  }
+  if (typeof geom.getLinearRing === 'function') {
+    const ring = geom.getLinearRing(0)
+    return ring ? ring.getCoordinates() : []
+  }
+  if (typeof geom.getCoordinates === 'function') {
+    const coords = geom.getCoordinates()
+    if (!Array.isArray(coords) || coords.length === 0) return []
+    /** LineString: [[x,y], ...]; Multi*: nested — flatten one level when needed */
+    if (typeof coords[0] === 'number') return [coords]
+    if (Array.isArray(coords[0]) && typeof coords[0][0] === 'number') {
+      return coords
+    }
+    return coords.flatMap((part) =>
+      Array.isArray(part) && typeof part[0] === 'number' ? [part] : part,
+    )
+  }
+  return []
+}
+
+/**
+ * Build a LineString between the overlay and the closest point on the feature.
+ *
+ * @param {object} feature
+ * @param {object} overlay
+ * @returns {LineString|undefined}
  *
  * @private
  */
 const _getShortestLineBetweenOverlayAndFeature = (feature, overlay) => {
+  const overlayPosition = overlay?.getPosition?.()
+  if (!overlayPosition) return undefined
+
+  const featureGeometry = feature?.getGeometry?.()
+  if (!featureGeometry) return undefined
+
   let result
   let distanceSq = Infinity
 
-  let featureGeometry = feature.getGeometry()
-
-  if (featureGeometry instanceof Circle) {
-    featureGeometry = fromCircle(featureGeometry).clone()
+  const tryPair = (a, b) => {
+    const d = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
+    if (d < distanceSq) {
+      distanceSq = d
+      result = [a, b]
+    }
   }
 
-  const geometry = featureGeometry.getLinearRing
-    ? featureGeometry.getLinearRing(0)
-    : featureGeometry
-
-  ;(geometry.getCoordinates() || geometry.getExtent()).forEach(
-    (coordinates) => {
-      const closest = overlay.getPosition()
-      const distanceNew =
-        (closest[0] - coordinates[0]) ** 2 + (closest[1] - coordinates[1]) ** 2
-      if (distanceNew < distanceSq) {
-        distanceSq = distanceNew
-        result = [coordinates, closest]
-      }
-    },
-  )
-
-  const coordinates = overlay.getPosition()
-  const closest = geometry.getClosestPoint(coordinates)
-  const distanceNew =
-    (closest[0] - coordinates[0]) ** 2 + (closest[1] - coordinates[1]) ** 2
-  if (distanceNew < distanceSq) {
-    distanceSq = distanceNew
-    result = [closest, coordinates]
+  for (const point of _geometryAnchorPoints(featureGeometry)) {
+    if (!Array.isArray(point) || point.length < 2) continue
+    tryPair(point, overlayPosition)
   }
 
+  let geomForClosest = featureGeometry
+  if (geomForClosest instanceof Circle) {
+    geomForClosest = fromCircle(geomForClosest).clone()
+  }
+  if (typeof geomForClosest.getClosestPoint === 'function') {
+    const closest = geomForClosest.getClosestPoint(overlayPosition)
+    if (Array.isArray(closest) && closest.length >= 2) {
+      tryPair(closest, overlayPosition)
+    }
+  }
+
+  if (!result) return undefined
   return new LineString(result)
 }
 
 class _MarkupManager {
-  constructor({
-    map,
-    pyramid,
-    affine,
-    drawingSource,
-    formatters,
-    onClick,
-    onStyle,
-  } = {}) {
+  constructor({ map, pyramid, affine, drawingSource, formatters } = {}) {
     this._map = map
     this._pyramid = pyramid
     this._affine = affine
-    this._formatters = formatters
+    this._formatters = formatters || {}
     this._drawingSource = drawingSource
 
-    this.onClick = onClick
-    this.onStyle = onStyle
-
     this._markups = new Map()
+    /** @type {Map<string, { featureChange?: object, propertyChange?: object, geometryChange?: object, mouseDown?: Function }>} */
     this._listeners = new Map()
     this._links = new Collection([], { unique: true })
-    /** @type {'μm'|'mm'|undefined} Preferred measurement unit from the host app */
+    /** @type {Map<string, Feature>} */
+    this._linksById = new Map()
+    /** @type {'μm'|'mm'|undefined} */
     this._measurementUnit = undefined
     this._getMeasurementUnit = undefined
+    /** @type {string|number[]|undefined} */
+    this._markupLabelColor = undefined
+    /** @type {number|undefined} Font size in px; undefined uses the library default */
+    this._markupLabelFontSize = undefined
+    /** @type {string|undefined} Id of the markup currently being dragged */
+    this._activeDragId = undefined
+    /** True once POINTER_MOVE updated position during the active drag */
+    this._dragDidMove = false
+    this._destroyed = false
 
-    const defaultColor = defaultStyles.stroke.color
     this._styleTag = document.createElement('style')
-    this._styleTag.innerHTML = this._getTooltipStyles(defaultColor)
+    this._styleTag.innerHTML = this._getTooltipStyles()
 
     this._linksVector = new VectorLayer({
       source: new VectorSource({ features: this._links }),
@@ -102,6 +150,81 @@ class _MarkupManager {
     this._markupsOverlay = new Overlay({ element: this._styleTag })
     this._map.addOverlay(this._markupsOverlay)
     this._map.addLayer(this._linksVector)
+
+    this._pointerMoveKey = this._map.on(Enums.MapEvents.POINTER_MOVE, (event) =>
+      this._onMapPointerMove(event),
+    )
+    this._pointerUpKey = this._map.on(Enums.MapEvents.POINTER_UP, () =>
+      this._onMapPointerUp(),
+    )
+  }
+
+  /**
+   * Find the map DragPan interaction, if any.
+   *
+   * @returns {DragPan|undefined}
+   */
+  _getDragPan() {
+    let dragPan
+    this._map.getInteractions().forEach((interaction) => {
+      if (interaction instanceof DragPan) {
+        dragPan = interaction
+      }
+    })
+    return dragPan
+  }
+
+  _onMapPointerMove(event) {
+    const id = this._activeDragId
+    if (id == null) return
+    const markup = this.get(id)
+    if (!markup?.isDraggable) return
+    this._dragDidMove = true
+    markup.overlay.setPosition(event.coordinate)
+    const feature = this._drawingSource?.getFeatureById(id)
+    if (feature) this._drawLink(feature)
+  }
+
+  _onMapPointerUp() {
+    const id = this._activeDragId
+    if (id == null) return
+    const markup = this.get(id)
+    const didMove = this._dragDidMove
+    this._activeDragId = undefined
+    this._dragDidMove = false
+    this._getDragPan()?.setActive(true)
+    if (markup) {
+      markup.overlay.set(DRAG_PROPERTY, false)
+      /**
+       * Only freeze the offset after a real drag. A click (mousedown + up
+       * without move) must keep following the tip on geometry CHANGE.
+       */
+      if (didMove) {
+        markup.userMoved = true
+      }
+    }
+  }
+
+  /**
+   * Unsubscribe and drop listener bookkeeping for one markup.
+   *
+   * @param {string} id
+   * @returns {void}
+   */
+  _unwireInternalEvents(id) {
+    const entry = this._listeners.get(id)
+    if (!entry) return
+    if (entry.featureChange) unByKey(entry.featureChange)
+    if (entry.propertyChange) unByKey(entry.propertyChange)
+    if (entry.geometryChange) unByKey(entry.geometryChange)
+    if (entry.mouseDown) {
+      const markup = this.get(id)
+      markup?.element?.removeEventListener(
+        Enums.HTMLElementEvents.MOUSE_DOWN,
+        entry.mouseDown,
+      )
+    }
+    this._listeners.delete(id)
   }
 
   /**
@@ -112,17 +235,16 @@ class _MarkupManager {
    */
   setVisible(isVisible) {
     this._linksVector.setVisible(isVisible)
-
-    if (isVisible) {
-      this._markups.forEach((markup) => {
-        this._map.removeOverlay(markup.overlay)
-        this._map.addOverlay(markup.overlay)
-      })
-      return
-    }
     this._markups.forEach((markup) => {
-      this._map.addOverlay(markup.overlay)
-      this._map.removeOverlay(markup.overlay)
+      if (isVisible) {
+        if (!markup.overlay.getMap()) {
+          this._map.addOverlay(markup.overlay)
+        }
+        markup.element.style.display = ''
+      } else {
+        this._map.removeOverlay(markup.overlay)
+        markup.element.style.display = 'none'
+      }
     })
   }
 
@@ -158,21 +280,61 @@ class _MarkupManager {
       return id
     }
 
-    const links = this._links.getArray()
-    const link = links.find((feature) => feature.getId() === id)
+    if (this._activeDragId === id) {
+      this._activeDragId = undefined
+      this._getDragPan()?.setActive(true)
+    }
+
+    this._unwireInternalEvents(id)
+
+    const link = this._linksById.get(id)
     if (link) {
       this._links.remove(link)
+      this._linksById.delete(id)
     }
 
     this._map.removeOverlay(markup.overlay)
     this._markups.delete(id)
 
-    if (this._listeners.get(id)) {
-      this._listeners.delete(id)
-      console.debug('deleting feature listener')
+    return id
+  }
+
+  /**
+   * Tear down every markup, map listeners, overlays, and the link layer.
+   *
+   * @returns {void}
+   */
+  destroy() {
+    if (this._destroyed) return
+    this._destroyed = true
+
+    const ids = [...this._markups.keys()]
+    for (const id of ids) {
+      this.remove(id)
     }
 
-    return id
+    if (this._pointerMoveKey) {
+      unByKey(this._pointerMoveKey)
+      this._pointerMoveKey = undefined
+    }
+    if (this._pointerUpKey) {
+      unByKey(this._pointerUpKey)
+      this._pointerUpKey = undefined
+    }
+
+    if (this._markupsOverlay) {
+      this._map.removeOverlay(this._markupsOverlay)
+      this._markupsOverlay = undefined
+    }
+    if (this._linksVector) {
+      this._map.removeLayer(this._linksVector)
+      this._linksVector.getSource()?.clear()
+      this._linksVector = undefined
+    }
+    this._styleTag = undefined
+    this._linksById.clear()
+    this._listeners.clear()
+    this._markups.clear()
   }
 
   /**
@@ -187,20 +349,44 @@ class _MarkupManager {
       return
     }
 
-    const links = this._links.getArray()
-    const link = links.find((feature) => feature.getId() === id)
-
-    const feature = this._drawingSource.getFeatureById(id)
+    const feature = this._drawingSource?.getFeatureById(id)
+    const link = this._linksById.get(id)
 
     if (!isVisible) {
       this._map.removeOverlay(markup.overlay)
-      this._links.remove(link)
+      markup.element.style.display = 'none'
+      if (link) {
+        this._links.remove(link)
+        this._linksById.delete(id)
+      }
     } else {
-      this._map.addOverlay(markup.overlay)
-      this._drawLink(feature)
+      markup.element.style.display = ''
+      if (!markup.overlay.getMap()) {
+        this._map.addOverlay(markup.overlay)
+      }
+      if (feature) {
+        this._drawLink(feature)
+      }
     }
 
     return isVisible
+  }
+
+  /**
+   * Tip coordinate shifted by {@link DEFAULT_MARKUP_LABEL_OFFSET_PX} in screen
+   * space (map units via view resolution).
+   *
+   * @param {Feature} feature
+   * @returns {number[]|undefined}
+   */
+  _offsetCoordinate(feature) {
+    const geometry = feature?.getGeometry?.()
+    if (!geometry?.getLastCoordinate) return undefined
+    const resolution = this._map.getView()?.getResolution() ?? 1
+    return coordinateWithOffset(
+      feature,
+      DEFAULT_MARKUP_LABEL_OFFSET_PX * resolution,
+    )
   }
 
   /**
@@ -211,10 +397,11 @@ class _MarkupManager {
    * @param {string} options.value The inner content of element
    * @param {boolean} options.isLinkable Create a link between feature and markup
    * @param {boolean} options.isDraggable Allow markup to be dragged
-   * @param {array} offset Markup offset
    * @return {object} The markup object
    */
   create({ feature, value = '', isLinkable = true, isDraggable = true }) {
+    if (this._destroyed) return undefined
+
     const id = feature.getId()
     if (!id) {
       console.warn('Failed to create markup, feature id not found')
@@ -223,20 +410,20 @@ class _MarkupManager {
 
     if (this.has(id)) {
       console.warn('Markup for feature already exists', id)
-      /** Wire events again so they are not lost (closure of this function) */
       this._drawLink(feature)
       this._wireInternalEvents(feature)
+      this._styleTooltip(feature)
       return this.get(id)
     }
 
-    const markup = { id, isLinkable, isDraggable }
+    const markup = { id, isLinkable, isDraggable, feature, userMoved: false }
 
     const element = document.createElement('div')
-    element.id = markup.isDraggable ? Enums.InternalProperties.Markup : ''
     element.className = 'ol-tooltip ol-tooltip-measure'
+    if (isDraggable) {
+      element.classList.add(DRAGGABLE_CLASS)
+    }
     element.innerText = value
-
-    const spacedCoordinate = coordinateWithOffset(feature)
 
     markup.element = element
     markup.overlay = new Overlay({
@@ -244,7 +431,7 @@ class _MarkupManager {
       positioning: 'center-center',
       stopEvent: false,
       dragging: false,
-      position: spacedCoordinate,
+      position: this._offsetCoordinate(feature),
       element: markup.element,
     })
 
@@ -253,12 +440,13 @@ class _MarkupManager {
 
     this._drawLink(feature)
     this._wireInternalEvents(feature)
+    this._styleTooltip(feature)
 
     return markup
   }
 
   /**
-   * Wire internal events to markup feature.
+   * Wire internal events to markup feature (idempotent).
    *
    * @param {object} feature
    * @returns {void}
@@ -266,96 +454,144 @@ class _MarkupManager {
   _wireInternalEvents(feature) {
     const id = feature.getId()
     const markup = this.get(id)
-    const listener = feature.on(Enums.FeatureEvents.CHANGE, (event) => {
-      console.debug('feature changed', id)
-      if (this.has(id)) {
-        const view = this._map.getView()
-        const unitSuffix = _getUnitSuffix(
-          view,
-          this._getMeasurementUnit?.() ?? this._measurementUnit,
-        )
-        const format = this._getFormatter(event.target)
-        const output = format(
-          event.target,
-          unitSuffix,
-          this._pyramid,
-          this._affine,
-        )
-        const geometry = event.target.getGeometry()
-        this.update({
-          feature,
-          value: output,
-          coordinate: geometry.getLastCoordinate(),
-        })
-        this._drawLink(feature)
-      }
+    if (!markup) return
+
+    this._unwireInternalEvents(id)
+
+    const featureChange = feature.on(Enums.FeatureEvents.CHANGE, (event) => {
+      if (!this.has(id)) return
+      const current = this.get(id)
+      const view = this._map.getView()
+      const unitSuffix = _getUnitSuffix(
+        view,
+        this._getMeasurementUnit?.() ?? this._measurementUnit,
+      )
+      const format = this._getFormatter(event.target)
+      const output = format(
+        event.target,
+        unitSuffix,
+        this._pyramid,
+        this._affine,
+      )
+      /**
+       * Keep a screen-space gap from the tip while drawing / editing. Only skip
+       * when the user has dragged the label (otherwise CHANGE snapped it back
+       * onto the measurement).
+       */
+      this.update({
+        feature,
+        value: output,
+        coordinate: current?.userMoved
+          ? undefined
+          : this._offsetCoordinate(event.target),
+      })
+      this._drawLink(feature)
     })
 
-    this._listeners.set(id, listener)
-
-    this._styleTooltip(feature)
-
-    /** Keep markup style after external style changes */
-    feature.on(
+    const propertyChange = feature.on(
       Enums.FeatureEvents.PROPERTY_CHANGE,
-      ({ key: property, target: feature }) => {
-        console.debug('feature property changed')
+      ({ key: property, target: changedFeature }) => {
         if (property === Enums.InternalProperties.StyleOptions) {
-          this._styleTooltip(feature)
+          this._styleTooltip(changedFeature)
         }
       },
     )
 
-    /** Update markup style on feature geometry change */
-    feature.getGeometry().on(Enums.FeatureGeometryEvents.CHANGE, () => {
-      console.debug('feature geometry changed')
-      this._styleTooltip(feature)
+    const geometry = feature.getGeometry()
+    const geometryChange = geometry
+      ? geometry.on(Enums.FeatureGeometryEvents.CHANGE, () => {
+          this._styleTooltip(feature)
+        })
+      : undefined
+
+    const mouseDown = () => {
+      const current = this.get(id)
+      if (!current?.isDraggable) return
+      this._getDragPan()?.setActive(false)
+      current.overlay.set(DRAG_PROPERTY, true)
+      this._activeDragId = id
+      this._dragDidMove = false
+    }
+    markup.element.addEventListener(
+      Enums.HTMLElementEvents.MOUSE_DOWN,
+      mouseDown,
+    )
+
+    this._listeners.set(id, {
+      featureChange,
+      propertyChange,
+      geometryChange,
+      mouseDown,
     })
 
-    let dragPan
-    const dragProperty = 'dragging'
-    this._map.getInteractions().forEach((interaction) => {
-      if (interaction instanceof DragPan) {
-        dragPan = interaction
-      }
-    })
-
-    markup.element.addEventListener(Enums.HTMLElementEvents.MOUSE_DOWN, () => {
-      const markup = this.get(id)
-      if (markup) {
-        dragPan.setActive(false)
-        markup.overlay.set(dragProperty, true)
-      }
-    })
-
-    this._map.on(Enums.MapEvents.POINTER_MOVE, (event) => {
-      const markup = this.get(id)
-      if (
-        markup &&
-        markup.overlay.get(dragProperty) === true &&
-        markup.isDraggable
-      ) {
-        /** Doesn't need to have the offset */
-        markup.overlay.setPosition(event.coordinate)
-        this._drawLink(feature)
-      }
-    })
-
-    this._map.on(Enums.MapEvents.POINTER_UP, () => {
-      const markup = this.get(id)
-      if (
-        markup &&
-        markup.overlay.get(dragProperty) === true &&
-        markup.isDraggable
-      ) {
-        dragPan.setActive(true)
-        markup.overlay.set(dragProperty, false)
-      }
-    })
+    this._styleTooltip(feature)
   }
 
   onDrawAbort({ feature }) {
-    this.remove(feature.getId())
+    const id = feature?.getId?.()
+    if (id != null) this.remove(id)
+  }
+
+  /**
+   * Color for the measurement label and dotted link: host preference, else ROI
+   * stroke, else the library default.
+   *
+   * @param {object} feature
+   * @returns {string|number[]}
+   */
+  _resolveMarkupColor(feature) {
+    if (this._markupLabelColor != null && this._markupLabelColor !== '') {
+      return this._markupLabelColor
+    }
+    const styleOptions = feature.get(Enums.InternalProperties.StyleOptions)
+    return styleOptions?.stroke?.color || defaultStyles.stroke.color
+  }
+
+  /**
+   * Apply CSS color to a dotted link feature (new Style so OL repaints).
+   *
+   * @param {Feature} link
+   * @param {string} cssColor
+   * @returns {void}
+   */
+  _setLinkColor(link, cssColor) {
+    link.setStyle(
+      new Style({
+        stroke: new Stroke({
+          color: cssColor,
+          lineDash: [0.3, 7],
+          width: 3,
+        }),
+      }),
+    )
+  }
+
+  /**
+   * Apply resolved color to the label element and its link.
+   *
+   * @param {string} id
+   * @param {string} cssColor
+   * @returns {void}
+   */
+  _applyMarkupColor(id, cssColor) {
+    const marker = this.get(id)
+    if (marker?.element) {
+      /**
+       * setProperty with important beats inherited viewport / Tailwind base
+       * colors that otherwise leave the measurement value looking unchanged.
+       */
+      marker.element.style.setProperty('color', cssColor, 'important')
+      /** OL wraps the tooltip in an overlay container — color that too */
+      const container = marker.element.parentElement
+      if (container) {
+        container.style.setProperty('color', cssColor, 'important')
+      }
+    }
+    const link = this._linksById.get(id)
+    if (link) {
+      this._setLinkColor(link, cssColor)
+      link.changed?.()
+    }
   }
 
   /**
@@ -365,25 +601,74 @@ class _MarkupManager {
    * @returns {void}
    */
   _styleTooltip(feature) {
-    const styleOptions = feature.get(Enums.InternalProperties.StyleOptions)
-    if (styleOptions?.stroke) {
-      const { color } = styleOptions.stroke
-      const strokeColor = color || defaultStyles.stroke.color
-      const tooltipColor = _toCssColor(strokeColor, defaultStyles.stroke.color)
-      const links = this._links.getArray()
-      const link = links.find((link) => link.getId() === feature.getId())
-      if (link) {
-        const styles = link.getStyle()
-        const stroke = styles.getStroke()
-        stroke.setColor(strokeColor)
-        styles.setStroke(stroke)
-        link.setStyle(styles)
+    if (!feature) return
+    const id = feature.getId()
+    if (id == null) return
+    const tooltipColor = _toCssColor(
+      this._resolveMarkupColor(feature),
+      defaultStyles.stroke.color,
+    )
+    this._applyMarkupColor(id, tooltipColor)
+  }
+
+  /**
+   * Recompute measurement label text for every active markup (after unit change).
+   *
+   * @returns {void}
+   */
+  refreshMeasurementMarkups() {
+    if (!this._map || this._destroyed) return
+    const view = this._map.getView()
+    const unitSuffix = _getUnitSuffix(
+      view,
+      this._getMeasurementUnit?.() ?? this._measurementUnit,
+    )
+    this._markups.forEach((markup, id) => {
+      const feature = markup.feature || this._drawingSource?.getFeatureById(id)
+      if (!feature) return
+      markup.feature = feature
+      if (
+        feature.get(Enums.InternalProperties.Markup) !==
+        Enums.Markup.Measurement
+      ) {
+        return
       }
-      const marker = this.get(feature.getId())
-      if (marker) {
-        marker.element.style.color = tooltipColor
+      const format = this._getFormatter(feature)
+      const output = format(feature, unitSuffix, this._pyramid, this._affine)
+      this.update({
+        feature,
+        value: output,
+      })
+    })
+  }
+
+  /**
+   * Re-apply label / link colors for every active markup.
+   * Uses the stored feature ref when the sketch is not yet on drawingSource
+   * (OpenLayers Draw keeps it on the interaction overlay until drawend).
+   *
+   * @returns {void}
+   */
+  refreshMarkupStyles() {
+    if (this._destroyed) return
+    this._markups.forEach((markup, id) => {
+      const feature = markup.feature || this._drawingSource?.getFeatureById(id)
+      if (feature) {
+        markup.feature = feature
+        this._styleTooltip(feature)
+        return
       }
-    }
+      /**
+       * Host label color does not need the feature; still paint the element
+       * and link so preference changes apply during an in-progress draw.
+       */
+      if (this._markupLabelColor != null && this._markupLabelColor !== '') {
+        this._applyMarkupColor(
+          id,
+          _toCssColor(this._markupLabelColor, defaultStyles.stroke.color),
+        )
+      }
+    })
   }
 
   /**
@@ -395,6 +680,7 @@ class _MarkupManager {
    */
   setMeasurementUnit(unit) {
     this._measurementUnit = unit
+    this.refreshMeasurementMarkups()
   }
 
   /**
@@ -408,26 +694,66 @@ class _MarkupManager {
   }
 
   /**
-   * Returns tooltip styles.
+   * Preferred color for measurement labels and dotted link lines.
    *
-   * @param {string} color
+   * @param {string|number[]|undefined} color
+   * @returns {void}
    */
-  _getTooltipStyles(color) {
+  setMarkupLabelColor(color) {
+    this._markupLabelColor = color == null || color === '' ? undefined : color
+    this.refreshMarkupStyles()
+  }
+
+  /**
+   * Font size (px) for measurement / text markup labels. Pass empty / null /
+   * undefined to restore the library default (13px).
+   *
+   * @param {number|string|undefined|null} size
+   * @returns {void}
+   */
+  setMarkupLabelFontSize(size) {
+    if (size == null || size === '') {
+      this._markupLabelFontSize = undefined
+    } else {
+      const n = typeof size === 'number' ? size : Number(size)
+      if (!Number.isFinite(n)) return
+      this._markupLabelFontSize = Math.min(
+        MAX_MARKUP_LABEL_FONT_SIZE_PX,
+        Math.max(MIN_MARKUP_LABEL_FONT_SIZE_PX, Math.round(n)),
+      )
+    }
+    if (this._styleTag) {
+      this._styleTag.innerHTML = this._getTooltipStyles()
+    }
+  }
+
+  /**
+   * @returns {number}
+   */
+  getMarkupLabelFontSize() {
+    return this._markupLabelFontSize ?? DEFAULT_MARKUP_LABEL_FONT_SIZE_PX
+  }
+
+  /**
+   * Layout styles shared by all markup tooltips (color is per-element inline).
+   *
+   * @returns {string}
+   */
+  _getTooltipStyles() {
+    const fontSizePx = this.getMarkupLabelFontSize()
     return `
       .ol-tooltip {
-        color: ${color};
         white-space: nowrap;
-        font-size: 17px;
+        font-size: ${fontSizePx}px;
         font-weight: bold;
       }
       .ol-tooltip-measure { opacity: 1; }
-      .ol-tooltip-static { color: ${color}; }
       .ol-tooltip-measure:before,
       .ol-tooltip-static:before {
-        content: '',
+        content: '';
       }
 
-      #markup { cursor: move; }
+      .${DRAGGABLE_CLASS} { cursor: move; }
       .markup-container { display: block !important; }
     `
   }
@@ -446,10 +772,10 @@ class _MarkupManager {
   /**
    * Update markup content.
    *
-   * @param {object} markup The markup properties
-   * @param {Feature} markup.feature The markup feature
-   * @param {string} markup.value The markup content
-   * @param {string} markup.coordinate The markup coordinate
+   * @param {object} options
+   * @param {Feature} options.feature The markup feature
+   * @param {string} [options.value] The markup content
+   * @param {number[]} [options.coordinate] The markup coordinate
    */
   update({ feature, value, coordinate }) {
     const id = feature.getId()
@@ -465,19 +791,17 @@ class _MarkupManager {
       return
     }
 
-    if (value) {
+    if (value != null) {
       markup.element.innerText = value
     }
 
-    if (coordinate) {
+    if (coordinate != null) {
       markup.overlay.setPosition(coordinate)
     }
-
-    this._markups.set(id, markup)
   }
 
   /**
-   * This event is responsible assign markup classes on drawEnd event
+   * Assign static tooltip classes on drawEnd.
    *
    * @param {object} event The event
    */
@@ -487,24 +811,29 @@ class _MarkupManager {
       const featureId = feature.getId()
       const markup = this.get(featureId)
       if (markup) {
-        markup.element.className = 'ol-tooltip ol-tooltip-static'
-        this._markups.set(featureId, markup)
+        markup.feature = feature
+        const draggable = markup.isDraggable ? ` ${DRAGGABLE_CLASS}` : ''
+        markup.element.className = `ol-tooltip ol-tooltip-static${draggable}`
+        /** className reset can drop cascade; re-assert label/link color */
+        this._styleTooltip(feature)
       }
     }
   }
 
   /**
-   * This event is responsible assign markup classes on update event
+   * Assign static tooltip classes on update.
    *
-   * @param {object} event The event
+   * @param {object} feature
    */
   onUpdate(feature) {
     if (this._isValidFeature(feature)) {
       const featureId = feature.getId()
       const markup = this.get(featureId)
       if (markup) {
-        markup.element.className = 'ol-tooltip ol-tooltip-static'
-        this._markups.set(featureId, markup)
+        markup.feature = feature
+        const draggable = markup.isDraggable ? ` ${DRAGGABLE_CLASS}` : ''
+        markup.element.className = `ol-tooltip ol-tooltip-static${draggable}`
+        this._styleTooltip(feature)
       }
     }
   }
@@ -528,7 +857,8 @@ class _MarkupManager {
    * @param {object} feature The feature
    */
   _drawLink(feature) {
-    const markup = this.get(feature.getId())
+    const id = feature.getId()
+    const markup = this.get(id)
     if (!markup?.isLinkable) {
       return
     }
@@ -537,30 +867,23 @@ class _MarkupManager {
       feature,
       markup.overlay,
     )
+    if (!line) return
 
-    const updated = this._links.getArray().some((feature) => {
-      // eslint-disable-line
-      if (feature.getId() === markup.id) {
-        feature.setGeometry(line)
-        return true
-      }
-      return false
-    })
-
-    if (!updated) {
-      const feature = new Feature({ geometry: line, name: 'Line' })
-      feature.setId(markup.id)
-      feature.setStyle(
-        new Style({
-          stroke: new Stroke({
-            color: defaultStyles.stroke.color,
-            lineDash: [0.3, 7],
-            width: 3,
-          }),
-        }),
-      )
-      this._links.push(feature)
+    const existing = this._linksById.get(markup.id)
+    if (existing) {
+      existing.setGeometry(line)
+      return
     }
+
+    const linkFeature = new Feature({ geometry: line, name: 'Line' })
+    linkFeature.setId(markup.id)
+    const linkColor = _toCssColor(
+      this._resolveMarkupColor(feature),
+      defaultStyles.stroke.color,
+    )
+    this._setLinkColor(linkFeature, linkColor)
+    this._links.push(linkFeature)
+    this._linksById.set(markup.id, linkFeature)
   }
 }
 

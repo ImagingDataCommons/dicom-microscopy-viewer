@@ -37,6 +37,10 @@ class _AnnotationManager {
 
     /** @type {'μm'|'mm'|undefined} */
     this._measurementUnit = undefined
+    /** @type {string|number[]|undefined} */
+    this._markupLabelColor = undefined
+    /** @type {number|undefined} */
+    this._markupLabelFontSize = undefined
 
     this.props = {
       map,
@@ -76,6 +80,55 @@ class _AnnotationManager {
    */
   getMeasurementUnit() {
     return this._measurementUnit
+  }
+
+  /**
+   * Preferred color for measurement labels and their dotted link lines.
+   *
+   * @param {string|number[]|undefined|null} color
+   * @returns {void}
+   */
+  setMarkupLabelColor(color) {
+    if (color == null || color === '') {
+      this._markupLabelColor = undefined
+    } else {
+      this._markupLabelColor = color
+    }
+    if (typeof this.props.markupManager.setMarkupLabelColor === 'function') {
+      this.props.markupManager.setMarkupLabelColor(this._markupLabelColor)
+    }
+  }
+
+  /**
+   * @returns {string|number[]|undefined}
+   */
+  getMarkupLabelColor() {
+    return this._markupLabelColor
+  }
+
+  /**
+   * Preferred font size (px) for measurement / text markup labels.
+   *
+   * @param {number|string|undefined|null} size
+   * @returns {void}
+   */
+  setMarkupLabelFontSize(size) {
+    if (size == null || size === '') {
+      this._markupLabelFontSize = undefined
+    } else {
+      const n = typeof size === 'number' ? size : Number(size)
+      this._markupLabelFontSize = Number.isFinite(n) ? n : undefined
+    }
+    if (typeof this.props.markupManager.setMarkupLabelFontSize === 'function') {
+      this.props.markupManager.setMarkupLabelFontSize(this._markupLabelFontSize)
+    }
+  }
+
+  /**
+   * @returns {number|undefined}
+   */
+  getMarkupLabelFontSize() {
+    return this._markupLabelFontSize
   }
 
   /**
@@ -211,6 +264,17 @@ class _AnnotationManager {
     this[Markup.Measurement].onDrawAbort(event)
     this[Markup.TextEvaluation].onDrawAbort(event)
     this.props.markupManager.onDrawAbort(event)
+  }
+
+  /**
+   * Tear down markup overlays, link layer, and listeners.
+   *
+   * @returns {void}
+   */
+  destroy() {
+    if (typeof this.props.markupManager.destroy === 'function') {
+      this.props.markupManager.destroy()
+    }
   }
 }
 
