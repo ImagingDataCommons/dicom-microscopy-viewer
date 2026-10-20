@@ -376,6 +376,47 @@ describe('_MarkupManager', () => {
     expect(setPosition).not.toHaveBeenCalled()
   })
 
+  it('click without drag does not freeze the label offset', () => {
+    const { manager, map, features } = createManager()
+    map.getView = jest.fn(() => ({
+      getCenter: () => [0, 0],
+      getProjection: () => ({}),
+      getResolution: () => 1,
+    }))
+    manager.setMeasurementUnit('μm')
+    const feature = createFeature()
+    features.set('roi-1', feature)
+    manager.create({ feature, value: '1.00 μm' })
+    const markup = manager.get('roi-1')
+
+    markup.element.dispatchEvent(new MouseEvent(Enums.HTMLElementEvents.MOUSE_DOWN))
+    map._listeners[Enums.MapEvents.POINTER_UP]()
+
+    expect(markup.userMoved).toBe(false)
+
+    const setPosition = jest.spyOn(markup.overlay, 'setPosition')
+    const changeHandler = feature.on.mock.calls.find(
+      ([type]) => type === Enums.FeatureEvents.CHANGE,
+    )?.[1]
+    changeHandler({ target: feature })
+    expect(setPosition).toHaveBeenCalledWith([10 - 36, 10 - 36])
+  })
+
+  it('pointer move during drag freezes the label offset', () => {
+    const { manager, map, features } = createManager()
+    const feature = createFeature()
+    features.set('roi-1', feature)
+    manager.create({ feature, value: '1.00 μm' })
+    const markup = manager.get('roi-1')
+
+    markup.element.dispatchEvent(new MouseEvent(Enums.HTMLElementEvents.MOUSE_DOWN))
+    map._listeners[Enums.MapEvents.POINTER_MOVE]({ coordinate: [50, 60] })
+    map._listeners[Enums.MapEvents.POINTER_UP]()
+
+    expect(markup.userMoved).toBe(true)
+    expect(markup.overlay.getPosition()).toEqual([50, 60])
+  })
+
   it('hides and shows a single markup without throwing when the link is missing', () => {
     const { manager, map, features } = createManager()
     const feature = createFeature({ id: 'roi-2' })

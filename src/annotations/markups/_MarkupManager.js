@@ -136,6 +136,8 @@ class _MarkupManager {
     this._markupLabelFontSize = undefined
     /** @type {string|undefined} Id of the markup currently being dragged */
     this._activeDragId = undefined
+    /** True once POINTER_MOVE updated position during the active drag */
+    this._dragDidMove = false
     this._destroyed = false
 
     this._styleTag = document.createElement('style')
@@ -177,6 +179,7 @@ class _MarkupManager {
     if (id == null) return
     const markup = this.get(id)
     if (!markup?.isDraggable) return
+    this._dragDidMove = true
     markup.overlay.setPosition(event.coordinate)
     const feature = this._drawingSource?.getFeatureById(id)
     if (feature) this._drawLink(feature)
@@ -186,12 +189,19 @@ class _MarkupManager {
     const id = this._activeDragId
     if (id == null) return
     const markup = this.get(id)
+    const didMove = this._dragDidMove
     this._activeDragId = undefined
+    this._dragDidMove = false
     this._getDragPan()?.setActive(true)
     if (markup) {
       markup.overlay.set(DRAG_PROPERTY, false)
-      /** Keep the dragged position; do not snap back to the tip on geometry updates */
-      markup.userMoved = true
+      /**
+       * Only freeze the offset after a real drag. A click (mousedown + up
+       * without move) must keep following the tip on geometry CHANGE.
+       */
+      if (didMove) {
+        markup.userMoved = true
+      }
     }
   }
 
@@ -500,6 +510,7 @@ class _MarkupManager {
       this._getDragPan()?.setActive(false)
       current.overlay.set(DRAG_PROPERTY, true)
       this._activeDragId = id
+      this._dragDidMove = false
     }
     markup.element.addEventListener(
       Enums.HTMLElementEvents.MOUSE_DOWN,
