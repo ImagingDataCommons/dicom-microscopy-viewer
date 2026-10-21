@@ -23,6 +23,9 @@ overrides:
   source-map-js: 1.2.2
   webpack-dev-middleware: 7.4.6
 
+patchedDependencies:
+  ol@10.9.0: 2c49b6fe64f8a78b55fc71e326e9fcbfc5ff9ad93b3223540bf8e9ca98fae020
+
 importers:
 
   .:
@@ -62,7 +65,7 @@ importers:
         version: 11.12.0
       ol:
         specifier: ^10.7.0
-        version: 10.9.0
+        version: 10.9.0(patch_hash=2c49b6fe64f8a78b55fc71e326e9fcbfc5ff9ad93b3223540bf8e9ca98fae020)
       uuid:
         specifier: ^9.0
         version: 9.0.1
@@ -7787,7 +7790,7 @@ snapshots:
 
   obuf@1.1.2: {}
 
-  ol@10.9.0:
+  ol@10.9.0(patch_hash=2c49b6fe64f8a78b55fc71e326e9fcbfc5ff9ad93b3223540bf8e9ca98fae020):
     dependencies:
       '@types/rbush': 4.0.0
       earcut: 3.0.2
