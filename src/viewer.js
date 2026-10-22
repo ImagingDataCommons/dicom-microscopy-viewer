@@ -199,6 +199,77 @@ export function disposeDetachedSource(source) {
 }
 
 /**
+ * A source like `source`, for the same tiles, loading them with `loader`.
+ *
+ * @param {import('ol/source/DataTile').default} source - Source to mirror
+ * @param {Function} loader - Tile load function
+ * @param {Function} [onTileLoadError] - Listener for tile load errors
+ * @returns {import('ol/source/DataTile').default}
+ */
+function _createLikeDataTileSource(source, loader, onTileLoadError) {
+  const replacement = new DataTileSource({
+    tileGrid: source.getTileGrid(),
+    projection: source.getProjection(),
+    interpolate: source.getInterpolate(),
+    wrapX: source.getWrapX(),
+    transition: 0,
+    bandCount: source.bandCount,
+  })
+  replacement.setLoader(loader)
+  if (onTileLoadError) {
+    replacement.on('tileloaderror', onTileLoadError)
+  }
+  return replacement
+}
+
+/**
+ * Give an optical path a new tile source while the tiles it has drawn stay
+ * on screen. Setting the source on its layer would drop them and leave the
+ * viewport blank until the new tiles load. Instead the new source gets its
+ * own layer directly above the current one; its tiles cover the old ones as
+ * they arrive, and the old layer is removed once the map has rendered every
+ * tile in view.
+ *
+ * @param {import('ol/Map').default} map - Map showing the layer
+ * @param {Object} item - Optical path whose `layer` gets the source; needs
+ *   `createLayer(source)` to build a layer like it
+ * @param {import('ol/source/DataTile').default} source - New source
+ * @param {function(): boolean} isCleanedUp - Whether the viewer was cleaned up
+ */
+export function _replaceSourceKeepingTiles(map, item, source, isCleanedUp) {
+  const previousLayer = item.layer
+  const previousSource = previousLayer.getSource()
+  const layers = map?.getLayers()
+  const index = layers ? layers.getArray().indexOf(previousLayer) : -1
+  if (index === -1 || typeof item.createLayer !== 'function') {
+    previousLayer.setSource(source)
+    if (item.overviewLayer?.getSource() !== previousSource) {
+      disposeDetachedSource(previousSource)
+    }
+    return
+  }
+
+  const layer = item.createLayer(source)
+  layer.setVisible(previousLayer.getVisible())
+  layer.setOpacity(previousLayer.getOpacity())
+  layers.insertAt(index + 1, layer)
+  item.layer = layer
+
+  map.once('rendercomplete', () => {
+    if (isCleanedUp()) {
+      return
+    }
+    layers.remove(previousLayer)
+    previousLayer.dispose()
+    /** The overview may still draw from the previous source */
+    if (item.overviewLayer?.getSource() !== previousSource) {
+      disposeDetachedSource(previousSource)
+    }
+  })
+  map.render()
+}
+
+/**
  * Dispose layer and its dependencies to free up memory.
  */
 export function disposeLayer(layer, disposeSource = false) {
@@ -1967,31 +2038,35 @@ class VolumeImageViewer {
       }
       source.on('tileloaderror', opticalPath.onTileLoadError)
 
-      opticalPath.layer = new TileLayer({
-        source,
-        extent: this[_tileGrid].extent,
-        preload: this[_options].preload ? 1 : 0,
-        useInterimTilesOnError: false,
-        cacheSize: this[_options].tilesCacheSize,
-      })
-      opticalPath.layer.on('precompose', (event) => {
-        const gl = event.context
-        if ('drawingBufferColorSpace' in gl) {
-          gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
-        }
-      })
-
-      opticalPath.layer.on('error', (event) => {
-        console.error(
-          `error rendering optical path "${opticalPathIdentifier}"`,
-          event,
-        )
-        const error = new CustomError(
-          errorTypes.VISUALIZATION,
-          `error rendering optical path "${opticalPathIdentifier}": ${event.message}`,
-        )
-        this[_options].errorInterceptor(error)
-      })
+      /** Also builds the layer that takes over when the source is replaced */
+      opticalPath.createLayer = (layerSource) => {
+        const layer = new TileLayer({
+          source: layerSource,
+          extent: this[_tileGrid].extent,
+          preload: this[_options].preload ? 1 : 0,
+          useInterimTilesOnError: false,
+          cacheSize: this[_options].tilesCacheSize,
+        })
+        layer.on('precompose', (event) => {
+          const gl = event.context
+          if ('drawingBufferColorSpace' in gl) {
+            gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
+          }
+        })
+        layer.on('error', (event) => {
+          console.error(
+            `error rendering optical path "${opticalPathIdentifier}"`,
+            event,
+          )
+          const error = new CustomError(
+            errorTypes.VISUALIZATION,
+            `error rendering optical path "${opticalPathIdentifier}": ${event.message}`,
+          )
+          this[_options].errorInterceptor(error)
+        })
+        return layer
+      }
+      opticalPath.layer = opticalPath.createLayer(source)
       opticalPath.overviewLayer = new TileLayer({
         source,
         extent: pyramid.extent,
@@ -3080,12 +3155,24 @@ class VolumeImageViewer {
 
       const previousSource = source
       const previousOverviewSource = item.overviewLayer?.getSource?.()
-      item.layer.setSource(createReplacementSource())
       if (item.overviewLayer) {
         item.overviewLayer.setSource(createReplacementSource())
       }
-      disposeDetachedSource(previousSource)
-      disposeDetachedSource(previousOverviewSource)
+      if (typeof item.createLayer === 'function') {
+        /** Color images keep their drawn tiles until the new ones arrive */
+        _replaceSourceKeepingTiles(
+          this[_map],
+          item,
+          createReplacementSource(),
+          () => this[_isCleanedUp],
+        )
+      } else {
+        item.layer.setSource(createReplacementSource())
+        disposeDetachedSource(previousSource)
+      }
+      if (previousOverviewSource !== previousSource) {
+        disposeDetachedSource(previousOverviewSource)
+      }
       item.hasLoader = true
     }
 
@@ -3678,6 +3765,10 @@ class VolumeImageViewer {
         }),
       )
       item.hasLoader = true
+      /** Tiles drawn before ICC profiles arrive are redrawn with them */
+      source.once('tileloadend', () => {
+        item.hasUncorrectedTiles = true
+      })
     }
 
     this[_map].setTarget(container)
@@ -3825,6 +3916,24 @@ class VolumeImageViewer {
         })
         source.setLoader(loader)
         item.hasLoader = true
+        /**
+         * Tiles already drawn without the profiles keep their colors until
+         * loaded again; load the visible ones again now, keeping them on
+         * screen meanwhile. Skipped when the profiles came first.
+         */
+        if (
+          useIcc &&
+          item.hasUncorrectedTiles &&
+          typeof item.createLayer === 'function'
+        ) {
+          _replaceSourceKeepingTiles(
+            this[_map],
+            item,
+            _createLikeDataTileSource(source, loader, item.onTileLoadError),
+            () => this[_isCleanedUp],
+          )
+        }
+        item.hasUncorrectedTiles = false
       } catch (error) {
         console.error('Failed to configure tile loader during render:', error)
         const customError = new CustomError(

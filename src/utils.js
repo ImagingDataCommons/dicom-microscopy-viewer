@@ -771,29 +771,30 @@ function throttle(mainFunction, delay) {
  * @returns {Observable<string>} Observable containing 'display-p3' or 'srgb'
  */
 function detectDisplayColorSpace() {
-  const colorSpace = new Observable('srgb')
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    const p3MediaQuery = window.matchMedia('(color-gamut: p3)')
-    const srgbMediaQuery = window.matchMedia('(color-gamut: srgb)')
-    const updateColorSpace = () => {
-      colorSpace.setValue(p3MediaQuery.matches ? 'display-p3' : 'srgb')
-    }
-
-    updateColorSpace()
-    for (const mediaQuery of [p3MediaQuery, srgbMediaQuery]) {
-      if (mediaQuery.addEventListener) {
-        mediaQuery.addEventListener('change', updateColorSpace)
-        colorSpace.addCleanup(() =>
-          mediaQuery.removeEventListener('change', updateColorSpace),
-        )
-      } else {
-        if (mediaQuery.addListener) {
-          mediaQuery.addListener(updateColorSpace)
-          colorSpace.addCleanup(() =>
-            mediaQuery.removeListener?.(updateColorSpace),
-          )
-        }
-      }
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    return new Observable('srgb')
+  }
+  const p3MediaQuery = window.matchMedia('(color-gamut: p3)')
+  const srgbMediaQuery = window.matchMedia('(color-gamut: srgb)')
+  const currentColorSpace = () => (p3MediaQuery.matches ? 'display-p3' : 'srgb')
+  /**
+   * Start from the detected value: setting it after construction would notify
+   * subscribers (on a microtask) of a display change that never happened, and
+   * the viewer reloads every tile on such a change
+   */
+  const colorSpace = new Observable(currentColorSpace())
+  const updateColorSpace = () => {
+    colorSpace.setValue(currentColorSpace())
+  }
+  for (const mediaQuery of [p3MediaQuery, srgbMediaQuery]) {
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateColorSpace)
+      colorSpace.addCleanup(() =>
+        mediaQuery.removeEventListener('change', updateColorSpace),
+      )
+    } else if (mediaQuery.addListener) {
+      mediaQuery.addListener(updateColorSpace)
+      colorSpace.addCleanup(() => mediaQuery.removeListener?.(updateColorSpace))
     }
   }
   return colorSpace

@@ -284,6 +284,25 @@ describe('test detectDisplayColorSpace function', () => {
     expect(utils.detectDisplayColorSpace().getValue()).toEqual('display-p3')
   })
 
+  it('should not report a change for the color space detected at start', async () => {
+    window.matchMedia = jest.fn((query) => ({
+      matches: query === '(color-gamut: p3)',
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }))
+    const onChange = jest.fn()
+
+    utils.detectDisplayColorSpace().subscribe(onChange)
+    await Promise.resolve()
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('should fall back to srgb when p3 is not supported', () => {
     // Mock matchMedia to return false for p3
     window.matchMedia = jest.fn((query) => ({
