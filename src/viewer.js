@@ -3765,8 +3765,11 @@ class VolumeImageViewer {
         }),
       )
       item.hasLoader = true
-      /** Tiles drawn before ICC profiles arrive are redrawn with them */
-      source.once('tileloadend', () => {
+      /**
+       * Tiles requested before ICC profiles arrive are drawn without them,
+       * even when they finish loading after; they are loaded again with them
+       */
+      source.once('tileloadstart', () => {
         item.hasUncorrectedTiles = true
       })
     }
@@ -3917,9 +3920,9 @@ class VolumeImageViewer {
         source.setLoader(loader)
         item.hasLoader = true
         /**
-         * Tiles already drawn without the profiles keep their colors until
-         * loaded again; load the visible ones again now, keeping them on
-         * screen meanwhile. Skipped when the profiles came first.
+         * Tiles requested without the profiles keep their colors until loaded
+         * again; load the visible ones again now, keeping them on screen
+         * meanwhile. Skipped when the profiles came before any request.
          */
         if (
           useIcc &&
