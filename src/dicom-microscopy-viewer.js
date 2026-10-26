@@ -77,8 +77,12 @@ const annotation = {
 }
 
 /**
- * Bulk Simple Annotation geometry (OpenLayers features). Same code as
- * {@link viewer.VolumeImageViewer#addAnnotationGroups}.
+ * Bulk Simple Annotation geometry helpers (OpenLayers Feature builders).
+ *
+ * @deprecated Since 0.49.0 the viewer renders bulk annotations via deck.gl
+ * (`BulkAnnotationManager`). These Feature builders remain as public shims for
+ * external consumers (e.g. experimental slim Viv loaders) and will be removed
+ * in a future major release.
  *
  * @namespace bulkSimpleAnnotations
  */
