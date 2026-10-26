@@ -1,0 +1,18 @@
+diff --git a/renderer/webgl/TileLayerBase.js b/renderer/webgl/TileLayerBase.js
+index eb1fa3c8b589c9de5e19e1afc05fd8c61d01b2b3..2de47501318645bb7c3be8d0268f4355c2317997 100644
+--- a/renderer/webgl/TileLayerBase.js
++++ b/renderer/webgl/TileLayerBase.js
+@@ -601,6 +601,13 @@ class WebGLBaseTileLayerRenderer extends WebGLLayerRenderer {
+     this.enqueueTiles(frameState, extent, z, tileRepresentationLookup, 0);
+     if (preload > 0) {
+       setTimeout(() => {
++        /**
++         * The layer may have been disposed (map detached, layer removed)
++         * before this deferred preload runs; its renderer then has no layer.
++         */
++        if (!this.getLayer()) {
++          return;
++        }
+         this.enqueueTiles(
+           frameState,
+           extent,

@@ -477,15 +477,102 @@ function areNumbersAlmostEqual(a, b, eps = 1e-6) {
 }
 
 /**
+ * Normalize a preferred measurement unit from Slim / callers.
+ * Accepts `µm`, `μm`, `um`, or `mm`. Other values clear the preference.
+ *
+ * @param {string|undefined|null} unit
+ * @returns {'μm'|'mm'|undefined}
+ *
+ * @private
+ */
+function _normalizeMeasurementUnit(unit) {
+  if (unit == null || unit === '') return undefined
+  const value = String(unit)
+  if (value === 'µm' || value === 'μm' || value === 'um') return 'μm'
+  if (value === 'mm') return 'mm'
+  return undefined
+}
+
+/**
+ * Length in `unitSuffix` from a millimeter measurement.
+ *
+ * @param {number} lengthMm
+ * @param {string} unitSuffix
+ * @returns {number}
+ *
+ * @private
+ */
+function _convertLengthFromMm(lengthMm, unitSuffix) {
+  switch (unitSuffix) {
+    case 'μm':
+      return lengthMm * 1000
+    case 'mm':
+      return lengthMm
+    case 'm':
+      return lengthMm / 1000
+    case 'km':
+      return lengthMm / 1e6
+    default:
+      return lengthMm
+  }
+}
+
+/**
+ * Area in square `unitSuffix` from a square-millimeter measurement.
+ *
+ * @param {number} areaMm2
+ * @param {string} unitSuffix
+ * @returns {number}
+ *
+ * @private
+ */
+function _convertAreaFromMm(areaMm2, unitSuffix) {
+  switch (unitSuffix) {
+    case 'μm':
+      return areaMm2 * 1e6
+    case 'mm':
+      return areaMm2
+    case 'm':
+      return areaMm2 / 1e6
+    case 'km':
+      return areaMm2 / 1e12
+    default:
+      return areaMm2
+  }
+}
+
+/**
+ * CSS color from an OpenLayers-style color (string or `[r,g,b]` / `[r,g,b,a]`).
+ *
+ * @param {string|number[]|undefined} color
+ * @param {string} fallback
+ * @returns {string}
+ *
+ * @private
+ */
+function _toCssColor(color, fallback = '#3399CC') {
+  if (typeof color === 'string' && color !== '') return color
+  if (Array.isArray(color) && color.length >= 3) {
+    const alpha = color.length > 3 && Number.isFinite(color[3]) ? color[3] : 1
+    return `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha})`
+  }
+  return fallback
+}
+
+/**
  * Get view unit suffix.
  *
  * @param {object} view Map view
+ * @param {string} [preferredUnit] Optional preferred unit (`µm` / `μm` / `mm`)
  *
  * @returns {string} unit suffix
  *
  * @private
  */
-function _getUnitSuffix(view) {
+function _getUnitSuffix(view, preferredUnit) {
+  const preferred = _normalizeMeasurementUnit(preferredUnit)
+  if (preferred !== undefined) return preferred
+
   const UnitsEnum = { METERS: 'm' }
   const DEFAULT_DPI = 25.4 / 0.28
 
@@ -684,38 +771,43 @@ function throttle(mainFunction, delay) {
  * @returns {Observable<string>} Observable containing 'display-p3' or 'srgb'
  */
 function detectDisplayColorSpace() {
-  const colorSpace = new Observable('srgb')
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    const p3MediaQuery = window.matchMedia('(color-gamut: p3)')
-    const srgbMediaQuery = window.matchMedia('(color-gamut: srgb)')
-    const updateColorSpace = () => {
-      colorSpace.setValue(p3MediaQuery.matches ? 'display-p3' : 'srgb')
-    }
-
-    updateColorSpace()
-    for (const mediaQuery of [p3MediaQuery, srgbMediaQuery]) {
-      if (mediaQuery.addEventListener) {
-        mediaQuery.addEventListener('change', updateColorSpace)
-        colorSpace.addCleanup(() =>
-          mediaQuery.removeEventListener('change', updateColorSpace),
-        )
-      } else {
-        if (mediaQuery.addListener) {
-          mediaQuery.addListener(updateColorSpace)
-          colorSpace.addCleanup(() =>
-            mediaQuery.removeListener?.(updateColorSpace),
-          )
-        }
-      }
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    return new Observable('srgb')
+  }
+  const p3MediaQuery = window.matchMedia('(color-gamut: p3)')
+  const srgbMediaQuery = window.matchMedia('(color-gamut: srgb)')
+  const currentColorSpace = () => (p3MediaQuery.matches ? 'display-p3' : 'srgb')
+  /**
+   * Start from the detected value: setting it after construction would notify
+   * subscribers (on a microtask) of a display change that never happened, and
+   * the viewer reloads every tile on such a change
+   */
+  const colorSpace = new Observable(currentColorSpace())
+  const updateColorSpace = () => {
+    colorSpace.setValue(currentColorSpace())
+  }
+  for (const mediaQuery of [p3MediaQuery, srgbMediaQuery]) {
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateColorSpace)
+      colorSpace.addCleanup(() =>
+        mediaQuery.removeEventListener('change', updateColorSpace),
+      )
+    } else if (mediaQuery.addListener) {
+      mediaQuery.addListener(updateColorSpace)
+      colorSpace.addCleanup(() => mediaQuery.removeListener?.(updateColorSpace))
     }
   }
   return colorSpace
 }
 
 export {
+  _convertAreaFromMm,
+  _convertLengthFromMm,
   _fetchBulkdata,
   _generateUID,
   _getUnitSuffix,
+  _normalizeMeasurementUnit,
+  _toCssColor,
   applyInverseTransform,
   applyTransform,
   are1DArraysAlmostEqual,

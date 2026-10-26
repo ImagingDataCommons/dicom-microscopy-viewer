@@ -2,7 +2,11 @@ import dcmjs from 'dcmjs'
 /** Enums */
 import Enums from '../enums'
 /** Utils */
-import { areCodedConceptsEqual, getContentItemNameCodedConcept } from '../utils'
+import {
+  _normalizeMeasurementUnit,
+  areCodedConceptsEqual,
+  getContentItemNameCodedConcept,
+} from '../utils'
 
 /** Markers */
 import ArrowMarker, { _format as arrowFormat } from './markers/arrow'
@@ -31,11 +35,23 @@ class _AnnotationManager {
       },
     })
 
+    /** @type {'μm'|'mm'|undefined} */
+    this._measurementUnit = undefined
+    /** @type {string|number[]|undefined} */
+    this._markupLabelColor = undefined
+    /** @type {number|undefined} */
+    this._markupLabelFontSize = undefined
+
     this.props = {
       map,
       pyramid,
       affine,
       markupManager,
+      getMeasurementUnit: () => this._measurementUnit,
+    }
+
+    if (typeof markupManager.setMeasurementUnitGetter === 'function') {
+      markupManager.setMeasurementUnitGetter(() => this._measurementUnit)
     }
 
     /** Markups */
@@ -44,6 +60,75 @@ class _AnnotationManager {
 
     /** Markers */
     this[Marker.Arrow] = ArrowMarker(this.props)
+  }
+
+  /**
+   * Preferred measurement unit for on-slide labels and ROI NumContentItems.
+   *
+   * @param {string|undefined|null} unit - `µm` / `μm` / `mm`, or empty for auto
+   * @returns {void}
+   */
+  setMeasurementUnit(unit) {
+    this._measurementUnit = _normalizeMeasurementUnit(unit)
+    if (typeof this.props.markupManager.setMeasurementUnit === 'function') {
+      this.props.markupManager.setMeasurementUnit(this._measurementUnit)
+    }
+  }
+
+  /**
+   * @returns {'μm'|'mm'|undefined}
+   */
+  getMeasurementUnit() {
+    return this._measurementUnit
+  }
+
+  /**
+   * Preferred color for measurement labels and their dotted link lines.
+   *
+   * @param {string|number[]|undefined|null} color
+   * @returns {void}
+   */
+  setMarkupLabelColor(color) {
+    if (color == null || color === '') {
+      this._markupLabelColor = undefined
+    } else {
+      this._markupLabelColor = color
+    }
+    if (typeof this.props.markupManager.setMarkupLabelColor === 'function') {
+      this.props.markupManager.setMarkupLabelColor(this._markupLabelColor)
+    }
+  }
+
+  /**
+   * @returns {string|number[]|undefined}
+   */
+  getMarkupLabelColor() {
+    return this._markupLabelColor
+  }
+
+  /**
+   * Preferred font size (px) for measurement / text markup labels.
+   *
+   * @param {number|string|undefined|null} size
+   * @returns {void}
+   */
+  setMarkupLabelFontSize(size) {
+    if (size == null || size === '') {
+      this._markupLabelFontSize = undefined
+    } else {
+      const n = typeof size === 'number' ? size : Number(size)
+      this._markupLabelFontSize = Number.isFinite(n) ? n : undefined
+    }
+    if (typeof this.props.markupManager.setMarkupLabelFontSize === 'function') {
+      this.props.markupManager.setMarkupLabelFontSize(this._markupLabelFontSize)
+    }
+  }
+
+  /**
+   * @returns {number|undefined}
+   */
+  getMarkupLabelFontSize() {
+    return this._markupLabelFontSize
   }
 
   /**
@@ -179,6 +264,17 @@ class _AnnotationManager {
     this[Markup.Measurement].onDrawAbort(event)
     this[Markup.TextEvaluation].onDrawAbort(event)
     this.props.markupManager.onDrawAbort(event)
+  }
+
+  /**
+   * Tear down markup overlays, link layer, and listeners.
+   *
+   * @returns {void}
+   */
+  destroy() {
+    if (typeof this.props.markupManager.destroy === 'function') {
+      this.props.markupManager.destroy()
+    }
   }
 }
 
