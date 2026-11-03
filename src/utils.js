@@ -828,6 +828,30 @@ function _throwIfAborted(signal) {
   }
 }
 
+/**
+ * Settle with the promise, or reject with the abort reason as soon as the
+ * signal is aborted. The promise itself is not cancelled.
+ *
+ * @param {Promise} promise - Promise
+ * @param {AbortSignal} [signal] - Optional signal
+ * @returns {Promise} Promise that also rejects on abort
+ * @private
+ */
+function _raceAbort(promise, signal) {
+  if (signal == null) {
+    return promise
+  }
+  _throwIfAborted(signal)
+  let onAbort
+  const aborted = new Promise((_resolve, reject) => {
+    onAbort = () => reject(_getAbortReason(signal))
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  return Promise.race([promise, aborted]).finally(() => {
+    signal.removeEventListener('abort', onAbort)
+  })
+}
+
 export {
   _convertAreaFromMm,
   _convertLengthFromMm,
@@ -836,6 +860,7 @@ export {
   _getAbortReason,
   _getUnitSuffix,
   _normalizeMeasurementUnit,
+  _raceAbort,
   _throwIfAborted,
   _toCssColor,
   applyInverseTransform,

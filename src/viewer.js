@@ -73,13 +73,14 @@ import { applyViewerOptions } from './logger.js'
 import { _groupFramesPerMapping, ParameterMapping } from './mapping.js'
 import { VLWholeSlideMicroscopyImage } from './metadata.js'
 import Observable from './observable.js'
-import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
   _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
   _computeImagePyramid,
+  _computePyramidTransforms,
   _computeSegmentBoundingBoxes,
+  _createOpticalPath,
   _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _fitImagePyramid,
@@ -107,8 +108,6 @@ import {
   _getUnitSuffix,
   applyTransform,
   areCodedConceptsEqual,
-  buildInverseTransform,
-  buildTransform,
   computeRotation,
   createWindow,
   detectDisplayColorSpace,
@@ -1584,24 +1583,9 @@ class VolumeImageViewer {
       this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
     }
 
-    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
-    const origin = metadata.TotalPixelMatrixOriginSequence[0]
-    const orientation = metadata.ImageOrientationSlide
-    const spacing = getPixelSpacing(metadata)
-    const offset = [
-      Number(origin.XOffsetInSlideCoordinateSystem),
-      Number(origin.YOffsetInSlideCoordinateSystem),
-    ]
-    this[_affine] = buildTransform({
-      offset,
-      orientation,
-      spacing,
-    })
-    this[_affineInverse] = buildInverseTransform({
-      offset,
-      orientation,
-      spacing,
-    })
+    const transforms = _computePyramidTransforms(this[_pyramid])
+    this[_affine] = transforms.affine
+    this[_affineInverse] = transforms.affineInverse
 
     this[_rotation] = _getRotation(this[_pyramid].metadata[0])
 
@@ -1688,13 +1672,9 @@ class VolumeImageViewer {
         const minStoredValue = 0
         const maxStoredValue = 2 ** bitsAllocated - 1
 
-        let paletteColorLookupTableUID
         let paletteColorLookupTable
         if (info.opticalPath.PaletteColorLookupTableSequence) {
           const item = info.opticalPath.PaletteColorLookupTableSequence[0]
-          paletteColorLookupTableUID = item.PaletteColorLookupTableUID
-            ? item.PaletteColorLookupTableUID
-            : _generateUID()
           /*
            * TODO: If the LUT Data are large, the elements may be bulkdata and
            * then have to be retrieved separately. However, for optical paths
@@ -1730,21 +1710,11 @@ class VolumeImageViewer {
 
         const opticalPath = {
           opticalPathIdentifier,
-          opticalPath: new OpticalPath({
+          opticalPath: _createOpticalPath({
             identifier: opticalPathIdentifier,
-            description: info.opticalPath.OpticalPathDescription,
+            opticalPathItem: info.opticalPath,
+            pyramid,
             isMonochromatic: true,
-            illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
-            illuminationWaveLength: info.opticalPath.IlluminationWaveLength,
-            illuminationColor: info.opticalPath.IlluminationColorCodeSequence
-              ? info.opticalPath.IlluminationColorCodeSequence[0]
-              : undefined,
-            studyInstanceUID: info.metadata[0].StudyInstanceUID,
-            seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
-            sopInstanceUIDs: pyramid.metadata.map((element) => {
-              return element.SOPInstanceUID
-            }),
-            paletteColorLookupTableUID,
           }),
           pyramid,
           style: { ...defaultOpticalPathStyle },
@@ -1872,16 +1842,11 @@ class VolumeImageViewer {
 
       const opticalPath = {
         opticalPathIdentifier,
-        opticalPath: new OpticalPath({
+        opticalPath: _createOpticalPath({
           identifier: opticalPathIdentifier,
-          description: info.opticalPath.OpticalPathDescription,
-          illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
+          opticalPathItem: info.opticalPath,
+          pyramid,
           isMonochromatic: false,
-          studyInstanceUID: info.metadata[0].StudyInstanceUID,
-          seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
-          sopInstanceUIDs: pyramid.metadata.map((element) => {
-            return element.SOPInstanceUID
-          }),
         }),
         style: { ...defaultOpticalPathStyle },
         defaultStyle: defaultOpticalPathStyle,
@@ -2790,6 +2755,9 @@ class VolumeImageViewer {
   /**
    * Get all optical paths.
    *
+   * Optical paths are returned in the order of their identifiers in the image
+   * metadata, with integer-like identifiers first in ascending order.
+   *
    * @return {opticalPath.OpticalPath[]}
    */
   getAllOpticalPaths() {
@@ -2799,9 +2767,7 @@ class VolumeImageViewer {
       opticalPaths.push(this[_opticalPaths][opticalPathIdentifier].opticalPath)
     }
 
-    return opticalPaths.sort((a, b) =>
-      a.identifier.localeCompare(b.identifier, undefined, { numeric: true }),
-    )
+    return opticalPaths
   }
 
   /**

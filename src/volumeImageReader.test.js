@@ -12,7 +12,7 @@ jest.mock('./webWorker/webWorkerManager.js', () => ({
 const { _decodeAndTransformFrame } = require('./decode.js')
 const webWorkerManager = require('./webWorker/webWorkerManager.js').default
 const dmv = require('./dicom-microscopy-viewer.js')
-const { _retrieveTile } = require('./pyramid.js')
+const { _groupVolumeImages, _retrieveTile } = require('./pyramid.js')
 
 const buildMetadata = (testCase) =>
   testCase.images.map(
@@ -45,17 +45,60 @@ beforeEach(() => {
 })
 
 describe('VolumeImageReader', () => {
-  it('exposes optical paths sorted by identifier', () => {
+  it('exposes optical paths in the order of the image metadata', () => {
     const { reader } = createReader()
     const identifiers = reader.opticalPaths.map((item) => item.identifier)
+    const { monochromeOpticalPathIdentifiers } = _groupVolumeImages({
+      metadata: buildMetadata(multiplexCase),
+    })
     expect(identifiers.length).toBeGreaterThan(1)
-    expect(identifiers).toEqual(
-      identifiers
-        .slice()
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
-    )
+    expect(identifiers).toEqual(monochromeOpticalPathIdentifiers)
     expect(reader.opticalPaths[0]).toBeInstanceOf(dmv.opticalPath.OpticalPath)
     expect(reader.opticalPaths[0].isMonochromatic).toBe(true)
+  })
+
+  it('maps pixel to slide coordinates like the viewer utilities', () => {
+    const { reader } = createReader()
+    const base = reader.getOpticalPathMetadata(
+      reader.opticalPaths[0].identifier,
+    )[reader.levels.length - 1]
+    const origin = base.TotalPixelMatrixOriginSequence[0]
+    const expected = dmv.utils.buildTransform({
+      offset: [
+        Number(origin.XOffsetInSlideCoordinateSystem),
+        Number(origin.YOffsetInSlideCoordinateSystem),
+      ],
+      orientation: base.ImageOrientationSlide,
+      spacing: reader.levels[reader.levels.length - 1].pixelSpacing.slice(0),
+    })
+    expect(reader.affine).toEqual(expected)
+    expect(Object.isFrozen(reader.affine[0])).toBe(true)
+
+    const slide = dmv.utils.applyTransform({
+      coordinate: [100, 200],
+      affine: reader.affine,
+    })
+    const pixel = dmv.utils.applyInverseTransform({
+      coordinate: slide,
+      affine: reader.affineInverse,
+    })
+    /** applyTransform rounds slide coordinates to 0.1 micrometer */
+    expect(Math.abs(pixel[0] - 100)).toBeLessThan(0.5)
+    expect(Math.abs(pixel[1] - 200)).toBeLessThan(0.5)
+    expect(reader.frameOfReferenceUID).toBe(base.FrameOfReferenceUID)
+  })
+
+  it('marks THUMBNAIL levels and drops them with skipThumbnails', () => {
+    const { reader } = createReader(colorCase)
+    expect(reader.levels.map((level) => level.imageFlavor)).toContain(
+      'THUMBNAIL',
+    )
+    const skipped = createReader(colorCase, { skipThumbnails: true }).reader
+    const flavors = skipped.levels.map((level) => level.imageFlavor)
+    expect(flavors).not.toContain('THUMBNAIL')
+    expect(
+      new Set(skipped.levels.map((level) => level.tileColumns)).size,
+    ).toBe(1)
   })
 
   it('exposes pyramid levels from lowest to highest resolution', () => {
@@ -223,16 +266,43 @@ describe('VolumeImageReader', () => {
       })
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      const { instance } = client.retrieveInstanceFrames.mock.calls[0][0].request
+      const { instance, signal } =
+        client.retrieveInstanceFrames.mock.calls[0][0].request
       expect(instance).toBeInstanceOf(XMLHttpRequest)
+      expect(signal).toBe(controller.signal)
+      /** Stands in for dicomweb-client's response handler */
+      const clientHandler = jest.fn()
+      instance.onreadystatechange = clientHandler
       const abortSpy = jest.spyOn(instance, 'abort')
       controller.abort()
+      expect(instance.onreadystatechange).toBe(null)
+      expect(clientHandler).not.toHaveBeenCalled()
       /** dicomweb-client rejects the aborted request as a failed request */
       rejectRequest(new Error('request failed'))
 
       await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
       expect(abortSpy).toHaveBeenCalledTimes(1)
       expect(_decodeAndTransformFrame).not.toHaveBeenCalled()
+    })
+
+    it('rejects on abort while ICC profiles are being fetched', async () => {
+      const { client, reader } = createReader(colorCase, {
+        iccProfilesEnabled: true,
+      })
+      jest
+        .spyOn(reader, '_getIccProfiles')
+        .mockReturnValue(new Promise(() => {}))
+      const controller = new AbortController()
+      const promise = reader.getTile({
+        opticalPathIdentifier: reader.opticalPaths[0].identifier,
+        level: 0,
+        column: 0,
+        row: 0,
+        signal: controller.signal,
+      })
+      controller.abort()
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+      expect(client.retrieveInstanceFrames).not.toHaveBeenCalled()
     })
 
     it('rejects with a custom abort reason', async () => {

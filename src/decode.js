@@ -105,7 +105,8 @@ async function _decodeAndTransformFrame({
   metadata, // metadata of all images (different resolution levels)
   iccProfiles, // ICC profiles for all images
   iccOutputType = 'srgb', // "srgb" or "display-p3"
-  signal, // optional AbortSignal
+  /** Optional AbortSignal */
+  signal,
 }) {
   _throwIfAborted(signal)
   const result = await _processDecodeAndTransformTask(

@@ -11,15 +11,18 @@ import {
   groupMonochromeInstances,
   VLWholeSlideMicroscopyImage,
 } from './metadata.js'
+import { OpticalPath } from './opticalPath.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import {
   _fetchBulkdata,
+  _generateUID,
   _getAbortReason,
   _throwIfAborted,
   applyInverseTransform,
   are1DArraysAlmostEqual,
   are2DArraysAlmostEqual,
   buildInverseTransform,
+  buildTransform,
 } from './utils.js'
 
 /**
@@ -433,8 +436,13 @@ function _isSparseTileMissing(pyramid, channel, z, x, y) {
 
 /**
  * Retrieve frames of an instance, cancelling the HTTP request when the signal
- * is aborted. dicomweb-client accepts a caller-provided XMLHttpRequest, which
- * is what lets the request be aborted without changing the client.
+ * is aborted.
+ *
+ * The signal is passed to dicomweb-client as `request.signal`, which aborts
+ * the request that is actually sent (after request hooks) without reporting
+ * it to the client's `errorInterceptor`. Versions of dicomweb-client that
+ * ignore `request.signal` are handled by also passing our own XMLHttpRequest
+ * as `request.instance` and aborting that one.
  *
  * @param {Object} client - DICOMweb client
  * @param {Object} retrieveOptions - Options for `retrieveInstanceFrames`
@@ -452,6 +460,11 @@ function _retrieveInstanceFrames(client, retrieveOptions, signal) {
   let onAbort
   const aborted = new Promise((_resolve, reject) => {
     onAbort = () => {
+      /**
+       * Detach dicomweb-client's handler first so the aborted request is not
+       * reported to the client's errorInterceptor as a failed request.
+       */
+      instance.onreadystatechange = null
       instance.abort()
       reject(_getAbortReason(signal))
     }
@@ -459,7 +472,7 @@ function _retrieveInstanceFrames(client, retrieveOptions, signal) {
   })
   const request = client.retrieveInstanceFrames({
     ...retrieveOptions,
-    request: { ...retrieveOptions.request, instance },
+    request: { ...retrieveOptions.request, instance, signal },
   })
   /** The aborted request rejects too; the abort reason wins the race. */
   request.catch(() => {})
@@ -917,6 +930,75 @@ function _groupVolumeImages({ metadata, skipThumbnails }) {
     colorOpticalPathIdentifiers,
     monochromeImageInformation,
     monochromeOpticalPathIdentifiers,
+  }
+}
+
+/**
+ * Build the OpticalPath of a group of images (see `_groupVolumeImages`).
+ *
+ * @param {Object} options - Options
+ * @param {string} options.identifier - Optical Path Identifier
+ * @param {Object} options.opticalPathItem - Item of the Optical Path Sequence
+ * @param {Object} options.pyramid - Image pyramid of the optical path
+ * @param {boolean} options.isMonochromatic - Whether the images are monochrome
+ * @returns {OpticalPath} Optical path
+ * @private
+ */
+function _createOpticalPath({
+  identifier,
+  opticalPathItem,
+  pyramid,
+  isMonochromatic,
+}) {
+  const refImage = pyramid.metadata[0]
+  const options = {
+    identifier,
+    description: opticalPathItem.OpticalPathDescription,
+    illuminationType: opticalPathItem.IlluminationTypeCodeSequence[0],
+    isMonochromatic,
+    studyInstanceUID: refImage.StudyInstanceUID,
+    seriesInstanceUID: refImage.SeriesInstanceUID,
+    sopInstanceUIDs: pyramid.metadata.map((element) => {
+      return element.SOPInstanceUID
+    }),
+  }
+  if (isMonochromatic) {
+    options.illuminationWaveLength = opticalPathItem.IlluminationWaveLength
+    options.illuminationColor = opticalPathItem.IlluminationColorCodeSequence
+      ? opticalPathItem.IlluminationColorCodeSequence[0]
+      : undefined
+    const paletteItem = opticalPathItem.PaletteColorLookupTableSequence?.[0]
+    if (paletteItem) {
+      options.paletteColorLookupTableUID =
+        paletteItem.PaletteColorLookupTableUID
+          ? paletteItem.PaletteColorLookupTableUID
+          : _generateUID()
+    }
+  }
+  return new OpticalPath(options)
+}
+
+/**
+ * Affine transformations between the total pixel matrix of the highest
+ * resolution level of a pyramid and the slide coordinate system.
+ *
+ * @param {Object} pyramid - Image pyramid
+ * @returns {Object} `affine` (pixel to slide) and `affineInverse` (slide to
+ * pixel), 3x3 matrices
+ * @private
+ */
+function _computePyramidTransforms(pyramid) {
+  const metadata = pyramid.metadata[pyramid.metadata.length - 1]
+  const origin = metadata.TotalPixelMatrixOriginSequence[0]
+  const orientation = metadata.ImageOrientationSlide
+  const spacing = getPixelSpacing(metadata)
+  const offset = [
+    Number(origin.XOffsetInSlideCoordinateSystem),
+    Number(origin.YOffsetInSlideCoordinateSystem),
+  ]
+  return {
+    affine: buildTransform({ offset, orientation, spacing }),
+    affineInverse: buildInverseTransform({ offset, orientation, spacing }),
   }
 }
 
@@ -1661,7 +1743,9 @@ export {
   _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
   _computeImagePyramid,
+  _computePyramidTransforms,
   _computeSegmentBoundingBoxes,
+  _createOpticalPath,
   _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _findClosestResolutionIndex,

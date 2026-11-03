@@ -1,18 +1,23 @@
 import { CustomError, errorTypes } from './customError'
-import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
   _computeImagePyramid,
+  _computePyramidTransforms,
+  _createOpticalPath,
   _getIccProfiles,
   _groupVolumeImages,
   _retrieveTile,
 } from './pyramid.js'
+import { _raceAbort } from './utils.js'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
 const _client = Symbol('client')
 const _channels = Symbol('channels')
 const _opticalPaths = Symbol('opticalPaths')
 const _levels = Symbol('levels')
+const _affine = Symbol('affine')
+const _affineInverse = Symbol('affineInverse')
+const _frameOfReferenceUID = Symbol('frameOfReferenceUID')
 const _iccOptions = Symbol('iccOptions')
 const _iccProfiles = Symbol('iccProfiles')
 const _isDestroyed = Symbol('isDestroyed')
@@ -35,12 +40,12 @@ const _arrayTypes = {
 }
 
 /**
- * Compare optical path identifiers, numerically where they are numbers.
+ * Deep-frozen copy of a matrix.
  *
  * @private
  */
-const _compareIdentifiers = (a, b) =>
-  a.localeCompare(b, undefined, { numeric: true })
+const _freezeMatrix = (matrix) =>
+  Object.freeze(matrix.map((row) => Object.freeze(row.slice(0))))
 
 /**
  * Reader for the tiles of VL Whole Slide Microscopy VOLUME images.
@@ -71,7 +76,10 @@ class VolumeImageReader {
    * of color images are applied to decoded pixels
    * @param {string} [options.iccOutputType='srgb'] - Color space of decoded
    * color pixels when ICC profiles are applied ("srgb" or "display-p3")
-   * @param {boolean} [options.skipThumbnails=false] - Ignore THUMBNAIL images
+   * @param {boolean} [options.skipThumbnails=false] - Ignore THUMBNAIL
+   * images. A kept THUMBNAIL is a pyramid level whose single frame covers the
+   * whole image, so its tile size differs from the VOLUME levels; renderers
+   * that need one tile size for all levels (e.g. Viv) should skip thumbnails.
    */
   constructor({
     client,
@@ -106,13 +114,10 @@ class VolumeImageReader {
     const imageInformation = isMonochromatic
       ? monochromeImageInformation
       : colorImageInformation
-    const identifiers = (
-      isMonochromatic
-        ? monochromeOpticalPathIdentifiers
-        : colorOpticalPathIdentifiers
-    )
-      .slice()
-      .sort(_compareIdentifiers)
+    /** Same order as {@link viewer.VolumeImageViewer#getAllOpticalPaths} */
+    const identifiers = isMonochromatic
+      ? monochromeOpticalPathIdentifiers
+      : colorOpticalPathIdentifiers
 
     this[_channels] = {}
     let refPyramid
@@ -129,28 +134,13 @@ class VolumeImageReader {
         )
       }
       const refImage = pyramid.metadata[0]
-      const opticalPathItem = info.opticalPath
       this[_channels][identifier] = {
         pyramid,
-        opticalPath: new OpticalPath({
+        opticalPath: _createOpticalPath({
           identifier,
-          description: opticalPathItem.OpticalPathDescription,
-          illuminationType: opticalPathItem.IlluminationTypeCodeSequence[0],
+          opticalPathItem: info.opticalPath,
+          pyramid,
           isMonochromatic,
-          illuminationWaveLength: isMonochromatic
-            ? opticalPathItem.IlluminationWaveLength
-            : undefined,
-          illuminationColor: isMonochromatic
-            ? opticalPathItem.IlluminationColorCodeSequence?.[0]
-            : undefined,
-          studyInstanceUID: refImage.StudyInstanceUID,
-          seriesInstanceUID: refImage.SeriesInstanceUID,
-          sopInstanceUIDs: pyramid.metadata.map(
-            (image) => image.SOPInstanceUID,
-          ),
-          paletteColorLookupTableUID:
-            opticalPathItem.PaletteColorLookupTableSequence?.[0]
-              ?.PaletteColorLookupTableUID,
         }),
         pixelInfo: Object.freeze({
           samplesPerPixel: refImage.SamplesPerPixel,
@@ -179,17 +169,25 @@ class VolumeImageReader {
           gridColumns: Math.ceil(image.TotalPixelMatrixColumns / image.Columns),
           gridRows: Math.ceil(image.TotalPixelMatrixRows / image.Rows),
           pixelSpacing: Object.freeze(refPyramid.pixelSpacings[index].slice(0)),
+          imageFlavor: image.ImageType[2],
         }),
       ),
     )
+
+    const { affine, affineInverse } = _computePyramidTransforms(refPyramid)
+    this[_affine] = _freezeMatrix(affine)
+    this[_affineInverse] = _freezeMatrix(affineInverse)
+    this[_frameOfReferenceUID] = refPyramid.metadata[0].FrameOfReferenceUID
 
     /** Retain only after construction succeeds so a failed `new` cannot leak */
     webWorkerManager.retain()
   }
 
   /**
-   * Optical paths, sorted by identifier. The position of an optical path in
-   * this array is a stable channel index for the lifetime of the reader.
+   * Optical paths, in the same order as
+   * {@link viewer.VolumeImageViewer#getAllOpticalPaths}. The position of an
+   * optical path in this array is a stable channel index for the lifetime of
+   * the reader.
    *
    * @type {opticalPath.OpticalPath[]}
    */
@@ -204,12 +202,44 @@ class VolumeImageReader {
    *
    * Each level has `index`, `totalPixelMatrixColumns`,
    * `totalPixelMatrixRows`, `tileColumns`, `tileRows`, `gridColumns`,
-   * `gridRows` and `pixelSpacing` (row and column spacing in millimeter).
+   * `gridRows`, `pixelSpacing` (row and column spacing in millimeter) and
+   * `imageFlavor` ("VOLUME" or "THUMBNAIL").
    *
    * @type {Object[]}
    */
   get levels() {
     return this[_levels]
+  }
+
+  /**
+   * Affine transformation from the total pixel matrix of the highest
+   * resolution level (column, row) to the slide coordinate system (x, y in
+   * millimeter), as a 3x3 matrix for use with {@link utils.applyTransform}.
+   *
+   * @type {number[][]}
+   */
+  get affine() {
+    return this[_affine]
+  }
+
+  /**
+   * Inverse of {@link pyramid.VolumeImageReader#affine}: slide coordinates to
+   * the total pixel matrix of the highest resolution level, for use with
+   * {@link utils.applyInverseTransform}.
+   *
+   * @type {number[][]}
+   */
+  get affineInverse() {
+    return this[_affineInverse]
+  }
+
+  /**
+   * Frame of Reference UID of the images.
+   *
+   * @type {string}
+   */
+  get frameOfReferenceUID() {
+    return this[_frameOfReferenceUID]
   }
 
   /**
@@ -289,7 +319,7 @@ class VolumeImageReader {
       )
     }
 
-    const iccProfiles = await this._getIccProfiles(channel)
+    const iccProfiles = await _raceAbort(this._getIccProfiles(channel), signal)
     const tile = await _retrieveTile({
       pyramid: channel.pyramid,
       client: this[_client],

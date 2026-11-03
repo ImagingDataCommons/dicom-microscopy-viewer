@@ -121,9 +121,12 @@ Other renderers (for example [deck.gl](https://deck.gl) / [Viv](https://github.c
 const reader = new DICOMMicroscopyViewer.pyramid.VolumeImageReader({
   client,
   metadata: volumeImages,
+  // A THUMBNAIL level has a different tile size than the VOLUME levels;
+  // skip it when the renderer needs one tile size for all levels (e.g. Viv)
+  skipThumbnails: true,
 })
 
-// Optical paths (channels), sorted by identifier
+// Optical paths (channels), in the same order as viewer.getAllOpticalPaths()
 const channels = reader.opticalPaths.map((opticalPath) => opticalPath.identifier)
 
 // Pyramid levels, index 0 is the lowest resolution
@@ -132,6 +135,12 @@ console.log(base.totalPixelMatrixColumns, base.tileColumns, base.gridColumns)
 
 // Pixel layout, e.g. { samplesPerPixel: 1, bitsAllocated: 16, arrayType: "Uint16Array", ... }
 const pixelInfo = reader.getPixelInfo(channels[0])
+
+// Base level pixel (column, row) to slide coordinates (millimeter) and back
+const [x, y] = DICOMMicroscopyViewer.utils.applyTransform({
+  coordinate: [0, 0],
+  affine: reader.affine,
+})
 
 const controller = new AbortController()
 const tile = await reader.getTile({
@@ -148,7 +157,7 @@ const tile = await reader.getTile({
 reader.destroy()
 ```
 
-An aborted `getTile` rejects with `signal.reason` (a `DOMException` named `AbortError` by default); other failures reject with an `Error` whose `cause` is the underlying error, such as the dicomweb-client request error with its `status`.
+An aborted `getTile` rejects with `signal.reason` (a `DOMException` named `AbortError` by default) and is not reported to the client's `errorInterceptor`; other failures reject with an `Error` whose `cause` is the underlying error, such as the dicomweb-client request error with its `status`. With a dicomweb-client version that supports the `request.signal` option, the request is cancelled even when `requestHooks` replace the XMLHttpRequest.
 
 ## Development
 
