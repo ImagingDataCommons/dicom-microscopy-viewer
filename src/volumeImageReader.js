@@ -41,8 +41,8 @@ const _arrayTypes = {
 }
 
 /**
- * Tile for a frame that is absent from a TILED_SPARSE image, filled with the
- * background value: black for MONOCHROME2, white for MONOCHROME1 and color.
+ * Tile for a frame that is absent from a TILED_SPARSE image: filled with 0
+ * for MONOCHROME2 and with the maximum value otherwise, as the viewer does.
  *
  * @private
  */
@@ -278,9 +278,10 @@ class VolumeImageReader {
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @returns {Object} `samplesPerPixel`, `bitsAllocated`,
-   * `pixelRepresentation`, `photometricInterpretation` and `arrayType`, the
-   * name of the TypedArray constructor of `pixelArray` returned by
-   * {@link pyramid.VolumeImageReader#getTile}
+   * `pixelRepresentation`, `photometricInterpretation` of the stored images
+   * (compressed YBR color images, e.g. JPEG YBR_FULL_422, are decoded to RGB)
+   * and `arrayType`, the name of the TypedArray constructor of `pixelArray`
+   * returned by {@link pyramid.VolumeImageReader#getTile}
    */
   getPixelInfo(opticalPathIdentifier) {
     return this._getChannel(opticalPathIdentifier).pixelInfo
@@ -305,8 +306,8 @@ class VolumeImageReader {
    * Tiles at the right and bottom border of the total pixel matrix are padded;
    * only the first `validColumns` columns and `validRows` rows hold image
    * data. Tiles absent from a TILED_SPARSE image resolve without a request,
-   * with `isEmpty` set and `pixelArray` filled with the background value
-   * (black for MONOCHROME2, white otherwise).
+   * with `isEmpty` set and `pixelArray` filled with 0 for MONOCHROME2 and
+   * with the maximum value otherwise.
    *
    * When `signal` is aborted, the HTTP request and the queued decoding task
    * are cancelled and the promise rejects with `signal.reason`, which is a
@@ -438,7 +439,13 @@ class VolumeImageReader {
         onError: (error) => {
           console.error('Failed to fetch ICC profiles:', error)
         },
-      }).then((profiles) => (profiles.length > 0 ? profiles : undefined))
+      })
+        .then((profiles) => (profiles.length > 0 ? profiles : undefined))
+        .catch((error) => {
+          /** Decode without ICC profiles rather than failing every tile */
+          console.error('Failed to fetch ICC profiles:', error)
+          return undefined
+        })
     }
     return this[_iccProfiles]
   }
