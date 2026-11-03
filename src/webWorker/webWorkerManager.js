@@ -384,7 +384,7 @@ function cancelTask(taskId, reason) {
   for (let i = 0; i < tasks.length; i++) {
     if (tasks[i].taskId === taskId) {
       // taskId found, remove it
-      const task = tasks.splice(i, 1)
+      const [task] = tasks.splice(i, 1)
 
       task.deferred.reject(reason)
 

@@ -71,11 +71,7 @@ import publish from './eventPublisher'
 import EVENT from './events'
 import { applyViewerOptions } from './logger.js'
 import { _groupFramesPerMapping, ParameterMapping } from './mapping.js'
-import {
-  groupColorInstances,
-  groupMonochromeInstances,
-  VLWholeSlideMicroscopyImage,
-} from './metadata.js'
+import { VLWholeSlideMicroscopyImage } from './metadata.js'
 import Observable from './observable.js'
 import { OpticalPath } from './opticalPath.js'
 import {
@@ -88,6 +84,7 @@ import {
   _createTileLoadFunction,
   _fitImagePyramid,
   _getIccProfiles,
+  _groupVolumeImages,
   _isSparseTileMissing,
   _overviewStampExtent,
   _perFrameRasterMaxResolution,
@@ -1544,141 +1541,26 @@ class VolumeImageViewer {
       THUMBNAIL: 'THUMBNAIL',
     }
 
-    const hasImageFlavor = (image, imageFlavor) => {
-      return image.ImageType[2] === imageFlavor
-    }
-
-    /*
-     * Only include THUMBNAIL image into metadata if no other VOLUME image
-     * exists with the same resolution. When a THUMBNAIL is kept, also drop
-     * VOLUME levels that are coarser (fewer total pixels) than the thumbnail
-     * so OpenLayers uses the single-frame THUMBNAIL for overview / fit zoom
-     * instead of a coarser multi-frame VOLUME level (slim#389).
-     */
-    const filterImagesByResolution = (metadata) => {
-      const pyramidBaseMetadata = metadata[metadata.length - 1]
-      const filteredMetadata = metadata.filter((image) => {
-        if (
-          hasImageFlavor(image, ImageFlavors.THUMBNAIL) &&
-          this[_options].skipThumbnails === true
-        ) {
-          return false
-        }
-        if (hasImageFlavor(image, ImageFlavors.THUMBNAIL)) {
-          const hasThumbnailEquivalentVolumeImage = metadata.some(
-            (img) =>
-              hasImageFlavor(img, ImageFlavors.VOLUME) &&
-              pyramidBaseMetadata.TotalPixelMatrixColumns /
-                img.TotalPixelMatrixColumns ===
-                pyramidBaseMetadata.TotalPixelMatrixColumns /
-                  image.TotalPixelMatrixColumns,
-          )
-          if (hasThumbnailEquivalentVolumeImage) {
-            console.debug(
-              'Thumbnail image has equivalent volume image resolution, skipping thumbnail.',
-              image.SOPInstanceUID,
-            )
-            return false
-          }
-          return true
-        } else {
-          return true
-        }
+    let groupedImages
+    try {
+      groupedImages = _groupVolumeImages({
+        metadata: this[_options].metadata,
+        skipThumbnails: this[_options].skipThumbnails,
       })
-
-      const thumbnailColumns = filteredMetadata
-        .filter((image) => hasImageFlavor(image, ImageFlavors.THUMBNAIL))
-        .map((image) => image.TotalPixelMatrixColumns)
-      if (thumbnailColumns.length === 0) {
-        return filteredMetadata
+    } catch (error) {
+      if (error instanceof CustomError) {
+        throw this[_options].errorInterceptor(error)
       }
-
-      const minThumbnailColumns = Math.min(...thumbnailColumns)
-      return filteredMetadata.filter((image) => {
-        if (
-          hasImageFlavor(image, ImageFlavors.VOLUME) &&
-          image.TotalPixelMatrixColumns < minThumbnailColumns
-        ) {
-          console.debug(
-            'Volume image is coarser than THUMBNAIL; skipping so the ' +
-              'thumbnail is used for overview.',
-            image.SOPInstanceUID,
-          )
-          return false
-        }
-        return true
-      })
+      throw error
     }
-
-    // We also accept metadata in raw JSON format for backwards compatibility
-    const filteredMetadata = filterImagesByResolution(this[_options].metadata)
-    if (filteredMetadata[0].SOPClassUID != null) {
-      this[_metadata] = filteredMetadata
-    } else {
-      this[_metadata] = filteredMetadata.map((instance) => {
-        return new VLWholeSlideMicroscopyImage({ metadata: instance })
-      })
-    }
-
-    // Group color images by opticalPathIdentifier
-    const colorGroups = groupColorInstances(this[_metadata])
-    const colorImageInformation = {}
-    let colorOpticalPathIdentifiers = Object.keys(colorGroups)
-    if (colorOpticalPathIdentifiers.length > 0) {
-      const id = colorOpticalPathIdentifiers[0]
-      if (colorOpticalPathIdentifiers.length > 1) {
-        console.warn(
-          'Volume Image Viewer detected more than one color image, ' +
-            'but only one color image can be loaded and visualized at a time. ' +
-            'Only the first detected color image will be loaded.',
-        )
-        colorOpticalPathIdentifiers = [id]
-      }
-      colorImageInformation[id] = {
-        metadata: colorGroups[id],
-        opticalPath: this[_metadata][0].OpticalPathSequence[0],
-      }
-    }
-
-    const monochromeGroups = groupMonochromeInstances(this[_metadata])
-    const monochromeOpticalPathIdentifiers = Object.keys(monochromeGroups)
-    const monochromeImageInformation = {}
-    monochromeOpticalPathIdentifiers.forEach((id) => {
-      const refImage = monochromeGroups[id][0]
-      const opticalPath = refImage.OpticalPathSequence.find((item) => {
-        return item.OpticalPathIdentifier === id
-      })
-      monochromeImageInformation[id] = {
-        metadata: monochromeGroups[id],
-        opticalPath,
-      }
-    })
-
+    const {
+      colorImageInformation,
+      colorOpticalPathIdentifiers,
+      monochromeImageInformation,
+      monochromeOpticalPathIdentifiers,
+    } = groupedImages
+    this[_metadata] = groupedImages.metadata
     const numChannels = monochromeOpticalPathIdentifiers.length
-    const numColorImages = colorOpticalPathIdentifiers.length
-    if (numChannels === 0 && numColorImages === 0) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Could not find any channels or color images.',
-      )
-      throw this[_options].errorInterceptor(error)
-    }
-
-    if (numChannels > 0 && numColorImages > 0) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Found both channels and color images.',
-      )
-      throw this[_options].errorInterceptor(error)
-    }
-
-    if (numColorImages > 1) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Found more than one color image.',
-      )
-      throw this[_options].errorInterceptor(error)
-    }
 
     /*
      * For blending we have to make some assumptions
@@ -2917,7 +2799,9 @@ class VolumeImageViewer {
       opticalPaths.push(this[_opticalPaths][opticalPathIdentifier].opticalPath)
     }
 
-    return opticalPaths.sort((item) => item.OpticalPathIdentifier)
+    return opticalPaths.sort((a, b) =>
+      a.identifier.localeCompare(b.identifier, undefined, { numeric: true }),
+    )
   }
 
   /**

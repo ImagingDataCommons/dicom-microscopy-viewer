@@ -800,13 +800,43 @@ function detectDisplayColorSpace() {
   return colorSpace
 }
 
+/**
+ * Error with which an operation cancelled through an AbortSignal rejects:
+ * the signal's reason when set, otherwise a DOMException named "AbortError"
+ * (same contract as `fetch`).
+ *
+ * @param {AbortSignal} signal - Aborted signal
+ * @returns {*} Abort reason
+ * @private
+ */
+function _getAbortReason(signal) {
+  if (signal?.reason !== undefined) {
+    return signal.reason
+  }
+  return new DOMException('The operation was aborted.', 'AbortError')
+}
+
+/**
+ * Throw the abort reason when the signal has been aborted.
+ *
+ * @param {AbortSignal} [signal] - Optional signal
+ * @private
+ */
+function _throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw _getAbortReason(signal)
+  }
+}
+
 export {
   _convertAreaFromMm,
   _convertLengthFromMm,
   _fetchBulkdata,
   _generateUID,
+  _getAbortReason,
   _getUnitSuffix,
   _normalizeMeasurementUnit,
+  _throwIfAborted,
   _toCssColor,
   applyInverseTransform,
   applyTransform,

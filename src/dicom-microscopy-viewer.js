@@ -60,6 +60,7 @@ import {
   OverviewImageViewer,
   VolumeImageViewer,
 } from './viewer.js'
+import { VolumeImageReader } from './volumeImageReader.js'
 
 /**
  * Namespace for annotations of DICOM Micrsocopy Bulk Simple Annotations
@@ -162,6 +163,15 @@ const opticalPath = {
 }
 
 /**
+ * Namespace for reading image pyramids without rendering them.
+ *
+ * @namespace pyramid
+ */
+const pyramid = {
+  VolumeImageReader,
+}
+
+/**
  * Namespace for 3-dimensional spatial coordinates (SCOORD3D).
  *
  * @namespace scoord3d
@@ -226,6 +236,7 @@ export {
   mapping,
   metadata,
   opticalPath,
+  pyramid,
   roi,
   scoord3d,
   segment,

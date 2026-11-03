@@ -19,6 +19,7 @@ The viewer visualizes slide microscopy images stored in a [DICOMweb](https://www
 - [Getting started](#getting-started)
   - [Packaging](#packaging)
   - [Basic usage](#basic-usage)
+  - [Reading tiles without the viewer](#reading-tiles-without-the-viewer)
 - [Development](#development)
 - [Related projects](#related-projects)
 - [Contributing](#contributing)
@@ -111,6 +112,43 @@ client.retrieveSeriesMetadata(retrieveOptions).then((metadata) => {
   viewer.render({ container: "viewport" })
 })
 ```
+
+### Reading tiles without the viewer
+
+Other renderers (for example [deck.gl](https://deck.gl) / [Viv](https://github.com/hms-dbmi/viv)) can reuse the DICOMweb retrieval, frame decoding and ICC color management of this library through `pyramid.VolumeImageReader`. It takes the same `client` and `metadata` as `VolumeImageViewer` but needs neither OpenLayers nor a DOM element.
+
+```js
+const reader = new DICOMMicroscopyViewer.pyramid.VolumeImageReader({
+  client,
+  metadata: volumeImages,
+})
+
+// Optical paths (channels), sorted by identifier
+const channels = reader.opticalPaths.map((opticalPath) => opticalPath.identifier)
+
+// Pyramid levels, index 0 is the lowest resolution
+const base = reader.levels[reader.levels.length - 1]
+console.log(base.totalPixelMatrixColumns, base.tileColumns, base.gridColumns)
+
+// Pixel layout, e.g. { samplesPerPixel: 1, bitsAllocated: 16, arrayType: "Uint16Array", ... }
+const pixelInfo = reader.getPixelInfo(channels[0])
+
+const controller = new AbortController()
+const tile = await reader.getTile({
+  opticalPathIdentifier: channels[0],
+  level: base.index,
+  column: 0,
+  row: 0,
+  signal: controller.signal, // optional, cancels the request and decoding
+})
+// tile.pixelArray holds the stored pixel values (native typed array).
+// Edge tiles are padded: only tile.validColumns x tile.validRows hold image data.
+
+// Release the shared decoding web workers when done
+reader.destroy()
+```
+
+An aborted `getTile` rejects with `signal.reason` (a `DOMException` named `AbortError` by default); other failures reject with an `Error` whose `cause` is the underlying error, such as the dicomweb-client request error with its `status`.
 
 ## Development
 

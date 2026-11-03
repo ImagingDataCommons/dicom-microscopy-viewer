@@ -1,13 +1,21 @@
 import * as dwc from 'dicomweb-client'
 
+import { CustomError, errorTypes } from './customError'
 import { _decodeAndTransformFrame } from './decode.js'
 import publish from './eventPublisher'
 import EVENT from './events'
 import { logger } from './logger.js'
-import { getFrameMapping, VLWholeSlideMicroscopyImage } from './metadata.js'
+import {
+  getFrameMapping,
+  groupColorInstances,
+  groupMonochromeInstances,
+  VLWholeSlideMicroscopyImage,
+} from './metadata.js'
 import { getPixelSpacing } from './scoord3dUtils'
 import {
   _fetchBulkdata,
+  _getAbortReason,
+  _throwIfAborted,
   applyInverseTransform,
   are1DArraysAlmostEqual,
   are2DArraysAlmostEqual,
@@ -423,6 +431,252 @@ function _isSparseTileMissing(pyramid, channel, z, x, y) {
   return mapping[`${y + 1}-${x + 1}-${channel}`] == null
 }
 
+/**
+ * Retrieve frames of an instance, cancelling the HTTP request when the signal
+ * is aborted. dicomweb-client accepts a caller-provided XMLHttpRequest, which
+ * is what lets the request be aborted without changing the client.
+ *
+ * @param {Object} client - DICOMweb client
+ * @param {Object} retrieveOptions - Options for `retrieveInstanceFrames`
+ * @param {AbortSignal} [signal] - Optional signal
+ * @returns {Promise<ArrayBuffer[]>} Raw frames
+ * @private
+ */
+function _retrieveInstanceFrames(client, retrieveOptions, signal) {
+  if (signal == null) {
+    return client.retrieveInstanceFrames(retrieveOptions)
+  }
+  _throwIfAborted(signal)
+
+  const instance = new XMLHttpRequest()
+  let onAbort
+  const aborted = new Promise((_resolve, reject) => {
+    onAbort = () => {
+      instance.abort()
+      reject(_getAbortReason(signal))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  const request = client.retrieveInstanceFrames({
+    ...retrieveOptions,
+    request: { ...retrieveOptions.request, instance },
+  })
+  /** The aborted request rejects too; the abort reason wins the race. */
+  request.catch(() => {})
+  return Promise.race([request, aborted]).finally(() => {
+    signal.removeEventListener('abort', onAbort)
+  })
+}
+
+/**
+ * Retrieve and decode the frame of a single tile of an image pyramid.
+ *
+ * Frames missing from a TILED_SPARSE level resolve to an empty tile without
+ * a request.
+ *
+ * @param {Object} options - Options
+ * @param {Object} options.pyramid - Image pyramid (see `_computeImagePyramid`)
+ * @param {Object} options.client - DICOMweb client
+ * @param {string|number} options.channel - Optical path identifier or segment number
+ * @param {number} options.level - Pyramid level (0 is the lowest resolution)
+ * @param {number} options.column - Zero-based tile column
+ * @param {number} options.row - Zero-based tile row
+ * @param {Array} [options.iccProfiles] - ICC profiles
+ * @param {string} [options.iccOutputType] - "srgb" or "display-p3"
+ * @param {AbortSignal} [options.signal] - Cancels request and decoding
+ * @param {function} [options.onFrameLoadingStarted] - Called with the frame
+ * info right before the frame is requested
+ * @returns {Promise<Object>} Tile with native `pixelArray`, `columns`,
+ * `rows`, `samplesPerPixel`, `bitsAllocated`, `isEmpty` and `frameInfo` (absent when empty)
+ * @private
+ */
+async function _retrieveTile({
+  pyramid,
+  client,
+  channel,
+  level,
+  column,
+  row,
+  iccProfiles,
+  iccOutputType,
+  signal,
+  onFrameLoadingStarted,
+}) {
+  _throwIfAborted(signal)
+
+  /** Frame mapping keys are `row-column-channel`, 1-based */
+  const index = `${row + 1}-${column + 1}-${channel}`
+
+  if (pyramid.metadata[level] === undefined) {
+    throw new Error(
+      `Could not load tile for channel "${channel}" ` +
+        `at position (${row + 1}, ${column + 1}) at zoom level ${level} ` +
+        ` because level ${level} does not exist.`,
+    )
+  }
+
+  const path = pyramid.frameMappings[level][index]
+  const refImage = pyramid.metadata[level]
+  const columns = refImage.Columns
+  const rows = refImage.Rows
+  const bitsAllocated = refImage.BitsAllocated
+  const samplesPerPixel = refImage.SamplesPerPixel
+  const photometricInterpretation = refImage.PhotometricInterpretation
+
+  /**
+   * Fast path for missing tiles (common in TILED_SPARSE).
+   * Return cached empty tile immediately without further processing.
+   */
+  if (path == null) {
+    const dimensionOrganizationType =
+      pyramid.dimensionOrganizationTypes?.[level]
+    if (dimensionOrganizationType === 'TILED_FULL') {
+      console.warn(
+        `could not load tile "${index}" at level ${level}, ` +
+          'this tile does not exist',
+      )
+    }
+    return {
+      pixelArray: _createEmptyTile({
+        columns,
+        rows,
+        samplesPerPixel,
+        bitsAllocated,
+        photometricInterpretation,
+      }),
+      columns,
+      rows,
+      samplesPerPixel,
+      bitsAllocated,
+      isEmpty: true,
+    }
+  }
+
+  /** Tile exists - do the full processing */
+  const studyInstanceUID = refImage.StudyInstanceUID
+  const seriesInstanceUID = refImage.SeriesInstanceUID
+  const pixelRepresentation = refImage.PixelRepresentation
+  const sopClassUID = refImage.SOPClassUID
+
+  let src = ''
+  if (client.wadoURL !== undefined) {
+    src += client.wadoURL
+  }
+  src +=
+    '/studies/' +
+    studyInstanceUID +
+    '/series/' +
+    seriesInstanceUID +
+    '/instances/' +
+    path
+
+  const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src)
+  const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
+
+  if (samplesPerPixel === 1) {
+    logger.debug(
+      `retrieve frame ${frameNumbers} of monochrome image ` +
+        `for channel "${channel}" at tile position (${row + 1}, ${column + 1}) ` +
+        `at zoom level ${level}`,
+    )
+  } else {
+    logger.debug(
+      `retrieve frame ${frameNumbers} of color image ` +
+        `at tile position (${row + 1}, ${column + 1}) at zoom level ${level}`,
+    )
+  }
+
+  const octetStreamMediaType = 'application/octet-stream'
+  /*
+   * Use of the "*" transfer syntax is a hack to work around standard
+   * compliance issues of the Google Cloud Healthcare API.
+   * It will return bulkdata encoded with the transfer syntax of the
+   * stored data set (uncompressed or compressed). The decoder can then not
+   * rely on the media type specified by the "Content-Type" header in the
+   * response message, but will need to determine it from the payload.
+   * Only application/octet-stream with "*" is requested here; decoders
+   * determine the actual compression format (e.g. JPEG, JPEG-LS, JPEG 2000,
+   * HTJ2K, JPEG XL)
+   * from the payload when processing the frames.
+   */
+  const octetStreamTransferSyntaxUID = '*'
+
+  const mediaTypes = []
+  mediaTypes.push(
+    ...[
+      {
+        mediaType: octetStreamMediaType,
+        transferSyntaxUID: octetStreamTransferSyntaxUID,
+      },
+    ],
+  )
+
+  const frameInfo = {
+    studyInstanceUID,
+    seriesInstanceUID,
+    sopInstanceUID,
+    sopClassUID,
+    frameNumber: frameNumbers[0],
+    channelIdentifier: String(channel),
+  }
+  onFrameLoadingStarted?.(frameInfo)
+
+  const retrieveOptions = {
+    studyInstanceUID,
+    seriesInstanceUID,
+    sopInstanceUID,
+    frameNumbers,
+    mediaTypes,
+  }
+  try {
+    const rawFrames = await _retrieveInstanceFrames(
+      client,
+      retrieveOptions,
+      signal,
+    )
+    const pixelArray = await _decodeAndTransformFrame({
+      frame: rawFrames[0],
+      frameNumber: frameNumbers[0],
+      bitsAllocated,
+      pixelRepresentation,
+      columns,
+      rows,
+      samplesPerPixel,
+      sopInstanceUID,
+      metadata: pyramid.metadata,
+      iccProfiles,
+      iccOutputType,
+      signal,
+    })
+    return {
+      pixelArray,
+      columns,
+      rows,
+      samplesPerPixel,
+      bitsAllocated,
+      isEmpty: false,
+      frameInfo,
+    }
+  } catch (error) {
+    if (signal?.aborted) {
+      throw _getAbortReason(signal)
+    }
+    throw new Error(
+      `Failed to load frames ${frameNumbers} ` +
+        `of SOP instance "${sopInstanceUID}" ` +
+        `for channel "${channel}" ` +
+        `at tile position (${row + 1}, ${column + 1}) ` +
+        `at zoom level ${level}: ${error?.message ?? error}`,
+      { cause: error },
+    )
+  }
+}
+
+/**
+ * Create the tile load function of an OpenLayers DataTile source.
+ *
+ * @private
+ */
 function _createTileLoadFunction({
   pyramid,
   client,
@@ -432,196 +686,237 @@ function _createTileLoadFunction({
   targetElement,
   labelmapSegmentNumber,
 }) {
-  /**
-   * Pre-cache values that don't change per tile request.
-   * This avoids repeated lookups in the hot path.
-   */
-  const channelSuffix = `-${channel}`
-
-  return async (z, y, x) => {
-    /**
-     * OpenLayers calls the loader as (z, column, row), so `y` here is the
-     * column and `x` the row. Frame mapping keys are `row-column-channel`.
-     */
-    const index = `${x + 1}-${y + 1}${channelSuffix}`
-
-    if (pyramid.metadata[z] === undefined) {
-      throw new Error(
-        `Could not load tile for channel "${channel}" ` +
-          `at position (${x + 1}, ${y + 1}) at zoom level ${z} ` +
-          ` because level ${z} does not exist.`,
-      )
-    }
-
-    const path = pyramid.frameMappings[z][index]
-    const refImage = pyramid.metadata[z]
-    const columns = refImage.Columns
-    const rows = refImage.Rows
-    const bitsAllocated = refImage.BitsAllocated
-    const samplesPerPixel = refImage.SamplesPerPixel
-    const photometricInterpretation = refImage.PhotometricInterpretation
-
-    /**
-     * Fast path for missing tiles (common in TILED_SPARSE).
-     * Return cached empty tile immediately without further processing.
-     */
-    if (path == null) {
-      const dimensionOrganizationType = pyramid.dimensionOrganizationTypes?.[z]
-      if (dimensionOrganizationType === 'TILED_FULL') {
-        console.warn(
-          `could not load tile "${index}" at level ${z}, ` +
-            'this tile does not exist',
-        )
-      }
-      return _createEmptyTile({
-        columns,
-        rows,
-        samplesPerPixel,
-        bitsAllocated,
-        photometricInterpretation,
-      })
-    }
-
-    /** Tile exists - do the full processing */
-    const studyInstanceUID = refImage.StudyInstanceUID
-    const seriesInstanceUID = refImage.SeriesInstanceUID
-    const pixelRepresentation = refImage.PixelRepresentation
-    const sopClassUID = refImage.SOPClassUID
-
-    let src = ''
-    if (client.wadoURL !== undefined) {
-      src += client.wadoURL
-    }
-    src +=
-      '/studies/' +
-      studyInstanceUID +
-      '/series/' +
-      seriesInstanceUID +
-      '/instances/' +
-      path
-
-    const sopInstanceUID = dwc.utils.getSOPInstanceUIDFromUri(src)
-    const frameNumbers = dwc.utils.getFrameNumbersFromUri(src)
-
-    if (samplesPerPixel === 1) {
-      logger.debug(
-        `retrieve frame ${frameNumbers} of monochrome image ` +
-          `for channel "${channel}" at tile position (${x + 1}, ${y + 1}) ` +
-          `at zoom level ${z}`,
-      )
-    } else {
-      logger.debug(
-        `retrieve frame ${frameNumbers} of color image ` +
-          `at tile position (${x + 1}, ${y + 1}) at zoom level ${z}`,
-      )
-    }
-
-    const octetStreamMediaType = 'application/octet-stream'
-    /*
-     * Use of the "*" transfer syntax is a hack to work around standard
-     * compliance issues of the Google Cloud Healthcare API.
-     * It will return bulkdata encoded with the transfer syntax of the
-     * stored data set (uncompressed or compressed). The decoder can then not
-     * rely on the media type specified by the "Content-Type" header in the
-     * response message, but will need to determine it from the payload.
-     * Only application/octet-stream with "*" is requested here; decoders
-     * determine the actual compression format (e.g. JPEG, JPEG-LS, JPEG 2000,
-     * HTJ2K, JPEG XL)
-     * from the payload when processing the frames.
-     */
-    const octetStreamTransferSyntaxUID = '*'
-
-    const mediaTypes = []
-    mediaTypes.push(
-      ...[
-        {
-          mediaType: octetStreamMediaType,
-          transferSyntaxUID: octetStreamTransferSyntaxUID,
+  /** OpenLayers calls the loader as (z, column, row). */
+  return async (z, column, row) => {
+    let frameInfo
+    try {
+      const tile = await _retrieveTile({
+        pyramid,
+        client,
+        channel,
+        level: z,
+        column,
+        row,
+        iccProfiles,
+        iccOutputType,
+        onFrameLoadingStarted: (info) => {
+          frameInfo = info
+          publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
         },
-      ],
-    )
-
-    const frameInfo = {
-      studyInstanceUID,
-      seriesInstanceUID,
-      sopInstanceUID,
-      sopClassUID,
-      frameNumber: frameNumbers[0],
-      channelIdentifier: String(channel),
-    }
-    publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
-
-    const retrieveOptions = {
-      studyInstanceUID,
-      seriesInstanceUID,
-      sopInstanceUID,
-      frameNumbers,
-      mediaTypes,
-    }
-    return client
-      .retrieveInstanceFrames(retrieveOptions)
-      .then((rawFrames) => {
-        return _decodeAndTransformFrame({
-          frame: rawFrames[0],
-          frameNumber: frameNumbers[0],
-          bitsAllocated,
-          pixelRepresentation,
-          columns,
-          rows,
-          samplesPerPixel,
-          sopInstanceUID,
-          metadata: pyramid.metadata,
-          iccProfiles,
-          iccOutputType,
-        }).then((pixelArray) => {
-          if (pixelArray.constructor === Float64Array) {
-            throw new Error('Double Float Pixel Data is not (yet) supported.')
-          }
-
-          /**
-           * For LABELMAP segmentation, pixel values represent segment numbers.
-           * Apply masking to create a binary layer for this specific segment:
-           * pixels matching the segment number → 1, others → 0.
-           */
-          let processedArray = pixelArray
-          if (labelmapSegmentNumber != null) {
-            const maskedArray = new pixelArray.constructor(pixelArray.length)
-            for (let i = 0; i < pixelArray.length; i++) {
-              maskedArray[i] = pixelArray[i] === labelmapSegmentNumber ? 1 : 0
-            }
-            processedArray = maskedArray
-          }
-
-          publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
-            pixelArray: processedArray,
-            ...frameInfo,
-          })
-          if (samplesPerPixel === 3 && bitsAllocated === 8) {
-            /** Rendering of color images requires unsigned 8-bit integers */
-            return processedArray
-          }
-          /** Rendering of grayscale images requires floating point values */
-          return new Float32Array(
-            processedArray,
-            processedArray.byteOffset,
-            processedArray.byteLength / processedArray.BYTES_PER_ELEMENT,
-          )
-        })
       })
-      .catch((error) => {
+      if (tile.isEmpty) {
+        return tile.pixelArray
+      }
+
+      const { pixelArray, samplesPerPixel, bitsAllocated } = tile
+      if (pixelArray.constructor === Float64Array) {
+        throw new Error('Double Float Pixel Data is not (yet) supported.')
+      }
+
+      /**
+       * For LABELMAP segmentation, pixel values represent segment numbers.
+       * Apply masking to create a binary layer for this specific segment:
+       * pixels matching the segment number → 1, others → 0.
+       */
+      let processedArray = pixelArray
+      if (labelmapSegmentNumber != null) {
+        const maskedArray = new pixelArray.constructor(pixelArray.length)
+        for (let i = 0; i < pixelArray.length; i++) {
+          maskedArray[i] = pixelArray[i] === labelmapSegmentNumber ? 1 : 0
+        }
+        processedArray = maskedArray
+      }
+
+      publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
+        pixelArray: processedArray,
+        ...frameInfo,
+      })
+      if (samplesPerPixel === 3 && bitsAllocated === 8) {
+        /** Rendering of color images requires unsigned 8-bit integers */
+        return processedArray
+      }
+      /** Rendering of grayscale images requires floating point values */
+      return new Float32Array(
+        processedArray,
+        processedArray.byteOffset,
+        processedArray.byteLength / processedArray.BYTES_PER_ELEMENT,
+      )
+    } catch (error) {
+      if (frameInfo !== undefined) {
         publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
         publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo)
-        return Promise.reject(
-          new Error(
-            `Failed to load frames ${frameNumbers} ` +
-              `of SOP instance "${sopInstanceUID}" ` +
-              `for channel "${channel}" ` +
-              `at tile position (${x + 1}, ${y + 1}) ` +
-              `at zoom level ${z}: `,
-            error,
-          ),
+      }
+      throw error
+    }
+  }
+}
+
+const _VOLUME_IMAGE_FLAVORS = {
+  VOLUME: 'VOLUME',
+  THUMBNAIL: 'THUMBNAIL',
+}
+
+const _hasImageFlavor = (image, imageFlavor) => {
+  return image.ImageType[2] === imageFlavor
+}
+
+/**
+ * Only include THUMBNAIL image into metadata if no other VOLUME image
+ * exists with the same resolution. When a THUMBNAIL is kept, also drop
+ * VOLUME levels that are coarser (fewer total pixels) than the thumbnail
+ * so OpenLayers uses the single-frame THUMBNAIL for overview / fit zoom
+ * instead of a coarser multi-frame VOLUME level (slim#389).
+ *
+ * @param {Object[]} metadata - Metadata of VOLUME and THUMBNAIL images
+ * @param {boolean} [skipThumbnails] - Drop all THUMBNAIL images
+ * @returns {Object[]} Filtered metadata
+ * @private
+ */
+function _filterImagesByResolution(metadata, skipThumbnails) {
+  const { THUMBNAIL, VOLUME } = _VOLUME_IMAGE_FLAVORS
+  const pyramidBaseMetadata = metadata[metadata.length - 1]
+  const filteredMetadata = metadata.filter((image) => {
+    if (_hasImageFlavor(image, THUMBNAIL) && skipThumbnails === true) {
+      return false
+    }
+    if (_hasImageFlavor(image, THUMBNAIL)) {
+      const hasThumbnailEquivalentVolumeImage = metadata.some(
+        (img) =>
+          _hasImageFlavor(img, VOLUME) &&
+          pyramidBaseMetadata.TotalPixelMatrixColumns /
+            img.TotalPixelMatrixColumns ===
+            pyramidBaseMetadata.TotalPixelMatrixColumns /
+              image.TotalPixelMatrixColumns,
+      )
+      if (hasThumbnailEquivalentVolumeImage) {
+        console.debug(
+          'Thumbnail image has equivalent volume image resolution, skipping thumbnail.',
+          image.SOPInstanceUID,
         )
-      })
+        return false
+      }
+      return true
+    } else {
+      return true
+    }
+  })
+
+  const thumbnailColumns = filteredMetadata
+    .filter((image) => _hasImageFlavor(image, THUMBNAIL))
+    .map((image) => image.TotalPixelMatrixColumns)
+  if (thumbnailColumns.length === 0) {
+    return filteredMetadata
+  }
+
+  const minThumbnailColumns = Math.min(...thumbnailColumns)
+  return filteredMetadata.filter((image) => {
+    if (
+      _hasImageFlavor(image, VOLUME) &&
+      image.TotalPixelMatrixColumns < minThumbnailColumns
+    ) {
+      console.debug(
+        'Volume image is coarser than THUMBNAIL; skipping so the ' +
+          'thumbnail is used for overview.',
+        image.SOPInstanceUID,
+      )
+      return false
+    }
+    return true
+  })
+}
+
+/**
+ * Group VOLUME and THUMBNAIL images of a series by optical path.
+ *
+ * Either one color image or one or more monochrome channels are supported.
+ *
+ * @param {Object} options - Options
+ * @param {Object[]} options.metadata - Image metadata, either
+ * VLWholeSlideMicroscopyImage instances or raw DICOM JSON
+ * @param {boolean} [options.skipThumbnails] - Drop all THUMBNAIL images
+ * @returns {Object} `metadata` (filtered VLWholeSlideMicroscopyImage[]) and
+ * `colorImageInformation` / `monochromeImageInformation` mapping optical path
+ * identifiers to `{ metadata, opticalPath }`, with the identifiers in
+ * `colorOpticalPathIdentifiers` / `monochromeOpticalPathIdentifiers`
+ * @throws {CustomError} When the images contain no or unsupported optical
+ * path combinations
+ * @private
+ */
+function _groupVolumeImages({ metadata, skipThumbnails }) {
+  /** We also accept metadata in raw JSON format for backwards compatibility */
+  const filteredMetadata = _filterImagesByResolution(metadata, skipThumbnails)
+  let images
+  if (filteredMetadata[0].SOPClassUID != null) {
+    images = filteredMetadata
+  } else {
+    images = filteredMetadata.map((instance) => {
+      return new VLWholeSlideMicroscopyImage({ metadata: instance })
+    })
+  }
+
+  /** Group color images by opticalPathIdentifier */
+  const colorGroups = groupColorInstances(images)
+  const colorImageInformation = {}
+  let colorOpticalPathIdentifiers = Object.keys(colorGroups)
+  if (colorOpticalPathIdentifiers.length > 0) {
+    const id = colorOpticalPathIdentifiers[0]
+    if (colorOpticalPathIdentifiers.length > 1) {
+      console.warn(
+        'Volume Image Viewer detected more than one color image, ' +
+          'but only one color image can be loaded and visualized at a time. ' +
+          'Only the first detected color image will be loaded.',
+      )
+      colorOpticalPathIdentifiers = [id]
+    }
+    colorImageInformation[id] = {
+      metadata: colorGroups[id],
+      opticalPath: images[0].OpticalPathSequence[0],
+    }
+  }
+
+  const monochromeGroups = groupMonochromeInstances(images)
+  const monochromeOpticalPathIdentifiers = Object.keys(monochromeGroups)
+  const monochromeImageInformation = {}
+  monochromeOpticalPathIdentifiers.forEach((id) => {
+    const refImage = monochromeGroups[id][0]
+    const opticalPath = refImage.OpticalPathSequence.find((item) => {
+      return item.OpticalPathIdentifier === id
+    })
+    monochromeImageInformation[id] = {
+      metadata: monochromeGroups[id],
+      opticalPath,
+    }
+  })
+
+  const numChannels = monochromeOpticalPathIdentifiers.length
+  const numColorImages = colorOpticalPathIdentifiers.length
+  if (numChannels === 0 && numColorImages === 0) {
+    throw new CustomError(
+      errorTypes.VISUALIZATION,
+      'Could not find any channels or color images.',
+    )
+  }
+
+  if (numChannels > 0 && numColorImages > 0) {
+    throw new CustomError(
+      errorTypes.VISUALIZATION,
+      'Found both channels and color images.',
+    )
+  }
+
+  if (numColorImages > 1) {
+    throw new CustomError(
+      errorTypes.VISUALIZATION,
+      'Found more than one color image.',
+    )
+  }
+
+  return {
+    metadata: images,
+    colorImageInformation,
+    colorOpticalPathIdentifiers,
+    monochromeImageInformation,
+    monochromeOpticalPathIdentifiers,
   }
 }
 
@@ -1372,11 +1667,13 @@ export {
   _findClosestResolutionIndex,
   _fitImagePyramid,
   _getIccProfiles,
+  _groupVolumeImages,
   _isSparseTileMissing,
   _overviewStampExtent,
   _paletteBandToDataUrl,
   _paletteIndex,
   _perFrameRasterMaxResolution,
+  _retrieveTile,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
   PER_FRAME_OVERVIEW_HANDOFF_RATIO,
   PER_FRAME_OVERVIEW_MIN_PX,
