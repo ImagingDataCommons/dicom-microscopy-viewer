@@ -105,8 +105,14 @@ describe('VolumeImageReader', () => {
     const { reader } = createReader()
     const { levels } = reader
     expect(levels.length).toBeGreaterThan(1)
+    expect(levels[levels.length - 1].downsampleFactor).toBe(1)
     levels.forEach((level, index) => {
       expect(level.index).toBe(index)
+      expect(level.downsampleFactor).toBeCloseTo(
+        levels[levels.length - 1].totalPixelMatrixColumns /
+          level.totalPixelMatrixColumns,
+        10,
+      )
       expect(level.gridColumns).toBe(
         Math.ceil(level.totalPixelMatrixColumns / level.tileColumns),
       )
@@ -171,7 +177,7 @@ describe('VolumeImageReader', () => {
       }
     }
 
-    it('returns native decoded pixels without a request option', async () => {
+    it('returns native decoded pixels', async () => {
       const { client, reader } = createReader()
       const identifier = reader.opticalPaths[0].identifier
       const tile = await reader.getTile({
@@ -186,9 +192,10 @@ describe('VolumeImageReader', () => {
       expect(tile.rows).toBe(reader.levels[0].tileRows)
       expect(tile.samplesPerPixel).toBe(1)
       expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(1)
-      expect(client.retrieveInstanceFrames.mock.calls[0][0].request).toBe(
-        undefined,
-      )
+      /** Every request is cancellable, so that destroy() can abort it */
+      const { request } = client.retrieveInstanceFrames.mock.calls[0][0]
+      expect(request.instance).toBeInstanceOf(XMLHttpRequest)
+      expect(request.signal.aborted).toBe(false)
     })
 
     it('reports the valid region of edge tiles', async () => {
@@ -269,12 +276,13 @@ describe('VolumeImageReader', () => {
       const { instance, signal } =
         client.retrieveInstanceFrames.mock.calls[0][0].request
       expect(instance).toBeInstanceOf(XMLHttpRequest)
-      expect(signal).toBe(controller.signal)
+      expect(signal.aborted).toBe(false)
       /** Stands in for dicomweb-client's response handler */
       const clientHandler = jest.fn()
       instance.onreadystatechange = clientHandler
       const abortSpy = jest.spyOn(instance, 'abort')
       controller.abort()
+      expect(signal.aborted).toBe(true)
       expect(instance.onreadystatechange).toBe(null)
       expect(clientHandler).not.toHaveBeenCalled()
       /** dicomweb-client rejects the aborted request as a failed request */
@@ -338,6 +346,53 @@ describe('VolumeImageReader', () => {
       expect(error.message).toMatch(/^Failed to load frames/)
       expect(error.cause).toBe(requestError)
       expect(error.cause.status).toBe(503)
+    })
+
+    it('cancels tiles in flight when the reader is destroyed', async () => {
+      const client = createClient()
+      client.retrieveInstanceFrames.mockImplementation(
+        () => new Promise(() => {}),
+      )
+      const { reader } = createReader(multiplexCase, { client })
+      const promise = reader.getTile({
+        opticalPathIdentifier: reader.opticalPaths[0].identifier,
+        level: 0,
+        column: 0,
+        row: 0,
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      const { instance } = client.retrieveInstanceFrames.mock.calls[0][0].request
+      const abortSpy = jest.spyOn(instance, 'abort')
+
+      reader.destroy()
+
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+      expect(abortSpy).toHaveBeenCalledTimes(1)
+      /** No decode task may be queued after the workers were released */
+      expect(_decodeAndTransformFrame).not.toHaveBeenCalled()
+    })
+
+    it('cleans up when the client throws synchronously', async () => {
+      const client = createClient()
+      const syncError = new Error('frame numbers are required')
+      client.retrieveInstanceFrames.mockImplementation(() => {
+        throw syncError
+      })
+      const { reader } = createReader(multiplexCase, { client })
+      const controller = new AbortController()
+      const error = await reader
+        .getTile({
+          opticalPathIdentifier: reader.opticalPaths[0].identifier,
+          level: 0,
+          column: 0,
+          row: 0,
+          signal: controller.signal,
+        })
+        .catch((e) => e)
+      expect(error.cause).toBe(syncError)
+      /** A later abort must not produce an unhandled rejection */
+      controller.abort()
+      await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
     it('rejects after the reader has been destroyed', async () => {

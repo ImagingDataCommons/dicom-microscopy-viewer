@@ -157,7 +157,13 @@ const tile = await reader.getTile({
 reader.destroy()
 ```
 
-An aborted `getTile` rejects with `signal.reason` (a `DOMException` named `AbortError` by default) and is not reported to the client's `errorInterceptor`; other failures reject with an `Error` whose `cause` is the underlying error, such as the dicomweb-client request error with its `status`. With a dicomweb-client version that supports the `request.signal` option, the request is cancelled even when `requestHooks` replace the XMLHttpRequest.
+An aborted `getTile` rejects with `signal.reason` (a `DOMException` named `AbortError` by default); other failures reject with an `Error` whose `cause` is the underlying error, such as the dicomweb-client request error with its `status`. `destroy()` aborts tiles that are still in flight.
+
+How much of the work an abort cancels depends on the dicomweb-client version of the `client` you pass in:
+
+- With a version that supports the `request.signal` option, the request that is actually sent is aborted (also when `requestHooks` replace the XMLHttpRequest), it is not reported to the client's `errorInterceptor`, and request hooks receive the signal as `metadata.signal` (e.g. to cancel a scheduled retry).
+- With dicomweb-client 0.11, the XMLHttpRequest is aborted and not reported to the `errorInterceptor`, unless a request hook replaces the XMLHttpRequest or re-sends it later (e.g. a retry hook).
+- With older versions, which ignore request options, the request still completes in the background; only the promise rejects early.
 
 ## Development
 

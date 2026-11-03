@@ -8,7 +8,7 @@ import {
   _groupVolumeImages,
   _retrieveTile,
 } from './pyramid.js'
-import { _raceAbort } from './utils.js'
+import { _anyAbortSignal, _raceAbort } from './utils.js'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
 const _client = Symbol('client')
@@ -21,6 +21,7 @@ const _frameOfReferenceUID = Symbol('frameOfReferenceUID')
 const _iccOptions = Symbol('iccOptions')
 const _iccProfiles = Symbol('iccProfiles')
 const _isDestroyed = Symbol('isDestroyed')
+const _lifetime = Symbol('lifetime')
 
 const _typedArrays = {
   Uint8Array,
@@ -37,6 +38,29 @@ const _arrayTypes = {
   16: { 0: 'Uint16Array', 1: 'Int16Array' },
   32: { 0: 'Float32Array', 1: 'Float32Array' },
   64: { 0: 'Float64Array', 1: 'Float64Array' },
+}
+
+/**
+ * Tile for a frame that is absent from a TILED_SPARSE image, filled with the
+ * background value: black for MONOCHROME2, white for MONOCHROME1 and color.
+ *
+ * @private
+ */
+const _createBackgroundTile = (pixelInfo, columns, rows) => {
+  const { arrayType, bitsAllocated, pixelRepresentation } = pixelInfo
+  const length = columns * rows * pixelInfo.samplesPerPixel
+  const pixelArray = new _typedArrays[arrayType](length)
+  if (pixelInfo.photometricInterpretation === 'MONOCHROME2') {
+    return pixelArray
+  }
+  let white = 1
+  if (arrayType !== 'Float32Array' && arrayType !== 'Float64Array') {
+    white =
+      pixelRepresentation === 1
+        ? 2 ** (bitsAllocated - 1) - 1
+        : 2 ** bitsAllocated - 1
+  }
+  return pixelArray.fill(white)
 }
 
 /**
@@ -103,6 +127,8 @@ class VolumeImageReader {
     this[_client] = client
     this[_iccOptions] = { enabled: iccProfilesEnabled, iccOutputType }
     this[_isDestroyed] = false
+    /** Aborted by destroy() to cancel tiles that are still in flight */
+    this[_lifetime] = new AbortController()
 
     const {
       colorImageInformation,
@@ -169,6 +195,9 @@ class VolumeImageReader {
           gridColumns: Math.ceil(image.TotalPixelMatrixColumns / image.Columns),
           gridRows: Math.ceil(image.TotalPixelMatrixRows / image.Rows),
           pixelSpacing: Object.freeze(refPyramid.pixelSpacings[index].slice(0)),
+          downsampleFactor:
+            refPyramid.metadata[refPyramid.metadata.length - 1]
+              .TotalPixelMatrixColumns / image.TotalPixelMatrixColumns,
           imageFlavor: image.ImageType[2],
         }),
       ),
@@ -202,8 +231,10 @@ class VolumeImageReader {
    *
    * Each level has `index`, `totalPixelMatrixColumns`,
    * `totalPixelMatrixRows`, `tileColumns`, `tileRows`, `gridColumns`,
-   * `gridRows`, `pixelSpacing` (row and column spacing in millimeter) and
-   * `imageFlavor` ("VOLUME" or "THUMBNAIL").
+   * `gridRows`, `pixelSpacing` (row and column spacing in millimeter),
+   * `downsampleFactor` (relative to the highest resolution level, which has
+   * 1; not necessarily a power of 2) and `imageFlavor` ("VOLUME" or
+   * "THUMBNAIL").
    *
    * @type {Object[]}
    */
@@ -319,26 +350,32 @@ class VolumeImageReader {
       )
     }
 
-    const iccProfiles = await _raceAbort(this._getIccProfiles(channel), signal)
-    const tile = await _retrieveTile({
-      pyramid: channel.pyramid,
-      client: this[_client],
-      channel: opticalPathIdentifier,
-      level,
-      column,
-      row,
-      iccProfiles,
-      iccOutputType: this[_iccOptions].iccOutputType,
-      signal,
-    })
+    /** Follow both the caller's signal and the reader's lifetime */
+    const tileSignal = _anyAbortSignal([signal, this[_lifetime].signal])
+    let tile
+    try {
+      const iccProfiles = await _raceAbort(
+        this._getIccProfiles(channel),
+        tileSignal.signal,
+      )
+      tile = await _retrieveTile({
+        pyramid: channel.pyramid,
+        client: this[_client],
+        channel: opticalPathIdentifier,
+        level,
+        column,
+        row,
+        iccProfiles,
+        iccOutputType: this[_iccOptions].iccOutputType,
+        signal: tileSignal.signal,
+      })
+    } finally {
+      tileSignal.dispose()
+    }
 
     return {
-      /**
-       * Empty tiles are cached, shared and stored as Float32Array beyond
-       * 8 bits; hand out a copy with the same array type as decoded tiles.
-       */
       pixelArray: tile.isEmpty
-        ? new _typedArrays[channel.pixelInfo.arrayType](tile.pixelArray)
+        ? _createBackgroundTile(channel.pixelInfo, tile.columns, tile.rows)
         : tile.pixelArray,
       columns: tile.columns,
       rows: tile.rows,
@@ -356,15 +393,18 @@ class VolumeImageReader {
   }
 
   /**
-   * Release the decoding web workers. Requests made afterwards are rejected;
-   * decoding tasks still in flight may be rejected when no viewer or reader
-   * uses the workers anymore.
+   * Cancel tiles that are still in flight and release the decoding web
+   * workers. Pending `getTile` calls reject with a DOMException named
+   * "AbortError"; calls made afterwards reject with an Error.
    */
   destroy() {
     if (this[_isDestroyed]) {
       return
     }
     this[_isDestroyed] = true
+    this[_lifetime].abort(
+      new DOMException('The reader has been destroyed.', 'AbortError'),
+    )
     webWorkerManager.release()
   }
 

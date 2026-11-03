@@ -1,5 +1,5 @@
 import dcmjs from 'dcmjs'
-import { _getAbortReason, _throwIfAborted } from './utils.js'
+import { _getAbortReason, _raceAbort, _throwIfAborted } from './utils.js'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
 /**
@@ -85,13 +85,18 @@ function _processDecodeAndTransformTask(
 
   /**
    * Drop the task while it still waits in the queue. A task already running
-   * on a worker cannot be interrupted; callers check the signal afterwards.
+   * on a worker cannot be interrupted; its result is then discarded and the
+   * returned promise rejects right away.
    */
   const onAbort = () => {
     webWorkerManager.cancelTask(taskId, _getAbortReason(signal))
   }
   signal.addEventListener('abort', onAbort, { once: true })
-  return promise.finally(() => signal.removeEventListener('abort', onAbort))
+  /** The discarded result of a running task must not surface as unhandled */
+  promise.catch(() => {})
+  return _raceAbort(promise, signal).finally(() =>
+    signal.removeEventListener('abort', onAbort),
+  )
 }
 
 async function _decodeAndTransformFrame({

@@ -852,7 +852,45 @@ function _raceAbort(promise, signal) {
   })
 }
 
+/**
+ * Signal that is aborted as soon as any of the given signals is aborted, with
+ * that signal's reason. Call `dispose` when done to detach the listeners from
+ * long-lived signals.
+ *
+ * @param {Array<AbortSignal|undefined>} signals - Signals to follow
+ * @returns {{signal: AbortSignal, dispose: function}} Combined signal
+ * @private
+ */
+function _anyAbortSignal(signals) {
+  const controller = new AbortController()
+  const listeners = []
+  const dispose = () => {
+    for (const [signal, onAbort] of listeners) {
+      signal.removeEventListener('abort', onAbort)
+    }
+    listeners.length = 0
+  }
+  for (const signal of signals) {
+    if (signal == null) {
+      continue
+    }
+    if (signal.aborted) {
+      controller.abort(signal.reason)
+      dispose()
+      break
+    }
+    const onAbort = () => {
+      controller.abort(signal.reason)
+      dispose()
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    listeners.push([signal, onAbort])
+  }
+  return { signal: controller.signal, dispose }
+}
+
 export {
+  _anyAbortSignal,
   _convertAreaFromMm,
   _convertLengthFromMm,
   _fetchBulkdata,

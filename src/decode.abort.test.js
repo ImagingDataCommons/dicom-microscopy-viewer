@@ -56,7 +56,7 @@ describe('_decodeAndTransformFrame with an AbortSignal', () => {
     )
   })
 
-  it('rejects when aborted while the task was running', async () => {
+  it('rejects right away when aborted while the task is running', async () => {
     let resolveTask
     webWorkerManager.addTask.mockReturnValue({
       taskId: 7,
@@ -64,14 +64,17 @@ describe('_decodeAndTransformFrame with an AbortSignal', () => {
         resolveTask = resolve
       }),
     })
+    /** A running task is no longer queued, so it cannot be cancelled */
+    webWorkerManager.cancelTask.mockReturnValue(false)
     const controller = new AbortController()
     const promise = _decodeAndTransformFrame({
       ...frameOptions,
       signal: controller.signal,
     })
     controller.abort()
-    resolveTask({ frameData: new ArrayBuffer(4) })
+    /** Rejects before the worker has finished */
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+    resolveTask({ frameData: new ArrayBuffer(4) })
   })
 
   it('decodes normally without a signal', async () => {

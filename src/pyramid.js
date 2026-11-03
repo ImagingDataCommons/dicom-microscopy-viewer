@@ -175,9 +175,24 @@ function _computeImagePyramid({ metadata }) {
        * Create a new SOP Instance with metadata updated from current
        * concatentation part.
        */
-      const rawMetadata = pyramidMetadata[index].json
+      /**
+       * Copy the elements that are updated, so that the caller's metadata
+       * stays intact when a pyramid is computed again from the same images
+       * (e.g. by a viewer and a reader).
+       */
+      const sourceMetadata = pyramidMetadata[index].json
+      const copyElement = (tag) => ({
+        ...sourceMetadata[tag],
+        Value: [...sourceMetadata[tag].Value],
+      })
+      const rawMetadata = {
+        ...sourceMetadata,
+        '00280008': copyElement('00280008'),
+        '00080018': copyElement('00080018'),
+      }
       rawMetadata['00280008'].Value[0] += numberOfFrames
       if ('PerFrameFunctionalGroupsSequence' in metadata[index]) {
+        rawMetadata['52009230'] = copyElement('52009230')
         rawMetadata['52009230'].Value.push(
           ...metadata[index].PerFrameFunctionalGroupsSequence,
         )
@@ -470,10 +485,16 @@ function _retrieveInstanceFrames(client, retrieveOptions, signal) {
     }
     signal.addEventListener('abort', onAbort, { once: true })
   })
-  const request = client.retrieveInstanceFrames({
-    ...retrieveOptions,
-    request: { ...retrieveOptions.request, instance, signal },
-  })
+  let request
+  try {
+    request = client.retrieveInstanceFrames({
+      ...retrieveOptions,
+      request: { ...retrieveOptions.request, instance, signal },
+    })
+  } catch (error) {
+    signal.removeEventListener('abort', onAbort)
+    throw error
+  }
   /** The aborted request rejects too; the abort reason wins the race. */
   request.catch(() => {})
   return Promise.race([request, aborted]).finally(() => {
