@@ -695,15 +695,42 @@ async function _retrieveTile({
     if (signal?.aborted) {
       throw _getAbortReason(signal)
     }
-    throw new Error(
-      `Failed to load frames ${frameNumbers} ` +
-        `of SOP instance "${sopInstanceUID}" ` +
-        `for channel "${channel}" ` +
-        `at tile position (${row + 1}, ${column + 1}) ` +
-        `at zoom level ${level}: ${error?.message ?? error}`,
-      { cause: error },
-    )
+    throw _createFrameLoadError({
+      frameNumbers,
+      sopInstanceUID,
+      channel,
+      level,
+      column,
+      row,
+      cause: error,
+    })
   }
+}
+
+/**
+ * Error for a frame that could not be loaded. The message is kept as it has
+ * always been, since applications may show or match it; the underlying error
+ * is attached as `cause`.
+ *
+ * @private
+ */
+function _createFrameLoadError({
+  frameNumbers,
+  sopInstanceUID,
+  channel,
+  level,
+  column,
+  row,
+  cause,
+}) {
+  return new Error(
+    `Failed to load frames ${frameNumbers} ` +
+      `of SOP instance "${sopInstanceUID}" ` +
+      `for channel "${channel}" ` +
+      `at tile position (${row + 1}, ${column + 1}) ` +
+      `at zoom level ${level}: `,
+    { cause },
+  )
 }
 
 /**
@@ -744,7 +771,15 @@ function _createTileLoadFunction({
 
       const { pixelArray, samplesPerPixel, bitsAllocated } = tile
       if (pixelArray.constructor === Float64Array) {
-        throw new Error('Double Float Pixel Data is not (yet) supported.')
+        throw _createFrameLoadError({
+          frameNumbers: [frameInfo.frameNumber],
+          sopInstanceUID: frameInfo.sopInstanceUID,
+          channel,
+          level: z,
+          column,
+          row,
+          cause: new Error('Double Float Pixel Data is not (yet) supported.'),
+        })
       }
 
       /**

@@ -147,8 +147,32 @@ describe('_createTileLoadFunction', () => {
       targetElement,
     })
     const error = await loader(0, 1, 0).catch((e) => e)
-    expect(error.message).toMatch(/^Failed to load frames 3/)
+    /** Same text as before the reader refactor; applications may match it */
+    expect(error.message).toBe(
+      'Failed to load frames 3 of SOP instance "1.2.3.4.5" for channel "1" ' +
+        'at tile position (1, 2) at zoom level 0: ',
+    )
     expect(error.cause).toBe(requestError)
+    expect(events.map((event) => event.type)).toEqual([
+      EVENT.FRAME_LOADING_STARTED,
+      EVENT.FRAME_LOADING_ENDED,
+      EVENT.FRAME_LOADING_ERROR,
+    ])
+  })
+
+  it('wraps unsupported 64-bit float pixel data like other load errors', async () => {
+    _decodeAndTransformFrame.mockResolvedValue(new Float64Array(4))
+    const loader = _createTileLoadFunction({
+      pyramid: createPyramid({ BitsAllocated: 64 }),
+      client: createClient(),
+      channel: '1',
+      targetElement,
+    })
+    const error = await loader(0, 1, 0).catch((e) => e)
+    expect(error.message).toMatch(/^Failed to load frames 3 of SOP instance/)
+    expect(error.cause.message).toBe(
+      'Double Float Pixel Data is not (yet) supported.',
+    )
     expect(events.map((event) => event.type)).toEqual([
       EVENT.FRAME_LOADING_STARTED,
       EVENT.FRAME_LOADING_ENDED,
