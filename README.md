@@ -172,7 +172,7 @@ const tile = await reader.getTile({
 reader.destroy()
 ```
 
-An aborted `getTile` rejects with `signal.reason` (a `DOMException` named `AbortError` by default); other failures reject with an `Error` whose `cause` is the underlying error, such as the dicomweb-client request error with its `status`. `destroy()` aborts tiles that are still in flight.
+An aborted `getTile` rejects with `signal.reason` (a `DOMException` named `AbortError` by default); other failures reject with an `Error` whose `cause` is the underlying error, such as the dicomweb-client request error with its `status`. `destroy()` aborts tiles that are still in flight; later `getTile` calls also reject with an `AbortError`.
 
 How much of the work an abort cancels depends on the dicomweb-client version of the `client` you pass in:
 

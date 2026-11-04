@@ -423,7 +423,8 @@ class VolumeImageReader {
     crop = false,
   }) {
     if (this[_isDestroyed]) {
-      throw new Error('Cannot get tile: the reader has been destroyed.')
+      /** Same error as for tiles that were pending when destroyed */
+      throw new DOMException('The reader has been destroyed.', 'AbortError')
     }
     const channel = this._getChannel(opticalPathIdentifier)
     const levelInfo = this[_levels][level]
@@ -512,8 +513,8 @@ class VolumeImageReader {
 
   /**
    * Cancel tiles that are still in flight and release the decoding web
-   * workers. Pending `getTile` calls reject with a DOMException named
-   * "AbortError"; calls made afterwards reject with an Error.
+   * workers. Pending `getTile` calls, and calls made afterwards, reject with
+   * a DOMException named "AbortError".
    */
   destroy() {
     if (this[_isDestroyed]) {
