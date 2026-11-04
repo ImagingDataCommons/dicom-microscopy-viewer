@@ -1,3 +1,4 @@
+import { _typedArrays } from '../volumeImageReader.js'
 import { _downsampleQuadrants } from './downsample.js'
 
 /**
@@ -9,35 +10,21 @@ const SIGNAL_ABORTED = '__vivSignalAborted'
 /** Largest number of tiles that getRaster() stitches into one raster */
 const MAX_RASTER_TILES = 16
 
-/** TypedArray constructor of each Viv dtype */
-const _typedArrays = {
-  Uint8: Uint8Array,
-  Int8: Int8Array,
-  Uint16: Uint16Array,
-  Int16: Int16Array,
-  Float32: Float32Array,
-  Float64: Float64Array,
-}
-
 const _width = Symbol('width')
 const _height = Symbol('height')
+const _gridColumns = Symbol('gridColumns')
+const _gridRows = Symbol('gridRows')
 const _samplesPerPixel = Symbol('samplesPerPixel')
+const _ArrayType = Symbol('ArrayType')
 const _channels = Symbol('channels')
+const _cache = Symbol('cache')
+const _cacheKey = Symbol('cacheKey')
+const _pending = Symbol('pending')
 const _reader = Symbol('reader')
 const _readerLevel = Symbol('readerLevel')
-const _readerWidth = Symbol('readerWidth')
-const _readerHeight = Symbol('readerHeight')
+const _readerGridColumns = Symbol('readerGridColumns')
+const _readerGridRows = Symbol('readerGridRows')
 const _parent = Symbol('parent')
-
-/**
- * Whether an error means that the request was aborted rather than failed.
- *
- * @private
- */
-const _isAbort = (error, signal) =>
-  error === SIGNAL_ABORTED ||
-  signal?.aborted === true ||
-  error?.name === 'AbortError'
 
 /**
  * Copy a tile into a tile of another size. Missing columns and rows repeat
@@ -76,6 +63,66 @@ const _fitTile = ({
 }
 
 /**
+ * Wait for a promise, or reject with `SIGNAL_ABORTED` as soon as `signal` is
+ * aborted.
+ *
+ * @private
+ */
+const _waitFor = (promise, signal) => {
+  if (signal == null) {
+    return promise
+  }
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(SIGNAL_ABORTED)
+      return
+    }
+    const onAbort = () => reject(SIGNAL_ABORTED)
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener('abort', onAbort))
+  })
+}
+
+/**
+ * Get several tiles of a pixel source at once. When one fails, or `signal`
+ * is aborted, the others are cancelled.
+ *
+ * @param {_PixelSource} source - Pixel source
+ * @param {Array<Object|undefined>} positions - Tile positions (`x`, `y`);
+ * `undefined` resolves to `undefined`
+ * @param {string} opticalPathIdentifier - Optical Path Identifier
+ * @param {AbortSignal} [signal] - Signal of the caller
+ * @returns {Promise<Array<Object|undefined>>} Tiles
+ * @private
+ */
+const _getTiles = async (source, positions, opticalPathIdentifier, signal) => {
+  const controller = new AbortController()
+  const onAbort = () => controller.abort()
+  signal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    return await Promise.all(
+      positions.map((position) =>
+        position === undefined
+          ? undefined
+          : source._getTile(
+              position.x,
+              position.y,
+              opticalPathIdentifier,
+              controller.signal,
+            ),
+      ),
+    )
+  } catch (error) {
+    controller.abort()
+    throw signal?.aborted ? SIGNAL_ABORTED : error
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+  }
+}
+
+/**
  * Viv pixel source of one pyramid level (Viv's `PixelSource` interface).
  *
  * @private
@@ -89,11 +136,20 @@ class _PixelSource {
     channels,
     samplesPerPixel,
     pixelSpacing,
+    cache,
+    cacheKey,
   }) {
     this[_width] = width
     this[_height] = height
+    this[_gridColumns] = Math.ceil(width / tileSize)
+    this[_gridRows] = Math.ceil(height / tileSize)
     this[_samplesPerPixel] = samplesPerPixel
+    this[_ArrayType] = _typedArrays[`${dtype}Array`]
     this[_channels] = channels
+    this[_cache] = cache
+    this[_cacheKey] = cacheKey
+    /** Tiles being read, shared by concurrent requests for the same tile */
+    this[_pending] = new Map()
     this.tileSize = tileSize
     this.dtype = dtype
     const physicalSizes = {
@@ -110,7 +166,7 @@ class _PixelSource {
       /** Color images are decoded to RGB */
       this.meta = { physicalSizes, photometricInterpretation: 2 }
     }
-    if (this._getGridSize() > MAX_RASTER_TILES) {
+    if (this[_gridColumns] * this[_gridRows] > MAX_RASTER_TILES) {
       /**
        * Too large to load at once: without getRaster, Viv does not draw this
        * level as the background image.
@@ -121,7 +177,11 @@ class _PixelSource {
 
   /**
    * Get a tile. Tiles at the right and bottom border are cropped to the
-   * image, like those of Viv's own pixel sources.
+   * image, like those of Viv's own pixel sources. The returned `data` may be
+   * shared with the tile cache; treat it as read-only.
+   *
+   * Rejects with `SIGNAL_ABORTED` when `signal` is aborted, and with the
+   * error otherwise, e.g. when the reader has been destroyed.
    *
    * @param {Object} options - Options
    * @param {number} options.x - Tile column
@@ -131,37 +191,12 @@ class _PixelSource {
    * @returns {Promise<Object>} `data`, `width` and `height`
    */
   async getTile({ x, y, selection, signal }) {
-    if (signal?.aborted) {
-      throw SIGNAL_ABORTED
-    }
-    const gridColumns = Math.ceil(this[_width] / this.tileSize)
-    const gridRows = Math.ceil(this[_height] / this.tileSize)
-    if (
-      !Number.isInteger(x) ||
-      !Number.isInteger(y) ||
-      x < 0 ||
-      y < 0 ||
-      x >= gridColumns ||
-      y >= gridRows
-    ) {
-      throw new RangeError(
-        `Tile (${x}, ${y}) is outside of the ${gridColumns} x ${gridRows} ` +
-          'tile grid.',
-      )
-    }
-    let tile
-    try {
-      tile = await this._readTile({ x, y, selection, signal })
-    } catch (error) {
-      if (_isAbort(error, signal)) {
-        throw SIGNAL_ABORTED
-      }
-      throw error
-    }
-    if (signal?.aborted) {
-      throw SIGNAL_ABORTED
-    }
-    return tile
+    return this._getTile(
+      x,
+      y,
+      this._getOpticalPathIdentifier(selection),
+      signal,
+    )
   }
 
   /**
@@ -175,24 +210,29 @@ class _PixelSource {
    * @returns {Promise<Object>} `data`, `width` and `height`
    */
   async getRaster({ selection, signal }) {
+    const opticalPathIdentifier = this._getOpticalPathIdentifier(selection)
     const width = this[_width]
     const height = this[_height]
-    const gridColumns = Math.ceil(width / this.tileSize)
-    const gridRows = Math.ceil(height / this.tileSize)
-    if (gridColumns === 1 && gridRows === 1) {
-      return this.getTile({ x: 0, y: 0, selection, signal })
+    if (this[_gridColumns] === 1 && this[_gridRows] === 1) {
+      return this._getTile(0, 0, opticalPathIdentifier, signal)
+    }
+    if (signal?.aborted) {
+      throw SIGNAL_ABORTED
     }
     const positions = []
-    for (let y = 0; y < gridRows; y++) {
-      for (let x = 0; x < gridColumns; x++) {
+    for (let y = 0; y < this[_gridRows]; y++) {
+      for (let x = 0; x < this[_gridColumns]; x++) {
         positions.push({ x, y })
       }
     }
-    const tiles = await Promise.all(
-      positions.map(({ x, y }) => this.getTile({ x, y, selection, signal })),
+    const tiles = await _getTiles(
+      this,
+      positions,
+      opticalPathIdentifier,
+      signal,
     )
     const samplesPerPixel = this[_samplesPerPixel]
-    const data = new tiles[0].data.constructor(width * height * samplesPerPixel)
+    const data = new this[_ArrayType](width * height * samplesPerPixel)
     tiles.forEach((tile, index) => {
       const { x, y } = positions[index]
       const rowLength = tile.width * samplesPerPixel
@@ -221,15 +261,89 @@ class _PixelSource {
   }
 
   /**
-   * Number of tiles of the level.
+   * Get a tile of an optical path, from the cache when possible.
+   *
+   * Concurrent requests for the same tile (e.g. by Viv and by a computed
+   * level) share one read, which is cancelled only when all of them are.
+   * Only the caller's own `signal` turns a failure into `SIGNAL_ABORTED`, so
+   * that other errors (including "AbortError" from a destroyed reader) reach
+   * Viv's `onTileError`.
    *
    * @private
    */
-  _getGridSize() {
-    return (
-      Math.ceil(this[_width] / this.tileSize) *
-      Math.ceil(this[_height] / this.tileSize)
-    )
+  async _getTile(x, y, opticalPathIdentifier, signal) {
+    if (signal?.aborted) {
+      throw SIGNAL_ABORTED
+    }
+    if (
+      !Number.isInteger(x) ||
+      !Number.isInteger(y) ||
+      x < 0 ||
+      y < 0 ||
+      x >= this[_gridColumns] ||
+      y >= this[_gridRows]
+    ) {
+      throw new RangeError(
+        `Tile (${x}, ${y}) is outside of the ${this[_gridColumns]} x ` +
+          `${this[_gridRows]} tile grid.`,
+      )
+    }
+    const key = `${this[_cacheKey]}/${opticalPathIdentifier}/${x}/${y}`
+    const cached = this[_cache]?.get(key)
+    if (cached !== undefined) {
+      return cached
+    }
+    const pending = this[_pending]
+    let read = pending.get(key)
+    if (read === undefined) {
+      const controller = new AbortController()
+      read = { controller, users: 0, isSettled: false }
+      const settle = () => {
+        read.isSettled = true
+        if (pending.get(key) === read) {
+          pending.delete(key)
+        }
+      }
+      read.promise = this._readTile(
+        x,
+        y,
+        opticalPathIdentifier,
+        controller.signal,
+      ).then(
+        (tile) => {
+          settle()
+          this[_cache]?.set(key, tile)
+          return tile
+        },
+        (error) => {
+          settle()
+          throw error
+        },
+      )
+      /** Rejections reach the callers; none is left when all have aborted */
+      read.promise.catch(() => {})
+      pending.set(key, read)
+    }
+    read.users += 1
+    const currentRead = read
+    try {
+      const tile = await _waitFor(currentRead.promise, signal)
+      if (signal?.aborted) {
+        throw SIGNAL_ABORTED
+      }
+      return tile
+    } catch (error) {
+      throw signal?.aborted ? SIGNAL_ABORTED : error
+    } finally {
+      currentRead.users -= 1
+      if (currentRead.users === 0 && !currentRead.isSettled) {
+        /** Nobody waits for the tile any more */
+        currentRead.controller.abort()
+        if (pending.get(key) === currentRead) {
+          pending.delete(key)
+        }
+      }
+    }
   }
 
   /**
@@ -251,7 +365,9 @@ class _PixelSource {
    */
   _getOpticalPathIdentifier(selection) {
     const channel = selection?.c ?? 0
-    const identifier = this[_channels][channel]
+    const identifier = Number.isInteger(channel)
+      ? this[_channels][channel]
+      : undefined
     if (identifier === undefined) {
       throw new RangeError(
         `Channel ${channel} does not exist; the image has ` +
@@ -275,30 +391,29 @@ class _DicomPixelSource extends _PixelSource {
     super(options)
     this[_reader] = reader
     this[_readerLevel] = readerLevel
-    this[_readerWidth] = readerWidth
-    this[_readerHeight] = readerHeight
+    this[_readerGridColumns] = Math.ceil(readerWidth / this.tileSize)
+    this[_readerGridRows] = Math.ceil(readerHeight / this.tileSize)
   }
 
   /**
    * @private
    */
-  async _readTile({ x, y, selection, signal }) {
-    const opticalPathIdentifier = this._getOpticalPathIdentifier(selection)
+  async _readTile(x, y, opticalPathIdentifier, signal) {
     const { width, height } = this._getTileSize(x, y)
     const samplesPerPixel = this[_samplesPerPixel]
-    const readerColumns = Math.ceil(this[_readerWidth] / this.tileSize)
-    const readerRows = Math.ceil(this[_readerHeight] / this.tileSize)
-    if (x >= readerColumns || y >= readerRows) {
+    const readerGridColumns = this[_readerGridColumns]
+    const readerGridRows = this[_readerGridRows]
+    if (x >= readerGridColumns || y >= readerGridRows) {
       /**
        * A strip of 1 pixel that the DICOM level lacks: repeat the edge of the
        * neighboring tile
        */
-      const neighbor = await this._readTile({
-        x: Math.min(x, readerColumns - 1),
-        y: Math.min(y, readerRows - 1),
-        selection,
+      const neighbor = await this._getTile(
+        Math.min(x, readerGridColumns - 1),
+        Math.min(y, readerGridRows - 1),
+        opticalPathIdentifier,
         signal,
-      })
+      )
       return {
         data: _fitTile({
           data: neighbor.data,
@@ -307,8 +422,8 @@ class _DicomPixelSource extends _PixelSource {
           samplesPerPixel,
           targetWidth: width,
           targetHeight: height,
-          onlyLastColumn: x >= readerColumns,
-          onlyLastRow: y >= readerRows,
+          onlyLastColumn: x >= readerGridColumns,
+          onlyLastRow: y >= readerGridRows,
         }),
         width,
         height,
@@ -355,48 +470,32 @@ class _SyntheticPixelSource extends _PixelSource {
   /**
    * @private
    */
-  async _readTile({ x, y, selection, signal }) {
+  async _readTile(x, y, opticalPathIdentifier, signal) {
     const parent = this[_parent]
-    const tileSize = this.tileSize
-    const parentColumns = Math.ceil(parent[_width] / tileSize)
-    const parentRows = Math.ceil(parent[_height] / tileSize)
-    /** Cancel the other tiles when one fails or the caller aborts */
-    const controller = new AbortController()
-    const onAbort = () => controller.abort()
-    signal?.addEventListener('abort', onAbort, { once: true })
-    let quadrants
-    try {
-      quadrants = await Promise.all(
-        [
-          [2 * x, 2 * y],
-          [2 * x + 1, 2 * y],
-          [2 * x, 2 * y + 1],
-          [2 * x + 1, 2 * y + 1],
-        ].map(([column, row]) =>
-          column < parentColumns && row < parentRows
-            ? parent.getTile({
-                x: column,
-                y: row,
-                selection,
-                signal: controller.signal,
-              })
-            : undefined,
-        ),
-      )
-    } catch (error) {
-      controller.abort()
-      throw error
-    } finally {
-      signal?.removeEventListener('abort', onAbort)
-    }
+    const positions = [
+      [2 * x, 2 * y],
+      [2 * x + 1, 2 * y],
+      [2 * x, 2 * y + 1],
+      [2 * x + 1, 2 * y + 1],
+    ].map(([column, row]) =>
+      column < parent[_gridColumns] && row < parent[_gridRows]
+        ? { x: column, y: row }
+        : undefined,
+    )
+    const quadrants = await _getTiles(
+      parent,
+      positions,
+      opticalPathIdentifier,
+      signal,
+    )
     const { width, height } = this._getTileSize(x, y)
     const data = _downsampleQuadrants({
       quadrants,
-      tileSize,
+      tileSize: this.tileSize,
       samplesPerPixel: this[_samplesPerPixel],
       width,
       height,
-      ArrayType: _typedArrays[this.dtype] ?? quadrants[0].data.constructor,
+      ArrayType: this[_ArrayType],
     })
     return { data, width, height }
   }

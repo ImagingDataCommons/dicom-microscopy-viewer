@@ -1299,7 +1299,11 @@ const _windowDebugHooks = Symbol('windowDebugHooks')
 /** Teardown for the overview collapse button DOM listener */
 const _overviewCollapseCleanup = Symbol('overviewCollapseCleanup')
 const _imageFilter = Symbol('imageFilter')
+const _imageFilterElement = Symbol('imageFilterElement')
 const _viewChangeFrame = Symbol('viewChangeFrame')
+
+/** Last filter set on each canvas, since browsers may normalize style.filter */
+const _canvasFilters = new WeakMap()
 
 /**
  * Set the CSS filter of a canvas if it differs.
@@ -1308,7 +1312,6 @@ const _viewChangeFrame = Symbol('viewChangeFrame')
  * @param {string} filter - CSS filter, empty for none
  * @private
  */
-const _canvasFilters = new WeakMap()
 const _setCanvasFilter = (canvas, filter) => {
   if (canvas?.style == null || _canvasFilters.get(canvas) === filter) {
     return
@@ -1317,6 +1320,45 @@ const _setCanvasFilter = (canvas, filter) => {
   _canvasFilters.set(canvas, filter)
   canvas.style.filter = filter
 }
+
+const _svgNamespace = 'http://www.w3.org/2000/svg'
+/** Makes the ids of the SVG filters of all viewers unique */
+let _imageFilterCount = 0
+
+/**
+ * Hidden SVG element with a color matrix filter.
+ *
+ * @returns {SVGSVGElement} Element, whose filter has the id `dataset.filterId`
+ * @private
+ */
+const _createColorMatrixFilterElement = () => {
+  _imageFilterCount += 1
+  const id = `dicom-microscopy-viewer-image-filter-${_imageFilterCount}`
+  const svg = document.createElementNS(_svgNamespace, 'svg')
+  svg.setAttribute('width', '0')
+  svg.setAttribute('height', '0')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.style.position = 'absolute'
+  svg.dataset.filterId = id
+  const filter = document.createElementNS(_svgNamespace, 'filter')
+  filter.setAttribute('id', id)
+  const colorMatrix = document.createElementNS(_svgNamespace, 'feColorMatrix')
+  colorMatrix.setAttribute('type', 'matrix')
+  filter.appendChild(colorMatrix)
+  svg.appendChild(filter)
+  return svg
+}
+
+/**
+ * Whether a value is a pair of finite numbers, e.g. slide coordinates.
+ *
+ * @private
+ */
+const _isFinitePair = (value) =>
+  Array.isArray(value) &&
+  value.length >= 2 &&
+  Number.isFinite(value[0]) &&
+  Number.isFinite(value[1])
 
 /**
  * Angle in the range (-π, π].
@@ -2273,7 +2315,7 @@ class VolumeImageViewer {
    * {@link viewer.VolumeImageViewer#getViewState},
    * {@link viewer.VolumeImageViewer#setViewState},
    * {@link viewer.VolumeImageViewer#fitBounds},
-   * {@link viewer.VolumeImageViewer#setImageFilter} and the
+   * {@link viewer.VolumeImageViewer#setImageColorMatrix} and the
    * `VIEW_CHANGED` event instead.
    * @returns {Object} OpenLayers map
    */
@@ -2297,13 +2339,16 @@ class VolumeImageViewer {
    *
    * Slide coordinates are rounded to 0.1 micrometer, like those of ROIs.
    *
+   * The state only uses physical units, so that it means the same for every
+   * slide and renderer: to compare it with a renderer that uses zoom levels
+   * of a pixel matrix (e.g. deck.gl), use `log2(pixelSpacing / resolution)`.
+   *
    * @returns {Object} View state: `center`, the slide coordinates (x, y) in
-   * millimeter at the center of the viewport; `zoom`, the zoom level on the
-   * same scale as the `level` of {@link viewer.VolumeImageViewer#navigate};
-   * `resolution`, the size of a screen pixel in millimeter; and `rotation`,
-   * the counter-clockwise rotation in radians relative to the default
-   * orientation of the slide (0 after {@link viewer.VolumeImageViewer#render}),
-   * in the range (-π, π]
+   * millimeter at the center of the viewport; `resolution`, the size of a
+   * screen pixel in millimeter; and `rotation`, the clockwise rotation of the
+   * image on screen in radians relative to the default orientation of the
+   * slide (0 after {@link viewer.VolumeImageViewer#render}), in the range
+   * (-π, π]
    */
   getViewState() {
     const view = this[_map].getView()
@@ -2318,7 +2363,6 @@ class VolumeImageViewer {
               this[_pyramid].metadata,
               this[_affine],
             ).slice(0, 2),
-      zoom: view.getZoom(),
       resolution:
         resolution === undefined
           ? undefined
@@ -2337,14 +2381,37 @@ class VolumeImageViewer {
    * {@link viewer.VolumeImageViewer#getViewState}
    * @param {number[]} [viewState.center] - Slide coordinates (x, y) in
    * millimeter to show at the center of the viewport
-   * @param {number} [viewState.zoom] - Zoom level; ignored when `resolution`
-   * is given
    * @param {number} [viewState.resolution] - Size of a screen pixel in
    * millimeter
-   * @param {number} [viewState.rotation] - Counter-clockwise rotation in
-   * radians relative to the default orientation of the slide
+   * @param {number} [viewState.rotation] - Clockwise rotation of the image on
+   * screen in radians relative to the default orientation of the slide. Like
+   * interactive rotation, a rotation that turns the total pixel matrix to
+   * within 5° of upright on screen snaps to upright.
+   * @throws {TypeError} When a given property is not a finite number (or
+   * pair of numbers), or for `zoom`, which the view state does not have
+   * @throws {RangeError} When the resolution is not positive
    */
-  setViewState({ center, zoom, resolution, rotation } = {}) {
+  setViewState({ center, resolution, rotation, ...rest } = {}) {
+    if ('zoom' in rest) {
+      throw new TypeError(
+        'The view state has no "zoom"; use "resolution" (millimeter per ' +
+          'screen pixel) or navigate({ level }).',
+      )
+    }
+    if (center != null && !_isFinitePair(center)) {
+      throw new TypeError('"center" must be slide coordinates [x, y].')
+    }
+    for (const [name, value] of [
+      ['resolution', resolution],
+      ['rotation', rotation],
+    ]) {
+      if (value != null && !Number.isFinite(value)) {
+        throw new TypeError(`"${name}" must be a finite number.`)
+      }
+    }
+    if (resolution != null && resolution <= 0) {
+      throw new RangeError('"resolution" must be greater than 0.')
+    }
     const view = this[_map].getView()
     const current = this.getViewState()
     const differs = (value, currentValue) =>
@@ -2363,12 +2430,8 @@ class VolumeImageViewer {
         ).slice(0, 2),
       )
     }
-    if (resolution != null) {
-      if (differs(resolution, current.resolution)) {
-        view.setResolution(resolution / this._getBasePixelSpacing())
-      }
-    } else if (zoom != null && differs(zoom, current.zoom)) {
-      view.setZoom(zoom)
+    if (resolution != null && differs(resolution, current.resolution)) {
+      view.setResolution(resolution / this._getBasePixelSpacing())
     }
     if (
       rotation != null &&
@@ -2386,8 +2449,18 @@ class VolumeImageViewer {
    * @param {Object} [options] - Options
    * @param {number[]} [options.padding=[0, 0, 0, 0]] - Padding around the
    * region in screen pixels (top, right, bottom, left)
+   * @throws {TypeError} When the bounds are not two pairs of finite numbers
    */
   fitBounds(bounds, { padding = [0, 0, 0, 0] } = {}) {
+    if (
+      !Array.isArray(bounds) ||
+      !_isFinitePair(bounds[0]) ||
+      !_isFinitePair(bounds[1])
+    ) {
+      throw new TypeError(
+        '"bounds" must be two corners [[x1, y1], [x2, y2]] in slide coordinates.',
+      )
+    }
     const [[x1, y1], [x2, y2]] = bounds
     const corners = [
       [x1, y1],
@@ -2409,15 +2482,69 @@ class VolumeImageViewer {
   }
 
   /**
-   * Apply a CSS filter to the image in the viewport, e.g. to adjust
-   * brightness and contrast. ROIs, annotations, segmentations, parameter
-   * mappings and the overview map are not filtered.
+   * Transform the colors of the image in the viewport with a color matrix,
+   * e.g. for brightness, contrast, windowing or white balance. ROIs,
+   * annotations, segmentations, parameter mappings and the overview map are
+   * not transformed.
    *
-   * @param {string} [filter] - CSS filter, e.g. "brightness(1.2)"; empty or
-   * undefined to remove the filter
+   * The matrix has 4 rows (red, green, blue, alpha) of 5 values, like an SVG
+   * `feColorMatrix` of type "matrix": each output component is
+   * `m[0] * R + m[1] * G + m[2] * B + m[3] * A + m[4]` with the components
+   * in the range [0, 1], then clamped to that range. The identity is
+   * `[1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0]`. For example, the window
+   * `[lower, upper]` of 8-bit values is
+   * `s = 255 / (upper - lower)`, `o = -lower / (upper - lower)`:
+   * `[s,0,0,0,o, 0,s,0,0,o, 0,0,s,0,o, 0,0,0,1,0]`.
+   *
+   * @param {number[]|null} matrix - 20 numbers, row by row; null or
+   * undefined to remove the transformation
+   * @param {Object} [options] - Options
+   * @param {string} [options.colorSpace='srgb'] - Color space in which the
+   * matrix is applied: "srgb" (the stored, gamma-encoded values) or
+   * "linear-srgb"
+   * @throws {TypeError} When the matrix is not 20 finite numbers
+   * @throws {RangeError} When the color space is unknown
    */
-  setImageFilter(filter) {
-    this[_imageFilter] = filter ?? ''
+  setImageColorMatrix(matrix, { colorSpace = 'srgb' } = {}) {
+    if (matrix == null) {
+      this[_imageFilter] = ''
+      this[_imageFilterElement]?.remove()
+      this[_imageFilterElement] = undefined
+      this[_map].render()
+      return
+    }
+    if (
+      !Array.isArray(matrix) ||
+      matrix.length !== 20 ||
+      !matrix.every((value) => Number.isFinite(value))
+    ) {
+      throw new TypeError('The color matrix must be an array of 20 numbers.')
+    }
+    const colorInterpolationFilters = {
+      srgb: 'sRGB',
+      'linear-srgb': 'linearRGB',
+    }[colorSpace]
+    if (colorInterpolationFilters === undefined) {
+      throw new RangeError(
+        `Unknown color space "${colorSpace}"; use "srgb" or "linear-srgb".`,
+      )
+    }
+    if (this[_imageFilterElement] === undefined) {
+      this[_imageFilterElement] = _createColorMatrixFilterElement()
+    }
+    const svg = this[_imageFilterElement]
+    const filter = svg.firstChild
+    filter.setAttribute(
+      'color-interpolation-filters',
+      colorInterpolationFilters,
+    )
+    filter.firstChild.setAttribute('values', matrix.join(' '))
+    /** The viewport element moves with the map to every new container */
+    const viewport = this[_map].getViewport()
+    if (svg.parentNode !== viewport) {
+      viewport.appendChild(svg)
+    }
+    this[_imageFilter] = `url("#${svg.dataset.filterId}")`
     this[_map].render()
   }
 

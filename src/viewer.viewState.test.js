@@ -75,7 +75,7 @@ describe('VolumeImageViewer view API', () => {
     const levels = viewer.numLevels
     const spacing = viewer.getPixelSpacing(levels - 1)[0]
     expect(state.resolution).toBeCloseTo(view.getResolution() * spacing, 12)
-    expect(state.zoom).toBe(view.getZoom())
+    expect(state).not.toHaveProperty('zoom')
     /** Relative to the default orientation of the slide */
     expect(state.rotation).toBe(0)
     /** The center is inside the slide's bounding box */
@@ -117,11 +117,34 @@ describe('VolumeImageViewer view API', () => {
     }
   })
 
-  it('sets the zoom unless a resolution is given', () => {
-    viewer.setViewState({ zoom: 2 })
-    expect(viewer.getViewState().zoom).toBeCloseTo(2, 6)
-    viewer.setViewState({ zoom: 1, resolution: 0.004 })
-    expect(viewer.getViewState().resolution).toBeCloseTo(0.004, 9)
+  it('rejects invalid view states and bounds', () => {
+    expect(() => viewer.setViewState({ center: [1] })).toThrow(TypeError)
+    expect(() => viewer.setViewState({ center: [1, Number.NaN] })).toThrow(
+      TypeError,
+    )
+    expect(() => viewer.setViewState({ zoom: 2 })).toThrow(TypeError)
+    expect(() => viewer.setViewState({ resolution: 0 })).toThrow(RangeError)
+    expect(() => viewer.setViewState({ rotation: Infinity })).toThrow(
+      TypeError,
+    )
+    expect(() => viewer.fitBounds([[0, 0]])).toThrow(TypeError)
+    expect(() => viewer.fitBounds()).toThrow(TypeError)
+  })
+
+  it('rotates the image clockwise on screen', () => {
+    const map = getInternalMap(viewer)
+    const view = map.getView()
+    const base = view.getRotation()
+    viewer.setViewState({ rotation: Math.PI / 2 })
+    expect(view.getRotation()).toBeCloseTo(base + Math.PI / 2, 12)
+    /** A point right of the center moves below it on screen */
+    const [x, y] = view.getCenter()
+    const [cx, cy] = toPixel(map, [x, y])
+    /** Right of the center on screen before the rotation */
+    const unrotated = [Math.cos(base), Math.sin(base)]
+    const [px, py] = toPixel(map, [x + unrotated[0], y + unrotated[1]])
+    expect(px - cx).toBeCloseTo(0, 6)
+    expect(py - cy).toBeGreaterThan(0)
   })
 
   it('fits a region of the slide into the viewport', () => {
@@ -221,30 +244,59 @@ describe('VolumeImageViewer view API', () => {
     expect(payload.features).toEqual([])
   })
 
-  it('applies the image filter to the image canvases', () => {
+  it('applies a color matrix to the image canvases', () => {
     const map = getInternalMap(viewer)
     const render = jest.spyOn(map, 'render')
-    viewer.setImageFilter('brightness(1.5)')
-    expect(render).toHaveBeenCalled()
-    const canvases = []
-    for (const layer of map.getLayers().getArray()) {
-      if (layer.hasListener('precompose')) {
-        const canvas = document.createElement('canvas')
-        layer.dispatchEvent({ type: 'precompose', context: { canvas } })
-        canvases.push(canvas)
+    const precompose = () => {
+      const canvases = []
+      for (const layer of map.getLayers().getArray()) {
+        if (layer.hasListener('precompose')) {
+          const canvas = document.createElement('canvas')
+          layer.dispatchEvent({ type: 'precompose', context: { canvas } })
+          canvases.push(canvas)
+        }
       }
+      return canvases
     }
+    /** Window [10, 200] of 8-bit values */
+    const s = 255 / 190
+    const o = -10 / 190
+    const matrix = [s, 0, 0, 0, o, 0, s, 0, 0, o, 0, 0, s, 0, o, 0, 0, 0, 1, 0]
+    viewer.setImageColorMatrix(matrix)
+    expect(render).toHaveBeenCalled()
+    const svg = map.getViewport().querySelector('svg[data-filter-id]')
+    const filter = svg.querySelector('filter')
+    expect(filter.getAttribute('color-interpolation-filters')).toBe('sRGB')
+    expect(filter.querySelector('feColorMatrix').getAttribute('values')).toBe(
+      matrix.join(' '),
+    )
+    const canvases = precompose()
     expect(canvases.length).toBeGreaterThan(0)
     for (const canvas of canvases) {
-      expect(canvas.style.filter).toBe('brightness(1.5)')
+      expect(canvas.style.filter).toBe(`url("#${filter.id}")`)
     }
-    viewer.setImageFilter()
-    for (const layer of map.getLayers().getArray()) {
-      if (layer.hasListener('precompose')) {
-        layer.dispatchEvent({ type: 'precompose', context: canvases[0] && { canvas: canvases[0] } })
-      }
+
+    viewer.setImageColorMatrix(matrix, { colorSpace: 'linear-srgb' })
+    expect(filter.getAttribute('color-interpolation-filters')).toBe('linearRGB')
+    expect(map.getViewport().querySelectorAll('svg[data-filter-id]')).toHaveLength(1)
+
+    viewer.setImageColorMatrix(null)
+    expect(map.getViewport().querySelector('svg[data-filter-id]')).toBeNull()
+    for (const canvas of precompose()) {
+      expect(canvas.style.filter).toBe('')
     }
-    expect(canvases[0].style.filter).toBe('')
+  })
+
+  it('rejects invalid color matrices', () => {
+    expect(() => viewer.setImageColorMatrix([1, 0, 0])).toThrow(TypeError)
+    expect(() =>
+      viewer.setImageColorMatrix(new Array(20).fill(Number.NaN)),
+    ).toThrow(TypeError)
+    expect(() =>
+      viewer.setImageColorMatrix(new Array(20).fill(0), {
+        colorSpace: 'display-p3',
+      }),
+    ).toThrow(RangeError)
   })
 
   it('still returns the map from the deprecated getMap()', () => {

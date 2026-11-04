@@ -61,7 +61,7 @@ describe('VolumeImageReader', () => {
     const { reader } = createReader()
     const base = reader.getOpticalPathMetadata(
       reader.opticalPaths[0].identifier,
-    )[reader.levels.length - 1]
+    )[0]
     const origin = base.TotalPixelMatrixOriginSequence[0]
     const expected = dmv.utils.buildTransform({
       offset: [
@@ -69,7 +69,7 @@ describe('VolumeImageReader', () => {
         Number(origin.YOffsetInSlideCoordinateSystem),
       ],
       orientation: base.ImageOrientationSlide,
-      spacing: reader.levels[reader.levels.length - 1].pixelSpacing.slice(0),
+      spacing: reader.levels[0].pixelSpacing.slice(0),
     })
     expect(reader.affine).toEqual(expected)
     expect(Object.isFrozen(reader.affine[0])).toBe(true)
@@ -101,16 +101,15 @@ describe('VolumeImageReader', () => {
     ).toBe(1)
   })
 
-  it('exposes pyramid levels from lowest to highest resolution', () => {
+  it('exposes pyramid levels from highest to lowest resolution', () => {
     const { reader } = createReader()
     const { levels } = reader
     expect(levels.length).toBeGreaterThan(1)
-    expect(levels[levels.length - 1].downsampleFactor).toBe(1)
+    expect(levels[0].downsampleFactor).toBe(1)
     levels.forEach((level, index) => {
       expect(level.index).toBe(index)
       expect(level.downsampleFactor).toBeCloseTo(
-        levels[levels.length - 1].totalPixelMatrixColumns /
-          level.totalPixelMatrixColumns,
+        levels[0].totalPixelMatrixColumns / level.totalPixelMatrixColumns,
         10,
       )
       expect(level.gridColumns).toBe(
@@ -121,7 +120,7 @@ describe('VolumeImageReader', () => {
       )
       expect(level.pixelSpacing).toHaveLength(2)
       if (index > 0) {
-        expect(level.totalPixelMatrixColumns).toBeGreaterThan(
+        expect(level.totalPixelMatrixColumns).toBeLessThan(
           levels[index - 1].totalPixelMatrixColumns,
         )
       }
@@ -137,25 +136,119 @@ describe('VolumeImageReader', () => {
       bitsAllocated: 8,
       pixelRepresentation: 0,
       photometricInterpretation: 'MONOCHROME2',
+      storedPhotometricInterpretation: 'MONOCHROME2',
       arrayType: 'Uint8Array',
     })
-    expect(reader.getOpticalPathMetadata(identifier)).toHaveLength(
-      reader.levels.length,
-    )
+    const images = reader.getOpticalPathMetadata(identifier)
+    expect(images).toHaveLength(reader.levels.length)
+    images.forEach((image, index) => {
+      expect(image.TotalPixelMatrixColumns).toBe(
+        reader.levels[index].totalPixelMatrixColumns,
+      )
+    })
   })
 
   it('reads a single color optical path', () => {
     const { reader } = createReader(colorCase)
     expect(reader.opticalPaths).toHaveLength(1)
     const identifier = reader.opticalPaths[0].identifier
-    expect(reader.getPixelInfo(identifier).samplesPerPixel).toBe(3)
+    const pixelInfo = reader.getPixelInfo(identifier)
+    expect(pixelInfo.samplesPerPixel).toBe(3)
+    /** Decoded to RGB, whatever the stored color space */
+    expect(pixelInfo.photometricInterpretation).toBe('RGB')
+    expect(pixelInfo.storedPhotometricInterpretation).toBe(
+      colorCase.images[0]['00280004'].Value[0],
+    )
   })
 
-  it('throws for an unknown optical path', () => {
+  it('keeps VOLUME levels that are coarser than the THUMBNAIL', () => {
+    const images = buildMetadata(colorCase)
+    const volumes = images.filter((image) => image.ImageType[2] === 'VOLUME')
+    const thumbnail = images.find((image) => image.ImageType[2] === 'THUMBNAIL')
+    const coarsest = Math.min(
+      ...volumes.map((image) => image.TotalPixelMatrixColumns),
+    )
+    /** The fixture has no coarser VOLUME level, so make the thumbnail larger */
+    const thumbnailMetadata = JSON.parse(
+      JSON.stringify(
+        colorCase.images.find(
+          (item) => item['00080008'].Value[2] === 'THUMBNAIL',
+        ),
+      ),
+    )
+    thumbnailMetadata['00480006'].Value[0] = coarsest + 100
+    thumbnailMetadata['00280011'].Value[0] = coarsest + 100
+    const larger = new dmv.metadata.VLWholeSlideMicroscopyImage({
+      metadata: thumbnailMetadata,
+    })
+    expect(thumbnail).toBeDefined()
+    const reader = new dmv.pyramid.VolumeImageReader({
+      client: createClient(),
+      metadata: [...volumes, larger],
+    })
+    const columns = reader.levels.map((level) => level.totalPixelMatrixColumns)
+    expect(columns).toContain(coarsest)
+    expect(columns).toContain(coarsest + 100)
+  })
+
+  it('throws a CustomError when only skipped THUMBNAIL images are left', () => {
+    const thumbnails = buildMetadata(colorCase).filter(
+      (image) => image.ImageType[2] === 'THUMBNAIL',
+    )
+    expect(
+      () =>
+        new dmv.pyramid.VolumeImageReader({
+          client: createClient(),
+          metadata: thumbnails,
+          skipThumbnails: true,
+        }),
+    ).toThrow(dmv.errors.CustomError)
+  })
+
+  it('throws a RangeError for an unknown optical path', () => {
     const { reader } = createReader()
     expect(() => reader.getPixelInfo('does-not-exist')).toThrow(
-      'Could not find optical path "does-not-exist".',
+      new RangeError('Could not find optical path "does-not-exist".'),
     )
+    /** Not an inherited property of the lookup object either */
+    expect(() => reader.getPixelInfo('constructor')).toThrow(RangeError)
+  })
+
+  it('throws a TypeError for missing arguments', () => {
+    expect(
+      () =>
+        new dmv.pyramid.VolumeImageReader({
+          metadata: buildMetadata(multiplexCase),
+        }),
+    ).toThrow(TypeError)
+    expect(
+      () =>
+        new dmv.pyramid.VolumeImageReader({
+          client: createClient(),
+          metadata: [],
+        }),
+    ).toThrow(TypeError)
+    expect(
+      () =>
+        new dmv.pyramid.VolumeImageReader({
+          client: createClient(),
+          metadata: buildMetadata(multiplexCase),
+          iccOutputType: 'p3',
+        }),
+    ).toThrow(RangeError)
+    expect(webWorkerManager.retain).not.toHaveBeenCalled()
+  })
+
+  it('throws a CustomError for images it cannot read', () => {
+    const color = buildMetadata(colorCase)
+    const multiplex = buildMetadata(multiplexCase)
+    expect(
+      () =>
+        new dmv.pyramid.VolumeImageReader({
+          client: createClient(),
+          metadata: [...color, ...multiplex],
+        }),
+    ).toThrow(dmv.errors.CustomError)
   })
 
   it('retains web workers on construction and releases them once', () => {
@@ -168,7 +261,7 @@ describe('VolumeImageReader', () => {
 
   describe('getTile', () => {
     const lastTile = (reader) => {
-      const level = reader.levels[reader.levels.length - 1]
+      const level = reader.levels[0]
       return {
         level: level.index,
         column: level.gridColumns - 1,
@@ -192,6 +285,14 @@ describe('VolumeImageReader', () => {
       expect(tile.rows).toBe(reader.levels[0].tileRows)
       expect(tile.samplesPerPixel).toBe(1)
       expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(1)
+      /** Level 0 is the highest resolution image */
+      const [highest] = reader.getOpticalPathMetadata(identifier)
+      expect(highest.TotalPixelMatrixColumns).toBe(
+        Math.max(...reader.levels.map((item) => item.totalPixelMatrixColumns)),
+      )
+      expect(
+        client.retrieveInstanceFrames.mock.calls[0][0].sopInstanceUID,
+      ).toBe(highest.SOPInstanceUID)
       /** Every request is cancellable, so that destroy() can abort it */
       const { request } = client.retrieveInstanceFrames.mock.calls[0][0]
       expect(request.instance).toBeInstanceOf(XMLHttpRequest)
@@ -295,7 +396,7 @@ describe('VolumeImageReader', () => {
 
       it('returns inner tiles unchanged', async () => {
         const { reader } = createReader()
-        const level = reader.levels[reader.levels.length - 1]
+        const level = reader.levels[0]
         const tile = await reader.getTile({
           opticalPathIdentifier: reader.opticalPaths[0].identifier,
           level: level.index,
@@ -322,14 +423,16 @@ describe('VolumeImageReader', () => {
           row: 0,
         }),
       ).rejects.toThrow(RangeError)
-      await expect(
-        reader.getTile({
-          opticalPathIdentifier: reader.opticalPaths[0].identifier,
-          level: reader.levels.length,
-          column: 0,
-          row: 0,
-        }),
-      ).rejects.toThrow(RangeError)
+      for (const level of [reader.levels.length, -1, 0.5, '0']) {
+        await expect(
+          reader.getTile({
+            opticalPathIdentifier: reader.opticalPaths[0].identifier,
+            level,
+            column: 0,
+            row: 0,
+          }),
+        ).rejects.toThrow(RangeError)
+      }
       expect(client.retrieveInstanceFrames).not.toHaveBeenCalled()
     })
 
@@ -439,7 +542,9 @@ describe('VolumeImageReader', () => {
           row: 0,
         })
         .catch((e) => e)
-      expect(error.message).toMatch(/^Failed to load frames/)
+      expect(error.message).toBe(
+        `Failed to load tile (column 0, row 0) of level 0 of optical path "${reader.opticalPaths[0].identifier}".`,
+      )
       expect(error.cause).toBe(requestError)
       expect(error.cause.status).toBe(503)
     })
@@ -593,6 +698,57 @@ describe('VolumeImageReader.fromSeries', () => {
     expect(reader.levels.map((level) => level.imageFlavor)).not.toContain(
       'THUMBNAIL',
     )
+  })
+
+  it('requires the study and series', async () => {
+    const client = createSeriesClient(multiplexCase)
+    await expect(
+      dmv.pyramid.VolumeImageReader.fromSeries({
+        client,
+        studyInstanceUID: '1.2.3',
+      }),
+    ).rejects.toThrow(TypeError)
+    expect(client.retrieveSeriesMetadata).not.toHaveBeenCalled()
+  })
+
+  it('cancels the metadata request with the signal', async () => {
+    const client = createSeriesClient(multiplexCase)
+    let rejectRequest
+    client.retrieveSeriesMetadata.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectRequest = reject
+        }),
+    )
+    const controller = new AbortController()
+    const promise = dmv.pyramid.VolumeImageReader.fromSeries({
+      client,
+      ...seriesOptions,
+      signal: controller.signal,
+    })
+    const { request, ...options } =
+      client.retrieveSeriesMetadata.mock.calls[0][0]
+    expect(options).toEqual(seriesOptions)
+    expect(request.signal.aborted).toBe(false)
+    controller.abort()
+    expect(request.signal.aborted).toBe(true)
+    rejectRequest(new Error('request failed'))
+    await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+    expect(webWorkerManager.retain).not.toHaveBeenCalled()
+  })
+
+  it('does not request metadata when already aborted', async () => {
+    const client = createSeriesClient(multiplexCase)
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      dmv.pyramid.VolumeImageReader.fromSeries({
+        client,
+        ...seriesOptions,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(client.retrieveSeriesMetadata).not.toHaveBeenCalled()
   })
 
   it('rejects when the series has no VOLUME images', async () => {

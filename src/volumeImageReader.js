@@ -9,8 +9,9 @@ import {
   _getIccProfiles,
   _groupVolumeImages,
   _retrieveTile,
+  _retrieveWithSignal,
 } from './pyramid.js'
-import { _anyAbortSignal, _raceAbort } from './utils.js'
+import { _anyAbortSignal, _raceAbort, _throwIfAborted } from './utils.js'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
 const _client = Symbol('client')
@@ -25,6 +26,7 @@ const _iccProfiles = Symbol('iccProfiles')
 const _isDestroyed = Symbol('isDestroyed')
 const _lifetime = Symbol('lifetime')
 
+/** TypedArray constructor of each `arrayType` returned by getPixelInfo() */
 const _typedArrays = {
   Uint8Array,
   Int8Array,
@@ -119,6 +121,11 @@ const _freezeMatrix = (matrix) =>
  * Call {@link pyramid.VolumeImageReader#destroy} when done, which releases
  * the shared decoding web workers.
  *
+ * Errors: invalid arguments throw a TypeError or RangeError; images that
+ * cannot be read (e.g. optical paths with different pyramids) throw a
+ * {@link errors.CustomError}; cancelled operations reject with a DOMException named
+ * "AbortError" (or the reason given to the AbortController).
+ *
  * @class
  * @memberof pyramid
  */
@@ -128,31 +135,35 @@ class VolumeImageReader {
    * @param {Object} options.client - DICOMweb client
    * @param {metadata.VLWholeSlideMicroscopyImage[]} options.metadata - Image
    * metadata of VOLUME and THUMBNAIL images
-   * @param {boolean} [options.iccProfilesEnabled=false] - Whether ICC profiles
-   * of color images are applied to decoded pixels
+   * @param {boolean} [options.iccProfilesEnabled=true] - Whether ICC profiles
+   * of color images are applied to decoded pixels, as by default in
+   * {@link viewer.VolumeImageViewer}. If the profiles cannot be retrieved,
+   * the error is logged and tiles are decoded without them.
    * @param {string} [options.iccOutputType='srgb'] - Color space of decoded
    * color pixels when ICC profiles are applied ("srgb" or "display-p3")
    * @param {boolean} [options.skipThumbnails=false] - Ignore THUMBNAIL
    * images. A kept THUMBNAIL is a pyramid level whose single frame covers the
    * whole image, so its tile size differs from the VOLUME levels; renderers
    * that need one tile size for all levels (e.g. Viv) should skip thumbnails.
+   * All VOLUME levels are kept either way.
    */
   constructor({
     client,
     metadata,
-    iccProfilesEnabled = false,
+    iccProfilesEnabled = true,
     iccOutputType = 'srgb',
     skipThumbnails = false,
   }) {
     if (client == null) {
-      throw new CustomError(
-        errorTypes.VISUALIZATION,
-        'A DICOMweb client is required to read image tiles.',
+      throw new TypeError('A DICOMweb client is required to read image tiles.')
+    }
+    if (iccOutputType !== 'srgb' && iccOutputType !== 'display-p3') {
+      throw new RangeError(
+        `Unknown ICC output type "${iccOutputType}"; use "srgb" or "display-p3".`,
       )
     }
     if (!Array.isArray(metadata) || metadata.length === 0) {
-      throw new CustomError(
-        errorTypes.ENCODINGANDDECODING,
+      throw new TypeError(
         'Input metadata must be a non-empty array of objects.',
       )
     }
@@ -167,7 +178,11 @@ class VolumeImageReader {
       colorOpticalPathIdentifiers,
       monochromeImageInformation,
       monochromeOpticalPathIdentifiers,
-    } = _groupVolumeImages({ metadata, skipThumbnails })
+    } = _groupVolumeImages({
+      metadata,
+      skipThumbnails,
+      keepCoarseVolumeImages: true,
+    })
     const isMonochromatic = monochromeOpticalPathIdentifiers.length > 0
     const imageInformation = isMonochromatic
       ? monochromeImageInformation
@@ -204,7 +219,12 @@ class VolumeImageReader {
           samplesPerPixel: refImage.SamplesPerPixel,
           bitsAllocated: refImage.BitsAllocated,
           pixelRepresentation: refImage.PixelRepresentation,
-          photometricInterpretation: refImage.PhotometricInterpretation,
+          /** Color images are decoded to RGB, e.g. from JPEG YBR_FULL_422 */
+          photometricInterpretation:
+            refImage.SamplesPerPixel === 3
+              ? 'RGB'
+              : refImage.PhotometricInterpretation,
+          storedPhotometricInterpretation: refImage.PhotometricInterpretation,
           arrayType:
             _arrayTypes[refImage.BitsAllocated]?.[
               refImage.PixelRepresentation === 1 ? 1 : 0
@@ -216,23 +236,31 @@ class VolumeImageReader {
       identifiers.map((identifier) => this[_channels][identifier].opticalPath),
     )
 
+    /** Highest resolution first, like OpenSlide, OME-Zarr and Viv */
+    const pyramidImages = refPyramid.metadata
+    const numLevels = pyramidImages.length
+    const baseColumns = pyramidImages[numLevels - 1].TotalPixelMatrixColumns
     this[_levels] = Object.freeze(
-      refPyramid.metadata.map((image, index) =>
-        Object.freeze({
-          index,
-          totalPixelMatrixColumns: image.TotalPixelMatrixColumns,
-          totalPixelMatrixRows: image.TotalPixelMatrixRows,
-          tileColumns: image.Columns,
-          tileRows: image.Rows,
-          gridColumns: Math.ceil(image.TotalPixelMatrixColumns / image.Columns),
-          gridRows: Math.ceil(image.TotalPixelMatrixRows / image.Rows),
-          pixelSpacing: Object.freeze(refPyramid.pixelSpacings[index].slice(0)),
-          downsampleFactor:
-            refPyramid.metadata[refPyramid.metadata.length - 1]
-              .TotalPixelMatrixColumns / image.TotalPixelMatrixColumns,
-          imageFlavor: image.ImageType[2],
-        }),
-      ),
+      pyramidImages
+        .map((image, pyramidIndex) =>
+          Object.freeze({
+            index: numLevels - 1 - pyramidIndex,
+            totalPixelMatrixColumns: image.TotalPixelMatrixColumns,
+            totalPixelMatrixRows: image.TotalPixelMatrixRows,
+            tileColumns: image.Columns,
+            tileRows: image.Rows,
+            gridColumns: Math.ceil(
+              image.TotalPixelMatrixColumns / image.Columns,
+            ),
+            gridRows: Math.ceil(image.TotalPixelMatrixRows / image.Rows),
+            pixelSpacing: Object.freeze(
+              refPyramid.pixelSpacings[pyramidIndex].slice(0),
+            ),
+            downsampleFactor: baseColumns / image.TotalPixelMatrixColumns,
+            imageFlavor: image.ImageType[2],
+          }),
+        )
+        .reverse(),
     )
 
     const { affine, affineInverse } = _computePyramidTransforms(refPyramid)
@@ -255,7 +283,10 @@ class VolumeImageReader {
    * @param {Object} options.client - DICOMweb client
    * @param {string} options.studyInstanceUID - Study Instance UID
    * @param {string} options.seriesInstanceUID - Series Instance UID
-   * @param {boolean} [options.iccProfilesEnabled=false] - See the constructor
+   * @param {AbortSignal} [options.signal] - Signal to cancel the metadata
+   * request; the promise then rejects with `signal.reason` (a DOMException
+   * named "AbortError" by default)
+   * @param {boolean} [options.iccProfilesEnabled=true] - See the constructor
    * @param {string} [options.iccOutputType='srgb'] - See the constructor
    * @param {boolean} [options.skipThumbnails=false] - See the constructor
    * @returns {Promise<pyramid.VolumeImageReader>} Reader
@@ -264,18 +295,25 @@ class VolumeImageReader {
     client,
     studyInstanceUID,
     seriesInstanceUID,
+    signal,
     ...options
   }) {
     if (client == null) {
-      throw new CustomError(
-        errorTypes.VISUALIZATION,
-        'A DICOMweb client is required to read image tiles.',
-      )
+      throw new TypeError('A DICOMweb client is required to read image tiles.')
     }
-    const metadata = await client.retrieveSeriesMetadata({
-      studyInstanceUID,
-      seriesInstanceUID,
-    })
+    if (typeof studyInstanceUID !== 'string' || studyInstanceUID === '') {
+      throw new TypeError('"studyInstanceUID" is required.')
+    }
+    if (typeof seriesInstanceUID !== 'string' || seriesInstanceUID === '') {
+      throw new TypeError('"seriesInstanceUID" is required.')
+    }
+    const metadata = await _retrieveWithSignal(
+      client,
+      'retrieveSeriesMetadata',
+      { studyInstanceUID, seriesInstanceUID },
+      signal,
+    )
+    _throwIfAborted(signal)
     const volumeImages = []
     for (const item of metadata) {
       const sopClassUID = item['00080016']?.Value?.[0]
@@ -311,16 +349,17 @@ class VolumeImageReader {
   }
 
   /**
-   * Pyramid levels, shared by all optical paths. Level 0 has the lowest
-   * resolution, consistent with {@link viewer.VolumeImageViewer#numLevels}
-   * and {@link viewer.VolumeImageViewer#getPixelSpacing}.
+   * Pyramid levels, shared by all optical paths, from highest to lowest
+   * resolution: level 0 is the full resolution image, like in OpenSlide,
+   * OME-Zarr and Viv. (The `level` of
+   * {@link viewer.VolumeImageViewer#navigate} counts the other way, from the
+   * lowest resolution.)
    *
-   * Each level has `index`, `totalPixelMatrixColumns`,
+   * Each level has `index` (its position in this array), `totalPixelMatrixColumns`,
    * `totalPixelMatrixRows`, `tileColumns`, `tileRows`, `gridColumns`,
    * `gridRows`, `pixelSpacing` (row and column spacing in millimeter),
-   * `downsampleFactor` (relative to the highest resolution level, which has
-   * 1; not necessarily a power of 2) and `imageFlavor` ("VOLUME" or
-   * "THUMBNAIL").
+   * `downsampleFactor` (relative to level 0, which has 1; not necessarily a
+   * power of 2) and `imageFlavor` ("VOLUME" or "THUMBNAIL").
    *
    * @type {Object[]}
    */
@@ -329,8 +368,8 @@ class VolumeImageReader {
   }
 
   /**
-   * Affine transformation from the total pixel matrix of the highest
-   * resolution level (column, row) to the slide coordinate system (x, y in
+   * Affine transformation from the total pixel matrix of level 0 (column,
+   * row) to the slide coordinate system (x, y in
    * millimeter), as a 3x3 matrix for use with {@link utils.applyTransform}.
    *
    * @type {number[][]}
@@ -341,7 +380,7 @@ class VolumeImageReader {
 
   /**
    * Inverse of {@link pyramid.VolumeImageReader#affine}: slide coordinates to
-   * the total pixel matrix of the highest resolution level, for use with
+   * the total pixel matrix of level 0, for use with
    * {@link utils.applyInverseTransform}.
    *
    * @type {number[][]}
@@ -364,24 +403,29 @@ class VolumeImageReader {
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @returns {Object} `samplesPerPixel`, `bitsAllocated`,
-   * `pixelRepresentation`, `photometricInterpretation` of the stored images
-   * (compressed YBR color images, e.g. JPEG YBR_FULL_422, are decoded to RGB)
-   * and `arrayType`, the name of the TypedArray constructor of `pixelArray`
-   * returned by {@link pyramid.VolumeImageReader#getTile}
+   * `pixelRepresentation`; `photometricInterpretation` of the decoded pixels
+   * ("RGB" for color images, which are decoded to RGB even when stored as
+   * e.g. JPEG YBR_FULL_422; "MONOCHROME2" or "MONOCHROME1" otherwise);
+   * `storedPhotometricInterpretation` of the stored images; and `arrayType`,
+   * the name of the TypedArray constructor of `pixelArray` returned by
+   * {@link pyramid.VolumeImageReader#getTile}
    */
   getPixelInfo(opticalPathIdentifier) {
     return this._getChannel(opticalPathIdentifier).pixelInfo
   }
 
   /**
-   * Get image metadata of an optical path, one image per pyramid level.
+   * Get image metadata of an optical path, one image per pyramid level, in
+   * the order of {@link pyramid.VolumeImageReader#levels}.
    *
    * @param {string} opticalPathIdentifier - Optical Path Identifier
    * @returns {metadata.VLWholeSlideMicroscopyImage[]} Slide microscopy image
    * metadata
    */
   getOpticalPathMetadata(opticalPathIdentifier) {
-    return this._getChannel(opticalPathIdentifier).pyramid.metadata.slice(0)
+    return this._getChannel(opticalPathIdentifier)
+      .pyramid.metadata.slice(0)
+      .reverse()
   }
 
   /**
@@ -401,11 +445,16 @@ class VolumeImageReader {
    * and the queued decoding task is cancelled. The HTTP request is cancelled
    * with dicomweb-client 0.11 or later (see the README for details).
    * Other failures reject with an Error whose `cause` is the underlying
-   * error, e.g. the dicomweb-client request error with `status`.
+   * error, e.g. the dicomweb-client request error with `status`. Invalid
+   * arguments reject with a TypeError or RangeError without a request.
+   *
+   * The returned `pixelArray` may be shared with caches of the caller (e.g.
+   * the Viv pixel sources); treat it as read-only.
    *
    * @param {Object} options - Options
    * @param {string} options.opticalPathIdentifier - Optical Path Identifier
-   * @param {number} options.level - Pyramid level index (0 is the lowest resolution)
+   * @param {number} options.level - Index into
+   * {@link pyramid.VolumeImageReader#levels} (0 is the highest resolution)
    * @param {number} options.column - Zero-based tile column
    * @param {number} options.row - Zero-based tile row
    * @param {AbortSignal} [options.signal] - Signal to cancel the request
@@ -427,7 +476,7 @@ class VolumeImageReader {
       throw new DOMException('The reader has been destroyed.', 'AbortError')
     }
     const channel = this._getChannel(opticalPathIdentifier)
-    const levelInfo = this[_levels][level]
+    const levelInfo = Number.isInteger(level) ? this[_levels][level] : undefined
     if (levelInfo === undefined) {
       throw new RangeError(
         `Level ${level} does not exist; the pyramid has ` +
@@ -461,13 +510,28 @@ class VolumeImageReader {
         pyramid: channel.pyramid,
         client: this[_client],
         channel: opticalPathIdentifier,
-        level,
+        /** Index into the pyramid, which is ordered from lowest resolution */
+        level: this[_levels].length - 1 - level,
         column,
         row,
         iccProfiles,
         iccOutputType: this[_iccOptions].iccOutputType,
         signal: tileSignal.signal,
       })
+    } catch (error) {
+      if (tileSignal.signal.aborted) {
+        throw error
+      }
+      /** Describe the tile as the caller asked for it */
+      const tileError = new Error(
+        `Failed to load tile (column ${column}, row ${row}) of level ` +
+          `${level} of optical path "${opticalPathIdentifier}".`,
+        { cause: error.cause ?? error },
+      )
+      if (tileError.cause === undefined) {
+        tileError.cause = error.cause ?? error
+      }
+      throw tileError
     } finally {
       tileSignal.dispose()
     }
@@ -531,10 +595,12 @@ class VolumeImageReader {
    * @private
    */
   _getChannel(opticalPathIdentifier) {
-    const channel = this[_channels][opticalPathIdentifier]
+    /** Own properties only, so that e.g. "constructor" is not found */
+    const channel = Object.hasOwn(this[_channels], opticalPathIdentifier)
+      ? this[_channels][opticalPathIdentifier]
+      : undefined
     if (channel === undefined) {
-      throw new CustomError(
-        errorTypes.VISUALIZATION,
+      throw new RangeError(
         `Could not find optical path "${opticalPathIdentifier}".`,
       )
     }
@@ -569,4 +635,4 @@ class VolumeImageReader {
   }
 }
 
-export { VolumeImageReader }
+export { _typedArrays, VolumeImageReader }

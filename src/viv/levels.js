@@ -1,3 +1,5 @@
+import { CustomError, errorTypes } from '../customError'
+
 /**
  * Whether a number is a positive power of 2.
  *
@@ -20,7 +22,7 @@ const _isPowerOf2 = (value) =>
  * `maxSyntheticLevels` consecutive computed levels, which bounds the number
  * of tiles a computed tile is made of (4 ^ maxSyntheticLevels).
  *
- * @param {Object[]} levels - Levels of a VolumeImageReader (lowest resolution first)
+ * @param {Object[]} levels - Levels of a VolumeImageReader (highest resolution first)
  * @param {number} maxSyntheticLevels - Maximum number of consecutive synthetic levels
  * @returns {Object} `tileSize`, `isTruncated` (whether planning stopped
  * before reaching a single-tile level) and `levels`, highest resolution
@@ -31,10 +33,11 @@ const _isPowerOf2 = (value) =>
  * @private
  */
 const _planDyadicLevels = (levels, maxSyntheticLevels) => {
-  const finest = levels[levels.length - 1]
+  const finest = levels[0]
   const tileSize = finest.tileColumns
   if (finest.tileRows !== tileSize || !_isPowerOf2(tileSize)) {
-    throw new Error(
+    throw new CustomError(
+      errorTypes.VISUALIZATION,
       'Viv requires square tiles with a power-of-2 size, but the tiles of the ' +
         `highest resolution level are ${finest.tileColumns} x ` +
         `${finest.tileRows} pixels.`,

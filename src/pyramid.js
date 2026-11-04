@@ -450,24 +450,27 @@ function _isSparseTileMissing(pyramid, channel, z, x, y) {
 }
 
 /**
- * Retrieve frames of an instance, cancelling the HTTP request when the signal
- * is aborted.
+ * Call a retrieve method of a DICOMweb client, cancelling the HTTP request
+ * when the signal is aborted.
  *
- * The signal is passed to dicomweb-client as `request.signal`, which aborts
- * the request that is actually sent (after request hooks) without reporting
- * it to the client's `errorInterceptor`. Versions of dicomweb-client that
- * ignore `request.signal` are handled by also passing our own XMLHttpRequest
- * as `request.instance` and aborting that one.
+ * The signal is passed to dicomweb-client as `request.signal`, which a
+ * version with signal support (dcmjs-org/dicomweb-client#144, not released
+ * yet) uses to abort the request that is actually sent (after request hooks)
+ * without reporting it to the client's `errorInterceptor`. Released versions
+ * ignore `request.signal`, so our own XMLHttpRequest is also passed as
+ * `request.instance` and aborted.
  *
  * @param {Object} client - DICOMweb client
- * @param {Object} retrieveOptions - Options for `retrieveInstanceFrames`
+ * @param {string} method - Name of the client method, e.g.
+ * "retrieveInstanceFrames"
+ * @param {Object} retrieveOptions - Options for the method
  * @param {AbortSignal} [signal] - Optional signal
- * @returns {Promise<ArrayBuffer[]>} Raw frames
+ * @returns {Promise<*>} Result of the method
  * @private
  */
-function _retrieveInstanceFrames(client, retrieveOptions, signal) {
+function _retrieveWithSignal(client, method, retrieveOptions, signal) {
   if (signal == null) {
-    return client.retrieveInstanceFrames(retrieveOptions)
+    return client[method](retrieveOptions)
   }
   _throwIfAborted(signal)
 
@@ -509,7 +512,7 @@ function _retrieveInstanceFrames(client, retrieveOptions, signal) {
   }
   let response
   try {
-    response = client.retrieveInstanceFrames({ ...retrieveOptions, request })
+    response = client[method]({ ...retrieveOptions, request })
   } catch (error) {
     cleanup()
     throw error
@@ -680,8 +683,9 @@ async function _retrieveTile({
     mediaTypes,
   }
   try {
-    const rawFrames = await _retrieveInstanceFrames(
+    const rawFrames = await _retrieveWithSignal(
       client,
+      'retrieveInstanceFrames',
       retrieveOptions,
       signal,
     )
@@ -860,10 +864,17 @@ const _hasImageFlavor = (image, imageFlavor) => {
  *
  * @param {Object[]} metadata - Metadata of VOLUME and THUMBNAIL images
  * @param {boolean} [skipThumbnails] - Drop all THUMBNAIL images
+ * @param {boolean} [keepCoarseVolumeImages=false] - Keep VOLUME images that
+ * are coarser than a kept THUMBNAIL (needed by readers, which expose every
+ * level, but not by the viewer)
  * @returns {Object[]} Filtered metadata
  * @private
  */
-function _filterImagesByResolution(metadata, skipThumbnails) {
+function _filterImagesByResolution(
+  metadata,
+  skipThumbnails,
+  keepCoarseVolumeImages = false,
+) {
   const { THUMBNAIL, VOLUME } = _VOLUME_IMAGE_FLAVORS
   const pyramidBaseMetadata = metadata[metadata.length - 1]
   const filteredMetadata = metadata.filter((image) => {
@@ -895,7 +906,7 @@ function _filterImagesByResolution(metadata, skipThumbnails) {
   const thumbnailColumns = filteredMetadata
     .filter((image) => _hasImageFlavor(image, THUMBNAIL))
     .map((image) => image.TotalPixelMatrixColumns)
-  if (thumbnailColumns.length === 0) {
+  if (thumbnailColumns.length === 0 || keepCoarseVolumeImages) {
     return filteredMetadata
   }
 
@@ -925,6 +936,8 @@ function _filterImagesByResolution(metadata, skipThumbnails) {
  * @param {Object[]} options.metadata - Image metadata, either
  * VLWholeSlideMicroscopyImage instances or raw DICOM JSON
  * @param {boolean} [options.skipThumbnails] - Drop all THUMBNAIL images
+ * @param {boolean} [options.keepCoarseVolumeImages=false] - See
+ * `_filterImagesByResolution`
  * @returns {Object} `metadata` (filtered VLWholeSlideMicroscopyImage[]) and
  * `colorImageInformation` / `monochromeImageInformation` mapping optical path
  * identifiers to `{ metadata, opticalPath }`, with the identifiers in
@@ -933,9 +946,23 @@ function _filterImagesByResolution(metadata, skipThumbnails) {
  * path combinations
  * @private
  */
-function _groupVolumeImages({ metadata, skipThumbnails }) {
+function _groupVolumeImages({
+  metadata,
+  skipThumbnails,
+  keepCoarseVolumeImages = false,
+}) {
   /** We also accept metadata in raw JSON format for backwards compatibility */
-  const filteredMetadata = _filterImagesByResolution(metadata, skipThumbnails)
+  const filteredMetadata = _filterImagesByResolution(
+    metadata,
+    skipThumbnails,
+    keepCoarseVolumeImages,
+  )
+  if (filteredMetadata.length === 0) {
+    throw new CustomError(
+      errorTypes.VISUALIZATION,
+      'Could not find any VOLUME images.',
+    )
+  }
   let images
   if (filteredMetadata[0].SOPClassUID != null) {
     images = filteredMetadata
@@ -1836,6 +1863,7 @@ export {
   _paletteIndex,
   _perFrameRasterMaxResolution,
   _retrieveTile,
+  _retrieveWithSignal,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
   PER_FRAME_OVERVIEW_HANDOFF_RATIO,
   PER_FRAME_OVERVIEW_MIN_PX,

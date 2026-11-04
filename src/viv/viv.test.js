@@ -9,6 +9,7 @@ jest.mock('../webWorker/webWorkerManager.js', () => ({
   default: { retain: jest.fn(), release: jest.fn() },
 }))
 
+const { _decodeAndTransformFrame } = require('../decode.js')
 const dmv = require('../dicom-microscopy-viewer.js')
 const { SIGNAL_ABORTED } = require('./index.js')
 const { _downsampleQuadrants } = require('./downsample.js')
@@ -28,6 +29,8 @@ const createSeriesClient = (testCase) => ({
  * Minimal stand-in for a VolumeImageReader whose tiles hold, for every
  * pixel, `level * 1000000 + row * 1000 + column` of the total pixel matrix
  * (single sample) and that crops edge tiles like getTile({ crop: true }).
+ * `levels` are given from lowest to highest resolution; like the reader, the
+ * fake exposes them from highest to lowest, so level 0 is the last one given.
  */
 const createFakeReader = ({
   levels,
@@ -39,7 +42,7 @@ const createFakeReader = ({
   const ArrayType = globalThis[arrayType]
   const reader = {
     opticalPaths: opticalPaths.map((identifier) => ({ identifier })),
-    levels: levels.map(([columns, rows, tileSize, spacing], index) => ({
+    levels: [...levels].reverse().map(([columns, rows, tileSize, spacing], index) => ({
       index,
       totalPixelMatrixColumns: columns,
       totalPixelMatrixRows: rows,
@@ -98,12 +101,10 @@ describe('viv.loadDicomWeb', () => {
      * Highest resolution first, one source per DICOM level, with the sizes
      * Viv expects (the DICOM sizes were rounded down: 3875 -> 1937 -> 968)
      */
-    const dicomSizes = reader.levels
-      .map((level) => [
-        level.totalPixelMatrixColumns,
-        level.totalPixelMatrixRows,
-      ])
-      .reverse()
+    const dicomSizes = reader.levels.map((level) => [
+      level.totalPixelMatrixColumns,
+      level.totalPixelMatrixRows,
+    ])
     expect(data).toHaveLength(dicomSizes.length)
     data.map(imageSize).forEach(([width, height], k) => {
       expect(width).toBe(Math.ceil(dicomSizes[0][0] / 2 ** k))
@@ -111,7 +112,7 @@ describe('viv.loadDicomWeb', () => {
       expect(Math.abs(width - dicomSizes[k][0])).toBeLessThanOrEqual(1)
       expect(Math.abs(height - dicomSizes[k][1])).toBeLessThanOrEqual(1)
     })
-    const base = reader.levels[reader.levels.length - 1]
+    const [base] = reader.levels
     for (const source of data) {
       expect(source.shape[0]).toBe(reader.opticalPaths.length)
       expect(source.labels).toEqual(['c', 'y', 'x'])
@@ -157,6 +158,42 @@ describe('viv.loadDicomWeb', () => {
     }
   })
 
+  it('releases the image with destroy()', async () => {
+    const client = createSeriesClient(multiplexCase)
+    const webWorkerManager = require('../webWorker/webWorkerManager.js').default
+    webWorkerManager.release.mockClear()
+    _decodeAndTransformFrame.mockImplementation(
+      async ({ columns, rows, samplesPerPixel }) =>
+        new Uint8Array(columns * rows * samplesPerPixel),
+    )
+    const { data, destroy } = await dmv.viv.loadDicomWeb({
+      client,
+      ...seriesOptions,
+    })
+    const selection = { c: 0 }
+    await data[0].getTile({ x: 0, y: 0, selection })
+    destroy()
+    expect(webWorkerManager.release).toHaveBeenCalledTimes(1)
+    /** Cached tiles are dropped, and the error is reported, not hidden */
+    await expect(
+      data[0].getTile({ x: 0, y: 0, selection }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('cancels loading with the signal', async () => {
+    const client = createSeriesClient(multiplexCase)
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      dmv.viv.loadDicomWeb({
+        client,
+        ...seriesOptions,
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(client.retrieveSeriesMetadata).not.toHaveBeenCalled()
+  })
+
   it('destroys the reader when the image is not supported', async () => {
     const client = createSeriesClient(multiplexCase)
     const webWorkerManager = require('../webWorker/webWorkerManager.js').default
@@ -167,7 +204,7 @@ describe('viv.loadDicomWeb', () => {
     try {
       await expect(
         dmv.viv.loadDicomWeb({ client, ...seriesOptions }),
-      ).rejects.toThrow('Uint32Array')
+      ).rejects.toThrow(dmv.errors.CustomError)
       expect(webWorkerManager.release).toHaveBeenCalledTimes(1)
     } finally {
       spy.mockRestore()
@@ -212,14 +249,14 @@ describe('viv.createPixelSources', () => {
     expect(reader.getTile).toHaveBeenCalledWith(
       expect.objectContaining({
         opticalPathIdentifier: '1',
-        level: 2,
+        level: 0,
         column: 15,
         row: 11,
         crop: true,
       }),
     )
     expect(tile.width).toBe(128)
-    expect(tile.data[0]).toBe(2000000 + 11 * 128 * 1000 + 15 * 128)
+    expect(tile.data[0]).toBe(11 * 128 * 1000 + 15 * 128)
   })
 
   it('computes tiles of synthetic levels from 4 tiles of the previous level', async () => {
@@ -232,15 +269,15 @@ describe('viv.createPixelSources', () => {
       options.row,
     ])
     expect(requested).toEqual([
-      [2, 2, 4],
-      [2, 3, 4],
-      [2, 2, 5],
-      [2, 3, 5],
+      [0, 2, 4],
+      [0, 3, 4],
+      [0, 2, 5],
+      [0, 3, 5],
     ])
     expect(tile.width).toBe(128)
     expect(tile.height).toBe(128)
     /** Mean of the 2 x 2 base pixels at row 512, column 256 */
-    const base = 2000000 + 512 * 1000 + 256
+    const base = 512 * 1000 + 256
     expect(tile.data[0]).toBe(base + 500.5)
   })
 
@@ -272,12 +309,13 @@ describe('viv.createPixelSources', () => {
     ).rejects.toBe(SIGNAL_ABORTED)
     expect(reader.getTile).not.toHaveBeenCalled()
 
+    /** Not cancelled by Viv: reported, so that Viv calls onTileError */
     reader.getTile.mockRejectedValueOnce(
       new DOMException('The reader has been destroyed.', 'AbortError'),
     )
-    await expect(base.getTile({ x: 0, y: 0, selection })).rejects.toBe(
-      SIGNAL_ABORTED,
-    )
+    await expect(
+      base.getTile({ x: 0, y: 0, selection }),
+    ).rejects.toMatchObject({ name: 'AbortError' })
 
     const failure = new Error('Failed to load frames')
     reader.getTile.mockRejectedValueOnce(failure)
@@ -321,7 +359,27 @@ describe('viv.createPixelSources', () => {
     ).rejects.toThrow(RangeError)
   })
 
+  it('rejects invalid options', () => {
+    const reader = createFakeReader({ levels: fourTimesLevels })
+    expect(() => dmv.viv.createPixelSources({})).toThrow(TypeError)
+    expect(() => dmv.viv.createPixelSources()).toThrow(TypeError)
+    expect(() =>
+      dmv.viv.createPixelSources({ reader, maxSyntheticLevels: -1 }),
+    ).toThrow(RangeError)
+    expect(() =>
+      dmv.viv.createPixelSources({ reader, maxSyntheticLevels: 1.5 }),
+    ).toThrow(RangeError)
+    expect(() => dmv.viv.createPixelSources({ reader, cacheSize: -1 })).toThrow(
+      RangeError,
+    )
+  })
+
   it('rejects images that Viv cannot display', () => {
+    expect(() =>
+      dmv.viv.createPixelSources({
+        reader: createFakeReader({ levels: [[1000, 1000, 240, 0.001]] }),
+      }),
+    ).toThrow(dmv.errors.CustomError)
     expect(() =>
       dmv.viv.createPixelSources({
         reader: createFakeReader({ levels: [[1000, 1000, 240, 0.001]] }),
@@ -359,6 +417,119 @@ describe('viv.createPixelSources', () => {
     } finally {
       spy.mockRestore()
     }
+  })
+})
+
+describe('viv tile cache', () => {
+  const { _TileCache } = require('./tileCache.js')
+  const fourTimesLevels = [
+    [128, 96, 128, 0.016],
+    [512, 384, 128, 0.004],
+    [2048, 1536, 128, 0.001],
+  ]
+
+  it('reads each DICOM tile once for all levels', async () => {
+    const reader = createFakeReader({ levels: fourTimesLevels })
+    const sources = dmv.viv.createPixelSources({ reader })
+    const selection = { c: 0 }
+    const first = await sources[0].getTile({ x: 1, y: 1, selection })
+    expect(await sources[0].getTile({ x: 1, y: 1, selection })).toBe(first)
+    expect(reader.getTile).toHaveBeenCalledTimes(1)
+    /** The computed tile reuses the cached tile of the level above */
+    await sources[1].getTile({ x: 0, y: 0, selection })
+    expect(reader.getTile).toHaveBeenCalledTimes(4)
+    /** Channels are cached separately */
+    await sources[0].getTile({ x: 1, y: 1, selection: { c: 1 } })
+    expect(reader.getTile).toHaveBeenCalledTimes(5)
+  })
+
+  it('shares a tile that is being read between concurrent requests', async () => {
+    const reader = createFakeReader({ levels: fourTimesLevels })
+    const [base] = dmv.viv.createPixelSources({ reader })
+    const selection = { c: 0 }
+    const [first, second] = await Promise.all([
+      base.getTile({ x: 2, y: 3, selection }),
+      base.getTile({ x: 2, y: 3, selection }),
+    ])
+    expect(first).toBe(second)
+    expect(reader.getTile).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels a shared read only when all requests are cancelled', async () => {
+    const reader = createFakeReader({ levels: fourTimesLevels })
+    const [base] = dmv.viv.createPixelSources({ reader })
+    const selection = { c: 0 }
+    const signals = []
+    let resolveRead
+    reader.getTile.mockImplementation(({ signal }) => {
+      signals.push(signal)
+      return new Promise((resolve, reject) => {
+        resolveRead = () =>
+          resolve({ pixelArray: new Float32Array(128 * 128), columns: 128, rows: 128 })
+        signal.addEventListener('abort', () => reject(signal.reason))
+      })
+    })
+    const one = new AbortController()
+    const two = new AbortController()
+    const first = base.getTile({ x: 0, y: 0, selection, signal: one.signal })
+    const second = base.getTile({ x: 0, y: 0, selection, signal: two.signal })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(signals).toHaveLength(1)
+
+    one.abort()
+    await expect(first).rejects.toBe(SIGNAL_ABORTED)
+    expect(signals[0].aborted).toBe(false)
+
+    two.abort()
+    await expect(second).rejects.toBe(SIGNAL_ABORTED)
+    expect(signals[0].aborted).toBe(true)
+
+    /** A later request starts a new read */
+    const third = base.getTile({ x: 0, y: 0, selection })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(signals).toHaveLength(2)
+    resolveRead()
+    await expect(third).resolves.toMatchObject({ width: 128, height: 128 })
+  })
+
+  it('can be disabled', async () => {
+    const reader = createFakeReader({ levels: fourTimesLevels })
+    const [base] = dmv.viv.createPixelSources({ reader, cacheSize: 0 })
+    await base.getTile({ x: 0, y: 0, selection: { c: 0 } })
+    await base.getTile({ x: 0, y: 0, selection: { c: 0 } })
+    expect(reader.getTile).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache failed tiles', async () => {
+    const reader = createFakeReader({ levels: fourTimesLevels })
+    const [base] = dmv.viv.createPixelSources({ reader })
+    reader.getTile.mockRejectedValueOnce(new Error('Failed to load frames'))
+    await expect(
+      base.getTile({ x: 0, y: 0, selection: { c: 0 } }),
+    ).rejects.toThrow('Failed to load frames')
+    await base.getTile({ x: 0, y: 0, selection: { c: 0 } })
+    expect(reader.getTile).toHaveBeenCalledTimes(2)
+  })
+
+  it('evicts the least recently used tiles', () => {
+    const tile = (bytes) => ({ data: new Uint8Array(bytes), width: 1, height: 1 })
+    const cache = new _TileCache(10)
+    cache.set('a', tile(4))
+    cache.set('b', tile(4))
+    cache.get('a')
+    cache.set('c', tile(4))
+    expect(cache.get('b')).toBeUndefined()
+    expect(cache.get('a')).toBeDefined()
+    expect(cache.get('c')).toBeDefined()
+    expect(cache.size).toBe(8)
+    /** Replacing a tile does not count it twice */
+    cache.set('c', tile(2))
+    expect(cache.size).toBe(6)
+    /** Larger than the cache: not added */
+    cache.set('d', tile(11))
+    expect(cache.get('d')).toBeUndefined()
+    cache.clear()
+    expect(cache.size).toBe(0)
   })
 })
 
@@ -469,9 +640,9 @@ describe('viv pixel sources and the Viv tile grid', () => {
     /** The missing column repeats the last column of the DICOM level */
     const strip = tiles.find((t) => t.k === 2 && t.x === 2 && t.y === 0)
     expect(strip.tile.width).toBe(1)
-    /** The 256 pixel DICOM level is level 0 of the fake reader */
-    expect(strip.tile.data[0]).toBe(255)
-    expect(strip.tile.data[127]).toBe(127 * 1000 + 255)
+    /** The 256 pixel DICOM level is level 1 of the fake reader */
+    expect(strip.tile.data[0]).toBe(1000000 + 255)
+    expect(strip.tile.data[127]).toBe(1000000 + 127 * 1000 + 255)
   })
 
   it('serves every tile of DICOM levels that are 1 pixel larger', async () => {
@@ -494,6 +665,25 @@ describe('viv pixel sources and the Viv tile grid', () => {
     await expect(
       sources[0].getTile({ x: -1, y: 0, selection: { c: 0 } }),
     ).rejects.toThrow(RangeError)
+  })
+
+  it('cancels the other tiles of a raster when one fails', async () => {
+    const reader = createFakeReader({ levels: [[512, 384, 128, 0.001]] })
+    const [base] = dmv.viv.createPixelSources({ reader })
+    const failure = new Error('Failed to load frames')
+    const signals = []
+    reader.getTile.mockImplementation(({ signal }) => {
+      signals.push(signal)
+      if (signals.length === 1) {
+        return Promise.reject(failure)
+      }
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason))
+      })
+    })
+    await expect(base.getRaster({ selection: { c: 0 } })).rejects.toBe(failure)
+    expect(signals).toHaveLength(12)
+    expect(signals.slice(1).every((signal) => signal.aborted)).toBe(true)
   })
 
   it('cancels the other tiles of a computed tile when one fails', async () => {

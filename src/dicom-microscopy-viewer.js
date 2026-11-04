@@ -22,6 +22,7 @@ import {
   createDistinctColormap,
   PaletteColorLookupTable,
 } from './color.js'
+import { CustomError, errorTypes } from './customError'
 import EVENTS from './events.js'
 import { setLogLevel } from './logger.js'
 import { ParameterMapping } from './mapping.js'
@@ -224,6 +225,21 @@ const events = {
 }
 
 /**
+ * Namespace for errors.
+ *
+ * Errors about the images (e.g. images that cannot be shown or read) are
+ * instances of `CustomError` with a `type` of `errorTypes`. Invalid
+ * arguments throw a TypeError or RangeError, and cancelled operations reject
+ * with a DOMException named "AbortError".
+ *
+ * @namespace errors
+ */
+const errors = {
+  CustomError,
+  errorTypes,
+}
+
+/**
  * Namespace for various utilities.
  *
  * @namespace utils
@@ -243,6 +259,7 @@ export {
   api,
   bulkSimpleAnnotations,
   color,
+  errors,
   events,
   mapping,
   metadata,
