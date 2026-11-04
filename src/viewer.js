@@ -65,7 +65,7 @@ import {
   createDistinctColormap,
   PaletteColorLookupTable,
 } from './color.js'
-import { CustomError, errorTypes } from './customError'
+import { CustomError, errorCodes, errorTypes } from './customError'
 import Enums from './enums'
 import publish from './eventPublisher'
 import EVENT from './events'
@@ -1824,6 +1824,7 @@ class VolumeImageViewer {
             errorTypes.VISUALIZATION,
             `Pyramid of optical path "${opticalPathIdentifier}" ` +
               'is different from reference pyramid.',
+            errorCodes.INCONSISTENT_PYRAMIDS,
           )
           throw this[_options].errorInterceptor(error)
         }

@@ -139,6 +139,9 @@ importers:
       terser-webpack-plugin:
         specifier: ^5.2.2
         version: 5.6.1(postcss@8.5.18)(webpack@5.107.2)
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
       webpack:
         specifier: ^5.94.0
         version: 5.107.2(postcss@8.5.18)(webpack-cli@5.1.4)
@@ -4022,6 +4025,11 @@ packages:
   typed-function@4.2.2:
     resolution: {integrity: sha512-VwaXim9Gp1bngi/q3do8hgttYn2uC3MoT/gfuMWylnj1IeZBUAyPddHZlo1K05BDoj8DYPpMdiHqH1dDYdJf2A==}
     engines: {node: '>= 18'}
+
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
 
   uc.micro@2.1.0:
     resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
@@ -8640,6 +8648,8 @@ snapshots:
       mime-types: 2.1.35
 
   typed-function@4.2.2: {}
+
+  typescript@5.9.3: {}
 
   uc.micro@2.1.0: {}
 

@@ -52,6 +52,8 @@ Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-micros
 pnpm add dicom-microscopy-viewer
 ```
 
+TypeScript declarations are included. `pyramid`, `viv`, `errors`, `events` and the view API of `VolumeImageViewer` are typed exactly; the other namespaces are declared with loose types for now. Applications that declare the module themselves (`declare module "dicom-microscopy-viewer"`) keep their own declarations.
+
 ## Getting started
 
 Below is an example of the most basic usage: a web page that displays a collection of DICOM VL Whole Slide Microscopy Image instances of a digital slide. For more advanced usage, see the [Slim](https://github.com/ImagingDataCommons/slim) viewer.
@@ -207,7 +209,7 @@ reader.destroy()
 Errors follow one convention across `pyramid` and `viv`:
 
 - Invalid arguments throw a `TypeError` or `RangeError` (e.g. an unknown optical path or a tile outside of the grid), without a request.
-- Images that cannot be read or shown throw `DICOMMicroscopyViewer.errors.CustomError`, whose `type` is one of `errors.errorTypes`.
+- Images that cannot be read or shown throw `DICOMMicroscopyViewer.errors.CustomError`, whose `type` is one of `errors.errorTypes`. Where available, `code` is one of `errors.errorCodes` (e.g. `NO_IMAGES`, `INCONSISTENT_PYRAMIDS`, `UNSUPPORTED_PIXEL_DATA`); codes keep their meaning across releases, so applications can act on them.
 - An aborted operation rejects with `signal.reason` (a `DOMException` named `AbortError` by default). `destroy()` aborts tiles that are still in flight; later `getTile` calls also reject with an `AbortError`.
 - Other failures reject with an `Error` whose `cause` is the underlying error, such as the dicomweb-client request error with its `status`.
 

@@ -202,7 +202,9 @@ describe('VolumeImageReader', () => {
           metadata: thumbnails,
           skipThumbnails: true,
         }),
-    ).toThrow(dmv.errors.CustomError)
+    ).toThrow(
+      expect.objectContaining({ code: dmv.errors.errorCodes.NO_IMAGES }),
+    )
   })
 
   it('throws a RangeError for an unknown optical path', () => {
@@ -249,6 +251,16 @@ describe('VolumeImageReader', () => {
           metadata: [...color, ...multiplex],
         }),
     ).toThrow(dmv.errors.CustomError)
+    let error
+    try {
+      new dmv.pyramid.VolumeImageReader({
+        client: createClient(),
+        metadata: [...color, ...multiplex],
+      })
+    } catch (e) {
+      error = e
+    }
+    expect(error.code).toBe(dmv.errors.errorCodes.UNSUPPORTED_OPTICAL_PATHS)
   })
 
   it('retains web workers on construction and releases them once', () => {
@@ -758,7 +770,10 @@ describe('VolumeImageReader.fromSeries', () => {
     }
     await expect(
       dmv.pyramid.VolumeImageReader.fromSeries({ client, ...seriesOptions }),
-    ).rejects.toThrow('contains no VOLUME or THUMBNAIL images')
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('contains no VOLUME or THUMBNAIL images'),
+      code: dmv.errors.errorCodes.NO_IMAGES,
+    })
     expect(webWorkerManager.retain).not.toHaveBeenCalled()
   })
 })

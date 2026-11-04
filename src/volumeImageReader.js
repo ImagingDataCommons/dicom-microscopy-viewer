@@ -1,4 +1,4 @@
-import { CustomError, errorTypes } from './customError'
+import { CustomError, errorCodes, errorTypes } from './customError'
 import { SOPClassUIDs } from './enums'
 import { VLWholeSlideMicroscopyImage } from './metadata.js'
 import {
@@ -204,6 +204,7 @@ class VolumeImageReader {
           errorTypes.VISUALIZATION,
           `Pyramid of optical path "${identifier}" ` +
             'is different from reference pyramid.',
+          errorCodes.INCONSISTENT_PYRAMIDS,
         )
       }
       const refImage = pyramid.metadata[0]
@@ -331,6 +332,7 @@ class VolumeImageReader {
         errorTypes.VISUALIZATION,
         `Series "${seriesInstanceUID}" of study "${studyInstanceUID}" ` +
           'contains no VOLUME or THUMBNAIL images.',
+        errorCodes.NO_IMAGES,
       )
     }
     return new VolumeImageReader({ client, metadata: volumeImages, ...options })

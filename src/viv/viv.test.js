@@ -204,7 +204,9 @@ describe('viv.loadDicomWeb', () => {
     try {
       await expect(
         dmv.viv.loadDicomWeb({ client, ...seriesOptions }),
-      ).rejects.toThrow(dmv.errors.CustomError)
+      ).rejects.toMatchObject({
+        code: dmv.errors.errorCodes.UNSUPPORTED_PIXEL_DATA,
+      })
       expect(webWorkerManager.release).toHaveBeenCalledTimes(1)
     } finally {
       spy.mockRestore()
@@ -379,7 +381,11 @@ describe('viv.createPixelSources', () => {
       dmv.viv.createPixelSources({
         reader: createFakeReader({ levels: [[1000, 1000, 240, 0.001]] }),
       }),
-    ).toThrow(dmv.errors.CustomError)
+    ).toThrow(
+      expect.objectContaining({
+        code: dmv.errors.errorCodes.UNSUPPORTED_TILE_SIZE,
+      }),
+    )
     expect(() =>
       dmv.viv.createPixelSources({
         reader: createFakeReader({ levels: [[1000, 1000, 240, 0.001]] }),

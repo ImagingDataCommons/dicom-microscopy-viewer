@@ -1,6 +1,6 @@
 import * as dwc from 'dicomweb-client'
 
-import { CustomError, errorTypes } from './customError'
+import { CustomError, errorCodes, errorTypes } from './customError'
 import { _decodeAndTransformFrame } from './decode.js'
 import publish from './eventPublisher'
 import EVENT from './events'
@@ -961,6 +961,7 @@ function _groupVolumeImages({
     throw new CustomError(
       errorTypes.VISUALIZATION,
       'Could not find any VOLUME images.',
+      errorCodes.NO_IMAGES,
     )
   }
   let images
@@ -1012,6 +1013,7 @@ function _groupVolumeImages({
     throw new CustomError(
       errorTypes.VISUALIZATION,
       'Could not find any channels or color images.',
+      errorCodes.NO_IMAGES,
     )
   }
 
@@ -1019,6 +1021,7 @@ function _groupVolumeImages({
     throw new CustomError(
       errorTypes.VISUALIZATION,
       'Found both channels and color images.',
+      errorCodes.UNSUPPORTED_OPTICAL_PATHS,
     )
   }
 
@@ -1026,6 +1029,7 @@ function _groupVolumeImages({
     throw new CustomError(
       errorTypes.VISUALIZATION,
       'Found more than one color image.',
+      errorCodes.UNSUPPORTED_OPTICAL_PATHS,
     )
   }
 

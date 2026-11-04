@@ -1,4 +1,4 @@
-import { CustomError, errorTypes } from '../customError'
+import { CustomError, errorCodes, errorTypes } from '../customError'
 import { logger } from '../logger.js'
 import { _typedArrays, VolumeImageReader } from '../volumeImageReader.js'
 import { _planDyadicLevels } from './levels.js'
@@ -54,6 +54,7 @@ const _createPixelSources = ({
     throw new CustomError(
       errorTypes.VISUALIZATION,
       'Viv requires all optical paths to have the same pixel data type.',
+      errorCodes.UNSUPPORTED_PIXEL_DATA,
     )
   }
   /** Viv names data types like TypedArrays without "Array" */
@@ -61,6 +62,7 @@ const _createPixelSources = ({
     throw new CustomError(
       errorTypes.VISUALIZATION,
       `Viv does not support pixel data of type ${arrayType ?? 'unknown'}.`,
+      errorCodes.UNSUPPORTED_PIXEL_DATA,
     )
   }
   const dtype = arrayType.replace(/Array$/, '')
@@ -69,6 +71,7 @@ const _createPixelSources = ({
       errorTypes.VISUALIZATION,
       'Viv only supports color images with 8 bits per sample, but the ' +
         `image has ${arrayType} samples.`,
+      errorCodes.UNSUPPORTED_PIXEL_DATA,
     )
   }
 

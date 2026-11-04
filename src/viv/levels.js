@@ -1,4 +1,4 @@
-import { CustomError, errorTypes } from '../customError'
+import { CustomError, errorCodes, errorTypes } from '../customError'
 
 /**
  * Whether a number is a positive power of 2.
@@ -41,6 +41,7 @@ const _planDyadicLevels = (levels, maxSyntheticLevels) => {
       'Viv requires square tiles with a power-of-2 size, but the tiles of the ' +
         `highest resolution level are ${finest.tileColumns} x ` +
         `${finest.tileRows} pixels.`,
+      errorCodes.UNSUPPORTED_TILE_SIZE,
     )
   }
   const candidates = levels.filter(

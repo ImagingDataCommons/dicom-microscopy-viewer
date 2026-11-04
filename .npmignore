@@ -1,3 +1,5 @@
 node_modules
 test/actual
 test/fixtures
+types/test
+types/tsconfig.json
