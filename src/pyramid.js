@@ -471,35 +471,52 @@ function _retrieveInstanceFrames(client, retrieveOptions, signal) {
   }
   _throwIfAborted(signal)
 
-  const instance = new XMLHttpRequest()
+  /**
+   * Hand out a new XMLHttpRequest each time the client reads
+   * `request.instance`, so that a client wrapper that passes the same options
+   * to several calls (store fallback, retry after authentication) never
+   * re-opens a request that is already in use. All of them are aborted.
+   */
+  const instances = new Set()
+  const request = { ...retrieveOptions.request, signal }
+  Object.defineProperty(request, 'instance', {
+    enumerable: true,
+    get() {
+      const instance = new XMLHttpRequest()
+      instances.add(instance)
+      return instance
+    },
+  })
+
   let onAbort
   const aborted = new Promise((_resolve, reject) => {
     onAbort = () => {
-      /**
-       * Detach dicomweb-client's handler first so the aborted request is not
-       * reported to the client's errorInterceptor as a failed request.
-       */
-      instance.onreadystatechange = null
-      instance.abort()
+      for (const instance of instances) {
+        /**
+         * Detach dicomweb-client's handler first so the aborted request is
+         * not reported to the client's errorInterceptor as a failed request.
+         */
+        instance.onreadystatechange = null
+        instance.abort()
+      }
       reject(_getAbortReason(signal))
     }
     signal.addEventListener('abort', onAbort, { once: true })
   })
-  let request
-  try {
-    request = client.retrieveInstanceFrames({
-      ...retrieveOptions,
-      request: { ...retrieveOptions.request, instance, signal },
-    })
-  } catch (error) {
+  const cleanup = () => {
     signal.removeEventListener('abort', onAbort)
+    instances.clear()
+  }
+  let response
+  try {
+    response = client.retrieveInstanceFrames({ ...retrieveOptions, request })
+  } catch (error) {
+    cleanup()
     throw error
   }
   /** The aborted request rejects too; the abort reason wins the race. */
-  request.catch(() => {})
-  return Promise.race([request, aborted]).finally(() => {
-    signal.removeEventListener('abort', onAbort)
-  })
+  response.catch(() => {})
+  return Promise.race([response, aborted]).finally(cleanup)
 }
 
 /**
@@ -723,7 +740,7 @@ function _createFrameLoadError({
   row,
   cause,
 }) {
-  return new Error(
+  const error = new Error(
     `Failed to load frames ${frameNumbers} ` +
       `of SOP instance "${sopInstanceUID}" ` +
       `for channel "${channel}" ` +
@@ -731,6 +748,11 @@ function _createFrameLoadError({
       `at zoom level ${level}: `,
     { cause },
   )
+  /** Browsers without the Error `cause` option ignore it */
+  if (error.cause === undefined) {
+    error.cause = cause
+  }
+  return error
 }
 
 /**

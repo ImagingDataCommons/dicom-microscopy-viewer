@@ -350,8 +350,12 @@ describe('VolumeImageReader', () => {
 
     it('cancels tiles in flight when the reader is destroyed', async () => {
       const client = createClient()
+      let resolveRequest
       client.retrieveInstanceFrames.mockImplementation(
-        () => new Promise(() => {}),
+        () =>
+          new Promise((resolve) => {
+            resolveRequest = resolve
+          }),
       )
       const { reader } = createReader(multiplexCase, { client })
       const promise = reader.getTile({
@@ -365,11 +369,47 @@ describe('VolumeImageReader', () => {
       const abortSpy = jest.spyOn(instance, 'abort')
 
       reader.destroy()
+      /** The response still arrives after destroy() */
+      resolveRequest([new ArrayBuffer(8)])
 
       await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+      await new Promise((resolve) => setTimeout(resolve, 0))
       expect(abortSpy).toHaveBeenCalledTimes(1)
       /** No decode task may be queued after the workers were released */
       expect(_decodeAndTransformFrame).not.toHaveBeenCalled()
+    })
+
+    it('gives every request made with the same options its own XHR', async () => {
+      const client = createClient()
+      const instances = []
+      /** Like a client wrapper that retries the same options on another store */
+      client.retrieveInstanceFrames.mockImplementation((options) => {
+        instances.push(options.request.instance)
+        instances.push(options.request.instance)
+        return new Promise(() => {})
+      })
+      const { reader } = createReader(multiplexCase, { client })
+      const controller = new AbortController()
+      const promise = reader.getTile({
+        opticalPathIdentifier: reader.opticalPaths[0].identifier,
+        level: 0,
+        column: 0,
+        row: 0,
+        signal: controller.signal,
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(instances).toHaveLength(2)
+      expect(instances[0]).not.toBe(instances[1])
+      const abortSpies = instances.map((instance) =>
+        jest.spyOn(instance, 'abort'),
+      )
+
+      controller.abort()
+
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
+      for (const abortSpy of abortSpies) {
+        expect(abortSpy).toHaveBeenCalledTimes(1)
+      }
     })
 
     it('cleans up when the client throws synchronously', async () => {

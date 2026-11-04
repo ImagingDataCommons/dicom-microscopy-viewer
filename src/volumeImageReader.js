@@ -309,9 +309,10 @@ class VolumeImageReader {
    * with `isEmpty` set and `pixelArray` filled with 0 for MONOCHROME2 and
    * with the maximum value otherwise.
    *
-   * When `signal` is aborted, the HTTP request and the queued decoding task
-   * are cancelled and the promise rejects with `signal.reason`, which is a
-   * DOMException named "AbortError" unless a different reason was given.
+   * When `signal` is aborted, the promise rejects with `signal.reason`, which
+   * is a DOMException named "AbortError" unless a different reason was given,
+   * and the queued decoding task is cancelled. The HTTP request is cancelled
+   * with dicomweb-client 0.11 or later (see the README for details).
    * Other failures reject with an Error whose `cause` is the underlying
    * error, e.g. the dicomweb-client request error with `status`.
    *
