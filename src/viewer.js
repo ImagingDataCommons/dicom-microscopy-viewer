@@ -7,7 +7,14 @@ import FullScreen from 'ol/control/FullScreen'
 import MousePosition from 'ol/control/MousePosition'
 import OverviewMap from 'ol/control/OverviewMap'
 import ScaleLine from 'ol/control/ScaleLine'
-import { createEmpty, extend, getCenter, getHeight, getWidth } from 'ol/extent'
+import {
+  boundingExtent,
+  createEmpty,
+  extend,
+  getCenter,
+  getHeight,
+  getWidth,
+} from 'ol/extent'
 import Feature from 'ol/Feature'
 import { fromExtent as polygonFromExtent } from 'ol/geom/Polygon'
 import { defaults as defaultInteractions } from 'ol/interaction'
@@ -69,7 +76,7 @@ import { CustomError, errorTypes } from './customError'
 import Enums from './enums'
 import publish from './eventPublisher'
 import EVENT from './events'
-import { applyViewerOptions } from './logger.js'
+import { applyViewerOptions, logger } from './logger.js'
 import { _groupFramesPerMapping, ParameterMapping } from './mapping.js'
 import {
   groupColorInstances,
@@ -1302,6 +1309,24 @@ const _bulkAnnotationSelectKey = Symbol('bulkAnnotationSelectKey')
 const _windowDebugHooks = Symbol('windowDebugHooks')
 /** Teardown for the overview collapse button DOM listener */
 const _overviewCollapseCleanup = Symbol('overviewCollapseCleanup')
+const _imageFilter = Symbol('imageFilter')
+const _viewChangeFrame = Symbol('viewChangeFrame')
+
+/** Whether the deprecation of getMap() has been reported */
+let _isGetMapDeprecationReported = false
+
+/**
+ * Set the CSS filter of a canvas if it differs.
+ *
+ * @param {HTMLCanvasElement} canvas - Canvas
+ * @param {string} filter - CSS filter, empty for none
+ * @private
+ */
+const _setCanvasFilter = (canvas, filter) => {
+  if (canvas?.style != null && canvas.style.filter !== filter) {
+    canvas.style.filter = filter
+  }
+}
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -1364,6 +1389,7 @@ class VolumeImageViewer {
    */
   constructor(options) {
     this[_options] = options
+    this[_imageFilter] = ''
     this[_retrievedBulkdata] = {}
     this[_annotationOptions] = {}
     this[_clients] = {}
@@ -1947,6 +1973,7 @@ class VolumeImageViewer {
           if ('drawingBufferColorSpace' in gl) {
             gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
           }
+          _setCanvasFilter(gl.canvas, this[_imageFilter])
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
@@ -2052,6 +2079,7 @@ class VolumeImageViewer {
           if ('drawingBufferColorSpace' in gl) {
             gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
           }
+          _setCanvasFilter(gl.canvas, this[_imageFilter])
         })
         layer.on('error', (event) => {
           console.error(
@@ -2385,11 +2413,145 @@ class VolumeImageViewer {
   }
 
   /**
-   * Gets the internal map object, used for finer grained control over the display
-   * area/setup.
+   * Gets the internal OpenLayers map object.
+   *
+   * @deprecated The map is an implementation detail and may change with
+   * OpenLayers versions. Use {@link viewer.VolumeImageViewer#getViewState},
+   * {@link viewer.VolumeImageViewer#setViewState},
+   * {@link viewer.VolumeImageViewer#fitBounds},
+   * {@link viewer.VolumeImageViewer#setImageFilter} and the
+   * `VIEW_CHANGED` event instead.
+   * @returns {Object} OpenLayers map
    */
   getMap() {
+    if (!_isGetMapDeprecationReported) {
+      _isGetMapDeprecationReported = true
+      logger.warn(
+        'VolumeImageViewer.getMap() is deprecated. Use getViewState(), ' +
+          'setViewState(), fitBounds(), setImageFilter() and the ' +
+          'VIEW_CHANGED event instead.',
+      )
+    }
     return this[_map]
+  }
+
+  /**
+   * Pixel spacing of the highest resolution level along the rows in
+   * millimeter, as used for the point resolution of the map projection.
+   *
+   * @private
+   */
+  _getBasePixelSpacing() {
+    const pixelSpacings = this[_pyramid].pixelSpacings
+    return pixelSpacings[pixelSpacings.length - 1][0]
+  }
+
+  /**
+   * Get the state of the view.
+   *
+   * @returns {Object} View state: `center`, the slide coordinates (x, y) in
+   * millimeter at the center of the viewport; `zoom`, the zoom level on the
+   * same scale as the `level` of {@link viewer.VolumeImageViewer#navigate};
+   * `resolution`, the size of a screen pixel in millimeter; and `rotation`,
+   * the counter-clockwise rotation of the view in radians
+   */
+  getViewState() {
+    const view = this[_map].getView()
+    const center = view.getCenter()
+    const resolution = view.getResolution()
+    return {
+      center:
+        center === undefined
+          ? undefined
+          : _geometryCoordinates2scoord3dCoordinates(
+              center,
+              this[_pyramid].metadata,
+              this[_affine],
+            ).slice(0, 2),
+      zoom: view.getZoom(),
+      resolution:
+        resolution === undefined
+          ? undefined
+          : resolution * this._getBasePixelSpacing(),
+      rotation: view.getRotation(),
+    }
+  }
+
+  /**
+   * Change the view. Properties that are not given keep their value.
+   *
+   * @param {Object} viewState - View state, see
+   * {@link viewer.VolumeImageViewer#getViewState}
+   * @param {number[]} [viewState.center] - Slide coordinates (x, y) in
+   * millimeter to show at the center of the viewport
+   * @param {number} [viewState.zoom] - Zoom level; ignored when `resolution`
+   * is given
+   * @param {number} [viewState.resolution] - Size of a screen pixel in
+   * millimeter
+   * @param {number} [viewState.rotation] - Counter-clockwise rotation of the
+   * view in radians
+   */
+  setViewState({ center, zoom, resolution, rotation } = {}) {
+    const view = this[_map].getView()
+    if (center != null) {
+      view.setCenter(
+        _scoord3dCoordinates2geometryCoordinates(
+          [center[0], center[1], 0],
+          this[_affineInverse],
+        ).slice(0, 2),
+      )
+    }
+    if (resolution != null) {
+      view.setResolution(resolution / this._getBasePixelSpacing())
+    } else if (zoom != null) {
+      view.setZoom(zoom)
+    }
+    if (rotation != null) {
+      view.setRotation(rotation)
+    }
+  }
+
+  /**
+   * Change the view so that a region of the slide fills the viewport.
+   *
+   * @param {number[][]} bounds - Two opposite corners of the region in slide
+   * coordinates (x, y) in millimeter
+   * @param {Object} [options] - Options
+   * @param {number[]} [options.padding=[0, 0, 0, 0]] - Padding around the
+   * region in screen pixels (top, right, bottom, left)
+   */
+  fitBounds(bounds, { padding = [0, 0, 0, 0] } = {}) {
+    const [[x1, y1], [x2, y2]] = bounds
+    const corners = [
+      [x1, y1],
+      [x2, y1],
+      [x2, y2],
+      [x1, y2],
+    ].map((corner) =>
+      _scoord3dCoordinates2geometryCoordinates(
+        [corner[0], corner[1], 0],
+        this[_affineInverse],
+      ).slice(0, 2),
+    )
+    const view = this[_map].getView()
+    view.fit(boundingExtent(corners), {
+      size: this[_map].getSize(),
+      padding,
+    })
+  }
+
+  /**
+   * Apply a CSS filter to the image, e.g. to adjust brightness and contrast.
+   * ROIs and annotations are not filtered. Segmentation and parameter
+   * mapping overlays may be filtered as well, because they can be drawn
+   * into the same canvas as the image.
+   *
+   * @param {string} [filter] - CSS filter, e.g. "brightness(1.2)"; empty or
+   * undefined to remove the filter
+   */
+  setImageFilter(filter) {
+    this[_imageFilter] = filter ?? ''
+    this[_map].render()
   }
 
   /**
@@ -2416,7 +2578,10 @@ class VolumeImageViewer {
      */
     track(
       this[_map].on('movestart', (event) => {
-        publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
+        publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, {
+          event,
+          viewState: this.getViewState(),
+        })
       }),
     )
 
@@ -2426,8 +2591,38 @@ class VolumeImageViewer {
      */
     track(
       this[_map].on('moveend', (event) => {
-        publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
+        publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, {
+          event,
+          viewState: this.getViewState(),
+        })
       }),
+    )
+
+    /**
+     * Report changes of the view at most once per animation frame.
+     * @private
+     */
+    const publishViewChange = () => {
+      if (this[_viewChangeFrame] !== undefined) {
+        return
+      }
+      this[_viewChangeFrame] = requestAnimationFrame(() => {
+        this[_viewChangeFrame] = undefined
+        if (this[_isCleanedUp]) {
+          return
+        }
+        publish(this[_map].getTargetElement(), EVENT.VIEW_CHANGED, {
+          viewState: this.getViewState(),
+        })
+      })
+    }
+    track(
+      this[_map]
+        .getView()
+        .on(
+          ['change:center', 'change:resolution', 'change:rotation'],
+          publishViewChange,
+        ),
     )
 
     let clickEvent = null
@@ -2464,6 +2659,17 @@ class VolumeImageViewer {
 
         publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
           features: featuresWithROIs,
+          clientX: event.originalEvent?.clientX,
+          clientY: event.originalEvent?.clientY,
+          coordinates:
+            event.coordinate == null
+              ? undefined
+              : _geometryCoordinates2scoord3dCoordinates(
+                  event.coordinate,
+                  this[_pyramid].metadata,
+                  this[_affine],
+                ).slice(0, 2),
+          /** Deprecated: the OpenLayers MapBrowserEvent */
           event,
         })
       }),
@@ -3606,6 +3812,10 @@ class VolumeImageViewer {
 
     unlistenKeys(this[_mapListenerKeys])
     this[_mapListenerKeys] = []
+    if (this[_viewChangeFrame] !== undefined) {
+      cancelAnimationFrame(this[_viewChangeFrame])
+      this[_viewChangeFrame] = undefined
+    }
     unlistenKeys(this[_drawingSourceListenerKeys])
     this[_drawingSourceListenerKeys] = []
     unlistenKeys(this[_bulkAnnotationSelectKey])

@@ -19,6 +19,7 @@ The viewer visualizes slide microscopy images stored in a [DICOMweb](https://www
 - [Getting started](#getting-started)
   - [Packaging](#packaging)
   - [Basic usage](#basic-usage)
+  - [Controlling the view](#controlling-the-view)
 - [Development](#development)
 - [Related projects](#related-projects)
 - [Contributing](#contributing)
@@ -111,6 +112,28 @@ client.retrieveSeriesMetadata(retrieveOptions).then((metadata) => {
   viewer.render({ container: "viewport" })
 })
 ```
+
+### Controlling the view
+
+The view is described in slide coordinates (millimeter), the same coordinate system as `navigate()` and ROIs, so applications do not depend on the rendering library:
+
+```js
+const { center, zoom, resolution, rotation } = viewer.getViewState()
+// center: [x, y] in mm; resolution: mm per screen pixel; rotation: radians
+
+viewer.setViewState({ center: [10.5, 20.25], resolution: 0.001 })
+viewer.fitBounds([[10, 20], [12, 21]], { padding: [20, 20, 20, 20] })
+viewer.setImageFilter("brightness(1.2) contrast(1.1)") // not applied to ROIs
+
+document.getElementById("viewport").addEventListener(
+  DICOMMicroscopyViewer.events.EVENTS.VIEW_CHANGED,
+  (event) => console.log(event.detail.payload.viewState),
+)
+```
+
+- `VIEW_CHANGED` fires at most once per animation frame while the view changes. `MOVE_STARTED` and `MOVE_ENDED` also carry `viewState`.
+- `POINTER_MOVE` carries `clientX`, `clientY` and `coordinates` (slide coordinates in millimeter) next to the matched ROIs.
+- `getMap()`, which returns the OpenLayers map, is deprecated: the map is an implementation detail that can change with OpenLayers upgrades. Use the methods above instead. The OpenLayers event in the `event` field of event payloads is deprecated for the same reason.
 
 ## Development
 
