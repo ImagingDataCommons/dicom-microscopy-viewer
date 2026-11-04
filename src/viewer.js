@@ -9,7 +9,7 @@ import OverviewMap from 'ol/control/OverviewMap'
 import ScaleLine from 'ol/control/ScaleLine'
 import { createEmpty, extend, getCenter, getHeight, getWidth } from 'ol/extent'
 import Feature from 'ol/Feature'
-import { fromExtent as polygonFromExtent } from 'ol/geom/Polygon'
+import OlPolygon, { fromExtent as polygonFromExtent } from 'ol/geom/Polygon'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
@@ -65,29 +65,27 @@ import {
   createDistinctColormap,
   PaletteColorLookupTable,
 } from './color.js'
-import { CustomError, errorTypes } from './customError'
+import { CustomError, errorCodes, errorTypes } from './customError'
 import Enums from './enums'
 import publish from './eventPublisher'
 import EVENT from './events'
 import { applyViewerOptions } from './logger.js'
 import { _groupFramesPerMapping, ParameterMapping } from './mapping.js'
-import {
-  groupColorInstances,
-  groupMonochromeInstances,
-  VLWholeSlideMicroscopyImage,
-} from './metadata.js'
+import { VLWholeSlideMicroscopyImage } from './metadata.js'
 import Observable from './observable.js'
-import { OpticalPath } from './opticalPath.js'
 import {
   _areImagePyramidsEqual,
   _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
   _computeImagePyramid,
+  _computePyramidTransforms,
   _computeSegmentBoundingBoxes,
+  _createOpticalPath,
   _createPerFrameImageLoadFunction,
   _createTileLoadFunction,
   _fitImagePyramid,
   _getIccProfiles,
+  _groupVolumeImages,
   _isSparseTileMissing,
   _overviewStampExtent,
   _perFrameRasterMaxResolution,
@@ -110,8 +108,6 @@ import {
   _getUnitSuffix,
   applyTransform,
   areCodedConceptsEqual,
-  buildInverseTransform,
-  buildTransform,
   computeRotation,
   createWindow,
   detectDisplayColorSpace,
@@ -1302,6 +1298,87 @@ const _bulkAnnotationSelectKey = Symbol('bulkAnnotationSelectKey')
 const _windowDebugHooks = Symbol('windowDebugHooks')
 /** Teardown for the overview collapse button DOM listener */
 const _overviewCollapseCleanup = Symbol('overviewCollapseCleanup')
+const _imageFilter = Symbol('imageFilter')
+const _imageFilterElement = Symbol('imageFilterElement')
+const _viewChangeFrame = Symbol('viewChangeFrame')
+
+/** Last filter set on each canvas, since browsers may normalize style.filter */
+const _canvasFilters = new WeakMap()
+
+/**
+ * Set the CSS filter of a canvas if it differs.
+ *
+ * A canvas is left alone until a filter is set, so that filters applications
+ * set on the canvases themselves (e.g. Cornerstone3D on `.ol-layers canvas`)
+ * are kept unless {@link viewer.VolumeImageViewer#setImageColorMatrix} is used.
+ *
+ * @param {HTMLCanvasElement} canvas - Canvas
+ * @param {string} filter - CSS filter, empty for none
+ * @private
+ */
+const _setCanvasFilter = (canvas, filter) => {
+  if (canvas?.style == null) {
+    return
+  }
+  const current = _canvasFilters.get(canvas)
+  if (current === filter || (current === undefined && filter === '')) {
+    return
+  }
+  /** Remember the value set, browsers may normalize style.filter */
+  _canvasFilters.set(canvas, filter)
+  canvas.style.filter = filter
+}
+
+const _svgNamespace = 'http://www.w3.org/2000/svg'
+/** Makes the ids of the SVG filters of all viewers unique */
+let _imageFilterCount = 0
+
+/**
+ * Hidden SVG element with a color matrix filter.
+ *
+ * @returns {SVGSVGElement} Element, whose filter has the id `dataset.filterId`
+ * @private
+ */
+const _createColorMatrixFilterElement = () => {
+  _imageFilterCount += 1
+  const id = `dicom-microscopy-viewer-image-filter-${_imageFilterCount}`
+  const svg = document.createElementNS(_svgNamespace, 'svg')
+  svg.setAttribute('width', '0')
+  svg.setAttribute('height', '0')
+  svg.setAttribute('aria-hidden', 'true')
+  svg.style.position = 'absolute'
+  svg.dataset.filterId = id
+  const filter = document.createElementNS(_svgNamespace, 'filter')
+  filter.setAttribute('id', id)
+  const colorMatrix = document.createElementNS(_svgNamespace, 'feColorMatrix')
+  colorMatrix.setAttribute('type', 'matrix')
+  filter.appendChild(colorMatrix)
+  svg.appendChild(filter)
+  return svg
+}
+
+/**
+ * Whether a value is a pair of finite numbers, e.g. slide coordinates.
+ *
+ * @private
+ */
+const _isFinitePair = (value) =>
+  Array.isArray(value) &&
+  value.length >= 2 &&
+  Number.isFinite(value[0]) &&
+  Number.isFinite(value[1])
+
+/**
+ * Angle in the range (-π, π].
+ *
+ * @param {number} angle - Angle in radians
+ * @returns {number} Equivalent angle
+ * @private
+ */
+const _normalizeAngle = (angle) => {
+  const normalized = Math.atan2(Math.sin(angle), Math.cos(angle))
+  return normalized === -Math.PI ? Math.PI : normalized
+}
 
 /**
  * Interactive viewer for DICOM VL Whole Slide Microscopy Image instances
@@ -1364,6 +1441,7 @@ class VolumeImageViewer {
    */
   constructor(options) {
     this[_options] = options
+    this[_imageFilter] = ''
     this[_retrievedBulkdata] = {}
     this[_annotationOptions] = {}
     this[_clients] = {}
@@ -1544,141 +1622,26 @@ class VolumeImageViewer {
       THUMBNAIL: 'THUMBNAIL',
     }
 
-    const hasImageFlavor = (image, imageFlavor) => {
-      return image.ImageType[2] === imageFlavor
-    }
-
-    /*
-     * Only include THUMBNAIL image into metadata if no other VOLUME image
-     * exists with the same resolution. When a THUMBNAIL is kept, also drop
-     * VOLUME levels that are coarser (fewer total pixels) than the thumbnail
-     * so OpenLayers uses the single-frame THUMBNAIL for overview / fit zoom
-     * instead of a coarser multi-frame VOLUME level (slim#389).
-     */
-    const filterImagesByResolution = (metadata) => {
-      const pyramidBaseMetadata = metadata[metadata.length - 1]
-      const filteredMetadata = metadata.filter((image) => {
-        if (
-          hasImageFlavor(image, ImageFlavors.THUMBNAIL) &&
-          this[_options].skipThumbnails === true
-        ) {
-          return false
-        }
-        if (hasImageFlavor(image, ImageFlavors.THUMBNAIL)) {
-          const hasThumbnailEquivalentVolumeImage = metadata.some(
-            (img) =>
-              hasImageFlavor(img, ImageFlavors.VOLUME) &&
-              pyramidBaseMetadata.TotalPixelMatrixColumns /
-                img.TotalPixelMatrixColumns ===
-                pyramidBaseMetadata.TotalPixelMatrixColumns /
-                  image.TotalPixelMatrixColumns,
-          )
-          if (hasThumbnailEquivalentVolumeImage) {
-            console.debug(
-              'Thumbnail image has equivalent volume image resolution, skipping thumbnail.',
-              image.SOPInstanceUID,
-            )
-            return false
-          }
-          return true
-        } else {
-          return true
-        }
+    let groupedImages
+    try {
+      groupedImages = _groupVolumeImages({
+        metadata: this[_options].metadata,
+        skipThumbnails: this[_options].skipThumbnails,
       })
-
-      const thumbnailColumns = filteredMetadata
-        .filter((image) => hasImageFlavor(image, ImageFlavors.THUMBNAIL))
-        .map((image) => image.TotalPixelMatrixColumns)
-      if (thumbnailColumns.length === 0) {
-        return filteredMetadata
+    } catch (error) {
+      if (error instanceof CustomError) {
+        throw this[_options].errorInterceptor(error)
       }
-
-      const minThumbnailColumns = Math.min(...thumbnailColumns)
-      return filteredMetadata.filter((image) => {
-        if (
-          hasImageFlavor(image, ImageFlavors.VOLUME) &&
-          image.TotalPixelMatrixColumns < minThumbnailColumns
-        ) {
-          console.debug(
-            'Volume image is coarser than THUMBNAIL; skipping so the ' +
-              'thumbnail is used for overview.',
-            image.SOPInstanceUID,
-          )
-          return false
-        }
-        return true
-      })
+      throw error
     }
-
-    // We also accept metadata in raw JSON format for backwards compatibility
-    const filteredMetadata = filterImagesByResolution(this[_options].metadata)
-    if (filteredMetadata[0].SOPClassUID != null) {
-      this[_metadata] = filteredMetadata
-    } else {
-      this[_metadata] = filteredMetadata.map((instance) => {
-        return new VLWholeSlideMicroscopyImage({ metadata: instance })
-      })
-    }
-
-    // Group color images by opticalPathIdentifier
-    const colorGroups = groupColorInstances(this[_metadata])
-    const colorImageInformation = {}
-    let colorOpticalPathIdentifiers = Object.keys(colorGroups)
-    if (colorOpticalPathIdentifiers.length > 0) {
-      const id = colorOpticalPathIdentifiers[0]
-      if (colorOpticalPathIdentifiers.length > 1) {
-        console.warn(
-          'Volume Image Viewer detected more than one color image, ' +
-            'but only one color image can be loaded and visualized at a time. ' +
-            'Only the first detected color image will be loaded.',
-        )
-        colorOpticalPathIdentifiers = [id]
-      }
-      colorImageInformation[id] = {
-        metadata: colorGroups[id],
-        opticalPath: this[_metadata][0].OpticalPathSequence[0],
-      }
-    }
-
-    const monochromeGroups = groupMonochromeInstances(this[_metadata])
-    const monochromeOpticalPathIdentifiers = Object.keys(monochromeGroups)
-    const monochromeImageInformation = {}
-    monochromeOpticalPathIdentifiers.forEach((id) => {
-      const refImage = monochromeGroups[id][0]
-      const opticalPath = refImage.OpticalPathSequence.find((item) => {
-        return item.OpticalPathIdentifier === id
-      })
-      monochromeImageInformation[id] = {
-        metadata: monochromeGroups[id],
-        opticalPath,
-      }
-    })
-
+    const {
+      colorImageInformation,
+      colorOpticalPathIdentifiers,
+      monochromeImageInformation,
+      monochromeOpticalPathIdentifiers,
+    } = groupedImages
+    this[_metadata] = groupedImages.metadata
     const numChannels = monochromeOpticalPathIdentifiers.length
-    const numColorImages = colorOpticalPathIdentifiers.length
-    if (numChannels === 0 && numColorImages === 0) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Could not find any channels or color images.',
-      )
-      throw this[_options].errorInterceptor(error)
-    }
-
-    if (numChannels > 0 && numColorImages > 0) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Found both channels and color images.',
-      )
-      throw this[_options].errorInterceptor(error)
-    }
-
-    if (numColorImages > 1) {
-      const error = new CustomError(
-        errorTypes.VISUALIZATION,
-        'Found more than one color image.',
-      )
-      throw this[_options].errorInterceptor(error)
-    }
 
     /*
      * For blending we have to make some assumptions
@@ -1702,24 +1665,9 @@ class VolumeImageViewer {
       this[_pyramid] = _computeImagePyramid({ metadata: info.metadata })
     }
 
-    const metadata = this[_pyramid].metadata[this[_pyramid].metadata.length - 1]
-    const origin = metadata.TotalPixelMatrixOriginSequence[0]
-    const orientation = metadata.ImageOrientationSlide
-    const spacing = getPixelSpacing(metadata)
-    const offset = [
-      Number(origin.XOffsetInSlideCoordinateSystem),
-      Number(origin.YOffsetInSlideCoordinateSystem),
-    ]
-    this[_affine] = buildTransform({
-      offset,
-      orientation,
-      spacing,
-    })
-    this[_affineInverse] = buildInverseTransform({
-      offset,
-      orientation,
-      spacing,
-    })
+    const transforms = _computePyramidTransforms(this[_pyramid])
+    this[_affine] = transforms.affine
+    this[_affineInverse] = transforms.affineInverse
 
     this[_rotation] = _getRotation(this[_pyramid].metadata[0])
 
@@ -1806,13 +1754,9 @@ class VolumeImageViewer {
         const minStoredValue = 0
         const maxStoredValue = 2 ** bitsAllocated - 1
 
-        let paletteColorLookupTableUID
         let paletteColorLookupTable
         if (info.opticalPath.PaletteColorLookupTableSequence) {
           const item = info.opticalPath.PaletteColorLookupTableSequence[0]
-          paletteColorLookupTableUID = item.PaletteColorLookupTableUID
-            ? item.PaletteColorLookupTableUID
-            : _generateUID()
           /*
            * TODO: If the LUT Data are large, the elements may be bulkdata and
            * then have to be retrieved separately. However, for optical paths
@@ -1848,21 +1792,11 @@ class VolumeImageViewer {
 
         const opticalPath = {
           opticalPathIdentifier,
-          opticalPath: new OpticalPath({
+          opticalPath: _createOpticalPath({
             identifier: opticalPathIdentifier,
-            description: info.opticalPath.OpticalPathDescription,
+            opticalPathItem: info.opticalPath,
+            pyramid,
             isMonochromatic: true,
-            illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
-            illuminationWaveLength: info.opticalPath.IlluminationWaveLength,
-            illuminationColor: info.opticalPath.IlluminationColorCodeSequence
-              ? info.opticalPath.IlluminationColorCodeSequence[0]
-              : undefined,
-            studyInstanceUID: info.metadata[0].StudyInstanceUID,
-            seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
-            sopInstanceUIDs: pyramid.metadata.map((element) => {
-              return element.SOPInstanceUID
-            }),
-            paletteColorLookupTableUID,
           }),
           pyramid,
           style: { ...defaultOpticalPathStyle },
@@ -1890,6 +1824,7 @@ class VolumeImageViewer {
             errorTypes.VISUALIZATION,
             `Pyramid of optical path "${opticalPathIdentifier}" ` +
               'is different from reference pyramid.',
+            errorCodes.INCONSISTENT_PYRAMIDS,
           )
           throw this[_options].errorInterceptor(error)
         }
@@ -1947,6 +1882,7 @@ class VolumeImageViewer {
           if ('drawingBufferColorSpace' in gl) {
             gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
           }
+          _setCanvasFilter(gl.canvas, this[_imageFilter])
           gl.enable(gl.BLEND)
           gl.blendEquation(gl.FUNC_ADD)
           gl.blendFunc(gl.SRC_COLOR, gl.ONE)
@@ -1990,16 +1926,11 @@ class VolumeImageViewer {
 
       const opticalPath = {
         opticalPathIdentifier,
-        opticalPath: new OpticalPath({
+        opticalPath: _createOpticalPath({
           identifier: opticalPathIdentifier,
-          description: info.opticalPath.OpticalPathDescription,
-          illuminationType: info.opticalPath.IlluminationTypeCodeSequence[0],
+          opticalPathItem: info.opticalPath,
+          pyramid,
           isMonochromatic: false,
-          studyInstanceUID: info.metadata[0].StudyInstanceUID,
-          seriesInstanceUID: info.metadata[0].SeriesInstanceUID,
-          sopInstanceUIDs: pyramid.metadata.map((element) => {
-            return element.SOPInstanceUID
-          }),
         }),
         style: { ...defaultOpticalPathStyle },
         defaultStyle: defaultOpticalPathStyle,
@@ -2052,6 +1983,7 @@ class VolumeImageViewer {
           if ('drawingBufferColorSpace' in gl) {
             gl.drawingBufferColorSpace = this[_iccOutputType].getValue()
           }
+          _setCanvasFilter(gl.canvas, this[_imageFilter])
         })
         layer.on('error', (event) => {
           console.error(
@@ -2385,11 +2317,244 @@ class VolumeImageViewer {
   }
 
   /**
-   * Gets the internal map object, used for finer grained control over the display
-   * area/setup.
+   * Gets the internal OpenLayers map object.
+   *
+   * @deprecated The map is an implementation detail and may change with
+   * OpenLayers versions (or be replaced). Use
+   * {@link viewer.VolumeImageViewer#getViewState},
+   * {@link viewer.VolumeImageViewer#setViewState},
+   * {@link viewer.VolumeImageViewer#fitBounds},
+   * {@link viewer.VolumeImageViewer#setImageColorMatrix} and the
+   * `VIEW_CHANGED` event instead.
+   * @returns {Object} OpenLayers map
    */
   getMap() {
     return this[_map]
+  }
+
+  /**
+   * Pixel spacing of the highest resolution level along the rows in
+   * millimeter, as used for the point resolution of the map projection.
+   *
+   * @private
+   */
+  _getBasePixelSpacing() {
+    const pixelSpacings = this[_pyramid].pixelSpacings
+    return pixelSpacings[pixelSpacings.length - 1][0]
+  }
+
+  /**
+   * Get the state of the view.
+   *
+   * Slide coordinates are rounded to 0.1 micrometer, like those of ROIs.
+   *
+   * The state only uses physical units, so that it means the same for every
+   * slide and renderer: to compare it with a renderer that uses zoom levels
+   * of a pixel matrix (e.g. deck.gl), use `log2(pixelSpacing / resolution)`.
+   *
+   * @returns {Object} View state: `center`, the slide coordinates (x, y) in
+   * millimeter at the center of the viewport; `resolution`, the size of a
+   * screen pixel in millimeter; and `rotation`, the clockwise rotation of the
+   * image on screen in radians relative to the default orientation of the
+   * slide (0 after {@link viewer.VolumeImageViewer#render}), in the range
+   * (-π, π]
+   */
+  getViewState() {
+    const view = this[_map].getView()
+    const center = view.getCenter()
+    const resolution = view.getResolution()
+    return {
+      center:
+        center === undefined
+          ? undefined
+          : _geometryCoordinates2scoord3dCoordinates(
+              center,
+              this[_pyramid].metadata,
+              this[_affine],
+            ).slice(0, 2),
+      resolution:
+        resolution === undefined
+          ? undefined
+          : resolution * this._getBasePixelSpacing(),
+      rotation: _normalizeAngle(view.getRotation() - this[_rotation]),
+    }
+  }
+
+  /**
+   * Change the view. Properties that are not given or that equal the current
+   * ones keep their value, so `setViewState(getViewState())` changes nothing.
+   * Call it after {@link viewer.VolumeImageViewer#render}, which fits the
+   * whole slide into the viewport.
+   *
+   * @param {Object} viewState - View state, see
+   * {@link viewer.VolumeImageViewer#getViewState}
+   * @param {number[]} [viewState.center] - Slide coordinates (x, y) in
+   * millimeter to show at the center of the viewport
+   * @param {number} [viewState.resolution] - Size of a screen pixel in
+   * millimeter
+   * @param {number} [viewState.rotation] - Clockwise rotation of the image on
+   * screen in radians relative to the default orientation of the slide. Like
+   * interactive rotation, a rotation that turns the total pixel matrix to
+   * within 5° of upright on screen snaps to upright.
+   * @throws {TypeError} When a given property is not a finite number (or
+   * pair of numbers), or for `zoom`, which the view state does not have
+   * @throws {RangeError} When the resolution is not positive
+   */
+  setViewState({ center, resolution, rotation, ...rest } = {}) {
+    if ('zoom' in rest) {
+      throw new TypeError(
+        'The view state has no "zoom"; use "resolution" (millimeter per ' +
+          'screen pixel) or navigate({ level }).',
+      )
+    }
+    if (center != null && !_isFinitePair(center)) {
+      throw new TypeError('"center" must be slide coordinates [x, y].')
+    }
+    for (const [name, value] of [
+      ['resolution', resolution],
+      ['rotation', rotation],
+    ]) {
+      if (value != null && !Number.isFinite(value)) {
+        throw new TypeError(`"${name}" must be a finite number.`)
+      }
+    }
+    if (resolution != null && resolution <= 0) {
+      throw new RangeError('"resolution" must be greater than 0.')
+    }
+    const view = this[_map].getView()
+    const current = this.getViewState()
+    const differs = (value, currentValue) =>
+      currentValue === undefined ||
+      Math.abs(value - currentValue) > 1e-9 * Math.max(1, Math.abs(value))
+    if (
+      center != null &&
+      (current.center === undefined ||
+        differs(center[0], current.center[0]) ||
+        differs(center[1], current.center[1]))
+    ) {
+      view.setCenter(
+        _scoord3dCoordinates2geometryCoordinates(
+          [center[0], center[1], 0],
+          this[_affineInverse],
+        ).slice(0, 2),
+      )
+    }
+    if (resolution != null && differs(resolution, current.resolution)) {
+      view.setResolution(resolution / this._getBasePixelSpacing())
+    }
+    if (
+      rotation != null &&
+      differs(_normalizeAngle(rotation - current.rotation), 0)
+    ) {
+      view.setRotation(rotation + this[_rotation])
+    }
+  }
+
+  /**
+   * Change the view so that a region of the slide fills the viewport.
+   *
+   * @param {number[][]} bounds - Two opposite corners of the region in slide
+   * coordinates (x, y) in millimeter
+   * @param {Object} [options] - Options
+   * @param {number[]} [options.padding=[0, 0, 0, 0]] - Padding around the
+   * region in screen pixels (top, right, bottom, left)
+   * @throws {TypeError} When the bounds are not two pairs of finite numbers
+   */
+  fitBounds(bounds, { padding = [0, 0, 0, 0] } = {}) {
+    if (
+      !Array.isArray(bounds) ||
+      !_isFinitePair(bounds[0]) ||
+      !_isFinitePair(bounds[1])
+    ) {
+      throw new TypeError(
+        '"bounds" must be two corners [[x1, y1], [x2, y2]] in slide coordinates.',
+      )
+    }
+    const [[x1, y1], [x2, y2]] = bounds
+    const corners = [
+      [x1, y1],
+      [x2, y1],
+      [x2, y2],
+      [x1, y2],
+    ].map((corner) =>
+      _scoord3dCoordinates2geometryCoordinates(
+        [corner[0], corner[1], 0],
+        this[_affineInverse],
+      ).slice(0, 2),
+    )
+    const view = this[_map].getView()
+    /** A polygon also fits exactly when the slide is not axis-aligned */
+    view.fit(new OlPolygon([[...corners, corners[0]]]), {
+      size: this[_map].getSize(),
+      padding,
+    })
+  }
+
+  /**
+   * Transform the colors of the image in the viewport with a color matrix,
+   * e.g. for brightness, contrast, windowing or white balance. ROIs,
+   * annotations, segmentations, parameter mappings and the overview map are
+   * not transformed.
+   *
+   * The matrix has 4 rows (red, green, blue, alpha) of 5 values, like an SVG
+   * `feColorMatrix` of type "matrix": each output component is
+   * `m[0] * R + m[1] * G + m[2] * B + m[3] * A + m[4]` with the components
+   * in the range [0, 1], then clamped to that range. The identity is
+   * `[1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0]`. For example, the window
+   * `[lower, upper]` of 8-bit values is
+   * `s = 255 / (upper - lower)`, `o = -lower / (upper - lower)`:
+   * `[s,0,0,0,o, 0,s,0,0,o, 0,0,s,0,o, 0,0,0,1,0]`.
+   *
+   * @param {number[]|null} matrix - 20 numbers, row by row; null or
+   * undefined to remove the transformation
+   * @param {Object} [options] - Options
+   * @param {string} [options.colorSpace='srgb'] - Color space in which the
+   * matrix is applied: "srgb" (the stored, gamma-encoded values) or
+   * "linear-srgb"
+   * @throws {TypeError} When the matrix is not 20 finite numbers
+   * @throws {RangeError} When the color space is unknown
+   */
+  setImageColorMatrix(matrix, { colorSpace = 'srgb' } = {}) {
+    if (matrix == null) {
+      this[_imageFilter] = ''
+      this[_imageFilterElement]?.remove()
+      this[_imageFilterElement] = undefined
+      this[_map].render()
+      return
+    }
+    if (
+      !Array.isArray(matrix) ||
+      matrix.length !== 20 ||
+      !matrix.every((value) => Number.isFinite(value))
+    ) {
+      throw new TypeError('The color matrix must be an array of 20 numbers.')
+    }
+    const colorInterpolationFilters = {
+      srgb: 'sRGB',
+      'linear-srgb': 'linearRGB',
+    }[colorSpace]
+    if (colorInterpolationFilters === undefined) {
+      throw new RangeError(
+        `Unknown color space "${colorSpace}"; use "srgb" or "linear-srgb".`,
+      )
+    }
+    if (this[_imageFilterElement] === undefined) {
+      this[_imageFilterElement] = _createColorMatrixFilterElement()
+    }
+    const svg = this[_imageFilterElement]
+    const filter = svg.firstChild
+    filter.setAttribute(
+      'color-interpolation-filters',
+      colorInterpolationFilters,
+    )
+    filter.firstChild.setAttribute('values', matrix.join(' '))
+    /** The viewport element moves with the map to every new container */
+    const viewport = this[_map].getViewport()
+    if (svg.parentNode !== viewport) {
+      viewport.appendChild(svg)
+    }
+    this[_imageFilter] = `url("#${svg.dataset.filterId}")`
+    this[_map].render()
   }
 
   /**
@@ -2416,7 +2581,10 @@ class VolumeImageViewer {
      */
     track(
       this[_map].on('movestart', (event) => {
-        publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, { event })
+        publish(this[_map].getTargetElement(), EVENT.MOVE_STARTED, {
+          event,
+          viewState: this.getViewState(),
+        })
       }),
     )
 
@@ -2426,8 +2594,38 @@ class VolumeImageViewer {
      */
     track(
       this[_map].on('moveend', (event) => {
-        publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, { event })
+        publish(this[_map].getTargetElement(), EVENT.MOVE_ENDED, {
+          event,
+          viewState: this.getViewState(),
+        })
       }),
+    )
+
+    /**
+     * Report changes of the view at most once per animation frame.
+     * @private
+     */
+    const publishViewChange = () => {
+      if (this[_viewChangeFrame] !== undefined) {
+        return
+      }
+      this[_viewChangeFrame] = requestAnimationFrame(() => {
+        this[_viewChangeFrame] = undefined
+        if (this[_isCleanedUp]) {
+          return
+        }
+        publish(this[_map].getTargetElement(), EVENT.VIEW_CHANGED, {
+          viewState: this.getViewState(),
+        })
+      })
+    }
+    track(
+      this[_map]
+        .getView()
+        .on(
+          ['change:center', 'change:resolution', 'change:rotation'],
+          publishViewChange,
+        ),
     )
 
     let clickEvent = null
@@ -2464,6 +2662,17 @@ class VolumeImageViewer {
 
         publish(this[_map].getTargetElement(), EVENT.POINTER_MOVE, {
           features: featuresWithROIs,
+          clientX: event.originalEvent?.clientX,
+          clientY: event.originalEvent?.clientY,
+          coordinates:
+            event.coordinate == null
+              ? undefined
+              : _geometryCoordinates2scoord3dCoordinates(
+                  event.coordinate,
+                  this[_pyramid].metadata,
+                  this[_affine],
+                ).slice(0, 2),
+          /** Deprecated: the OpenLayers MapBrowserEvent */
           event,
         })
       }),
@@ -2908,6 +3117,9 @@ class VolumeImageViewer {
   /**
    * Get all optical paths.
    *
+   * Optical paths are returned in the order of their identifiers in the image
+   * metadata, with integer-like identifiers first in ascending order.
+   *
    * @return {opticalPath.OpticalPath[]}
    */
   getAllOpticalPaths() {
@@ -2917,7 +3129,7 @@ class VolumeImageViewer {
       opticalPaths.push(this[_opticalPaths][opticalPathIdentifier].opticalPath)
     }
 
-    return opticalPaths.sort((item) => item.OpticalPathIdentifier)
+    return opticalPaths
   }
 
   /**
@@ -3606,6 +3818,10 @@ class VolumeImageViewer {
 
     unlistenKeys(this[_mapListenerKeys])
     this[_mapListenerKeys] = []
+    if (this[_viewChangeFrame] !== undefined) {
+      cancelAnimationFrame(this[_viewChangeFrame])
+      this[_viewChangeFrame] = undefined
+    }
     unlistenKeys(this[_drawingSourceListenerKeys])
     this[_drawingSourceListenerKeys] = []
     unlistenKeys(this[_bulkAnnotationSelectKey])
