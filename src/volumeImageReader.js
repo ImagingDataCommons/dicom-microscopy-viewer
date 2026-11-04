@@ -1,4 +1,6 @@
 import { CustomError, errorTypes } from './customError'
+import { SOPClassUIDs } from './enums'
+import { VLWholeSlideMicroscopyImage } from './metadata.js'
 import {
   _areImagePyramidsEqual,
   _computeImagePyramid,
@@ -61,6 +63,36 @@ const _createBackgroundTile = (pixelInfo, columns, rows) => {
         : 2 ** bitsAllocated - 1
   }
   return pixelArray.fill(white)
+}
+
+/**
+ * Copy of the first `validColumns` x `validRows` pixels of a tile, without
+ * the padding of tiles at the right and bottom border.
+ *
+ * @private
+ */
+const _cropTile = ({
+  pixelArray,
+  columns,
+  samplesPerPixel,
+  validColumns,
+  validRows,
+}) => {
+  const rowLength = columns * samplesPerPixel
+  const validRowLength = validColumns * samplesPerPixel
+  if (validColumns === columns) {
+    /** Only rows are cut off, which are at the end of the array */
+    return pixelArray.slice(0, validRowLength * validRows)
+  }
+  const cropped = new pixelArray.constructor(validRowLength * validRows)
+  for (let row = 0; row < validRows; row++) {
+    const start = row * rowLength
+    cropped.set(
+      pixelArray.subarray(start, start + validRowLength),
+      row * validRowLength,
+    )
+  }
+  return cropped
 }
 
 /**
@@ -213,6 +245,60 @@ class VolumeImageReader {
   }
 
   /**
+   * Create a reader for the VOLUME and THUMBNAIL images of a series.
+   *
+   * Retrieves the series metadata with `client` and keeps the VL Whole Slide
+   * Microscopy Image instances of image flavor VOLUME or THUMBNAIL, ignoring
+   * other instances (e.g. LABEL and OVERVIEW images, annotations).
+   *
+   * @param {Object} options - Options
+   * @param {Object} options.client - DICOMweb client
+   * @param {string} options.studyInstanceUID - Study Instance UID
+   * @param {string} options.seriesInstanceUID - Series Instance UID
+   * @param {boolean} [options.iccProfilesEnabled=false] - See the constructor
+   * @param {string} [options.iccOutputType='srgb'] - See the constructor
+   * @param {boolean} [options.skipThumbnails=false] - See the constructor
+   * @returns {Promise<pyramid.VolumeImageReader>} Reader
+   */
+  static async fromSeries({
+    client,
+    studyInstanceUID,
+    seriesInstanceUID,
+    ...options
+  }) {
+    if (client == null) {
+      throw new CustomError(
+        errorTypes.VISUALIZATION,
+        'A DICOMweb client is required to read image tiles.',
+      )
+    }
+    const metadata = await client.retrieveSeriesMetadata({
+      studyInstanceUID,
+      seriesInstanceUID,
+    })
+    const volumeImages = []
+    for (const item of metadata) {
+      const sopClassUID = item['00080016']?.Value?.[0]
+      if (sopClassUID !== SOPClassUIDs.VL_WHOLE_SLIDE_MICROSCOPY_IMAGE) {
+        continue
+      }
+      const image = new VLWholeSlideMicroscopyImage({ metadata: item })
+      const imageFlavor = image.ImageType[2]
+      if (imageFlavor === 'VOLUME' || imageFlavor === 'THUMBNAIL') {
+        volumeImages.push(image)
+      }
+    }
+    if (volumeImages.length === 0) {
+      throw new CustomError(
+        errorTypes.VISUALIZATION,
+        `Series "${seriesInstanceUID}" of study "${studyInstanceUID}" ` +
+          'contains no VOLUME or THUMBNAIL images.',
+      )
+    }
+    return new VolumeImageReader({ client, metadata: volumeImages, ...options })
+  }
+
+  /**
    * Optical paths, in the same order as
    * {@link viewer.VolumeImageViewer#getAllOpticalPaths}. The position of an
    * optical path in this array is a stable channel index for the lifetime of
@@ -305,7 +391,8 @@ class VolumeImageReader {
    * floating point), row by row, with the samples of a pixel interleaved.
    * Tiles at the right and bottom border of the total pixel matrix are padded;
    * only the first `validColumns` columns and `validRows` rows hold image
-   * data. Tiles absent from a TILED_SPARSE image resolve without a request,
+   * data. With `crop`, the padding is removed instead, so that `columns` and
+   * `rows` equal `validColumns` and `validRows`. Tiles absent from a TILED_SPARSE image resolve without a request,
    * with `isEmpty` set and `pixelArray` filled with 0 for MONOCHROME2 and
    * with the maximum value otherwise.
    *
@@ -322,10 +409,19 @@ class VolumeImageReader {
    * @param {number} options.column - Zero-based tile column
    * @param {number} options.row - Zero-based tile row
    * @param {AbortSignal} [options.signal] - Signal to cancel the request
+   * @param {boolean} [options.crop=false] - Remove the padding of tiles at the
+   * right and bottom border of the total pixel matrix
    * @returns {Promise<Object>} `pixelArray`, `columns`, `rows`,
    * `samplesPerPixel`, `validColumns`, `validRows` and `isEmpty`
    */
-  async getTile({ opticalPathIdentifier, level, column, row, signal }) {
+  async getTile({
+    opticalPathIdentifier,
+    level,
+    column,
+    row,
+    signal,
+    crop = false,
+  }) {
     if (this[_isDestroyed]) {
       throw new Error('Cannot get tile: the reader has been destroyed.')
     }
@@ -375,21 +471,41 @@ class VolumeImageReader {
       tileSignal.dispose()
     }
 
+    const pixelArray = tile.isEmpty
+      ? _createBackgroundTile(channel.pixelInfo, tile.columns, tile.rows)
+      : tile.pixelArray
+    const validColumns = Math.min(
+      tile.columns,
+      levelInfo.totalPixelMatrixColumns - column * levelInfo.tileColumns,
+    )
+    const validRows = Math.min(
+      tile.rows,
+      levelInfo.totalPixelMatrixRows - row * levelInfo.tileRows,
+    )
+    if (crop && (validColumns < tile.columns || validRows < tile.rows)) {
+      return {
+        pixelArray: _cropTile({
+          pixelArray,
+          columns: tile.columns,
+          samplesPerPixel: tile.samplesPerPixel,
+          validColumns,
+          validRows,
+        }),
+        columns: validColumns,
+        rows: validRows,
+        samplesPerPixel: tile.samplesPerPixel,
+        validColumns,
+        validRows,
+        isEmpty: tile.isEmpty,
+      }
+    }
     return {
-      pixelArray: tile.isEmpty
-        ? _createBackgroundTile(channel.pixelInfo, tile.columns, tile.rows)
-        : tile.pixelArray,
+      pixelArray,
       columns: tile.columns,
       rows: tile.rows,
       samplesPerPixel: tile.samplesPerPixel,
-      validColumns: Math.min(
-        tile.columns,
-        levelInfo.totalPixelMatrixColumns - column * levelInfo.tileColumns,
-      ),
-      validRows: Math.min(
-        tile.rows,
-        levelInfo.totalPixelMatrixRows - row * levelInfo.tileRows,
-      ),
+      validColumns,
+      validRows,
       isEmpty: tile.isEmpty,
     }
   }

@@ -215,6 +215,102 @@ describe('VolumeImageReader', () => {
       )
     })
 
+    describe('with crop', () => {
+      /** Each value is its index in the padded tile */
+      const decodeIndices = () => {
+        _decodeAndTransformFrame.mockImplementation(
+          async ({ columns, rows, samplesPerPixel }) =>
+            Float32Array.from(
+              { length: columns * rows * samplesPerPixel },
+              (_value, index) => index,
+            ),
+        )
+      }
+
+      const expectCropped = (tile, paddedColumns) => {
+        const { pixelArray, columns, rows, samplesPerPixel } = tile
+        expect(columns).toBe(tile.validColumns)
+        expect(rows).toBe(tile.validRows)
+        expect(pixelArray).toHaveLength(columns * rows * samplesPerPixel)
+        for (let row = 0; row < rows; row++) {
+          for (let sample = 0; sample < columns * samplesPerPixel; sample++) {
+            const value = pixelArray[row * columns * samplesPerPixel + sample]
+            if (value !== row * paddedColumns * samplesPerPixel + sample) {
+              throw new Error(`Wrong value at row ${row}, sample ${sample}`)
+            }
+          }
+        }
+      }
+
+      it('removes the padding of a corner tile', async () => {
+        decodeIndices()
+        const { reader } = createReader()
+        const { level, column, row, levelInfo } = lastTile(reader)
+        const tile = await reader.getTile({
+          opticalPathIdentifier: reader.opticalPaths[0].identifier,
+          level,
+          column,
+          row,
+          crop: true,
+        })
+        expect(tile.validColumns).toBeLessThan(levelInfo.tileColumns)
+        expect(tile.validRows).toBeLessThan(levelInfo.tileRows)
+        expectCropped(tile, levelInfo.tileColumns)
+      })
+
+      it('removes the padding of a bottom tile', async () => {
+        decodeIndices()
+        const { reader } = createReader()
+        const { level, row, levelInfo } = lastTile(reader)
+        const tile = await reader.getTile({
+          opticalPathIdentifier: reader.opticalPaths[0].identifier,
+          level,
+          column: 0,
+          row,
+          crop: true,
+        })
+        expect(tile.validColumns).toBe(levelInfo.tileColumns)
+        expect(tile.validRows).toBeLessThan(levelInfo.tileRows)
+        expectCropped(tile, levelInfo.tileColumns)
+      })
+
+      it('keeps the interleaved samples of color pixels', async () => {
+        decodeIndices()
+        const { reader } = createReader(colorCase, { skipThumbnails: true })
+        /** A level whose last tile column is padded */
+        const levelInfo = reader.levels.find(
+          (item) => item.totalPixelMatrixColumns % item.tileColumns !== 0,
+        )
+        const tile = await reader.getTile({
+          opticalPathIdentifier: reader.opticalPaths[0].identifier,
+          level: levelInfo.index,
+          column: levelInfo.gridColumns - 1,
+          row: levelInfo.gridRows - 1,
+          crop: true,
+        })
+        expect(tile.samplesPerPixel).toBe(3)
+        expect(tile.validColumns).toBeLessThan(levelInfo.tileColumns)
+        expectCropped(tile, levelInfo.tileColumns)
+      })
+
+      it('returns inner tiles unchanged', async () => {
+        const { reader } = createReader()
+        const level = reader.levels[reader.levels.length - 1]
+        const tile = await reader.getTile({
+          opticalPathIdentifier: reader.opticalPaths[0].identifier,
+          level: level.index,
+          column: 0,
+          row: 0,
+          crop: true,
+        })
+        expect(tile.columns).toBe(level.tileColumns)
+        expect(tile.rows).toBe(level.tileRows)
+        expect(tile.pixelArray).toHaveLength(
+          level.tileColumns * level.tileRows,
+        )
+      })
+    })
+
     it('rejects tiles outside of the grid', async () => {
       const { client, reader } = createReader()
       const { level, levelInfo } = lastTile(reader)
@@ -447,6 +543,66 @@ describe('VolumeImageReader', () => {
         }),
       ).rejects.toThrow('destroyed')
     })
+  })
+})
+
+describe('VolumeImageReader.fromSeries', () => {
+  const seriesOptions = {
+    studyInstanceUID: '1.2.3',
+    seriesInstanceUID: '1.2.3.4',
+  }
+
+  /** Same series with a LABEL image and an annotation instance added */
+  const createSeriesClient = (testCase) => {
+    const label = JSON.parse(JSON.stringify(testCase.images[0]))
+    label['00080008'].Value[2] = 'LABEL'
+    const annotation = {
+      '00080016': { vr: 'UI', Value: ['1.2.840.10008.5.1.4.1.1.91.1'] },
+    }
+    return {
+      ...createClient(),
+      retrieveSeriesMetadata: jest.fn(() =>
+        Promise.resolve([...testCase.images, label, annotation]),
+      ),
+    }
+  }
+
+  it('reads the VOLUME images of a series', async () => {
+    const client = createSeriesClient(multiplexCase)
+    const reader = await dmv.pyramid.VolumeImageReader.fromSeries({
+      client,
+      ...seriesOptions,
+    })
+    expect(client.retrieveSeriesMetadata).toHaveBeenCalledWith(seriesOptions)
+    const { reader: expected } = createReader()
+    expect(reader).toBeInstanceOf(dmv.pyramid.VolumeImageReader)
+    expect(reader.levels).toEqual(expected.levels)
+    expect(reader.opticalPaths.map((item) => item.identifier)).toEqual(
+      expected.opticalPaths.map((item) => item.identifier),
+    )
+  })
+
+  it('passes reader options on', async () => {
+    const client = createSeriesClient(colorCase)
+    const reader = await dmv.pyramid.VolumeImageReader.fromSeries({
+      client,
+      ...seriesOptions,
+      skipThumbnails: true,
+    })
+    expect(reader.levels.map((level) => level.imageFlavor)).not.toContain(
+      'THUMBNAIL',
+    )
+  })
+
+  it('rejects when the series has no VOLUME images', async () => {
+    const client = {
+      ...createClient(),
+      retrieveSeriesMetadata: jest.fn(() => Promise.resolve([])),
+    }
+    await expect(
+      dmv.pyramid.VolumeImageReader.fromSeries({ client, ...seriesOptions }),
+    ).rejects.toThrow('contains no VOLUME or THUMBNAIL images')
+    expect(webWorkerManager.retain).not.toHaveBeenCalled()
   })
 })
 

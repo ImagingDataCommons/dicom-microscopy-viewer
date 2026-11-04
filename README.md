@@ -117,6 +117,19 @@ client.retrieveSeriesMetadata(retrieveOptions).then((metadata) => {
 
 Other renderers (for example [deck.gl](https://deck.gl) / [Viv](https://github.com/hms-dbmi/viv)) can reuse the DICOMweb retrieval, frame decoding and ICC color management of this library through `pyramid.VolumeImageReader`. It takes the same `client` and `metadata` as `VolumeImageViewer` but needs neither OpenLayers nor a DOM element.
 
+`VolumeImageReader.fromSeries()` retrieves the series metadata and keeps the VOLUME and THUMBNAIL images, as in the example above:
+
+```js
+const reader = await DICOMMicroscopyViewer.pyramid.VolumeImageReader.fromSeries({
+  client,
+  studyInstanceUID: "1.2.3.4",
+  seriesInstanceUID: "1.2.3.5",
+  skipThumbnails: true,
+})
+```
+
+Or construct it from metadata you already have:
+
 ```js
 const reader = new DICOMMicroscopyViewer.pyramid.VolumeImageReader({
   client,
@@ -152,6 +165,7 @@ const tile = await reader.getTile({
 })
 // tile.pixelArray holds the stored pixel values (native typed array).
 // Edge tiles are padded: only tile.validColumns x tile.validRows hold image data.
+// Pass crop: true to get edge tiles without the padding instead.
 
 // Release the shared decoding web workers when done
 reader.destroy()
