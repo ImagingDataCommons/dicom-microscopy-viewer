@@ -531,8 +531,8 @@ describe('VolumeImageReader', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    it('rejects after the reader has been destroyed', async () => {
-      const { reader } = createReader()
+    it('rejects with an AbortError after the reader has been destroyed', async () => {
+      const { client, reader } = createReader()
       reader.destroy()
       await expect(
         reader.getTile({
@@ -541,7 +541,8 @@ describe('VolumeImageReader', () => {
           column: 0,
           row: 0,
         }),
-      ).rejects.toThrow('destroyed')
+      ).rejects.toMatchObject({ name: 'AbortError' })
+      expect(client.retrieveInstanceFrames).not.toHaveBeenCalled()
     })
   })
 })
