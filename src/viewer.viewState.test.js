@@ -1,6 +1,7 @@
 const testCase1 = require('../test/data/TCGA-LUAD_TCGA-05-4244-01Z-00-DX1.json')
 const MapEvent = require('ol/MapEvent').default
 const MapBrowserEvent = require('ol/MapBrowserEvent').default
+const math = require('mathjs')
 const dmv = require('./dicom-microscopy-viewer.js')
 
 jest.mock('ol/webgl/Helper', () => jest.fn(() => null), { virtual: true })
@@ -38,6 +39,23 @@ const createViewer = () => {
 
 const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 50))
 
+/**
+ * Screen pixel of a map coordinate, computed like OpenLayers'
+ * coordinateToPixelTransform (jsdom renders no frame)
+ */
+const toPixel = (map, [x, y]) => {
+  const view = map.getView()
+  const [width, height] = map.getSize()
+  const [centerX, centerY] = view.getCenter()
+  const resolution = view.getResolution()
+  const angle = -view.getRotation()
+  const dx = x - centerX
+  const dy = y - centerY
+  const rotatedX = dx * Math.cos(angle) - dy * Math.sin(angle)
+  const rotatedY = dx * Math.sin(angle) + dy * Math.cos(angle)
+  return [width / 2 + rotatedX / resolution, height / 2 - rotatedY / resolution]
+}
+
 describe('VolumeImageViewer view API', () => {
   let viewer
   let container
@@ -58,7 +76,8 @@ describe('VolumeImageViewer view API', () => {
     const spacing = viewer.getPixelSpacing(levels - 1)[0]
     expect(state.resolution).toBeCloseTo(view.getResolution() * spacing, 12)
     expect(state.zoom).toBe(view.getZoom())
-    expect(state.rotation).toBe(view.getRotation())
+    /** Relative to the default orientation of the slide */
+    expect(state.rotation).toBe(0)
     /** The center is inside the slide's bounding box */
     const [offset, size] = viewer.boundingBox
     expect(state.center).toHaveLength(2)
@@ -73,14 +92,29 @@ describe('VolumeImageViewer view API', () => {
   })
 
   it('sets center, resolution and rotation', () => {
+    const view = getInternalMap(viewer).getView()
+    const defaultRotation = view.getRotation()
     const { center } = viewer.getViewState()
-    const target = [center[0] + 0.5, center[1] - 0.25]
+    const target = [center[0] + 0.512345, center[1] - 0.254321]
     viewer.setViewState({ center: target, resolution: 0.002, rotation: 0.3 })
     const state = viewer.getViewState()
-    expect(state.center[0]).toBeCloseTo(target[0], 6)
-    expect(state.center[1]).toBeCloseTo(target[1], 6)
+    /** Slide coordinates are rounded to 0.1 micrometer */
+    expect(Math.abs(state.center[0] - target[0])).toBeLessThan(1e-4)
+    expect(Math.abs(state.center[1] - target[1])).toBeLessThan(1e-4)
     expect(state.resolution).toBeCloseTo(0.002, 9)
     expect(state.rotation).toBeCloseTo(0.3, 12)
+    expect(view.getRotation()).toBeCloseTo(defaultRotation + 0.3, 12)
+  })
+
+  it('changes nothing when setting the current view state', () => {
+    viewer.setViewState({ resolution: 0.0021, rotation: -2 })
+    const view = getInternalMap(viewer).getView()
+    const setters = ['setCenter', 'setResolution', 'setZoom', 'setRotation']
+    const spies = setters.map((name) => jest.spyOn(view, name))
+    viewer.setViewState(viewer.getViewState())
+    for (const spy of spies) {
+      expect(spy).not.toHaveBeenCalled()
+    }
   })
 
   it('sets the zoom unless a resolution is given', () => {
@@ -100,9 +134,31 @@ describe('VolumeImageViewer view API', () => {
     const state = viewer.getViewState()
     expect(state.center[0]).toBeCloseTo(center[0], 3)
     expect(state.center[1]).toBeCloseTo(center[1], 3)
-    /** 1 mm across 800 pixels, 0.5 mm across 600 pixels */
-    expect(state.resolution).toBeGreaterThanOrEqual(1 / 800 - 1e-9)
-    expect(state.resolution).toBeLessThan(1 / 400)
+    /** Screen position of each corner of the region */
+    const map = getInternalMap(viewer)
+    const affineInverse = math.inv(viewer.getAffine())
+    const corners = [
+      [bounds[0][0], bounds[0][1]],
+      [bounds[1][0], bounds[0][1]],
+      [bounds[1][0], bounds[1][1]],
+      [bounds[0][0], bounds[1][1]],
+    ].map((corner) => {
+      const [column, row] = dmv.utils.applyInverseTransform({
+        coordinate: corner,
+        affine: affineInverse,
+      })
+      return toPixel(map, [column, -(row + 1)])
+    })
+    const xs = corners.map(([x]) => x)
+    const ys = corners.map(([, y]) => y)
+    /** Inside the 800 x 600 viewport, touching two opposite edges */
+    expect(Math.min(...xs)).toBeGreaterThan(-1)
+    expect(Math.max(...xs)).toBeLessThan(801)
+    expect(Math.min(...ys)).toBeGreaterThan(-1)
+    expect(Math.max(...ys)).toBeLessThan(601)
+    const touchesSides = Math.min(...xs) < 1 && Math.max(...xs) > 799
+    const touchesTopAndBottom = Math.min(...ys) < 1 && Math.max(...ys) > 599
+    expect(touchesSides || touchesTopAndBottom).toBe(true)
   })
 
   it('publishes VIEW_CHANGED once per frame with the view state', async () => {
@@ -119,13 +175,19 @@ describe('VolumeImageViewer view API', () => {
     container.removeEventListener(EVENTS.VIEW_CHANGED, listener)
   })
 
-  it('does not publish VIEW_CHANGED after cleanup', async () => {
-    const listener = jest.fn()
-    container.addEventListener(EVENTS.VIEW_CHANGED, listener)
+  it('does not publish a pending VIEW_CHANGED after cleanup', async () => {
     viewer.setViewState({ resolution: 0.003 })
     viewer.cleanup()
+    /** Rendered again before the frame of the change */
+    const next = document.createElement('div')
+    document.body.appendChild(next)
+    const listener = jest.fn()
+    next.addEventListener(EVENTS.VIEW_CHANGED, listener)
+    viewer.render({ container: next })
+    getInternalMap(viewer).renderFrame_ = () => {}
     await nextFrame()
     expect(listener).not.toHaveBeenCalled()
+    next.remove()
   })
 
   it('adds the view state to move events', () => {
@@ -185,15 +247,11 @@ describe('VolumeImageViewer view API', () => {
     expect(canvases[0].style.filter).toBe('')
   })
 
-  it('reports the deprecation of getMap() once', () => {
+  it('still returns the map from the deprecated getMap()', () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       expect(viewer.getMap()).toBe(getInternalMap(viewer))
-      viewer.getMap()
-      const reports = warn.mock.calls.filter(([message]) =>
-        String(message).includes('getMap() is deprecated'),
-      )
-      expect(reports).toHaveLength(1)
+      expect(warn).not.toHaveBeenCalled()
     } finally {
       warn.mockRestore()
     }

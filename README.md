@@ -119,11 +119,12 @@ The view is described in slide coordinates (millimeter), the same coordinate sys
 
 ```js
 const { center, zoom, resolution, rotation } = viewer.getViewState()
-// center: [x, y] in mm; resolution: mm per screen pixel; rotation: radians
+// center: [x, y] in mm; resolution: mm per screen pixel;
+// rotation: radians relative to the slide's default orientation
 
 viewer.setViewState({ center: [10.5, 20.25], resolution: 0.001 })
 viewer.fitBounds([[10, 20], [12, 21]], { padding: [20, 20, 20, 20] })
-viewer.setImageFilter("brightness(1.2) contrast(1.1)") // not applied to ROIs
+viewer.setImageFilter("brightness(1.2) contrast(1.1)") // image only
 
 document.getElementById("viewport").addEventListener(
   DICOMMicroscopyViewer.events.EVENTS.VIEW_CHANGED,
@@ -131,9 +132,10 @@ document.getElementById("viewport").addEventListener(
 )
 ```
 
+- Use these methods after `render()`, which fits the whole slide into the viewport. `setViewState()` leaves properties that equal the current ones untouched, so `setViewState(getViewState())` changes nothing (slide coordinates are rounded to 0.1 µm).
 - `VIEW_CHANGED` fires at most once per animation frame while the view changes. `MOVE_STARTED` and `MOVE_ENDED` also carry `viewState`.
 - `POINTER_MOVE` carries `clientX`, `clientY` and `coordinates` (slide coordinates in millimeter) next to the matched ROIs.
-- `getMap()`, which returns the OpenLayers map, is deprecated: the map is an implementation detail that can change with OpenLayers upgrades. Use the methods above instead. The OpenLayers event in the `event` field of event payloads is deprecated for the same reason.
+- `getMap()`, which returns the OpenLayers map, is deprecated: the map is an implementation detail that can change with OpenLayers upgrades. It keeps working; use the methods above where they cover your needs. The OpenLayers event in the `event` field of event payloads is deprecated for the same reason.
 
 ## Development
 

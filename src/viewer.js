@@ -7,16 +7,9 @@ import FullScreen from 'ol/control/FullScreen'
 import MousePosition from 'ol/control/MousePosition'
 import OverviewMap from 'ol/control/OverviewMap'
 import ScaleLine from 'ol/control/ScaleLine'
-import {
-  boundingExtent,
-  createEmpty,
-  extend,
-  getCenter,
-  getHeight,
-  getWidth,
-} from 'ol/extent'
+import { createEmpty, extend, getCenter, getHeight, getWidth } from 'ol/extent'
 import Feature from 'ol/Feature'
-import { fromExtent as polygonFromExtent } from 'ol/geom/Polygon'
+import OlPolygon, { fromExtent as polygonFromExtent } from 'ol/geom/Polygon'
 import { defaults as defaultInteractions } from 'ol/interaction'
 import DragPan from 'ol/interaction/DragPan'
 import DragZoom from 'ol/interaction/DragZoom'
@@ -76,7 +69,7 @@ import { CustomError, errorTypes } from './customError'
 import Enums from './enums'
 import publish from './eventPublisher'
 import EVENT from './events'
-import { applyViewerOptions, logger } from './logger.js'
+import { applyViewerOptions } from './logger.js'
 import { _groupFramesPerMapping, ParameterMapping } from './mapping.js'
 import {
   groupColorInstances,
@@ -1312,9 +1305,6 @@ const _overviewCollapseCleanup = Symbol('overviewCollapseCleanup')
 const _imageFilter = Symbol('imageFilter')
 const _viewChangeFrame = Symbol('viewChangeFrame')
 
-/** Whether the deprecation of getMap() has been reported */
-let _isGetMapDeprecationReported = false
-
 /**
  * Set the CSS filter of a canvas if it differs.
  *
@@ -1322,10 +1312,26 @@ let _isGetMapDeprecationReported = false
  * @param {string} filter - CSS filter, empty for none
  * @private
  */
+const _canvasFilters = new WeakMap()
 const _setCanvasFilter = (canvas, filter) => {
-  if (canvas?.style != null && canvas.style.filter !== filter) {
-    canvas.style.filter = filter
+  if (canvas?.style == null || _canvasFilters.get(canvas) === filter) {
+    return
   }
+  /** Remember the value set, browsers may normalize style.filter */
+  _canvasFilters.set(canvas, filter)
+  canvas.style.filter = filter
+}
+
+/**
+ * Angle in the range (-π, π].
+ *
+ * @param {number} angle - Angle in radians
+ * @returns {number} Equivalent angle
+ * @private
+ */
+const _normalizeAngle = (angle) => {
+  const normalized = Math.atan2(Math.sin(angle), Math.cos(angle))
+  return normalized === -Math.PI ? Math.PI : normalized
 }
 
 /**
@@ -2416,7 +2422,8 @@ class VolumeImageViewer {
    * Gets the internal OpenLayers map object.
    *
    * @deprecated The map is an implementation detail and may change with
-   * OpenLayers versions. Use {@link viewer.VolumeImageViewer#getViewState},
+   * OpenLayers versions (or be replaced). Use
+   * {@link viewer.VolumeImageViewer#getViewState},
    * {@link viewer.VolumeImageViewer#setViewState},
    * {@link viewer.VolumeImageViewer#fitBounds},
    * {@link viewer.VolumeImageViewer#setImageFilter} and the
@@ -2424,14 +2431,6 @@ class VolumeImageViewer {
    * @returns {Object} OpenLayers map
    */
   getMap() {
-    if (!_isGetMapDeprecationReported) {
-      _isGetMapDeprecationReported = true
-      logger.warn(
-        'VolumeImageViewer.getMap() is deprecated. Use getViewState(), ' +
-          'setViewState(), fitBounds(), setImageFilter() and the ' +
-          'VIEW_CHANGED event instead.',
-      )
-    }
     return this[_map]
   }
 
@@ -2449,11 +2448,15 @@ class VolumeImageViewer {
   /**
    * Get the state of the view.
    *
+   * Slide coordinates are rounded to 0.1 micrometer, like those of ROIs.
+   *
    * @returns {Object} View state: `center`, the slide coordinates (x, y) in
    * millimeter at the center of the viewport; `zoom`, the zoom level on the
    * same scale as the `level` of {@link viewer.VolumeImageViewer#navigate};
    * `resolution`, the size of a screen pixel in millimeter; and `rotation`,
-   * the counter-clockwise rotation of the view in radians
+   * the counter-clockwise rotation in radians relative to the default
+   * orientation of the slide (0 after {@link viewer.VolumeImageViewer#render}),
+   * in the range (-π, π]
    */
   getViewState() {
     const view = this[_map].getView()
@@ -2473,12 +2476,15 @@ class VolumeImageViewer {
         resolution === undefined
           ? undefined
           : resolution * this._getBasePixelSpacing(),
-      rotation: view.getRotation(),
+      rotation: _normalizeAngle(view.getRotation() - this[_rotation]),
     }
   }
 
   /**
-   * Change the view. Properties that are not given keep their value.
+   * Change the view. Properties that are not given or that equal the current
+   * ones keep their value, so `setViewState(getViewState())` changes nothing.
+   * Call it after {@link viewer.VolumeImageViewer#render}, which fits the
+   * whole slide into the viewport.
    *
    * @param {Object} viewState - View state, see
    * {@link viewer.VolumeImageViewer#getViewState}
@@ -2488,12 +2494,21 @@ class VolumeImageViewer {
    * is given
    * @param {number} [viewState.resolution] - Size of a screen pixel in
    * millimeter
-   * @param {number} [viewState.rotation] - Counter-clockwise rotation of the
-   * view in radians
+   * @param {number} [viewState.rotation] - Counter-clockwise rotation in
+   * radians relative to the default orientation of the slide
    */
   setViewState({ center, zoom, resolution, rotation } = {}) {
     const view = this[_map].getView()
-    if (center != null) {
+    const current = this.getViewState()
+    const differs = (value, currentValue) =>
+      currentValue === undefined ||
+      Math.abs(value - currentValue) > 1e-9 * Math.max(1, Math.abs(value))
+    if (
+      center != null &&
+      (current.center === undefined ||
+        differs(center[0], current.center[0]) ||
+        differs(center[1], current.center[1]))
+    ) {
       view.setCenter(
         _scoord3dCoordinates2geometryCoordinates(
           [center[0], center[1], 0],
@@ -2502,12 +2517,17 @@ class VolumeImageViewer {
       )
     }
     if (resolution != null) {
-      view.setResolution(resolution / this._getBasePixelSpacing())
-    } else if (zoom != null) {
+      if (differs(resolution, current.resolution)) {
+        view.setResolution(resolution / this._getBasePixelSpacing())
+      }
+    } else if (zoom != null && differs(zoom, current.zoom)) {
       view.setZoom(zoom)
     }
-    if (rotation != null) {
-      view.setRotation(rotation)
+    if (
+      rotation != null &&
+      differs(_normalizeAngle(rotation - current.rotation), 0)
+    ) {
+      view.setRotation(rotation + this[_rotation])
     }
   }
 
@@ -2534,17 +2554,17 @@ class VolumeImageViewer {
       ).slice(0, 2),
     )
     const view = this[_map].getView()
-    view.fit(boundingExtent(corners), {
+    /** A polygon also fits exactly when the slide is not axis-aligned */
+    view.fit(new OlPolygon([[...corners, corners[0]]]), {
       size: this[_map].getSize(),
       padding,
     })
   }
 
   /**
-   * Apply a CSS filter to the image, e.g. to adjust brightness and contrast.
-   * ROIs and annotations are not filtered. Segmentation and parameter
-   * mapping overlays may be filtered as well, because they can be drawn
-   * into the same canvas as the image.
+   * Apply a CSS filter to the image in the viewport, e.g. to adjust
+   * brightness and contrast. ROIs, annotations, segmentations, parameter
+   * mappings and the overview map are not filtered.
    *
    * @param {string} [filter] - CSS filter, e.g. "brightness(1.2)"; empty or
    * undefined to remove the filter
