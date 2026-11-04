@@ -9,22 +9,25 @@ const _isPowerOf2 = (value) =>
 /**
  * Plan the pyramid levels of a Viv multiscale image.
  *
- * Viv expects the levels from highest to lowest resolution, each exactly half
- * the size of the previous one (rounded up), with one square power-of-2 tile
- * size for all levels. DICOM pyramids often step by other factors (e.g. 4).
- * Starting from the highest resolution level, each next level is the
- * existing DICOM level of the expected size (within 1 pixel) and tile size,
- * or otherwise a synthetic level that is computed from the previous one.
+ * Viv expects the levels from highest to lowest resolution, level k being
+ * `ceil(size / 2^k)` of the highest resolution level, with one square
+ * power-of-2 tile size for all levels; it derives the tile grid of each level
+ * from these sizes. DICOM pyramids often step by other factors (e.g. 4) or
+ * round sizes down. Each planned level therefore has exactly the size Viv
+ * expects and is read from the DICOM level of that size (within 1 pixel,
+ * with the same tile size), or otherwise computed from the previous level.
  * Planning stops at the first level that fits in one tile, or after
- * `maxSyntheticLevels` consecutive synthetic levels, which bounds the
- * number of tiles a synthetic tile is computed from (4 ^ maxSyntheticLevels).
+ * `maxSyntheticLevels` consecutive computed levels, which bounds the number
+ * of tiles a computed tile is made of (4 ^ maxSyntheticLevels).
  *
  * @param {Object[]} levels - Levels of a VolumeImageReader (lowest resolution first)
  * @param {number} maxSyntheticLevels - Maximum number of consecutive synthetic levels
- * @returns {Object} `tileSize` and `levels`, highest resolution first. Each
- * level has `width`, `height`, `pixelSpacing` (row and column spacing in
- * millimeter) and either `readerLevel` (index of the DICOM level) or
- * `isSynthetic`.
+ * @returns {Object} `tileSize`, `isTruncated` (whether planning stopped
+ * before reaching a single-tile level) and `levels`, highest resolution
+ * first. Each level has `width`, `height` (as Viv expects them),
+ * `pixelSpacing` (row and column spacing in millimeter) and either
+ * `readerLevel`, `readerWidth` and `readerHeight` (the DICOM level and its
+ * actual size) or `isSynthetic`.
  * @private
  */
 const _planDyadicLevels = (levels, maxSyntheticLevels) => {
@@ -46,12 +49,15 @@ const _planDyadicLevels = (levels, maxSyntheticLevels) => {
   const planned = [
     {
       readerLevel: finest.index,
+      readerWidth: finest.totalPixelMatrixColumns,
+      readerHeight: finest.totalPixelMatrixRows,
       width: finest.totalPixelMatrixColumns,
       height: finest.totalPixelMatrixRows,
       pixelSpacing: finest.pixelSpacing.slice(0),
     },
   ]
   let syntheticRun = 0
+  let isTruncated = false
   for (;;) {
     const previous = planned[planned.length - 1]
     if (previous.width <= tileSize && previous.height <= tileSize) {
@@ -67,14 +73,17 @@ const _planDyadicLevels = (levels, maxSyntheticLevels) => {
     if (existing !== undefined) {
       planned.push({
         readerLevel: existing.index,
-        width: existing.totalPixelMatrixColumns,
-        height: existing.totalPixelMatrixRows,
+        readerWidth: existing.totalPixelMatrixColumns,
+        readerHeight: existing.totalPixelMatrixRows,
+        width,
+        height,
         pixelSpacing: existing.pixelSpacing.slice(0),
       })
       syntheticRun = 0
       continue
     }
     if (syntheticRun >= maxSyntheticLevels) {
+      isTruncated = true
       break
     }
     planned.push({
@@ -88,7 +97,7 @@ const _planDyadicLevels = (levels, maxSyntheticLevels) => {
     })
     syntheticRun += 1
   }
-  return { tileSize, levels: planned }
+  return { tileSize, isTruncated, levels: planned }
 }
 
 export { _planDyadicLevels }

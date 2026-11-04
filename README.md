@@ -202,11 +202,12 @@ const layer = new MultiscaleImageLayer({
   colors: [[0, 0, 255], [0, 255, 0]],
 })
 
-// Cancel pending requests and release the decoding web workers when done
-metadata.reader.destroy()
+// When the image is no longer shown: cancel pending requests and release
+// the decoding web workers
+// metadata.reader.destroy()
 ```
 
-- Levels are ordered from highest to lowest resolution and each is half the size of the previous one, as Viv requires. Levels that the DICOM pyramid lacks (e.g. when its levels are 4 times apart) are computed from the next higher resolution level, at most `maxSyntheticLevels` (default 2) in a row.
+- Levels are ordered from highest to lowest resolution and each is half the size of the previous one (rounded up), as Viv requires. Levels that the DICOM pyramid lacks (e.g. when its levels are 4 times apart) are computed from the next higher resolution level, at most `maxSyntheticLevels` (default 2) in a row. A lowest level of more than 16 tiles is not drawn as Viv's background image.
 - Monochrome images have one channel per optical path. Color images have one channel with interleaved RGB samples (Viv supports 8 bits per sample).
 - Tiles must be square with a power-of-2 size. Edge tiles are cropped to the image, and the pixel spacing is reported as `meta.physicalSizes` (for Viv's scale bar).
 - Tiles that Viv no longer needs are cancelled through its abort signals.

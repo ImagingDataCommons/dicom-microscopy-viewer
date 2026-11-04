@@ -1,3 +1,4 @@
+import { logger } from '../logger.js'
 import { VolumeImageReader } from '../volumeImageReader.js'
 import { _planDyadicLevels } from './levels.js'
 import {
@@ -13,6 +14,7 @@ const _vivDtypes = {
   Uint16Array: 'Uint16',
   Int16Array: 'Int16',
   Float32Array: 'Float32',
+  Float64Array: 'Float64',
 }
 
 /**
@@ -20,9 +22,11 @@ const _vivDtypes = {
  *
  * The returned array can be passed as `loader` to Viv's
  * `MultiscaleImageLayer`. It is ordered from highest to lowest resolution
- * and each level is half the size of the previous one, as Viv expects:
- * levels that the DICOM pyramid lacks (e.g. when its levels are 4 times
- * apart) are computed from the next higher resolution level. Channel `c`
+ * and each level is half the size of the previous one (rounded up), as Viv
+ * expects. Levels that the DICOM pyramid lacks (e.g. when its levels are 4
+ * times apart) are computed from the next higher resolution level. Lower
+ * levels with more than 16 tiles have no `getRaster`, so Viv does not draw
+ * them as the background image. Channel `c`
  * of a Viv selection is optical path `reader.opticalPaths[c]`. Color images
  * have one channel with interleaved RGB samples.
  *
@@ -67,10 +71,19 @@ const createPixelSources = ({ reader, maxSyntheticLevels = 2 }) => {
     )
   }
 
-  const { tileSize, levels } = _planDyadicLevels(
+  const { tileSize, isTruncated, levels } = _planDyadicLevels(
     reader.levels,
     maxSyntheticLevels,
   )
+  if (isTruncated) {
+    const lowest = levels[levels.length - 1]
+    logger.warn(
+      'The DICOM pyramid lacks lower resolution levels with ' +
+        `${tileSize}-pixel tiles, so Viv cannot zoom out beyond ` +
+        `${lowest.width} x ${lowest.height} pixels. Increase ` +
+        '"maxSyntheticLevels" to compute more levels.',
+    )
+  }
   const sources = []
   for (const level of levels) {
     const options = {
@@ -92,6 +105,8 @@ const createPixelSources = ({ reader, maxSyntheticLevels = 2 }) => {
             ...options,
             reader,
             readerLevel: level.readerLevel,
+            readerWidth: level.readerWidth,
+            readerHeight: level.readerHeight,
           }),
     )
   }

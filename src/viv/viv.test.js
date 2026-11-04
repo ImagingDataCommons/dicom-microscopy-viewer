@@ -34,6 +34,7 @@ const createFakeReader = ({
   arrayType = 'Float32Array',
   samplesPerPixel = 1,
   opticalPaths = ['0', '1'],
+  valueAt = (level, row, column) => level * 1000000 + row * 1000 + column,
 }) => {
   const ArrayType = globalThis[arrayType]
   const reader = {
@@ -50,6 +51,12 @@ const createFakeReader = ({
     getTile: jest.fn(async ({ level, column, row, crop }) => {
       const info = reader.levels[level]
       const tileSize = info.tileColumns
+      if (
+        column >= Math.ceil(info.totalPixelMatrixColumns / tileSize) ||
+        row >= Math.ceil(info.totalPixelMatrixRows / tileSize)
+      ) {
+        throw new RangeError('Tile is outside of the tile grid.')
+      }
       const width = crop
         ? Math.min(tileSize, info.totalPixelMatrixColumns - column * tileSize)
         : tileSize
@@ -59,8 +66,7 @@ const createFakeReader = ({
       const pixelArray = new ArrayType(width * height * samplesPerPixel)
       for (let r = 0; r < height; r++) {
         for (let c = 0; c < width; c++) {
-          const value =
-            level * 1000000 + (row * tileSize + r) * 1000 + column * tileSize + c
+          const value = valueAt(level, row * tileSize + r, column * tileSize + c)
           for (let s = 0; s < samplesPerPixel; s++) {
             pixelArray[(r * width + c) * samplesPerPixel + s] = value
           }
@@ -88,15 +94,23 @@ describe('viv.loadDicomWeb', () => {
     const { reader } = metadata
     expect(reader).toBeInstanceOf(dmv.pyramid.VolumeImageReader)
     expect(metadata.opticalPaths).toBe(reader.opticalPaths)
-    /** Highest resolution first, all from the DICOM pyramid */
-    expect(data.map(imageSize)).toEqual(
-      reader.levels
-        .map((level) => [
-          level.totalPixelMatrixColumns,
-          level.totalPixelMatrixRows,
-        ])
-        .reverse(),
-    )
+    /**
+     * Highest resolution first, one source per DICOM level, with the sizes
+     * Viv expects (the DICOM sizes were rounded down: 3875 -> 1937 -> 968)
+     */
+    const dicomSizes = reader.levels
+      .map((level) => [
+        level.totalPixelMatrixColumns,
+        level.totalPixelMatrixRows,
+      ])
+      .reverse()
+    expect(data).toHaveLength(dicomSizes.length)
+    data.map(imageSize).forEach(([width, height], k) => {
+      expect(width).toBe(Math.ceil(dicomSizes[0][0] / 2 ** k))
+      expect(height).toBe(Math.ceil(dicomSizes[0][1] / 2 ** k))
+      expect(Math.abs(width - dicomSizes[k][0])).toBeLessThanOrEqual(1)
+      expect(Math.abs(height - dicomSizes[k][1])).toBeLessThanOrEqual(1)
+    })
     const base = reader.levels[reader.levels.length - 1]
     for (const source of data) {
       expect(source.shape[0]).toBe(reader.opticalPaths.length)
@@ -149,11 +163,11 @@ describe('viv.loadDicomWeb', () => {
     webWorkerManager.release.mockClear()
     const spy = jest
       .spyOn(dmv.pyramid.VolumeImageReader.prototype, 'getPixelInfo')
-      .mockReturnValue({ arrayType: 'Float64Array', samplesPerPixel: 1 })
+      .mockReturnValue({ arrayType: 'Uint32Array', samplesPerPixel: 1 })
     try {
       await expect(
         dmv.viv.loadDicomWeb({ client, ...seriesOptions }),
-      ).rejects.toThrow('Float64Array')
+      ).rejects.toThrow('Uint32Array')
       expect(webWorkerManager.release).toHaveBeenCalledTimes(1)
     } finally {
       spy.mockRestore()
@@ -295,9 +309,8 @@ describe('viv.createPixelSources', () => {
     expect(stitched.data[383 * 512 + 511]).toBe(1000000 + 383 * 1000 + 511)
     expect(stitched.data[200 * 512 + 300]).toBe(1000000 + 200 * 1000 + 300)
 
-    await expect(sources[0].getRaster({ selection: { c: 0 } })).rejects.toThrow(
-      'excludeBackground',
-    )
+    /** 16 x 12 tiles are too many for a raster */
+    expect(sources[0].getRaster).toBeUndefined()
   })
 
   it('rejects channels that do not exist', async () => {
@@ -318,10 +331,10 @@ describe('viv.createPixelSources', () => {
       dmv.viv.createPixelSources({
         reader: createFakeReader({
           levels: fourTimesLevels,
-          arrayType: 'Float64Array',
+          arrayType: 'Uint32Array',
         }),
       }),
-    ).toThrow('Float64Array')
+    ).toThrow('Uint32Array')
     expect(() =>
       dmv.viv.createPixelSources({
         reader: createFakeReader({
@@ -409,5 +422,143 @@ describe('Viv contract', () => {
     const match = source.match(/const SIGNAL_ABORTED = "([^"]+)"/)
     expect(match).not.toBeNull()
     expect(SIGNAL_ABORTED).toBe(match[1])
+  })
+})
+
+describe('viv pixel sources and the Viv tile grid', () => {
+  /** Every tile Viv requests, from the size of the highest resolution level */
+  const readAllTiles = async (sources) => {
+    const [, height, width] = sources[0].shape
+    const tileSize = sources[0].tileSize
+    const tiles = []
+    for (let k = 0; k < sources.length; k++) {
+      const levelWidth = Math.ceil(width / 2 ** k)
+      const levelHeight = Math.ceil(height / 2 ** k)
+      for (let y = 0; y < Math.ceil(levelHeight / tileSize); y++) {
+        for (let x = 0; x < Math.ceil(levelWidth / tileSize); x++) {
+          const tile = await sources[k].getTile({ x, y, selection: { c: 0 } })
+          expect(tile.width).toBe(Math.min(tileSize, levelWidth - x * tileSize))
+          expect(tile.height).toBe(
+            Math.min(tileSize, levelHeight - y * tileSize),
+          )
+          expect(tile.data).toHaveLength(tile.width * tile.height)
+          tiles.push({ k, x, y, tile })
+        }
+      }
+    }
+    return tiles
+  }
+
+  it('serves every tile of DICOM levels whose size was rounded down', async () => {
+    /** 1025 / 4 is 256.25: the DICOM level has 256 columns, Viv expects 257 */
+    const reader = createFakeReader({
+      levels: [
+        [256, 256, 128, 0.004],
+        [1025, 1025, 128, 0.001],
+      ],
+    })
+    const sources = dmv.viv.createPixelSources({ reader })
+    expect(sources.map(imageSize)).toEqual([
+      [1025, 1025],
+      [513, 513],
+      [257, 257],
+      [129, 129],
+      [65, 65],
+    ])
+    const tiles = await readAllTiles(sources)
+    /** The missing column repeats the last column of the DICOM level */
+    const strip = tiles.find((t) => t.k === 2 && t.x === 2 && t.y === 0)
+    expect(strip.tile.width).toBe(1)
+    /** The 256 pixel DICOM level is level 0 of the fake reader */
+    expect(strip.tile.data[0]).toBe(255)
+    expect(strip.tile.data[127]).toBe(127 * 1000 + 255)
+  })
+
+  it('serves every tile of DICOM levels that are 1 pixel larger', async () => {
+    const reader = createFakeReader({
+      levels: [
+        [258, 257, 128, 0.004],
+        [1025, 1025, 128, 0.001],
+      ],
+    })
+    const sources = dmv.viv.createPixelSources({ reader })
+    await readAllTiles(sources)
+  })
+
+  it('rejects tiles outside of the tile grid', async () => {
+    const reader = createFakeReader({ levels: [[1000, 600, 128, 0.001]] })
+    const sources = dmv.viv.createPixelSources({ reader })
+    await expect(
+      sources[1].getTile({ x: 4, y: 0, selection: { c: 0 } }),
+    ).rejects.toThrow(RangeError)
+    await expect(
+      sources[0].getTile({ x: -1, y: 0, selection: { c: 0 } }),
+    ).rejects.toThrow(RangeError)
+  })
+
+  it('cancels the other tiles of a computed tile when one fails', async () => {
+    const reader = createFakeReader({ levels: [[1024, 1024, 128, 0.001]] })
+    const sources = dmv.viv.createPixelSources({ reader })
+    const failure = new Error('Failed to load frames')
+    const signals = []
+    reader.getTile.mockImplementation(({ signal }) => {
+      signals.push(signal)
+      if (signals.length === 1) {
+        return Promise.reject(failure)
+      }
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason))
+      })
+    })
+    await expect(
+      sources[1].getTile({ x: 0, y: 0, selection: { c: 0 } }),
+    ).rejects.toBe(failure)
+    expect(signals).toHaveLength(4)
+    expect(signals.slice(1).every((signal) => signal.aborted)).toBe(true)
+  })
+
+  it('omits getRaster for large lowest levels and warns when levels are missing', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const reader = createFakeReader({ levels: [[4096, 4096, 128, 0.001]] })
+      const sources = dmv.viv.createPixelSources({
+        reader,
+        maxSyntheticLevels: 1,
+      })
+      expect(sources.map(imageSize)).toEqual([
+        [4096, 4096],
+        [2048, 2048],
+      ])
+      expect(sources[1].getRaster).toBeUndefined()
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('cannot zoom out beyond 2048 x 2048'),
+      )
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('computes interleaved color tiles', async () => {
+    const reader = createFakeReader({
+      levels: [[512, 512, 256, 0.001]],
+      arrayType: 'Uint8Array',
+      samplesPerPixel: 3,
+      opticalPaths: ['0'],
+      valueAt: (_level, row, column) => (row + column) % 200,
+    })
+    const sources = dmv.viv.createPixelSources({ reader })
+    const tile = await sources[1].getTile({ x: 0, y: 0, selection: { c: 0 } })
+    expect(tile.data).toBeInstanceOf(Uint8Array)
+    expect(tile.data).toHaveLength(256 * 256 * 3)
+    /** Means of (0, 1, 1, 2) and (2, 3, 3, 4) */
+    expect(Array.from(tile.data.subarray(0, 6))).toEqual([1, 1, 1, 3, 3, 3])
+  })
+
+  it('crops edge tiles of DICOM levels', async () => {
+    const reader = createFakeReader({ levels: [[1000, 600, 128, 0.001]] })
+    const [base] = dmv.viv.createPixelSources({ reader })
+    const tile = await base.getTile({ x: 7, y: 4, selection: { c: 0 } })
+    expect([tile.width, tile.height]).toEqual([1000 - 7 * 128, 600 - 4 * 128])
+    expect(tile.data[0]).toBe(4 * 128 * 1000 + 7 * 128)
   })
 })
