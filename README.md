@@ -20,6 +20,7 @@ The viewer visualizes slide microscopy images stored in a [DICOMweb](https://www
   - [Packaging](#packaging)
   - [Basic usage](#basic-usage)
   - [Reading tiles without the viewer](#reading-tiles-without-the-viewer)
+  - [Using with Viv / deck.gl](#using-with-viv--deckgl)
 - [Development](#development)
 - [Related projects](#related-projects)
 - [Contributing](#contributing)
@@ -178,6 +179,38 @@ How much of the work an abort cancels depends on the dicomweb-client version of 
 - With a version that supports the `request.signal` option, the request that is actually sent is aborted (also when `requestHooks` replace the XMLHttpRequest), it is not reported to the client's `errorInterceptor`, and request hooks receive the signal as `metadata.signal` (e.g. to cancel a scheduled retry).
 - With dicomweb-client 0.11, the XMLHttpRequest is aborted and not reported to the `errorInterceptor`, unless a request hook replaces the XMLHttpRequest or re-sends it later (e.g. a retry hook).
 - With older versions, which ignore request options, the request still completes in the background; only the promise rejects early.
+
+### Using with Viv / deck.gl
+
+`viv.loadDicomWeb()` loads a series as a [Viv](https://github.com/hms-dbmi/viv) multiscale image, like Viv's own `loadOmeTiff()`. Viv and deck.gl are not dependencies of this library: the returned pixel sources implement Viv's `PixelSource` interface, and tiles are retrieved and decoded with `pyramid.VolumeImageReader`.
+
+```js
+import { MultiscaleImageLayer } from "@vivjs/layers"
+
+const { data, metadata } = await DICOMMicroscopyViewer.viv.loadDicomWeb({
+  client,
+  studyInstanceUID: "1.2.3.4",
+  seriesInstanceUID: "1.2.3.5",
+})
+
+const layer = new MultiscaleImageLayer({
+  loader: data,
+  // Channel c is the optical path metadata.opticalPaths[c]
+  selections: [{ c: 0 }, { c: 1 }],
+  channelsVisible: [true, true],
+  contrastLimits: [[0, 4000], [0, 4000]],
+  colors: [[0, 0, 255], [0, 255, 0]],
+})
+
+// Cancel pending requests and release the decoding web workers when done
+metadata.reader.destroy()
+```
+
+- Levels are ordered from highest to lowest resolution and each is half the size of the previous one, as Viv requires. Levels that the DICOM pyramid lacks (e.g. when its levels are 4 times apart) are computed from the next higher resolution level, at most `maxSyntheticLevels` (default 2) in a row.
+- Monochrome images have one channel per optical path. Color images have one channel with interleaved RGB samples (Viv supports 8 bits per sample).
+- Tiles must be square with a power-of-2 size. Edge tiles are cropped to the image, and the pixel spacing is reported as `meta.physicalSizes` (for Viv's scale bar).
+- Tiles that Viv no longer needs are cancelled through its abort signals.
+- `loadDicomWeb()` also takes the reader's `iccProfilesEnabled` and `iccOutputType` options. To use a reader you already have, call `viv.createPixelSources({ reader })`.
 
 ## Development
 

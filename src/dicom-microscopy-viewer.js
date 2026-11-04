@@ -60,6 +60,7 @@ import {
   OverviewImageViewer,
   VolumeImageViewer,
 } from './viewer.js'
+import { createPixelSources, loadDicomWeb } from './viv/index.js'
 import { VolumeImageReader } from './volumeImageReader.js'
 
 /**
@@ -172,6 +173,16 @@ const pyramid = {
 }
 
 /**
+ * Namespace for using the images with Viv (deck.gl), without OpenLayers.
+ *
+ * @namespace viv
+ */
+const viv = {
+  createPixelSources,
+  loadDicomWeb,
+}
+
+/**
  * Namespace for 3-dimensional spatial coordinates (SCOORD3D).
  *
  * @namespace scoord3d
@@ -243,4 +254,5 @@ export {
   setLogLevel,
   utils,
   viewer,
+  viv,
 }
