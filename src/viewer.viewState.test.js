@@ -287,6 +287,24 @@ describe('VolumeImageViewer view API', () => {
     }
   })
 
+  it('keeps filters that applications set on the canvases', () => {
+    const map = getInternalMap(viewer)
+    const canvases = []
+    for (const layer of map.getLayers().getArray()) {
+      if (layer.hasListener('precompose')) {
+        const canvas = document.createElement('canvas')
+        /** Like Cornerstone3D on `.ol-layers canvas` */
+        canvas.style.filter = 'brightness(2)'
+        layer.dispatchEvent({ type: 'precompose', context: { canvas } })
+        canvases.push(canvas)
+      }
+    }
+    expect(canvases.length).toBeGreaterThan(0)
+    for (const canvas of canvases) {
+      expect(canvas.style.filter).toBe('brightness(2)')
+    }
+  })
+
   it('rejects invalid color matrices', () => {
     expect(() => viewer.setImageColorMatrix([1, 0, 0])).toThrow(TypeError)
     expect(() =>

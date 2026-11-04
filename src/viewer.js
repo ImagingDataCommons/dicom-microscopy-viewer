@@ -1308,12 +1308,20 @@ const _canvasFilters = new WeakMap()
 /**
  * Set the CSS filter of a canvas if it differs.
  *
+ * A canvas is left alone until a filter is set, so that filters applications
+ * set on the canvases themselves (e.g. Cornerstone3D on `.ol-layers canvas`)
+ * are kept unless {@link viewer.VolumeImageViewer#setImageColorMatrix} is used.
+ *
  * @param {HTMLCanvasElement} canvas - Canvas
  * @param {string} filter - CSS filter, empty for none
  * @private
  */
 const _setCanvasFilter = (canvas, filter) => {
-  if (canvas?.style == null || _canvasFilters.get(canvas) === filter) {
+  if (canvas?.style == null) {
+    return
+  }
+  const current = _canvasFilters.get(canvas)
+  if (current === filter || (current === undefined && filter === '')) {
     return
   }
   /** Remember the value set, browsers may normalize style.filter */
