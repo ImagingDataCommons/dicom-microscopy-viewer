@@ -1203,3 +1203,27 @@ describe('THUMBNAIL overview preference (slim#389)', () => {
     ).toBe(false)
   })
 })
+
+
+describe('VolumeImageReader and VolumeImageViewer', () => {
+  it('list the optical paths in the same order', () => {
+    const buildMetadata = () => testCase2.images.map(metadata => {
+      return new dmv.metadata.VLWholeSlideMicroscopyImage({ metadata })
+    })
+    const viewer = new dmv.viewer.VolumeImageViewer({
+      client: {},
+      metadata: buildMetadata()
+    })
+    const reader = new dmv.pyramid.VolumeImageReader({
+      client: {},
+      metadata: buildMetadata()
+    })
+
+    const viewerOrder = viewer.getAllOpticalPaths().map(item => item.identifier)
+    expect(viewerOrder.length).toBeGreaterThan(1)
+    expect(reader.opticalPaths.map(item => item.identifier)).toEqual(viewerOrder)
+
+    reader.destroy()
+    viewer.cleanup()
+  })
+})

@@ -22,6 +22,7 @@ import {
   createDistinctColormap,
   PaletteColorLookupTable,
 } from './color.js'
+import { CustomError, errorCodes, errorTypes } from './customError'
 import EVENTS from './events.js'
 import { setLogLevel } from './logger.js'
 import { ParameterMapping } from './mapping.js'
@@ -60,6 +61,8 @@ import {
   OverviewImageViewer,
   VolumeImageViewer,
 } from './viewer.js'
+import { createPixelSources, loadDicomWeb } from './viv/index.js'
+import { VolumeImageReader } from './volumeImageReader.js'
 
 /**
  * Namespace for annotations of DICOM Micrsocopy Bulk Simple Annotations
@@ -162,6 +165,25 @@ const opticalPath = {
 }
 
 /**
+ * Namespace for reading image pyramids without rendering them.
+ *
+ * @namespace pyramid
+ */
+const pyramid = {
+  VolumeImageReader,
+}
+
+/**
+ * Namespace for using the images with Viv (deck.gl), without OpenLayers.
+ *
+ * @namespace viv
+ */
+const viv = {
+  createPixelSources,
+  loadDicomWeb,
+}
+
+/**
  * Namespace for 3-dimensional spatial coordinates (SCOORD3D).
  *
  * @namespace scoord3d
@@ -203,6 +225,23 @@ const events = {
 }
 
 /**
+ * Namespace for errors.
+ *
+ * Errors about the images (e.g. images that cannot be shown or read) are
+ * instances of `CustomError` with a `type` of `errorTypes` and, where
+ * available, a stable `code` of `errorCodes` to act on. Invalid
+ * arguments throw a TypeError or RangeError, and cancelled operations reject
+ * with a DOMException named "AbortError".
+ *
+ * @namespace errors
+ */
+const errors = {
+  CustomError,
+  errorCodes,
+  errorTypes,
+}
+
+/**
  * Namespace for various utilities.
  *
  * @namespace utils
@@ -222,14 +261,17 @@ export {
   api,
   bulkSimpleAnnotations,
   color,
+  errors,
   events,
   mapping,
   metadata,
   opticalPath,
+  pyramid,
   roi,
   scoord3d,
   segment,
   setLogLevel,
   utils,
   viewer,
+  viv,
 }

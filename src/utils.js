@@ -800,13 +800,106 @@ function detectDisplayColorSpace() {
   return colorSpace
 }
 
+/**
+ * Error with which an operation cancelled through an AbortSignal rejects:
+ * the signal's reason when set, otherwise a DOMException named "AbortError"
+ * (same contract as `fetch`).
+ *
+ * @param {AbortSignal} signal - Aborted signal
+ * @returns {*} Abort reason
+ * @private
+ */
+function _getAbortReason(signal) {
+  if (signal?.reason !== undefined) {
+    return signal.reason
+  }
+  return new DOMException('The operation was aborted.', 'AbortError')
+}
+
+/**
+ * Throw the abort reason when the signal has been aborted.
+ *
+ * @param {AbortSignal} [signal] - Optional signal
+ * @private
+ */
+function _throwIfAborted(signal) {
+  if (signal?.aborted) {
+    throw _getAbortReason(signal)
+  }
+}
+
+/**
+ * Settle with the promise, or reject with the abort reason as soon as the
+ * signal is aborted. The promise itself is not cancelled.
+ *
+ * @param {Promise} promise - Promise
+ * @param {AbortSignal} [signal] - Optional signal
+ * @returns {Promise} Promise that also rejects on abort
+ * @private
+ */
+function _raceAbort(promise, signal) {
+  if (signal == null) {
+    return promise
+  }
+  _throwIfAborted(signal)
+  let onAbort
+  const aborted = new Promise((_resolve, reject) => {
+    onAbort = () => reject(_getAbortReason(signal))
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  return Promise.race([promise, aborted]).finally(() => {
+    signal.removeEventListener('abort', onAbort)
+  })
+}
+
+/**
+ * Signal that is aborted as soon as any of the given signals is aborted, with
+ * that signal's reason. Call `dispose` when done to detach the listeners from
+ * long-lived signals.
+ *
+ * @param {Array<AbortSignal|undefined>} signals - Signals to follow
+ * @returns {{signal: AbortSignal, dispose: function}} Combined signal
+ * @private
+ */
+function _anyAbortSignal(signals) {
+  const controller = new AbortController()
+  const listeners = []
+  const dispose = () => {
+    for (const [signal, onAbort] of listeners) {
+      signal.removeEventListener('abort', onAbort)
+    }
+    listeners.length = 0
+  }
+  for (const signal of signals) {
+    if (signal == null) {
+      continue
+    }
+    if (signal.aborted) {
+      controller.abort(signal.reason)
+      dispose()
+      break
+    }
+    const onAbort = () => {
+      controller.abort(signal.reason)
+      dispose()
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    listeners.push([signal, onAbort])
+  }
+  return { signal: controller.signal, dispose }
+}
+
 export {
+  _anyAbortSignal,
   _convertAreaFromMm,
   _convertLengthFromMm,
   _fetchBulkdata,
   _generateUID,
+  _getAbortReason,
   _getUnitSuffix,
   _normalizeMeasurementUnit,
+  _raceAbort,
+  _throwIfAborted,
   _toCssColor,
   applyInverseTransform,
   applyTransform,

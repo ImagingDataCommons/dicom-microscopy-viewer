@@ -19,6 +19,9 @@ The viewer visualizes slide microscopy images stored in a [DICOMweb](https://www
 - [Getting started](#getting-started)
   - [Packaging](#packaging)
   - [Basic usage](#basic-usage)
+  - [Controlling the view](#controlling-the-view)
+  - [Reading tiles without the viewer](#reading-tiles-without-the-viewer)
+  - [Using with Viv / deck.gl](#using-with-viv--deckgl)
 - [Development](#development)
 - [Related projects](#related-projects)
 - [Contributing](#contributing)
@@ -48,6 +51,8 @@ Install the [dicom-microscopy-viewer](https://www.npmjs.com/package/dicom-micros
 ```bash
 pnpm add dicom-microscopy-viewer
 ```
+
+TypeScript declarations are included. `pyramid`, `viv`, `errors`, `events` and the view API of `VolumeImageViewer` are typed exactly; the other namespaces are declared with loose types for now. Applications that declare the module themselves (`declare module "dicom-microscopy-viewer"`) keep their own declarations.
 
 ## Getting started
 
@@ -111,6 +116,143 @@ client.retrieveSeriesMetadata(retrieveOptions).then((metadata) => {
   viewer.render({ container: "viewport" })
 })
 ```
+
+### Controlling the view
+
+The view is described in slide coordinates (millimeter), the same coordinate system as `navigate()` and ROIs, so applications do not depend on the rendering library:
+
+```js
+const { center, resolution, rotation } = viewer.getViewState()
+// center: [x, y] in mm; resolution: mm per screen pixel;
+// rotation: clockwise on screen, in radians, relative to the slide's default orientation
+
+viewer.setViewState({ center: [10.5, 20.25], resolution: 0.001 })
+viewer.fitBounds([[10, 20], [12, 21]], { padding: [20, 20, 20, 20] })
+// Window [10, 200] of the 8-bit image values (image only, not ROIs or overlays)
+const s = 255 / 190
+const o = -10 / 190
+viewer.setImageColorMatrix([s, 0, 0, 0, o, 0, s, 0, 0, o, 0, 0, s, 0, o, 0, 0, 0, 1, 0])
+viewer.setImageColorMatrix(null) // back to the original colors
+
+document.getElementById("viewport").addEventListener(
+  DICOMMicroscopyViewer.events.EVENTS.VIEW_CHANGED,
+  (event) => console.log(event.detail.payload.viewState),
+)
+```
+
+- The view state uses physical units only, so it means the same for every slide and renderer. To compare it with a renderer that uses zoom levels of the pixel matrix, such as deck.gl, use `log2(pixelSpacing / resolution)`.
+- Use these methods after `render()`, which fits the whole slide into the viewport. `setViewState()` leaves properties that equal the current ones untouched, so `setViewState(getViewState())` changes nothing (slide coordinates are rounded to 0.1 µm).
+- `VIEW_CHANGED` fires at most once per animation frame while the view changes. `MOVE_STARTED` and `MOVE_ENDED` also carry `viewState`.
+- `POINTER_MOVE` carries `clientX`, `clientY` and `coordinates` (slide coordinates in millimeter) next to the matched ROIs.
+- `setImageColorMatrix()` takes the 4 x 5 matrix of an SVG `feColorMatrix` (row by row, components in [0, 1]), applied in sRGB by default or in linear sRGB with `{ colorSpace: "linear-srgb" }`. It covers brightness, contrast, windowing and white balance.
+- `getMap()`, which returns the OpenLayers map, is deprecated: the map is an implementation detail that can change with OpenLayers upgrades. It keeps working; use the methods above where they cover your needs. The OpenLayers event in the `event` field of event payloads is deprecated for the same reason.
+### Reading tiles without the viewer
+
+Other renderers (for example [deck.gl](https://deck.gl) / [Viv](https://github.com/hms-dbmi/viv)) can reuse the DICOMweb retrieval, frame decoding and ICC color management of this library through `pyramid.VolumeImageReader`. It takes the same `client` and `metadata` as `VolumeImageViewer` but needs neither OpenLayers nor a DOM element.
+
+`VolumeImageReader.fromSeries()` retrieves the series metadata and keeps the VOLUME and THUMBNAIL images, as in the example above:
+
+```js
+const reader = await DICOMMicroscopyViewer.pyramid.VolumeImageReader.fromSeries({
+  client,
+  studyInstanceUID: "1.2.3.4",
+  seriesInstanceUID: "1.2.3.5",
+  skipThumbnails: true,
+})
+```
+
+Or construct it from metadata you already have:
+
+```js
+const reader = new DICOMMicroscopyViewer.pyramid.VolumeImageReader({
+  client,
+  metadata: volumeImages,
+  // A THUMBNAIL level has a different tile size than the VOLUME levels;
+  // skip it when the renderer needs one tile size for all levels (e.g. Viv)
+  skipThumbnails: true,
+})
+
+// Optical paths (channels), in the same order as viewer.getAllOpticalPaths()
+const channels = reader.opticalPaths.map((opticalPath) => opticalPath.identifier)
+
+// Pyramid levels, from highest to lowest resolution (as in OpenSlide and Viv)
+const base = reader.levels[0]
+console.log(base.totalPixelMatrixColumns, base.tileColumns, base.gridColumns)
+
+// Pixel layout, e.g. { samplesPerPixel: 1, bitsAllocated: 16, arrayType: "Uint16Array", ... }
+const pixelInfo = reader.getPixelInfo(channels[0])
+
+// Base level pixel (column, row) to slide coordinates (millimeter) and back
+const [x, y] = DICOMMicroscopyViewer.utils.applyTransform({
+  coordinate: [0, 0],
+  affine: reader.affine,
+})
+
+const controller = new AbortController()
+const tile = await reader.getTile({
+  opticalPathIdentifier: channels[0],
+  level: base.index,
+  column: 0,
+  row: 0,
+  signal: controller.signal, // optional, cancels the request and decoding
+})
+// tile.pixelArray holds the stored pixel values (native typed array).
+// Edge tiles are padded: only tile.validColumns x tile.validRows hold image data.
+// Pass crop: true to get edge tiles without the padding instead.
+
+// Release the shared decoding web workers when done
+reader.destroy()
+```
+
+`fromSeries()` also takes a `signal` to cancel the metadata request.
+
+Errors follow one convention across `pyramid` and `viv`:
+
+- Invalid arguments throw a `TypeError` or `RangeError` (e.g. an unknown optical path or a tile outside of the grid), without a request.
+- Images that cannot be read or shown throw `DICOMMicroscopyViewer.errors.CustomError`, whose `type` is one of `errors.errorTypes`. Where available, `code` is one of `errors.errorCodes` (e.g. `NO_IMAGES`, `INCONSISTENT_PYRAMIDS`, `UNSUPPORTED_PIXEL_DATA`); codes keep their meaning across releases, so applications can act on them.
+- An aborted operation rejects with `signal.reason` (a `DOMException` named `AbortError` by default). `destroy()` aborts tiles that are still in flight; later `getTile` calls also reject with an `AbortError`.
+- Other failures reject with an `Error` whose `cause` is the underlying error, such as the dicomweb-client request error with its `status`.
+
+How much of the work an abort cancels depends on the dicomweb-client version of the `client` you pass in:
+
+- With a version that supports the `request.signal` option (proposed in [dcmjs-org/dicomweb-client#144](https://github.com/dcmjs-org/dicomweb-client/pull/144), not released yet), the request that is actually sent is aborted (also when `requestHooks` replace the XMLHttpRequest), it is not reported to the client's `errorInterceptor`, and request hooks receive the signal as `metadata.signal` (e.g. to cancel a scheduled retry).
+- With dicomweb-client 0.11, the XMLHttpRequest is aborted and not reported to the `errorInterceptor`, unless a request hook replaces the XMLHttpRequest or re-sends it later (e.g. a retry hook).
+- With older versions, which ignore request options, the request still completes in the background; only the promise rejects early.
+
+### Using with Viv / deck.gl
+
+`viv.loadDicomWeb()` loads a series as a [Viv](https://github.com/hms-dbmi/viv) multiscale image, like Viv's own `loadOmeTiff()`. Viv and deck.gl are not dependencies of this library: the returned pixel sources implement Viv's `PixelSource` interface, and tiles are retrieved and decoded with `pyramid.VolumeImageReader`.
+
+```js
+import { MultiscaleImageLayer } from "@vivjs/layers"
+
+const { data, metadata, destroy } = await DICOMMicroscopyViewer.viv.loadDicomWeb({
+  client,
+  studyInstanceUID: "1.2.3.4",
+  seriesInstanceUID: "1.2.3.5",
+  signal, // optional, e.g. from an AbortController of the component
+})
+
+const layer = new MultiscaleImageLayer({
+  loader: data,
+  // Channel c is the optical path metadata.opticalPaths[c]
+  selections: [{ c: 0 }, { c: 1 }],
+  channelsVisible: [true, true],
+  contrastLimits: [[0, 4000], [0, 4000]],
+  colors: [[0, 0, 255], [0, 255, 0]],
+})
+
+// When the image is no longer shown: cancel pending requests, drop cached
+// tiles and release the decoding web workers
+destroy()
+```
+
+- Levels are ordered from highest to lowest resolution and each is half the size of the previous one (rounded up), as Viv requires. Levels that the DICOM pyramid lacks (e.g. when its levels are 4 times apart) are computed from the next higher resolution level, at most `maxSyntheticLevels` (default 2) in a row. A lowest level of more than 16 tiles is not drawn as Viv's background image.
+- Monochrome images have one channel per optical path. Color images have one channel with interleaved RGB samples (Viv supports 8 bits per sample).
+- Tiles must be square with a power-of-2 size. Edge tiles are cropped to the image, and the pixel spacing is reported as `meta.physicalSizes` (for Viv's scale bar).
+- Tiles that Viv no longer needs are cancelled through its abort signals. Other failures, including tiles requested after `destroy()`, reach Viv's `onTileError`.
+- Decoded tiles are kept in a cache shared by all levels (`cacheSize`, 64 MiB by default, 0 to disable), so computed levels and zooming back do not retrieve the same tiles again. Treat tile data as read-only.
+- `loadDicomWeb()` also takes the reader's `iccProfilesEnabled` (on by default, as in the viewer) and `iccOutputType` options. To use a reader you already have, call `viv.createPixelSources({ reader })`; you then keep owning the reader and destroy it yourself.
 
 ## Development
 
