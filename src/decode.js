@@ -1,4 +1,5 @@
 import dcmjs from 'dcmjs'
+import { _getAbortReason, _raceAbort, _throwIfAborted } from './utils.js'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
 /**
@@ -56,11 +57,12 @@ function _processDecodeAndTransformTask(
   metadata,
   iccProfiles,
   iccOutputType = 'srgb', // "srgb" or "display-p3"
+  signal,
 ) {
   const priority = undefined
   const transferList = _frameTransferList(frame)
 
-  return webWorkerManager.addTask(
+  const { taskId, promise } = webWorkerManager.addTask(
     'decodeAndTransformTask',
     {
       frame,
@@ -76,7 +78,25 @@ function _processDecodeAndTransformTask(
     },
     priority,
     transferList,
-  ).promise
+  )
+  if (signal == null) {
+    return promise
+  }
+
+  /**
+   * Drop the task while it still waits in the queue. A task already running
+   * on a worker cannot be interrupted; its result is then discarded and the
+   * returned promise rejects right away.
+   */
+  const onAbort = () => {
+    webWorkerManager.cancelTask(taskId, _getAbortReason(signal))
+  }
+  signal.addEventListener('abort', onAbort, { once: true })
+  /** The discarded result of a running task must not surface as unhandled */
+  promise.catch(() => {})
+  return _raceAbort(promise, signal).finally(() =>
+    signal.removeEventListener('abort', onAbort),
+  )
 }
 
 async function _decodeAndTransformFrame({
@@ -90,7 +110,10 @@ async function _decodeAndTransformFrame({
   metadata, // metadata of all images (different resolution levels)
   iccProfiles, // ICC profiles for all images
   iccOutputType = 'srgb', // "srgb" or "display-p3"
+  /** Optional AbortSignal */
+  signal,
 }) {
+  _throwIfAborted(signal)
   const result = await _processDecodeAndTransformTask(
     frame,
     bitsAllocated,
@@ -102,7 +125,9 @@ async function _decodeAndTransformFrame({
     metadata,
     iccProfiles,
     iccOutputType,
+    signal,
   )
+  _throwIfAborted(signal)
 
   const signed = pixelRepresentation === 1
   const byteArray = new Uint8Array(result.frameData)

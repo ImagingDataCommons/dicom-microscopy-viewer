@@ -30,6 +30,12 @@ const EVENTS = {
   MOVE_STARTED: `${PROJECT_NAME}_move_started`,
   /** Triggered when a viewport move has ended. */
   MOVE_ENDED: `${PROJECT_NAME}_move_ended`,
+  /**
+   * Triggered at most once per animation frame while the center, resolution
+   * or rotation of the view changes. Detail: `{ viewState }`, see
+   * {@link viewer.VolumeImageViewer#getViewState}.
+   */
+  VIEW_CHANGED: `${PROJECT_NAME}_view_changed`,
   /** Triggered when a loading of data has started. */
   LOADING_STARTED: `${PROJECT_NAME}_loading_started`,
   /** Triggered when a loading of data has ended. */
