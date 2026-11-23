@@ -327,3 +327,80 @@ describe('VolumeImageViewer view API', () => {
     }
   })
 })
+
+describe('VolumeImageViewer navigate', () => {
+  let viewer
+  let container
+
+  beforeEach(() => {
+    ;({ viewer, container } = createViewer())
+  })
+
+  afterEach(() => {
+    viewer.cleanup()
+    container.remove()
+  })
+
+  it('animates to the resolution of the pyramid level, not to a zoom', () => {
+    const view = getInternalMap(viewer).getView()
+    const animate = jest.spyOn(view, 'animate').mockImplementation(() => {})
+    const level = viewer.numLevels - 1
+    viewer.navigate({ level, position: [10, 20] })
+    expect(animate).toHaveBeenCalledTimes(1)
+    const [options] = animate.mock.calls[0]
+    expect(options).not.toHaveProperty('zoom')
+    /** The base level is drawn one image pixel per screen pixel */
+    expect(options.resolution).toBeCloseTo(1, 9)
+    expect(options.center).toHaveLength(2)
+  })
+
+  it('animates to a resolution given in millimeter per screen pixel', () => {
+    const view = getInternalMap(viewer).getView()
+    const animate = jest.spyOn(view, 'animate').mockImplementation(() => {})
+    const spacing = viewer.getPixelSpacing(viewer.numLevels - 1)[0]
+    viewer.navigate({ level: 0, resolution: spacing * 4 })
+    expect(animate.mock.calls[0][0].resolution).toBeCloseTo(4, 9)
+  })
+
+  it('rejects a level outside the pyramid and a resolution that is not positive', () => {
+    expect(() => viewer.navigate({ level: viewer.numLevels })).toThrow(
+      /exceeds number of resolution levels/,
+    )
+    expect(() => viewer.navigate({ resolution: 0 })).toThrow(
+      /greater than 0/,
+    )
+  })
+})
+
+describe('VolumeImageViewer preload option', () => {
+  const preloadOf = (options) => {
+    const viewer = new dmv.viewer.VolumeImageViewer({
+      client: { retrieveBulkData: () => Promise.resolve([]) },
+      metadata: testCase1.images.map(
+        (metadata) => new dmv.metadata.VLWholeSlideMicroscopyImage({ metadata }),
+      ),
+      ...options,
+    })
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    viewer.render({ container })
+    const layers = getInternalMap(viewer)
+      .getLayers()
+      .getArray()
+      .filter((layer) => typeof layer.getPreload === 'function')
+    const preloads = layers.map((layer) => layer.getPreload())
+    viewer.cleanup()
+    container.remove()
+    return preloads
+  }
+
+  it('keeps preloading off for preload: false', () => {
+    const preloads = preloadOf({ preload: false })
+    expect(preloads.length).toBeGreaterThan(0)
+    expect(preloads.every((value) => value === 0)).toBe(true)
+  })
+
+  it('preloads one level for preload: true', () => {
+    expect(preloadOf({ preload: true })).toContain(1)
+  })
+})
