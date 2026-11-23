@@ -6163,7 +6163,7 @@ class VolumeImageViewer {
               getContentItemNameCodedConcept(item),
             )
           })
-        if (measurementIndex == null) {
+        if (measurementIndex === -1) {
           throw new Error(
             'Cannot set style of annotation group. ' +
               `Could not find measurement "${name.CodeMeaning}" ` +
@@ -6468,6 +6468,32 @@ class VolumeImageViewer {
       styleOptions,
     )
 
+    /**
+     * Reject a measurement the group does not have before changing anything,
+     * so the style never refers to a measurement that cannot be drawn
+     */
+    if (styleOptions.measurement != null) {
+      const measurements =
+        annotationGroup.metadata.AnnotationGroupSequence.find((item) => {
+          return item.AnnotationGroupUID === annotationGroupUID
+        })?.MeasurementsSequence ?? []
+      const isKnownMeasurement = measurements.some((item) => {
+        return areCodedConceptsEqual(
+          styleOptions.measurement,
+          getContentItemNameCodedConcept(item),
+        )
+      })
+      if (!isKnownMeasurement) {
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
+          'Cannot set style of annotation group. ' +
+            `Could not find measurement "${styleOptions.measurement.CodeMeaning}" ` +
+            `of annotation group "${annotationGroupUID}".`,
+        )
+        throw this[_options].errorInterceptor(error) || error
+      }
+    }
+
     if (styleOptions.opacity != null) {
       annotationGroup.style.opacity = styleOptions.opacity
       annotationGroup.layers.forEach((layer) => {
@@ -6573,7 +6599,10 @@ class VolumeImageViewer {
    * @param {string} annotationGroupUID - Unique identifier of an annotation
    * group
    *
-   * @returns {Object} - Style settings
+   * @returns {Object} - Style settings: `opacity`, `color` (RGB triplet) and
+   * `measurement`, the coded concept of the measurement used for
+   * pseudo-coloring, or `undefined` when the group is not colored by a
+   * measurement
    */
   getAnnotationGroupStyle(annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
