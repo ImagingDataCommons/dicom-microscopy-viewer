@@ -6444,8 +6444,9 @@ class VolumeImageViewer {
    * @param {Object} styleOptions - Style options
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.color] - RGB color triplet
-   * @param {Object} [styleOptions.measurement] - Selected measurement for
-   * pseudo-coloring of annotations using measurement values
+   * @param {Object|null} [styleOptions.measurement] - Selected measurement for
+   * pseudo-coloring of annotations using measurement values; `null` stops
+   * coloring by a measurement
    * @param {boolean} [styleOptions.fill] - Whether to fill polygon annotations
    * @param {number} [styleOptions.fillOpacity] - Opacity of fill (0-1)
    * @returns {void}
@@ -6478,7 +6479,10 @@ class VolumeImageViewer {
       annotationGroup.style.color = styleOptions.color
     }
 
-    if (styleOptions.measurement != null) {
+    /** `measurement: null` stops coloring the group by a measurement */
+    if (styleOptions.measurement === null) {
+      annotationGroup.style.measurement = undefined
+    } else if (styleOptions.measurement != null) {
       annotationGroup.style.measurement = styleOptions.measurement
     }
 
@@ -6585,6 +6589,7 @@ class VolumeImageViewer {
     return {
       opacity: annotationGroup.style.opacity,
       color: annotationGroup.style.color,
+      measurement: annotationGroup.style.measurement,
     }
   }
 

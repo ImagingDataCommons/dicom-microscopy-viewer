@@ -957,6 +957,27 @@ describe.each(testCases)('test viewer API for annotation groups of "$name"', ({
       expect(style).toEqual(expectedStyle)
     }
   })
+
+  it('should stop coloring by a measurement for measurement: null', () => {
+    inputs.annotations.forEach(metadata => {
+      viewer.addAnnotationGroups(metadata)
+    })
+    const annotationGroupUIDs = Object.keys(expectations.annotationGroups)
+    if (annotationGroupUIDs.length > 0) {
+      const uid = annotationGroupUIDs[0]
+      const measurement = {
+        CodeValue: '42798000',
+        CodingSchemeDesignator: 'SCT',
+        CodeMeaning: 'Area'
+      }
+      viewer.setAnnotationGroupStyle(uid, { measurement })
+      expect(viewer.getAnnotationGroupStyle(uid).measurement).toBe(measurement)
+      viewer.setAnnotationGroupStyle(uid, { color: [0, 0, 255] })
+      expect(viewer.getAnnotationGroupStyle(uid).measurement).toBe(measurement)
+      viewer.setAnnotationGroupStyle(uid, { measurement: null })
+      expect(viewer.getAnnotationGroupStyle(uid).measurement).toBeUndefined()
+    }
+  })
 })
 
 describe.each(testCases)('test viewer API for segments of "$name"', ({
