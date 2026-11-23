@@ -363,12 +363,28 @@ describe('VolumeImageViewer navigate', () => {
   })
 
   it('rejects a level outside the pyramid and a resolution that is not positive', () => {
-    expect(() => viewer.navigate({ level: viewer.numLevels })).toThrow(
-      /exceeds number of resolution levels/,
-    )
+    for (const level of [viewer.numLevels, -1, 1.5]) {
+      expect(() => viewer.navigate({ level })).toThrow(
+        /must be an integer from 0 to/,
+      )
+    }
     expect(() => viewer.navigate({ resolution: 0 })).toThrow(
       /greater than 0/,
     )
+  })
+})
+
+describe('VolumeImageViewer toggleICCProfiles', () => {
+  it('returns a promise that settles once the loaders were swapped', async () => {
+    const { viewer, container } = createViewer()
+    try {
+      const result = viewer.toggleICCProfiles()
+      expect(typeof result?.then).toBe('function')
+      await expect(result).resolves.toBeUndefined()
+    } finally {
+      viewer.cleanup()
+      container.remove()
+    }
   })
 })
 

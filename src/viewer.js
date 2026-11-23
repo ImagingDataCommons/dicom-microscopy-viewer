@@ -3241,13 +3241,15 @@ class VolumeImageViewer {
   /**
    * Toggle ICC profiles.
    *
-   * @returns {void}
+   * @returns {Promise<void>} Settles once the tile loaders were swapped (the
+   * new tiles are drawn on the following renders); never rejects, failures
+   * go to the error interceptor
    */
   toggleICCProfiles() {
     console.debug('toggle ICC profiles:', this[_isICCProfilesEnabled])
-    this.configureDataLoaders(!this[_isICCProfilesEnabled])
+    return this.configureDataLoaders(!this[_isICCProfilesEnabled])
       .then(() => {
-        // Update the toggle if reloading was successful
+        /** Update the toggle if reloading was successful */
         this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
       })
       .catch((error) => {
@@ -4315,10 +4317,13 @@ class VolumeImageViewer {
    * coordinate system.
    */
   navigate({ level, position, resolution } = {}) {
-    if (level != null && level >= this.numLevels) {
+    if (
+      level != null &&
+      !(Number.isInteger(level) && level >= 0 && level < this.numLevels)
+    ) {
       const error = new CustomError(
         errorTypes.VISUALIZATION,
-        'Argument "level" exceeds number of resolution levels.',
+        `Argument "level" must be an integer from 0 to ${this.numLevels - 1}.`,
       )
       throw this[_options].errorInterceptor(error)
     }
