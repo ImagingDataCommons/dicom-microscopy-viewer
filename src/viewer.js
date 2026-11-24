@@ -6163,7 +6163,7 @@ class VolumeImageViewer {
               getContentItemNameCodedConcept(item),
             )
           })
-        if (measurementIndex == null) {
+        if (measurementIndex === -1) {
           throw new Error(
             'Cannot set style of annotation group. ' +
               `Could not find measurement "${name.CodeMeaning}" ` +
@@ -6444,8 +6444,9 @@ class VolumeImageViewer {
    * @param {Object} styleOptions - Style options
    * @param {number} [styleOptions.opacity] - Opacity
    * @param {number[]} [styleOptions.color] - RGB color triplet
-   * @param {Object} [styleOptions.measurement] - Selected measurement for
-   * pseudo-coloring of annotations using measurement values
+   * @param {Object|null} [styleOptions.measurement] - Selected measurement for
+   * pseudo-coloring of annotations using measurement values; `null` stops
+   * coloring by a measurement
    * @param {boolean} [styleOptions.fill] - Whether to fill polygon annotations
    * @param {number} [styleOptions.fillOpacity] - Opacity of fill (0-1)
    * @returns {void}
@@ -6467,6 +6468,32 @@ class VolumeImageViewer {
       styleOptions,
     )
 
+    /**
+     * Reject a measurement the group does not have before changing anything,
+     * so the style never refers to a measurement that cannot be drawn
+     */
+    if (styleOptions.measurement != null) {
+      const measurements =
+        annotationGroup.metadata.AnnotationGroupSequence.find((item) => {
+          return item.AnnotationGroupUID === annotationGroupUID
+        })?.MeasurementsSequence ?? []
+      const isKnownMeasurement = measurements.some((item) => {
+        return areCodedConceptsEqual(
+          styleOptions.measurement,
+          getContentItemNameCodedConcept(item),
+        )
+      })
+      if (!isKnownMeasurement) {
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
+          'Cannot set style of annotation group. ' +
+            `Could not find measurement "${styleOptions.measurement.CodeMeaning}" ` +
+            `of annotation group "${annotationGroupUID}".`,
+        )
+        throw this[_options].errorInterceptor(error) || error
+      }
+    }
+
     if (styleOptions.opacity != null) {
       annotationGroup.style.opacity = styleOptions.opacity
       annotationGroup.layers.forEach((layer) => {
@@ -6478,7 +6505,10 @@ class VolumeImageViewer {
       annotationGroup.style.color = styleOptions.color
     }
 
-    if (styleOptions.measurement != null) {
+    /** `measurement: null` stops coloring the group by a measurement */
+    if (styleOptions.measurement === null) {
+      annotationGroup.style.measurement = undefined
+    } else if (styleOptions.measurement != null) {
       annotationGroup.style.measurement = styleOptions.measurement
     }
 
@@ -6569,7 +6599,10 @@ class VolumeImageViewer {
    * @param {string} annotationGroupUID - Unique identifier of an annotation
    * group
    *
-   * @returns {Object} - Style settings
+   * @returns {Object} - Style settings: `opacity`, `color` (RGB triplet) and
+   * `measurement`, the coded concept of the measurement used for
+   * pseudo-coloring, or `undefined` when the group is not colored by a
+   * measurement
    */
   getAnnotationGroupStyle(annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -6585,6 +6618,7 @@ class VolumeImageViewer {
     return {
       opacity: annotationGroup.style.opacity,
       color: annotationGroup.style.color,
+      measurement: annotationGroup.style.measurement,
     }
   }
 

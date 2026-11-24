@@ -957,6 +957,48 @@ describe.each(testCases)('test viewer API for annotation groups of "$name"', ({
       expect(style).toEqual(expectedStyle)
     }
   })
+
+  it('should stop coloring by a measurement for measurement: null', () => {
+    if (inputs.annotations.length === 0) return
+    inputs.annotations.forEach(metadata => {
+      viewer.addAnnotationGroups(metadata)
+    })
+    const annotationGroupUIDs = Object.keys(expectations.annotationGroups)
+    /** Cases with annotations must have a group to test */
+    expect(annotationGroupUIDs.length).toBeGreaterThan(0)
+    const uid = annotationGroupUIDs[0]
+    const measurement = {
+      CodeValue: '42798000',
+      CodingSchemeDesignator: 'SCT',
+      CodeMeaning: 'Area'
+    }
+    viewer.setAnnotationGroupStyle(uid, { measurement })
+    expect(viewer.getAnnotationGroupStyle(uid).measurement).toBe(measurement)
+    viewer.setAnnotationGroupStyle(uid, { color: [0, 0, 255] })
+    expect(viewer.getAnnotationGroupStyle(uid).measurement).toBe(measurement)
+    viewer.setAnnotationGroupStyle(uid, { measurement: null })
+    expect(viewer.getAnnotationGroupStyle(uid).measurement).toBeUndefined()
+  })
+
+  it('should reject a measurement the annotation group does not have', () => {
+    if (inputs.annotations.length === 0) return
+    inputs.annotations.forEach(metadata => {
+      viewer.addAnnotationGroups(metadata)
+    })
+    const uid = Object.keys(expectations.annotationGroups)[0]
+    const unknown = {
+      CodeValue: '0000',
+      CodingSchemeDesignator: '99TEST',
+      CodeMeaning: 'Unknown'
+    }
+    expect(() => {
+      viewer.setAnnotationGroupStyle(uid, { measurement: unknown, opacity: 0.3 })
+    }).toThrow('Could not find measurement "Unknown"')
+    /** Nothing was changed */
+    const style = viewer.getAnnotationGroupStyle(uid)
+    expect(style.measurement).toBeUndefined()
+    expect(style.opacity).not.toBe(0.3)
+  })
 })
 
 describe.each(testCases)('test viewer API for segments of "$name"', ({
