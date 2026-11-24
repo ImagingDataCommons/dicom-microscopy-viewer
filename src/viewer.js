@@ -3239,18 +3239,33 @@ class VolumeImageViewer {
   }
 
   /**
+   * Whether ICC profiles are applied to the tiles. It changes only once a
+   * toggle has swapped the tile loaders, so it keeps its value when a toggle
+   * fails.
+   *
+   * @returns {boolean} True when ICC profiles are enabled
+   */
+  isICCProfilesEnabled() {
+    return this[_isICCProfilesEnabled]
+  }
+
+  /**
    * Toggle ICC profiles.
    *
    * @returns {Promise<void>} Settles once the tile loaders were swapped (the
    * new tiles are drawn on the following renders); never rejects, failures
-   * go to the error interceptor
+   * go to the error interceptor. Read the outcome with isICCProfilesEnabled()
    */
   toggleICCProfiles() {
     console.debug('toggle ICC profiles:', this[_isICCProfilesEnabled])
-    return this.configureDataLoaders(!this[_isICCProfilesEnabled])
+    const enabled = !this[_isICCProfilesEnabled]
+    return this.configureDataLoaders(enabled)
       .then(() => {
-        /** Update the toggle if reloading was successful */
-        this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+        /**
+         * Set the target rather than flipping, so two toggles that overlap
+         * cannot leave the flag opposite to the loaders
+         */
+        this[_isICCProfilesEnabled] = enabled
       })
       .catch((error) => {
         console.error('Failed to toggle ICC profiles:', error)
