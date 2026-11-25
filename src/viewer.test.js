@@ -1061,6 +1061,27 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
     })
   })
 
+  it('should draw a new segment at the opacity of its style', () => {
+    /**
+     * A segment shown without style options must look like getSegmentStyle
+     * says. Layers created at opacity 1 drew LABELMAP and FRACTIONAL
+     * segments opaque until an application set the opacity explicitly.
+     */
+    const map = viewer.getMap()
+    const before = new Set(map.getLayers().getArray())
+    inputs.segmentations.forEach(metadata => {
+      viewer.addSegments(metadata)
+    })
+    const added = map.getLayers().getArray().filter(layer => !before.has(layer))
+    const segmentUIDs = Object.keys(expectations.segments)
+    expect(added.length).toEqual(segmentUIDs.length)
+    segmentUIDs.forEach(uid => {
+      viewer.showSegment(uid)
+    })
+    const styleOpacities = segmentUIDs.map(uid => viewer.getSegmentStyle(uid).opacity)
+    expect(added.map(layer => layer.getOpacity())).toEqual(styleOpacities)
+  })
+
   it('should set segment style', () => {
     inputs.segmentations.forEach(metadata => {
       viewer.addSegments(metadata)

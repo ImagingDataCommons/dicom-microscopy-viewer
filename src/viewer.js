@@ -7111,7 +7111,11 @@ class VolumeImageViewer {
         segment.layer = new LayerGroup({
           layers: [...frameLayers, overviewLayer],
           visible: false,
-          opacity: 1,
+          /**
+           * Start at the style's opacity, as getSegmentStyle reports it, so
+           * a segment shown without style options is not drawn opaque.
+           */
+          opacity: segment.style.opacity,
         })
       } else {
         segment.onTileLoadError = (event) => {
@@ -7139,7 +7143,8 @@ class VolumeImageViewer {
           source,
           extent: this[_pyramid].extent,
           visible: false,
-          opacity: 1,
+          /** Start at the style's opacity, as getSegmentStyle reports it */
+          opacity: segment.style.opacity,
           preload: this[_options].preload ? 1 : 0,
           transition: 0,
           style: paletteStyle,
