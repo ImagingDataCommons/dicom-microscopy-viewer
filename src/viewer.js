@@ -6837,6 +6837,8 @@ class VolumeImageViewer {
       fittedOriginOffset,
     )
     const perFrameDataCache = new Map()
+    /** Tiles of this LABELMAP instance, retrieved once for all its segments */
+    const labelmapTileCache = isLabelmap ? new Map() : undefined
 
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
@@ -6988,6 +6990,7 @@ class VolumeImageViewer {
            * number are preserved.
            */
           labelmapSegmentNumber: isLabelmap ? segmentNumber : undefined,
+          labelmapTileCache,
         },
         hasLoader: false,
         segmentationType: refSegmentation.SegmentationType,

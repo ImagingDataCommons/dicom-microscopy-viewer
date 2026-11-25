@@ -760,8 +760,49 @@ function _createFrameLoadError({
 }
 
 /**
+ * Decoded LABELMAP tiles kept per SEG instance, so a tile shown for several
+ * segments at once is fetched and decoded once. Only the most recent tiles
+ * stay: OpenLayers keeps its own cache of the rendered tiles.
+ */
+const LABELMAP_TILE_CACHE_SIZE = 32
+
+/**
+ * The decoded tile for (level, column, row), from `sharedTiles` when another
+ * segment of the same LABELMAP instance already asked for it. `retrieve` runs
+ * only for the first request, which alone reports loading progress.
+ *
+ * @param {Map<string, Promise<Object>>} sharedTiles
+ * @param {string} key
+ * @param {function(): Promise<Object>} retrieve
+ * @returns {{tile: Promise<Object>, isOwner: boolean}}
+ * @private
+ */
+function _sharedLabelmapTile(sharedTiles, key, retrieve) {
+  const cached = sharedTiles.get(key)
+  if (cached !== undefined) {
+    /** Most recently used last, so the oldest is evicted first */
+    sharedTiles.delete(key)
+    sharedTiles.set(key, cached)
+    return { tile: cached, isOwner: false }
+  }
+  const tile = retrieve()
+  sharedTiles.set(key, tile)
+  tile.catch(() => {
+    if (sharedTiles.get(key) === tile) sharedTiles.delete(key)
+  })
+  while (sharedTiles.size > LABELMAP_TILE_CACHE_SIZE) {
+    sharedTiles.delete(sharedTiles.keys().next().value)
+  }
+  return { tile, isOwner: true }
+}
+
+/**
  * Create the tile load function of an OpenLayers DataTile source.
  *
+ * @param {Object} options
+ * @param {number} [options.labelmapSegmentNumber] - LABELMAP segment to mask
+ * @param {Map<string, Promise<Object>>} [options.labelmapTileCache] - Tiles of
+ *   the LABELMAP instance, shared by all of its segments
  * @private
  */
 function _createTileLoadFunction({
@@ -772,25 +813,42 @@ function _createTileLoadFunction({
   iccOutputType,
   targetElement,
   labelmapSegmentNumber,
+  labelmapTileCache,
 }) {
   /** OpenLayers calls the loader as (z, column, row). */
   return async (z, column, row) => {
     let frameInfo
     try {
-      const tile = await _retrieveTile({
-        pyramid,
-        client,
-        channel,
-        level: z,
-        column,
-        row,
-        iccProfiles,
-        iccOutputType,
-        onFrameLoadingStarted: (info) => {
-          frameInfo = info
-          publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
-        },
-      })
+      const retrieve = () =>
+        _retrieveTile({
+          pyramid,
+          client,
+          channel,
+          level: z,
+          column,
+          row,
+          iccProfiles,
+          iccOutputType,
+          onFrameLoadingStarted: (info) => {
+            frameInfo = info
+            publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
+          },
+        })
+      /**
+       * Every segment of a LABELMAP instance reads the same frame: share
+       * one retrieval, then mask it per segment below. A segment that
+       * reuses another's retrieval reports no loading progress of its own.
+       */
+      const shared =
+        labelmapSegmentNumber != null && labelmapTileCache != null
+          ? _sharedLabelmapTile(
+              labelmapTileCache,
+              `${z}/${column}/${row}`,
+              retrieve,
+            )
+          : { tile: retrieve(), isOwner: true }
+      const tile = await shared.tile
+      const reportsProgress = shared.isOwner
       if (tile.isEmpty) {
         return tile.pixelArray
       }
@@ -822,10 +880,12 @@ function _createTileLoadFunction({
         processedArray = maskedArray
       }
 
-      publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
-        pixelArray: processedArray,
-        ...frameInfo,
-      })
+      if (reportsProgress) {
+        publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
+          pixelArray: processedArray,
+          ...frameInfo,
+        })
+      }
       if (samplesPerPixel === 3 && bitsAllocated === 8) {
         /** Rendering of color images requires unsigned 8-bit integers */
         return processedArray

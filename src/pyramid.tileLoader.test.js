@@ -121,6 +121,66 @@ describe('_createTileLoadFunction', () => {
     expect(Array.from(events[1].payload.pixelArray)).toEqual([0, 1, 0, 1])
   })
 
+  it('retrieves a LABELMAP tile once for all segments that share the cache', async () => {
+    _decodeAndTransformFrame.mockResolvedValue(new Uint8Array([0, 2, 1, 2]))
+    const client = createClient()
+    /** LABELMAP frames are mapped under every segment number */
+    const pyramid = {
+      ...createPyramid({ BitsAllocated: 8 }),
+      frameMappings: [
+        {
+          '1-2-1': `${image.SOPInstanceUID}/frames/3`,
+          '1-2-2': `${image.SOPInstanceUID}/frames/3`,
+        },
+      ],
+    }
+    const labelmapTileCache = new Map()
+    const loaderFor = (segmentNumber) =>
+      _createTileLoadFunction({
+        pyramid,
+        client,
+        channel: String(segmentNumber),
+        targetElement,
+        labelmapSegmentNumber: segmentNumber,
+        labelmapTileCache,
+      })
+
+    /** Requested together, as "Show all" does */
+    const [first, second] = await Promise.all([
+      loaderFor(1)(0, 1, 0),
+      loaderFor(2)(0, 1, 0),
+    ])
+
+    expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(1)
+    expect(Array.from(first)).toEqual([0, 0, 1, 0])
+    expect(Array.from(second)).toEqual([0, 1, 0, 1])
+    /** Progress is reported once, for the one retrieval */
+    expect(events.map((event) => event.type)).toEqual([
+      EVENT.FRAME_LOADING_STARTED,
+      EVENT.FRAME_LOADING_ENDED,
+    ])
+  })
+
+  it('retrieves a LABELMAP tile again after a shared retrieval failed', async () => {
+    _decodeAndTransformFrame
+      .mockRejectedValueOnce(new Error('decode failed'))
+      .mockResolvedValue(new Uint8Array([0, 2, 1, 2]))
+    const client = createClient()
+    const labelmapTileCache = new Map()
+    const loader = _createTileLoadFunction({
+      pyramid: createPyramid({ BitsAllocated: 8 }),
+      client,
+      channel: '1',
+      targetElement,
+      labelmapSegmentNumber: 2,
+      labelmapTileCache,
+    })
+
+    await expect(loader(0, 1, 0)).rejects.toThrow()
+    expect(Array.from(await loader(0, 1, 0))).toEqual([0, 1, 0, 1])
+    expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(2)
+  })
+
   it('returns an empty tile for a missing sparse frame without events', async () => {
     const client = createClient()
     const loader = _createTileLoadFunction({
