@@ -6845,6 +6845,13 @@ class VolumeImageViewer {
       coordinateScaleFactor,
       fittedOriginOffset,
     )
+    /** Where each segment has frames on any level, to limit its layer */
+    const segmentLayerExtents = _computeSegmentBoundingBoxes(
+      pyramid,
+      coordinateScaleFactor,
+      fittedOriginOffset,
+      { allLevels: true },
+    )
     const perFrameDataCache = new Map()
     /** Tiles of this LABELMAP instance, retrieved once for all its segments */
     const labelmapTileCache = isLabelmap ? new Map() : undefined
@@ -7004,6 +7011,7 @@ class VolumeImageViewer {
         hasLoader: false,
         segmentationType: refSegmentation.SegmentationType,
         boundingBox,
+        layerExtent: segmentLayerExtents.get(String(segmentNumber)) ?? null,
         isAbsent,
       }
 
@@ -7154,12 +7162,12 @@ class VolumeImageViewer {
         segment.layer = new TileLayer({
           source,
           /**
-           * Only where the segment has frames: a segment of one region need
-           * not walk the slide's whole tile grid on every render, and is
-           * skipped entirely when its region is out of view. With many
-           * segments shown that walk dominated each frame.
+           * Only where the segment has frames on any level: a segment of one
+           * region need not walk the slide's whole tile grid on every
+           * render, and is skipped entirely when its region is out of view.
+           * With many segments shown that walk dominated each frame.
            */
-          extent: segment.boundingBox ?? this[_pyramid].extent,
+          extent: segment.layerExtent ?? this[_pyramid].extent,
           visible: false,
           /** Start at the style's opacity, as getSegmentStyle reports it */
           opacity: segment.style.opacity,

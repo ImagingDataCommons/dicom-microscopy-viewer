@@ -205,6 +205,22 @@ describe('_showCanvasInImage', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:frame')
   })
 
+  it('fails the image when the object URL cannot be made', async () => {
+    URL.createObjectURL = jest.fn(() => {
+      throw new Error('blocked')
+    })
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    const img = document.createElement('img')
+    img.src = 'about:blank'
+
+    _showCanvasInImage(document.createElement('canvas'), img)
+    await flushPromises()
+
+    expect(img.getAttribute('src')).toBe('')
+    expect(console.error).toHaveBeenCalled()
+    console.error.mockRestore()
+  })
+
   it('falls back to a data URL where object URLs are missing', () => {
     URL.createObjectURL = undefined
     const img = document.createElement('img')

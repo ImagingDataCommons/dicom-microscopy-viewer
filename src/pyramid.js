@@ -760,18 +760,51 @@ function _createFrameLoadError({
 }
 
 /**
- * Decoded LABELMAP tiles kept per SEG instance, so a tile shown for several
- * segments at once is fetched and decoded once. Only the most recent tiles
- * stay: OpenLayers keeps its own cache of the rendered tiles.
+ * Decoded LABELMAP tiles kept per SEG instance once retrieved, so a tile
+ * shown for several segments is fetched and decoded once even when OpenLayers
+ * asks for it layer by layer. Bounded by count and by decoded bytes; tiles
+ * still being retrieved are never dropped, so a retrieval is never repeated
+ * while it is in flight. OpenLayers keeps its own cache of the drawn tiles.
  */
 const LABELMAP_TILE_CACHE_SIZE = 32
+const LABELMAP_TILE_CACHE_BYTES = 16 * 1024 * 1024
+
+/**
+ * Drop the least recently used retrieved tiles until the cache is within its
+ * bounds. Pending retrievals are kept, whatever their age.
+ *
+ * @param {Map<string, Object>} sharedTiles
+ * @private
+ */
+function _trimSharedLabelmapTiles(sharedTiles) {
+  let bytes = 0
+  let settled = 0
+  for (const entry of sharedTiles.values()) {
+    if (entry.isSettled) {
+      bytes += entry.byteLength
+      settled += 1
+    }
+  }
+  for (const [key, entry] of sharedTiles) {
+    if (
+      settled <= LABELMAP_TILE_CACHE_SIZE &&
+      bytes <= LABELMAP_TILE_CACHE_BYTES
+    ) {
+      return
+    }
+    if (!entry.isSettled) continue
+    sharedTiles.delete(key)
+    bytes -= entry.byteLength
+    settled -= 1
+  }
+}
 
 /**
  * The decoded tile for (level, column, row), from `sharedTiles` when another
  * segment of the same LABELMAP instance already asked for it. `retrieve` runs
  * only for the first request, which alone reports loading progress.
  *
- * @param {Map<string, Promise<Object>>} sharedTiles
+ * @param {Map<string, Object>} sharedTiles - Owned by this function
  * @param {string} key
  * @param {function(): Promise<Object>} retrieve
  * @returns {{tile: Promise<Object>, isOwner: boolean}}
@@ -780,20 +813,30 @@ const LABELMAP_TILE_CACHE_SIZE = 32
 function _sharedLabelmapTile(sharedTiles, key, retrieve) {
   const cached = sharedTiles.get(key)
   if (cached !== undefined) {
-    /** Most recently used last, so the oldest is evicted first */
+    /** Most recently used last, so the oldest is dropped first */
     sharedTiles.delete(key)
     sharedTiles.set(key, cached)
-    return { tile: cached, isOwner: false }
+    return { tile: cached.tile, isOwner: false }
   }
-  const tile = retrieve()
-  sharedTiles.set(key, tile)
-  tile.catch(() => {
-    if (sharedTiles.get(key) === tile) sharedTiles.delete(key)
-  })
-  while (sharedTiles.size > LABELMAP_TILE_CACHE_SIZE) {
-    sharedTiles.delete(sharedTiles.keys().next().value)
+  const entry = {
+    tile: retrieve(),
+    isSettled: false,
+    byteLength: 0,
   }
-  return { tile, isOwner: true }
+  sharedTiles.set(key, entry)
+  entry.tile.then(
+    (tile) => {
+      entry.isSettled = true
+      entry.byteLength = tile?.pixelArray?.byteLength ?? 0
+      if (sharedTiles.get(key) === entry) _trimSharedLabelmapTiles(sharedTiles)
+    },
+    () => {
+      /** A failed retrieval is not kept, so the next request tries again */
+      if (sharedTiles.get(key) === entry) sharedTiles.delete(key)
+    },
+  )
+  _trimSharedLabelmapTiles(sharedTiles)
+  return { tile: entry.tile, isOwner: true }
 }
 
 /**
@@ -801,7 +844,7 @@ function _sharedLabelmapTile(sharedTiles, key, retrieve) {
  *
  * @param {Object} options
  * @param {number} [options.labelmapSegmentNumber] - LABELMAP segment to mask
- * @param {Map<string, Promise<Object>>} [options.labelmapTileCache] - Tiles of
+ * @param {Map<string, Object>} [options.labelmapTileCache] - Tiles of
  *   the LABELMAP instance, shared by all of its segments
  * @private
  */
@@ -855,9 +898,10 @@ function _createTileLoadFunction({
 
       const { pixelArray, samplesPerPixel, bitsAllocated } = tile
       if (pixelArray.constructor === Float64Array) {
+        /** The tile's own frame: a shared tile was started by another layer */
         throw _createFrameLoadError({
-          frameNumbers: [frameInfo.frameNumber],
-          sopInstanceUID: frameInfo.sopInstanceUID,
+          frameNumbers: [tile.frameInfo.frameNumber],
+          sopInstanceUID: tile.frameInfo.sopInstanceUID,
           channel,
           level: z,
           column,
@@ -1715,6 +1759,8 @@ function _paletteBandToRgba(
   const count = width * height
   const rgba = new Uint8ClampedArray(count * 4)
   const maxIndex = colormap.length - 1
+  /** Rounded and clamped like a Uint8ClampedArray, before packing */
+  const toByte = (value) => Math.max(0, Math.min(255, Math.round(value))) || 0
   const colorOf = (stored) => {
     const index = _paletteIndex(stored, windowCenter, windowWidth, maxIndex)
     const color = colormap[index] || [0, 0, 0, 0]
@@ -1722,7 +1768,7 @@ function _paletteBandToRgba(
       color.length > 3
         ? Math.round(Math.max(0, Math.min(1, color[3])) * 255)
         : 255
-    return [color[0], color[1], color[2], alpha]
+    return [toByte(color[0]), toByte(color[1]), toByte(color[2]), alpha]
   }
   const isLabelmap = labelmapSegmentNumber != null
   /** Pixels as 32-bit words, in the platform's byte order */
@@ -1847,21 +1893,36 @@ function _showCanvasInImage(canvas, img) {
     img.src = canvas.toDataURL('image/png')
     return
   }
-  canvas.toBlob((blob) => {
-    if (blob == null) {
-      img.src = ''
-      return
+  /** An empty source makes the image fail, so the frame reports an error */
+  const fail = (error) => {
+    if (error !== undefined) {
+      console.error('failed to encode a frame image:', error)
     }
-    const url = URL.createObjectURL(blob)
-    const release = () => {
-      URL.revokeObjectURL(url)
-      img.removeEventListener('load', release)
-      img.removeEventListener('error', release)
-    }
-    img.addEventListener('load', release)
-    img.addEventListener('error', release)
-    img.src = url
-  }, 'image/png')
+    img.src = ''
+  }
+  try {
+    canvas.toBlob((blob) => {
+      if (blob == null) {
+        fail()
+        return
+      }
+      try {
+        const url = URL.createObjectURL(blob)
+        const release = () => {
+          URL.revokeObjectURL(url)
+          img.removeEventListener('load', release)
+          img.removeEventListener('error', release)
+        }
+        img.addEventListener('load', release)
+        img.addEventListener('error', release)
+        img.src = url
+      } catch (error) {
+        fail(error)
+      }
+    }, 'image/png')
+  } catch (error) {
+    fail(error)
+  }
 }
 
 /**
@@ -1981,6 +2042,10 @@ function _findClosestResolutionIndex(resolutions, targetResolution) {
  * @param {Object} pyramid - Image pyramid with frame mappings (coarsest level first)
  * @param {number} [scaleFactor=1] - Scale factor from the finest segment level to base image pixels
  * @param {number[]} [pixelOffset=[0, 0]] - Origin offset `[offsetX, offsetY]` in base image pixels (from the fitted pyramid)
+ * @param {Object} [options]
+ * @param {boolean} [options.allLevels=false] - Cover the segment's frames on
+ *   every level, not only on the finest level that has frames for it. A
+ *   sparse pyramid's coarser levels may cover more than its finest level.
  * @returns {Map<string, number[]>} Extent [minX, minY, maxX, maxY] in map
  * coordinates keyed by segment number; segments without frames are absent
  * @private
@@ -1989,6 +2054,7 @@ function _computeSegmentBoundingBoxes(
   pyramid,
   scaleFactor = 1,
   pixelOffset = [0, 0],
+  { allLevels = false } = {},
 ) {
   const boxes = new Map()
   const offsetX = pixelOffset[0] || 0
@@ -2011,7 +2077,7 @@ function _computeSegmentBoundingBoxes(
       const parts = key.split('-')
       if (parts.length < 3) continue
       const channelId = parts[parts.length - 1]
-      if (boxes.has(channelId)) continue
+      if (!allLevels && boxes.has(channelId)) continue
 
       const rowIndex = parseInt(parts[0], 10)
       const colIndex = parseInt(parts[1], 10)
@@ -2037,12 +2103,24 @@ function _computeSegmentBoundingBoxes(
        * Tile indices are 1-based. Apply the fitted-pyramid origin offset,
        * then convert to map coordinates: map Y = -(pixel Y + 1).
        */
-      boxes.set(channelId, [
+      const box = [
         offsetX + (minCol - 1) * tileWidth,
         -(offsetY + maxRow * tileHeight + 1),
         offsetX + maxCol * tileWidth,
         -(offsetY + (minRow - 1) * tileHeight + 1),
-      ])
+      ]
+      const other = boxes.get(channelId)
+      boxes.set(
+        channelId,
+        other === undefined
+          ? box
+          : [
+              Math.min(other[0], box[0]),
+              Math.min(other[1], box[1]),
+              Math.max(other[2], box[2]),
+              Math.max(other[3], box[3]),
+            ],
+      )
     }
   }
 

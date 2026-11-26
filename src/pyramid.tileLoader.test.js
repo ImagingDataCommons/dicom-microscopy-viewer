@@ -31,6 +31,8 @@ const createClient = () => ({
   retrieveInstanceFrames: jest.fn(() => Promise.resolve([new ArrayBuffer(8)])),
 })
 
+const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0))
+
 const recordEvents = (element) => {
   const events = []
   for (const type of [
@@ -181,6 +183,78 @@ describe('_createTileLoadFunction', () => {
     await expect(loader(0, 1, 0)).rejects.toThrow()
     expect(Array.from(await loader(0, 1, 0))).toEqual([0, 255, 0, 255])
     expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(2)
+  })
+
+  it('never retrieves a LABELMAP tile twice while it is in flight', async () => {
+    _decodeAndTransformFrame.mockResolvedValue(new Uint8Array([0, 2, 1, 2]))
+    /** More tile positions in flight than the cache keeps retrieved tiles */
+    const positions = 40
+    const frameMapping = {}
+    for (let c = 1; c <= positions; c++) {
+      frameMapping[`1-${c}-1`] = `${image.SOPInstanceUID}/frames/${c}`
+      frameMapping[`1-${c}-2`] = `${image.SOPInstanceUID}/frames/${c}`
+    }
+    const pyramid = {
+      ...createPyramid({ BitsAllocated: 8 }),
+      frameMappings: [frameMapping],
+    }
+    const pending = []
+    const client = createClient()
+    client.retrieveInstanceFrames.mockImplementation(
+      () => new Promise((resolve) => pending.push(resolve)),
+    )
+    const labelmapTileCache = new Map()
+    const loaderFor = (segmentNumber) =>
+      _createTileLoadFunction({
+        pyramid,
+        client,
+        channel: String(segmentNumber),
+        targetElement,
+        labelmapSegmentNumber: segmentNumber,
+        labelmapTileCache,
+      })
+
+    const first = Array.from({ length: positions }, (_, c) =>
+      loaderFor(1)(0, c, 0),
+    )
+    /** The oldest position, asked for by another segment while in flight */
+    const again = loaderFor(2)(0, 0, 0)
+    await flushPromises()
+    expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(positions)
+
+    pending.forEach((resolve) => resolve([new ArrayBuffer(4)]))
+    await Promise.all([...first, again])
+    /** Retrieved tiles beyond the bound are dropped, oldest first */
+    expect(labelmapTileCache.size).toBe(32)
+  })
+
+  it('bounds the retrieved LABELMAP tiles by their decoded size', async () => {
+    /** 6 MiB per tile: only two fit in the 16 MiB budget */
+    _decodeAndTransformFrame.mockImplementation(() =>
+      Promise.resolve(new Uint8Array(6 * 1024 * 1024)),
+    )
+    const frameMapping = {}
+    for (let c = 1; c <= 3; c++) {
+      frameMapping[`1-${c}-1`] = `${image.SOPInstanceUID}/frames/${c}`
+    }
+    const client = createClient()
+    const labelmapTileCache = new Map()
+    const loader = _createTileLoadFunction({
+      pyramid: {
+        ...createPyramid({ BitsAllocated: 8 }),
+        frameMappings: [frameMapping],
+      },
+      client,
+      channel: '1',
+      targetElement,
+      labelmapSegmentNumber: 1,
+      labelmapTileCache,
+    })
+    for (let c = 0; c < 3; c++) {
+      await loader(0, c, 0)
+    }
+    await flushPromises()
+    expect([...labelmapTileCache.keys()]).toEqual(['0/1/0', '0/2/0'])
   })
 
   it('returns an empty tile for a missing sparse frame without events', async () => {

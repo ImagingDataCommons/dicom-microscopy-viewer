@@ -10,6 +10,21 @@ jest.mock(
   { virtual: true }
 )
 
+/** The options each OpenLayers map was created with */
+const mockMapOptions = new WeakMap()
+jest.mock('ol/Map', () => {
+  const OlMap = jest.requireActual('ol/Map').default
+  return {
+    __esModule: true,
+    default: class extends OlMap {
+      constructor (options) {
+        super(options)
+        mockMapOptions.set(this, options)
+      }
+    }
+  }
+})
+
 window.ResizeObserver = window.ResizeObserver || jest.fn().mockImplementation(() => ({
   disconnect: jest.fn(),
   observe: jest.fn(),
@@ -1115,7 +1130,7 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
      * Every shown segment is its own layer, and OpenLayers counts each
      * layer's tile against this limit (default 16)
      */
-    expect(viewer.getMap().maxTilesLoading_).toBe(64)
+    expect(mockMapOptions.get(viewer.getMap()).maxTilesLoading).toBe(64)
   })
 
   it('should set segment style', () => {

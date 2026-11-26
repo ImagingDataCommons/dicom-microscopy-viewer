@@ -186,6 +186,15 @@ describe('_paletteBandToRgba', () => {
     expect(Array.from(rgba)).toEqual(reference(data, colormap, 128, 256))
   })
 
+  it('rounds and clamps colors as a Uint8ClampedArray would', () => {
+    const colormap = [
+      [0, 0, 0],
+      [300, 127.6, -2],
+    ]
+    const rgba = _paletteBandToRgba(new Uint8Array([1]), 1, 1, colormap, 1, 2)
+    expect(Array.from(rgba)).toEqual([255, 128, 0, 255])
+  })
+
   it('masks a LABELMAP to one segment in the same pass', () => {
     const colormap = [
       [0, 0, 0, 0],
@@ -234,6 +243,22 @@ describe('_computeSegmentBoundingBoxes', () => {
     expect(_computeSegmentBoundingBoxes(pyramid).get('1')).toEqual([
       10, -21, 20, -11,
     ])
+  })
+
+  it('covers the frames of every level with allLevels', () => {
+    /** The coarser level has frames beyond the finest level's */
+    const pyramid = {
+      metadata: [level(50), level(100)],
+      frameMappings: [{ '3-3-1': 'a' }, { '2-2-1': 'b' }],
+    }
+    expect(_computeSegmentBoundingBoxes(pyramid).get('1')).toEqual([
+      10, -21, 20, -11,
+    ])
+    expect(
+      _computeSegmentBoundingBoxes(pyramid, 1, [0, 0], {
+        allLevels: true,
+      }).get('1'),
+    ).toEqual([10, -61, 60, -11])
   })
 
   it('scales a coarser level for segments missing from the finest level', () => {
