@@ -401,6 +401,11 @@ export class LabelmapDeckLayers {
         )
         .finally(() => {
           this.loading -= 1
+          /**
+           * Start the next tile still in view now rather than on the next
+           * frame: frames can be slow (software WebGL), loads should not be
+           */
+          this._pump()
           this._changed()
         })
     }
