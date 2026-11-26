@@ -601,10 +601,13 @@ async function streamBulkGraphicDataViaClientRanges(options) {
 
   const firstEnd = Math.max(0, rangeChunkBytes - 1)
   const firstRequestedBytes = firstEnd + 1
+  /**
+   * No `mediaTypes`: dicomweb-client then asks for application/octet-stream
+   * by default. Passing it explicitly fails in dicomweb-client 0.10, which
+   * rejects every application/ media type for bulk data (Slim ships 0.10.3).
+   */
   const firstParts = await retrieveBulkData({
     BulkDataURI,
-    /** dicomweb-client expects `{ mediaType }` objects, not bare strings. */
-    mediaTypes: [{ mediaType: 'application/octet-stream' }],
     byteRange: [0, firstEnd],
   })
   if (signal?.aborted === true) {
@@ -703,7 +706,6 @@ async function streamBulkGraphicDataViaClientRanges(options) {
     try {
       parts = await retrieveBulkData({
         BulkDataURI,
-        mediaTypes: [{ mediaType: 'application/octet-stream' }],
         byteRange: [start, end],
       })
     } catch (e) {
