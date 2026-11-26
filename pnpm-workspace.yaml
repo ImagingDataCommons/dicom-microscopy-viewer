@@ -50,4 +50,5 @@ minimumReleaseAgeExclude:
   - dicomweb-client@0.11.3
 
 patchedDependencies:
+  '@luma.gl/engine@9.1.10': patches/@luma.gl__engine@9.1.10.patch
   ol@10.9.0: patches/ol@10.9.0.patch

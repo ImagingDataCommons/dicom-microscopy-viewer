@@ -27,6 +27,7 @@ overrides:
   webpack-dev-middleware: 7.4.6
 
 patchedDependencies:
+  '@luma.gl/engine@9.1.10': 79f04cce4cedba36fe5504e95346cbc8fa387b7188a0b6841820bf54f04e29e3
   ol@10.9.0: 2c49b6fe64f8a78b55fc71e326e9fcbfc5ff9ad93b3223540bf8e9ca98fae020
 
 importers:
@@ -53,10 +54,10 @@ importers:
         version: 9.1.15
       '@deck.gl/extensions':
         specifier: 9.1.15
-        version: 9.1.15(@deck.gl/core@9.1.15)(@luma.gl/core@9.1.10)(@luma.gl/engine@9.1.10(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10)))
+        version: 9.1.15(@deck.gl/core@9.1.15)(@luma.gl/core@9.1.10)(@luma.gl/engine@9.1.10(patch_hash=79f04cce4cedba36fe5504e95346cbc8fa387b7188a0b6841820bf54f04e29e3)(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10)))
       '@deck.gl/layers':
         specifier: 9.1.15
-        version: 9.1.15(@deck.gl/core@9.1.15)(@loaders.gl/core@4.5.4)(@luma.gl/core@9.1.10)(@luma.gl/engine@9.1.10(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10)))
+        version: 9.1.15(@deck.gl/core@9.1.15)(@loaders.gl/core@4.5.4)(@luma.gl/core@9.1.10)(@luma.gl/engine@9.1.10(patch_hash=79f04cce4cedba36fe5504e95346cbc8fa387b7188a0b6841820bf54f04e29e3)(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10)))
       '@imagingdatacommons/dicomicc':
         specifier: ^0.2.3
         version: 0.2.3
@@ -5315,7 +5316,7 @@ snapshots:
       '@loaders.gl/images': 4.5.4(@loaders.gl/core@4.5.4)
       '@luma.gl/constants': 9.1.10
       '@luma.gl/core': 9.1.10
-      '@luma.gl/engine': 9.1.10(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10))
+      '@luma.gl/engine': 9.1.10(patch_hash=79f04cce4cedba36fe5504e95346cbc8fa387b7188a0b6841820bf54f04e29e3)(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10))
       '@luma.gl/shadertools': 9.1.10(@luma.gl/core@9.1.10)
       '@luma.gl/webgl': 9.1.10(@luma.gl/core@9.1.10)
       '@math.gl/core': 4.1.0
@@ -5329,23 +5330,23 @@ snapshots:
       gl-matrix: 3.4.4
       mjolnir.js: 3.1.1
 
-  '@deck.gl/extensions@9.1.15(@deck.gl/core@9.1.15)(@luma.gl/core@9.1.10)(@luma.gl/engine@9.1.10(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10)))':
+  '@deck.gl/extensions@9.1.15(@deck.gl/core@9.1.15)(@luma.gl/core@9.1.10)(@luma.gl/engine@9.1.10(patch_hash=79f04cce4cedba36fe5504e95346cbc8fa387b7188a0b6841820bf54f04e29e3)(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10)))':
     dependencies:
       '@deck.gl/core': 9.1.15
       '@luma.gl/constants': 9.1.10
       '@luma.gl/core': 9.1.10
-      '@luma.gl/engine': 9.1.10(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10))
+      '@luma.gl/engine': 9.1.10(patch_hash=79f04cce4cedba36fe5504e95346cbc8fa387b7188a0b6841820bf54f04e29e3)(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10))
       '@luma.gl/shadertools': 9.1.10(@luma.gl/core@9.1.10)
       '@math.gl/core': 4.1.0
 
-  '@deck.gl/layers@9.1.15(@deck.gl/core@9.1.15)(@loaders.gl/core@4.5.4)(@luma.gl/core@9.1.10)(@luma.gl/engine@9.1.10(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10)))':
+  '@deck.gl/layers@9.1.15(@deck.gl/core@9.1.15)(@loaders.gl/core@4.5.4)(@luma.gl/core@9.1.10)(@luma.gl/engine@9.1.10(patch_hash=79f04cce4cedba36fe5504e95346cbc8fa387b7188a0b6841820bf54f04e29e3)(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10)))':
     dependencies:
       '@deck.gl/core': 9.1.15
       '@loaders.gl/core': 4.5.4
       '@loaders.gl/images': 4.5.4(@loaders.gl/core@4.5.4)
       '@loaders.gl/schema': 4.5.4
       '@luma.gl/core': 9.1.10
-      '@luma.gl/engine': 9.1.10(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10))
+      '@luma.gl/engine': 9.1.10(patch_hash=79f04cce4cedba36fe5504e95346cbc8fa387b7188a0b6841820bf54f04e29e3)(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10))
       '@luma.gl/shadertools': 9.1.10(@luma.gl/core@9.1.10)
       '@mapbox/tiny-sdf': 2.3.0
       '@math.gl/core': 4.1.0
@@ -5790,7 +5791,7 @@ snapshots:
       '@probe.gl/stats': 4.1.2
       '@types/offscreencanvas': 2019.7.3
 
-  '@luma.gl/engine@9.1.10(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10))':
+  '@luma.gl/engine@9.1.10(patch_hash=79f04cce4cedba36fe5504e95346cbc8fa387b7188a0b6841820bf54f04e29e3)(@luma.gl/core@9.1.10)(@luma.gl/shadertools@9.1.10(@luma.gl/core@9.1.10))':
     dependencies:
       '@luma.gl/core': 9.1.10
       '@luma.gl/shadertools': 9.1.10(@luma.gl/core@9.1.10)
