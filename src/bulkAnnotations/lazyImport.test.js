@@ -56,4 +56,31 @@ describe('importLazyChunk', () => {
     await expect(importLazyChunk(load)).rejects.toBe(error)
     expect(load).toHaveBeenCalledTimes(1)
   })
+
+  it('retries every chunk that failed while the path was being changed', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    globalThis.__webpack_public_path__ = 'http://localhost/src/'
+    /** Two chunks requested together, both from the wrong folder */
+    const makeLoad = (module) => {
+      let attempts = 0
+      return jest.fn(() => {
+        attempts += 1
+        return attempts === 1
+          ? Promise.reject(chunkLoadError())
+          : Promise.resolve(module)
+      })
+    }
+    const loadA = makeLoad({ name: 'a' })
+    const loadB = makeLoad({ name: 'b' })
+    const [a, b] = await Promise.all([
+      importLazyChunk(loadA),
+      importLazyChunk(loadB),
+    ])
+    expect(a).toEqual({ name: 'a' })
+    expect(b).toEqual({ name: 'b' })
+    expect(loadA).toHaveBeenCalledTimes(2)
+    expect(loadB).toHaveBeenCalledTimes(2)
+    expect(globalThis.__webpack_public_path__).toBe(getMicroscopyHref())
+    expect(console.warn).toHaveBeenCalledTimes(1)
+  })
 })
