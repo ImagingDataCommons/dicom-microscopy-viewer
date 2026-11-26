@@ -5625,6 +5625,56 @@ class VolumeImageViewer {
    * @private
    */
   /**
+   * Register a tiled segmentation instance with the deck.gl segmentation
+   * layers, whose tiles hold raw label values.
+   *
+   * @param {Object} options
+   * @param {string} options.key - Unique per instance
+   * @param {Object} options.fittedPyramid
+   * @param {import('ol/tilegrid/TileGrid').default} options.tileGrid
+   * @param {Object} options.refSegmentation - Metadata of the SEG instance
+   * @param {number} options.channel - Segment number whose frames to load
+   * @param {number} [options.minResolution]
+   * @returns {Object} instance
+   * @private
+   */
+  _addSegmentationDeckInstance({
+    key,
+    fittedPyramid,
+    tileGrid,
+    refSegmentation,
+    channel,
+    minResolution,
+  }) {
+    if (this._labelmapDeckLayers == null) {
+      this._labelmapDeckLayers = new LabelmapDeckLayers({
+        map: this[_map],
+        overlay: this._getDeckOverlay(),
+      })
+    }
+    let rawLoader
+    return this._labelmapDeckLayers.addInstance(key, {
+      tileGrid,
+      extent: fittedPyramid.extent,
+      bitsAllocated: refSegmentation.BitsAllocated,
+      minResolution,
+      loader: (z, column, row) => {
+        if (rawLoader == null) {
+          rawLoader = _createTileLoadFunction({
+            targetElement: this[_map].getTargetElement() || this[_container],
+            iccProfiles: [],
+            pyramid: fittedPyramid,
+            client: _getClient(this[_clients], refSegmentation.SOPClassUID),
+            channel,
+            rawLabels: true,
+          })
+        }
+        return rawLoader(z, column, row)
+      },
+    })
+  }
+
+  /**
    * The viewer's deck.gl overlay, created on first use.
    *
    * @returns {SharedDeckOverlay}
@@ -6190,55 +6240,38 @@ class VolumeImageViewer {
     const perFrameDataCache = new Map()
 
     /**
-     * A tiled LABELMAP instance is drawn with deck.gl: all of its segments in
-     * one layer of the shared overlay, colored through a lookup table. The
-     * `labelmapRenderer: 'openlayers'` option keeps a layer per segment.
+     * Tiled LABELMAP and BINARY segmentations are drawn with deck.gl, by the
+     * viewer's shared overlay (`segmentationRenderer: 'openlayers'`, or
+     * `labelmapRenderer: 'openlayers'` for LABELMAP, keeps one OpenLayers
+     * layer per segment). A LABELMAP instance is one layer whose label
+     * values are colored through a lookup table; each BINARY segment has
+     * its own frames, so it is an instance of its own with labels 0 and 1.
      */
-    let labelmapDeckInstance
-    if (
-      isLabelmap &&
+    const isBinary = refSegmentation.SegmentationType === 'BINARY'
+    const useDeckRenderer =
+      (isLabelmap || isBinary) &&
       !fittedPyramid.usePerFramePlacement &&
-      this[_options].labelmapRenderer !== 'openlayers'
-    ) {
-      if (this._labelmapDeckLayers == null) {
-        this._labelmapDeckLayers = new LabelmapDeckLayers({
-          map: this[_map],
-          overlay: this._getDeckOverlay(),
-        })
-      }
-      let rawLoader
-      const loaderParams = {
-        pyramid: fittedPyramid,
-        client: _getClient(this[_clients], refSegmentation.SOPClassUID),
-        channel: Number(refSegmentation.SegmentSequence[0].SegmentNumber),
-        rawLabels: true,
-      }
-      labelmapDeckInstance = this._labelmapDeckLayers.addInstance(
-        refSegmentation.SeriesInstanceUID,
-        {
-          tileGrid,
-          extent: fittedPyramid.extent,
-          bitsAllocated: refSegmentation.BitsAllocated,
-          minResolution:
-            this[_mapViewResolutions] === undefined || !hasMatchingLevels
-              ? undefined
-              : minZoomLevel > 0
-                ? this[_pyramid].resolutions[minZoomLevel]
-                : undefined,
-          loader: (z, column, row) => {
-            if (rawLoader == null) {
-              rawLoader = _createTileLoadFunction({
-                targetElement:
-                  this[_map].getTargetElement() || this[_container],
-                iccProfiles: [],
-                ...loaderParams,
-              })
-            }
-            return rawLoader(z, column, row)
-          },
-        },
-      )
+      this[_options].segmentationRenderer !== 'openlayers' &&
+      !(isLabelmap && this[_options].labelmapRenderer === 'openlayers')
+    const deckInstanceOptions = {
+      fittedPyramid,
+      tileGrid,
+      refSegmentation,
+      minResolution:
+        this[_mapViewResolutions] === undefined || !hasMatchingLevels
+          ? undefined
+          : minZoomLevel > 0
+            ? this[_pyramid].resolutions[minZoomLevel]
+            : undefined,
     }
+    const labelmapDeckInstance =
+      useDeckRenderer && isLabelmap
+        ? this._addSegmentationDeckInstance({
+            ...deckInstanceOptions,
+            key: refSegmentation.SeriesInstanceUID,
+            channel: Number(refSegmentation.SegmentSequence[0].SegmentNumber),
+          })
+        : undefined
 
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
@@ -6519,11 +6552,19 @@ class VolumeImageViewer {
            */
           opacity: segment.style.opacity,
         })
-      } else if (labelmapDeckInstance != null) {
+      } else if (useDeckRenderer) {
+        /** A BINARY segment's frames hold 1 where the segment is */
+        const instance =
+          labelmapDeckInstance ??
+          this._addSegmentationDeckInstance({
+            ...deckInstanceOptions,
+            key: `${refSegmentation.SeriesInstanceUID}:${segmentNumber}`,
+            channel: segmentNumber,
+          })
         segment.layer = createLabelProxyLayer(
           this._labelmapDeckLayers,
-          labelmapDeckInstance,
-          segmentNumber,
+          instance,
+          isLabelmap ? segmentNumber : 1,
           {
             opacity: segment.style.opacity,
             color: _getLabelmapSegmentColor(segment),
