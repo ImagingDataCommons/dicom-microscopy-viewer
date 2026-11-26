@@ -35,6 +35,21 @@ export const BULK_PATH_STROKE_PX = 2.5
 export const BULK_PATH_STROKE_MIN_PX = 1.25
 export const BULK_PATH_STROKE_MAX_PX = 3.5
 
+/**
+ * Per-frame draw budget under a software WebGL renderer (see budget.js):
+ * centroids drawn at most, and path vertices of the visible tiles above
+ * which a group stays on its (decimated) centroids. About 0.2 s and 1 s per
+ * frame in SwiftShader. Unlimited on a GPU.
+ */
+export const BULK_SOFTWARE_MAX_POINTS = 30_000
+export const BULK_SOFTWARE_MAX_PATH_VERTICES = 200_000
+/**
+ * Over the path budget, a software renderer draws the paths of the
+ * annotations in view instead, with this fraction of the view added on
+ * every side so small pans stay covered.
+ */
+export const BULK_SOFTWARE_VIEW_PADDING = 0.25
+
 /** Centroid / point radius clamps in CSS pixels. */
 export const BULK_POINT_RADIUS_MIN_PX = 1
 export const BULK_POINT_RADIUS_MAX_PX = 3.5

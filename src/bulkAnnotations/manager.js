@@ -17,6 +17,15 @@ import {
 import publish from '../eventPublisher.js'
 import EVENTS from '../events.js'
 import {
+  annotationsInExtent,
+  countPathVertices,
+  decimateCentroids,
+  decimationStride,
+  getDrawBudget,
+  isSoftwareRenderer,
+  padExtent,
+} from './budget.js'
+import {
   BULK_DEFAULT_ALPHA,
   BULK_DEFAULT_COLOR,
   BULK_DEFAULT_FILL_OPACITY,
@@ -28,6 +37,7 @@ import {
   BULK_LOD_MIN_VERTICES,
   BULK_PATH_STROKE_PX,
   BULK_POINT_RADIUS_MIN_PX,
+  BULK_SOFTWARE_VIEW_PADDING,
   BULK_SPATIAL_TILE_SIZE,
   BULK_STYLE_DEBOUNCE_MS,
   BULK_TILE_CACHE_MAX_SIZE,
@@ -273,6 +283,8 @@ export class BulkAnnotationManager {
     /** @type {Map<string, GroupRecord>} */
     this._groups = new Map()
     this._deck = null
+    /** Set once the deck device reports a software WebGL renderer */
+    this._isSoftware = false
     this._olLayer = null
     this._overlayReady = false
     this._hydrateQueue = Promise.resolve()
@@ -314,6 +326,16 @@ export class BulkAnnotationManager {
     }
     this._deck = await createBulkAnnotationDeck({
       parent,
+      onDeviceInitialized: (device) => {
+        /** A software renderer draws within a budget: rebuild for it */
+        this._isSoftware = isSoftwareRenderer(device?.info)
+        if (this._isSoftware) {
+          for (const g of this._groups.values()) {
+            g.buildSignature = null
+          }
+          this._refreshLayersForViewChange()
+        }
+      },
       onError: (err) => {
         const container = this._getContainer()
         if (container) {
@@ -1327,7 +1349,17 @@ export class BulkAnnotationManager {
     const highRes = this._isHighResolution() ? 1 : 0
     const rotation = this._viewRotation()
     const tileKeys = this._visibleTileKeys(g, extent)
-    return `${highRes}|${rotation.toFixed(6)}|${tileKeys.join(',')}`
+    /**
+     * A software renderer draws the annotations in view (see
+     * _rebuildLayersForGroupAsync), so the build follows the view itself
+     * once it moves by more than the padding drawn around it
+     */
+    let software = '0'
+    if (this._isSoftware && extent != null) {
+      const step = (extent[2] - extent[0]) * BULK_SOFTWARE_VIEW_PADDING
+      software = `1:${Math.round(extent[0] / step)}:${Math.round(extent[1] / step)}:${Math.round(step)}`
+    }
+    return `${highRes}|${software}|${rotation.toFixed(6)}|${tileKeys.join(',')}`
   }
 
   /** Rebuild layers of visible hydrated groups whose view signature changed. */
@@ -1442,7 +1474,37 @@ export class BulkAnnotationManager {
      * - LOD is not in use, OR
      * - Currently at high resolution zoom
      */
-    const highRes = !useLod || this._isHighResolution()
+    const budget = getDrawBudget(this._isSoftware === true)
+    let highRes = !useLod || this._isHighResolution()
+    /**
+     * Over the budget (software rendering only), a LOD group stays on its
+     * centroids rather than drawing the paths of its visible tiles
+     */
+    /**
+     * Over the path budget, draw the paths of the annotations in view (with
+     * a margin) when those fit; otherwise stay on the centroids.
+     */
+    let viewSubset = null
+    if (useLod && highRes && Number.isFinite(budget.maxPathVertices)) {
+      const extent = this._getMap()?.getView()?.calculateExtent?.()
+      if (this._visibleTileVertexCount(g, extent) > budget.maxPathVertices) {
+        if (extent != null && g.spatial != null) {
+          const padded = padExtent(extent, BULK_SOFTWARE_VIEW_PADDING)
+          viewSubset = annotationsInExtent({
+            centroids,
+            startIndices,
+            candidates: this._visibleTileKeys(g, padded).map(
+              (key) => g.spatial.tileAnnotationIndices.get(key) ?? [],
+            ),
+            extent: padded,
+            maxVertices: budget.maxPathVertices,
+          })
+        }
+        if (viewSubset == null) {
+          highRes = false
+        }
+      }
+    }
     const modelMatrix = rotationModelMatrix(this._viewRotation())
     const filter = this._activeFilter(g)
 
@@ -1500,7 +1562,11 @@ export class BulkAnnotationManager {
       layers.push(
         createPointLayer({
           id: `bulk-${uid}-centers`,
-          data: g.deckData.centroids,
+          data: this._centroidData(
+            g,
+            decimationStride(numberOfAnnotations, budget.maxPoints),
+            filter,
+          ),
           color: rgba,
           radiusPixels: BULK_POINT_RADIUS_MIN_PX,
           visible: true,
@@ -1512,7 +1578,51 @@ export class BulkAnnotationManager {
 
     /** null = "fill the whole (untiled) group"; see _scheduleFillBuild. */
     let fillTiles = null
-    if (graphicType !== 'POINT' && (!useLod || highRes)) {
+    if (graphicType !== 'POINT' && (!useLod || highRes) && viewSubset != null) {
+      const sub = buildTileSubviews({
+        positions,
+        startIndices,
+        annotationIndices: viewSubset,
+      })
+      const viewFilterValues =
+        filter != null
+          ? expandMeasurementToPerVertex(
+              Float32Array.from(
+                viewSubset,
+                (annotationIndex) => filter.perAnnotation[annotationIndex],
+              ),
+              sub.startIndices,
+              sub.positions.length / 2,
+            )
+          : null
+      layers.push(
+        createPathLayer({
+          id: `bulk-${uid}-view`,
+          data: {
+            length: viewSubset.length,
+            startIndices: sub.startIndices,
+            attributes: {
+              getPath: { value: sub.positions, size: 2 },
+              positions: null,
+              ...(viewFilterValues != null
+                ? { getFilterValue: { value: viewFilterValues, size: 1 } }
+                : {}),
+            },
+          },
+          color: rgba,
+          widthPixels: BULK_PATH_STROKE_PX,
+          visible: true,
+          modelMatrix,
+          ...(filter != null ? { filterRange: filter.range } : {}),
+        }),
+      )
+      fillTiles = [
+        {
+          key: `view:${viewSubset.length}:${viewSubset[0] ?? 0}:${viewSubset[viewSubset.length - 1] ?? 0}`,
+          annotationIndices: viewSubset,
+        },
+      ]
+    } else if (graphicType !== 'POINT' && (!useLod || highRes)) {
       const map = this._getMap()
       const view = map?.getView()
       const extent = view?.calculateExtent?.()
@@ -2009,6 +2119,72 @@ export class BulkAnnotationManager {
       fillTileCount: fillTiles.length,
     })
     return { layers: out, fillTiles }
+  }
+
+  /**
+   * Path vertices of a group's spatial tiles that intersect `extent`.
+   *
+   * @param {GroupRecord} g
+   * @param {number[]} [extent]
+   * @returns {number}
+   */
+  _visibleTileVertexCount(g, extent) {
+    if (g.spatial == null || extent == null) {
+      return g.decoded?.vertexCount ?? 0
+    }
+    if (g.spatial.tileVertexCounts == null) {
+      g.spatial.tileVertexCounts = new Map()
+    }
+    let total = 0
+    for (const key of this._visibleTileKeys(g, extent)) {
+      let count = g.spatial.tileVertexCounts.get(key)
+      if (count == null) {
+        count = countPathVertices(
+          g.decoded.startIndices,
+          g.spatial.tileAnnotationIndices.get(key) ?? [],
+        )
+        g.spatial.tileVertexCounts.set(key, count)
+      }
+      total += count
+    }
+    return total
+  }
+
+  /**
+   * Centroid layer data: all centroids, or every `stride`-th one when the
+   * draw budget is smaller than the group. Kept with the group's other deck
+   * data so a stride is decimated once.
+   *
+   * @param {GroupRecord} g
+   * @param {number} stride
+   * @param {Object|null} filter
+   * @returns {Object}
+   */
+  _centroidData(g, stride, filter) {
+    if (stride <= 1) {
+      return g.deckData.centroids
+    }
+    if (g.deckData.decimatedCentroids?.stride !== stride) {
+      const { length, positions, filterValues } = decimateCentroids({
+        centroids: g.decoded.centroids,
+        count: g.decoded.numberOfAnnotations,
+        stride,
+        filterValues: filter?.perAnnotation,
+      })
+      g.deckData.decimatedCentroids = {
+        stride,
+        data: {
+          length,
+          attributes: {
+            getPosition: { value: positions, size: 2 },
+            ...(filterValues != null
+              ? { getFilterValue: { value: filterValues, size: 1 } }
+              : {}),
+          },
+        },
+      }
+    }
+    return g.deckData.decimatedCentroids.data
   }
 
   _collectDeckLayers() {

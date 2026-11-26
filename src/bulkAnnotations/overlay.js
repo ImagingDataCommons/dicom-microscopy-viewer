@@ -37,7 +37,11 @@ function loadDeckModule() {
  * @param {Function} [options.onError]
  * @returns {Promise<import('@deck.gl/core').Deck|null>}
  */
-export async function createBulkAnnotationDeck({ parent, onError }) {
+export async function createBulkAnnotationDeck({
+  parent,
+  onError,
+  onDeviceInitialized,
+}) {
   if (
     typeof WebGLRenderingContext === 'undefined' &&
     typeof WebGL2RenderingContext === 'undefined'
@@ -79,6 +83,9 @@ export async function createBulkAnnotationDeck({ parent, onError }) {
         ((err) => {
           console.error('[bulkAnnotations] Deck error', err)
         }),
+      onDeviceInitialized: (device) => {
+        onDeviceInitialized?.(device)
+      },
       onWebGLInitialized: (gl) => {
         const canvas = gl?.canvas
         if (canvas) {
