@@ -868,33 +868,41 @@ function _createTileLoadFunction({
 
       /**
        * For LABELMAP segmentation, pixel values represent segment numbers.
-       * Apply masking to create a binary layer for this specific segment:
-       * pixels matching the segment number → 1, others → 0.
+       * Mask to this segment as bytes, 255 inside and 0 outside: WebGL reads
+       * byte textures normalized to 0–1, so the palette sees 1 and 0 as for
+       * a binary segment, while the texture is a quarter of a Float32 one and
+       * uploads in the GPU's native format. Every segment of a LABELMAP keeps
+       * its own masked texture, so with many segments shown this dominated.
        */
-      let processedArray = pixelArray
       if (labelmapSegmentNumber != null) {
-        const maskedArray = new pixelArray.constructor(pixelArray.length)
+        const mask = new Uint8Array(pixelArray.length)
         for (let i = 0; i < pixelArray.length; i++) {
-          maskedArray[i] = pixelArray[i] === labelmapSegmentNumber ? 1 : 0
+          mask[i] = pixelArray[i] === labelmapSegmentNumber ? 255 : 0
         }
-        processedArray = maskedArray
+        if (reportsProgress) {
+          publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
+            pixelArray: mask,
+            ...frameInfo,
+          })
+        }
+        return mask
       }
 
       if (reportsProgress) {
         publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
-          pixelArray: processedArray,
+          pixelArray,
           ...frameInfo,
         })
       }
       if (samplesPerPixel === 3 && bitsAllocated === 8) {
         /** Rendering of color images requires unsigned 8-bit integers */
-        return processedArray
+        return pixelArray
       }
       /** Rendering of grayscale images requires floating point values */
       return new Float32Array(
-        processedArray,
-        processedArray.byteOffset,
-        processedArray.byteLength / processedArray.BYTES_PER_ELEMENT,
+        pixelArray,
+        pixelArray.byteOffset,
+        pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT,
       )
     } catch (error) {
       if (frameInfo !== undefined) {
@@ -1677,8 +1685,121 @@ function _paletteIndex(stored, windowCenter, windowWidth, maxIndex) {
 }
 
 /**
+ * Map single-band label samples through a palette to RGBA bytes. Colors are
+ * RGB 0–255; an optional 4th component is alpha 0–1 (OpenLayers palette).
+ * With `labelmapSegmentNumber`, samples of that segment count as 1 and all
+ * others as 0, so a LABELMAP frame is masked in the same pass.
+ *
+ * Each distinct sample is looked up once and written as one 32-bit pixel:
+ * a frame has a megapixel or more but only a handful of distinct labels.
+ *
+ * @param {TypedArray|ArrayLike<number>} data
+ * @param {number} width
+ * @param {number} height
+ * @param {number[][]} colormap
+ * @param {number} windowCenter
+ * @param {number} windowWidth
+ * @param {number} [labelmapSegmentNumber]
+ * @returns {Uint8ClampedArray} RGBA, 4 bytes per sample
+ * @private
+ */
+function _paletteBandToRgba(
+  data,
+  width,
+  height,
+  colormap,
+  windowCenter,
+  windowWidth,
+  labelmapSegmentNumber,
+) {
+  const count = width * height
+  const rgba = new Uint8ClampedArray(count * 4)
+  const maxIndex = colormap.length - 1
+  const colorOf = (stored) => {
+    const index = _paletteIndex(stored, windowCenter, windowWidth, maxIndex)
+    const color = colormap[index] || [0, 0, 0, 0]
+    const alpha =
+      color.length > 3
+        ? Math.round(Math.max(0, Math.min(1, color[3])) * 255)
+        : 255
+    return [color[0], color[1], color[2], alpha]
+  }
+  const isLabelmap = labelmapSegmentNumber != null
+  /** Pixels as 32-bit words, in the platform's byte order */
+  const words = new Uint32Array(rgba.buffer)
+  const littleEndian = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1
+  const pack = ([r, g, b, a]) =>
+    littleEndian
+      ? ((a << 24) | (b << 16) | (g << 8) | r) >>> 0
+      : ((r << 24) | (g << 16) | (b << 8) | a) >>> 0
+  const packed = new Map()
+  const wordOf = (stored) => {
+    let word = packed.get(stored)
+    if (word === undefined) {
+      word = pack(colorOf(stored))
+      packed.set(stored, word)
+    }
+    return word
+  }
+  if (isLabelmap) {
+    const inside = wordOf(1)
+    const outside = wordOf(0)
+    for (let i = 0; i < count; i++) {
+      words[i] = data[i] === labelmapSegmentNumber ? inside : outside
+    }
+  } else {
+    for (let i = 0; i < count; i++) {
+      words[i] = wordOf(data[i])
+    }
+  }
+  return rgba
+}
+
+/**
+ * Paint single-band label samples through a palette onto a new canvas.
+ *
+ * @param {TypedArray|ArrayLike<number>} data
+ * @param {number} width
+ * @param {number} height
+ * @param {number[][]} colormap
+ * @param {number} windowCenter
+ * @param {number} windowWidth
+ * @param {number} [labelmapSegmentNumber] - LABELMAP segment to mask
+ * @returns {HTMLCanvasElement}
+ * @private
+ */
+function _paletteBandToCanvas(
+  data,
+  width,
+  height,
+  colormap,
+  windowCenter,
+  windowWidth,
+  labelmapSegmentNumber,
+) {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  const imageData = ctx.createImageData(width, height)
+  imageData.data.set(
+    _paletteBandToRgba(
+      data,
+      width,
+      height,
+      colormap,
+      windowCenter,
+      windowWidth,
+      labelmapSegmentNumber,
+    ),
+  )
+  ctx.putImageData(imageData, 0, 0)
+  return canvas
+}
+
+/**
  * Map single-band label samples through a palette into an RGBA PNG data URL.
- * Colors are RGB 0–255; optional 4th component is alpha 0–1 (OpenLayers palette).
+ * Encodes on the calling thread; image loaders use an object URL instead.
  *
  * @param {TypedArray|ArrayLike<number>} data
  * @param {number} width
@@ -1697,29 +1818,50 @@ function _paletteBandToDataUrl(
   windowCenter,
   windowWidth,
 ) {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-  const imageData = ctx.createImageData(width, height)
-  const rgba = imageData.data
-  const maxIndex = colormap.length - 1
+  return _paletteBandToCanvas(
+    data,
+    width,
+    height,
+    colormap,
+    windowCenter,
+    windowWidth,
+  ).toDataURL('image/png')
+}
 
-  for (let i = 0; i < width * height; i++) {
-    const index = _paletteIndex(data[i], windowCenter, windowWidth, maxIndex)
-    const color = colormap[index] || [0, 0, 0, 0]
-    const o = i * 4
-    rgba[o] = color[0]
-    rgba[o + 1] = color[1]
-    rgba[o + 2] = color[2]
-    rgba[o + 3] =
-      color.length > 3
-        ? Math.round(Math.max(0, Math.min(1, color[3])) * 255)
-        : 255
+/**
+ * Show a canvas in an image element through an object URL. `toBlob` encodes
+ * the PNG off the main thread, where `toDataURL` blocks it (about 150 ms for
+ * a 1024 x 1024 frame); the URL is released once the image has loaded.
+ *
+ * @param {HTMLCanvasElement} canvas
+ * @param {HTMLImageElement} img
+ * @private
+ */
+function _showCanvasInImage(canvas, img) {
+  if (
+    typeof canvas.toBlob !== 'function' ||
+    typeof URL.createObjectURL !== 'function' ||
+    typeof img.addEventListener !== 'function'
+  ) {
+    /** No object URLs (e.g. jsdom): encode inline */
+    img.src = canvas.toDataURL('image/png')
+    return
   }
-
-  ctx.putImageData(imageData, 0, 0)
-  return canvas.toDataURL('image/png')
+  canvas.toBlob((blob) => {
+    if (blob == null) {
+      img.src = ''
+      return
+    }
+    const url = URL.createObjectURL(blob)
+    const release = () => {
+      URL.revokeObjectURL(url)
+      img.removeEventListener('load', release)
+      img.removeEventListener('error', release)
+    }
+    img.addEventListener('load', release)
+    img.addEventListener('error', release)
+    img.src = url
+  }, 'image/png')
 }
 
 /**
@@ -1785,18 +1927,18 @@ function _createPerFrameImageLoadFunction(options) {
     loadFrameData()
       .then((data) => {
         onFrameData?.(data)
-        const values =
-          labelmapSegmentNumber == null
-            ? data
-            : data.map((value) => (value === labelmapSegmentNumber ? 1 : 0))
         const { colormap, windowCenter, windowWidth } = getPalette()
-        image.getImage().src = _paletteBandToDataUrl(
-          values,
-          nativeW,
-          nativeH,
-          colormap,
-          windowCenter,
-          windowWidth,
+        _showCanvasInImage(
+          _paletteBandToCanvas(
+            data,
+            nativeW,
+            nativeH,
+            colormap,
+            windowCenter,
+            windowWidth,
+            labelmapSegmentNumber,
+          ),
+          image.getImage(),
         )
       })
       .catch((error) => {
@@ -1924,10 +2066,12 @@ export {
   _isSparseTileMissing,
   _overviewStampExtent,
   _paletteBandToDataUrl,
+  _paletteBandToRgba,
   _paletteIndex,
   _perFrameRasterMaxResolution,
   _retrieveTile,
   _retrieveWithSignal,
+  _showCanvasInImage,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
   PER_FRAME_OVERVIEW_HANDOFF_RATIO,
   PER_FRAME_OVERVIEW_MIN_PX,

@@ -1082,6 +1082,34 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
     expect(added.map(layer => layer.getOpacity())).toEqual(styleOpacities)
   })
 
+  it('should limit a tiled segment layer to where the segment has frames', () => {
+    const map = viewer.getMap()
+    const before = new Set(map.getLayers().getArray())
+    inputs.segmentations.forEach(metadata => {
+      viewer.addSegments(metadata)
+    })
+    const added = map.getLayers().getArray().filter(layer => !before.has(layer))
+    const segmentUIDs = Object.keys(expectations.segments)
+    /** The viewer's own segment table, to read each segment's bounding box */
+    const table = Object.getOwnPropertySymbols(viewer)
+      .map(symbol => viewer[symbol])
+      .find(value =>
+        value != null &&
+        typeof value === 'object' &&
+        segmentUIDs.length > 0 &&
+        segmentUIDs.every(uid => value[uid]?.layer != null)
+      )
+    segmentUIDs.forEach((uid, index) => {
+      const layer = added[index]
+      expect(layer).toBe(table[uid].layer)
+      if (typeof layer.getLayers === 'function') return
+      const box = table[uid].boundingBox
+      if (box != null) {
+        expect(layer.getExtent()).toEqual(box)
+      }
+    })
+  })
+
   it('should set segment style', () => {
     inputs.segmentations.forEach(metadata => {
       viewer.addSegments(metadata)

@@ -175,3 +175,40 @@ describe('_createPerFrameImageLoadFunction', () => {
     console.error.mockRestore()
   })
 })
+
+describe('_showCanvasInImage', () => {
+  const { _showCanvasInImage } = require('./pyramid.js')
+  const originalCreate = URL.createObjectURL
+  const originalRevoke = URL.revokeObjectURL
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreate
+    URL.revokeObjectURL = originalRevoke
+  })
+
+  it('encodes off the main thread into an object URL it releases once loaded', async () => {
+    URL.createObjectURL = jest.fn(() => 'blob:frame')
+    URL.revokeObjectURL = jest.fn()
+    const canvas = document.createElement('canvas')
+    const toDataURL = jest.fn()
+    canvas.toDataURL = toDataURL
+    const img = document.createElement('img')
+
+    _showCanvasInImage(canvas, img)
+    await flushPromises()
+
+    expect(toDataURL).not.toHaveBeenCalled()
+    expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+    expect(img.getAttribute('src')).toBe('blob:frame')
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+    img.dispatchEvent(new Event('load'))
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:frame')
+  })
+
+  it('falls back to a data URL where object URLs are missing', () => {
+    URL.createObjectURL = undefined
+    const img = document.createElement('img')
+    _showCanvasInImage(document.createElement('canvas'), img)
+    expect(img.getAttribute('src')).toMatch(/^data:image\/png/)
+  })
+})

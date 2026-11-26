@@ -117,8 +117,10 @@ describe('_createTileLoadFunction', () => {
       labelmapSegmentNumber: 2,
     })
     const pixels = await loader(0, 1, 0)
-    expect(Array.from(pixels)).toEqual([0, 1, 0, 1])
-    expect(Array.from(events[1].payload.pixelArray)).toEqual([0, 1, 0, 1])
+    /** Bytes, which WebGL reads normalized: 255 is 1 and 0 is 0 */
+    expect(pixels).toBeInstanceOf(Uint8Array)
+    expect(Array.from(pixels)).toEqual([0, 255, 0, 255])
+    expect(Array.from(events[1].payload.pixelArray)).toEqual([0, 255, 0, 255])
   })
 
   it('retrieves a LABELMAP tile once for all segments that share the cache', async () => {
@@ -152,8 +154,8 @@ describe('_createTileLoadFunction', () => {
     ])
 
     expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(1)
-    expect(Array.from(first)).toEqual([0, 0, 1, 0])
-    expect(Array.from(second)).toEqual([0, 1, 0, 1])
+    expect(Array.from(first)).toEqual([0, 0, 255, 0])
+    expect(Array.from(second)).toEqual([0, 255, 0, 255])
     /** Progress is reported once, for the one retrieval */
     expect(events.map((event) => event.type)).toEqual([
       EVENT.FRAME_LOADING_STARTED,
@@ -177,7 +179,7 @@ describe('_createTileLoadFunction', () => {
     })
 
     await expect(loader(0, 1, 0)).rejects.toThrow()
-    expect(Array.from(await loader(0, 1, 0))).toEqual([0, 1, 0, 1])
+    expect(Array.from(await loader(0, 1, 0))).toEqual([0, 255, 0, 255])
     expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(2)
   })
 

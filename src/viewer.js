@@ -7144,7 +7144,13 @@ class VolumeImageViewer {
 
         segment.layer = new TileLayer({
           source,
-          extent: this[_pyramid].extent,
+          /**
+           * Only where the segment has frames: a segment of one region need
+           * not walk the slide's whole tile grid on every render, and is
+           * skipped entirely when its region is out of view. With many
+           * segments shown that walk dominated each frame.
+           */
+          extent: segment.boundingBox ?? this[_pyramid].extent,
           visible: false,
           /** Start at the style's opacity, as getSegmentStyle reports it */
           opacity: segment.style.opacity,

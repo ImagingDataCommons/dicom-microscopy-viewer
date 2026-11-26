@@ -10,6 +10,7 @@ const {
   _isSparseTileMissing,
   _overviewStampExtent,
   _paletteBandToDataUrl,
+  _paletteBandToRgba,
   _paletteIndex,
   _perFrameRasterMaxResolution,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
@@ -153,6 +154,47 @@ describe('_paletteBandToDataUrl', () => {
       2,
     )
     expect(url.startsWith('data:image/png')).toBe(true)
+  })
+})
+
+describe('_paletteBandToRgba', () => {
+  /** The per-pixel mapping the faster code must reproduce */
+  const reference = (data, colormap, windowCenter, windowWidth) => {
+    const out = []
+    for (const stored of data) {
+      const index = _paletteIndex(
+        stored,
+        windowCenter,
+        windowWidth,
+        colormap.length - 1,
+      )
+      const color = colormap[index] || [0, 0, 0, 0]
+      const alpha =
+        color.length > 3
+          ? Math.round(Math.max(0, Math.min(1, color[3])) * 255)
+          : 255
+      out.push(color[0], color[1], color[2], alpha)
+    }
+    return out
+  }
+
+  it('maps every sample through the windowed palette', () => {
+    const colormap = Array.from({ length: 256 }, (_, i) => [i, 255 - i, 7, 0.5])
+    colormap[0] = [0, 0, 0, 0]
+    const data = new Uint8Array([0, 1, 17, 128, 255, 17, 0, 200])
+    const rgba = _paletteBandToRgba(data, 4, 2, colormap, 128, 256)
+    expect(Array.from(rgba)).toEqual(reference(data, colormap, 128, 256))
+  })
+
+  it('masks a LABELMAP to one segment in the same pass', () => {
+    const colormap = [
+      [0, 0, 0, 0],
+      [192, 56, 255],
+    ]
+    const data = new Uint8Array([0, 3, 7, 3, 1, 3])
+    const rgba = _paletteBandToRgba(data, 3, 2, colormap, 1, 2, 3)
+    const masked = Array.from(data, (value) => (value === 3 ? 1 : 0))
+    expect(Array.from(rgba)).toEqual(reference(masked, colormap, 1, 2))
   })
 })
 
