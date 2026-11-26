@@ -89,6 +89,7 @@ import {
 } from './scoord3dUtils'
 import { Segment } from './segment.js'
 import {
+  createFloatMapProxyLayer,
   createLabelProxyLayer,
   createValueTableProxyLayer,
   LabelmapDeckLayers,
@@ -1158,6 +1159,31 @@ function _getColorPaletteStyleForTileLayer({
   }
 
   return { color: expression, variables }
+}
+
+/**
+ * Draw a parametric map with the palette and limit values of its style.
+ *
+ * @param {Object} mapping
+ * @private
+ */
+function _applyParameterMappingPalette(mapping) {
+  const [lowerLimit, upperLimit] = mapping.style.limitValues
+  if (mapping.layer.setFloatStyle != null) {
+    mapping.layer.setFloatStyle({
+      palette: mapping.style.paletteColorLookupTable.data,
+      window: [lowerLimit, upperLimit],
+    })
+    return
+  }
+  const [windowCenter, windowWidth] = createWindow(lowerLimit, upperLimit)
+  mapping.layer.setStyle(
+    _getColorPaletteStyleForParametricMappingTileLayer({
+      windowCenter,
+      windowWidth,
+      colormap: mapping.style.paletteColorLookupTable.data,
+    }),
+  )
 }
 
 /**
@@ -3564,17 +3590,7 @@ class VolumeImageViewer {
       if (!mapping.style.paletteColorLookupTable || !mapping.layer) {
         continue
       }
-      const [palWindowCenter, palWindowWidth] = createWindow(
-        mapping.style.limitValues[0],
-        mapping.style.limitValues[1],
-      )
-      mapping.layer.setStyle(
-        _getColorPaletteStyleForParametricMappingTileLayer({
-          windowCenter: palWindowCenter,
-          windowWidth: palWindowWidth,
-          colormap: mapping.style.paletteColorLookupTable.data,
-        }),
-      )
+      _applyParameterMappingPalette(mapping)
     }
 
     this._syncStackedDerivedLegendOverlays()
@@ -3725,6 +3741,10 @@ class VolumeImageViewer {
     const mappings = Object.values(this[_mappings])
 
     mappings.forEach((mapping) => {
+      if (mapping.layer?.isLabelmapDeckProxy) {
+        mapping.layer.setInterpolate(this[_parametricMapInterpolate])
+        return
+      }
       const tileGrid = new TileGrid({
         extent: mapping.loaderParams.pyramid.extent,
         origins: mapping.loaderParams.pyramid.origins,
@@ -5653,8 +5673,13 @@ class VolumeImageViewer {
    * @param {string} options.key - Unique per instance
    * @param {Object} options.fittedPyramid
    * @param {import('ol/tilegrid/TileGrid').default} options.tileGrid
-   * @param {Object} options.refSegmentation - Metadata of the SEG instance
-   * @param {number} options.channel - Segment number whose frames to load
+   * @param {Object} [options.refSegmentation] - Metadata of the SEG instance
+   * @param {string} [options.sopClassUID] - Of the instance, when not a SEG
+   * @param {number} [options.bitsAllocated] - When not a SEG
+   * @param {number} options.channel - Segment or mapping number whose frames
+   *   to load
+   * @param {boolean} [options.float] - Values mapped through a window onto
+   *   a palette (parametric maps), not labels
    * @param {boolean} [options.binary] - Every value but 0 is the segment
    * @param {boolean} [options.interpolate] - Blend values before the lookup
    * @param {number} [options.minResolution]
@@ -5666,9 +5691,12 @@ class VolumeImageViewer {
     fittedPyramid,
     tileGrid,
     refSegmentation,
+    sopClassUID = refSegmentation?.SOPClassUID,
+    bitsAllocated = refSegmentation?.BitsAllocated,
     channel,
     binary = false,
     interpolate = false,
+    float = false,
     minResolution,
   }) {
     if (this._labelmapDeckLayers == null) {
@@ -5681,9 +5709,10 @@ class VolumeImageViewer {
     return this._labelmapDeckLayers.addInstance(key, {
       tileGrid,
       extent: fittedPyramid.extent,
-      bitsAllocated: refSegmentation.BitsAllocated,
+      bitsAllocated,
       binary,
       interpolate,
+      float,
       minResolution,
       loader: (z, column, row) => {
         if (rawLoader == null) {
@@ -5691,9 +5720,10 @@ class VolumeImageViewer {
             targetElement: this[_map].getTargetElement() || this[_container],
             iccProfiles: [],
             pyramid: fittedPyramid,
-            client: _getClient(this[_clients], refSegmentation.SOPClassUID),
+            client: _getClient(this[_clients], sopClassUID),
             channel,
-            rawLabels: true,
+            rawLabels: !float,
+            rawValues: float,
           })
         }
         return rawLoader(z, column, row)
@@ -7761,6 +7791,39 @@ class VolumeImageViewer {
         hasLoader: false,
       }
 
+      if (this[_options].parametricMapRenderer !== 'openlayers') {
+        /**
+         * Drawn with deck.gl by the shared overlay: float values mapped
+         * through the window onto the palette in the shader
+         */
+        const instance = this._addSegmentationDeckInstance({
+          key: `mapping:${refInstance.SeriesInstanceUID}:${mappingNumber}`,
+          fittedPyramid,
+          tileGrid,
+          sopClassUID: Enums.SOPClassUIDs.PARAMETRIC_MAP,
+          bitsAllocated: refInstance.BitsAllocated,
+          channel: mappingNumber,
+          float: true,
+          interpolate: this[_parametricMapInterpolate],
+        })
+        mapping.layer = createFloatMapProxyLayer(
+          this._labelmapDeckLayers,
+          instance,
+          {
+            palette: mapping.style.paletteColorLookupTable.data,
+            window: [
+              windowCenter - windowWidth / 2,
+              windowCenter + windowWidth / 2,
+            ],
+            opacity: mapping.style.opacity,
+          },
+        )
+        mapping.hasLoader = true
+        this[_mappings][mappingUID] = mapping
+        index += 1
+        continue
+      }
+
       const source = new DataTileSource({
         tileGrid,
         projection: this[_projection],
@@ -7988,7 +8051,12 @@ class VolumeImageViewer {
       )
       styleVariables.windowCenter = windowCenter
       styleVariables.windowWidth = windowWidth
-      mapping.layer.updateStyleVariables(styleVariables)
+      if (mapping.layer.setFloatStyle != null) {
+        /** Drawn with deck.gl: the limit values are the palette's window */
+        mapping.layer.setFloatStyle({ window: mapping.style.limitValues })
+      } else {
+        mapping.layer.updateStyleVariables(styleVariables)
+      }
     }
 
     if (
@@ -7997,17 +8065,7 @@ class VolumeImageViewer {
     ) {
       mapping.style.paletteColorLookupTable =
         styleOptions.paletteColorLookupTable
-      const [palWindowCenter, palWindowWidth] = createWindow(
-        mapping.style.limitValues[0],
-        mapping.style.limitValues[1],
-      )
-      mapping.layer.setStyle(
-        _getColorPaletteStyleForParametricMappingTileLayer({
-          windowCenter: palWindowCenter,
-          windowWidth: palWindowWidth,
-          colormap: mapping.style.paletteColorLookupTable.data,
-        }),
-      )
+      _applyParameterMappingPalette(mapping)
     }
 
     this._syncStackedDerivedLegendOverlays()

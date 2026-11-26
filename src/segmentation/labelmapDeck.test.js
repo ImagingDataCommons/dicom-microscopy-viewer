@@ -4,6 +4,7 @@ jest.mock('@luma.gl/engine', () => ({ Model: class {} }))
 import TileGrid from 'ol/tilegrid/TileGrid'
 
 import {
+  createFloatMapProxyLayer,
   createLabelProxyLayer,
   createValueTableProxyLayer,
   LabelmapDeckLayers,
@@ -218,6 +219,53 @@ describe('createValueTableProxyLayer', () => {
     expect(instance.interpolate).toBe(true)
     proxy.dispose()
     expect(lut(instance, 7)[3]).toBe(0)
+    expect(instance.visibleCount).toBe(0)
+  })
+})
+
+describe('createFloatMapProxyLayer', () => {
+  it('keeps the palette, window and opacity of a parametric map', () => {
+    const { layers } = createLayers()
+    const instance = layers.addInstance('mapping:series-1:1', {
+      tileGrid: new TileGrid({
+        extent: [0, -1024, 1024, 0],
+        origin: [0, 0],
+        resolutions: [1],
+        tileSize: 256,
+      }),
+      extent: [0, -1024, 1024, 0],
+      loader: jest.fn(() => new Promise(() => {})),
+      bitsAllocated: 32,
+      float: true,
+      interpolate: true,
+    })
+    const palette = [
+      [0, 0, 255],
+      [255, 255, 255],
+      [255, 0, 0],
+    ]
+    const proxy = createFloatMapProxyLayer(layers, instance, {
+      palette,
+      window: [-1, 1],
+      opacity: 0.5,
+    })
+    expect(proxy.isLabelmapDeckProxy).toBe(true)
+    expect(proxy.getVisible()).toBe(false)
+    expect(instance.paletteSize).toBe(3)
+    expect([instance.windowMin, instance.windowMax]).toEqual([-1, 1])
+    expect(Array.from(instance.lut)).toEqual([
+      0, 0, 255, 128, 255, 255, 255, 128, 255, 0, 0, 128,
+    ])
+    proxy.setVisible(true)
+    expect(instance.visibleCount).toBe(1)
+    proxy.setFloatStyle({ window: [0, 10] })
+    expect([instance.windowMin, instance.windowMax]).toEqual([0, 10])
+    proxy.setOpacity(1)
+    expect(instance.lut[3]).toBe(255)
+    proxy.setInterpolate(false)
+    expect(instance.interpolate).toBe(false)
+    proxy.dispose()
+    expect(proxy.getVisible()).toBe(false)
     expect(instance.visibleCount).toBe(0)
   })
 })

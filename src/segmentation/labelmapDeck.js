@@ -38,6 +38,9 @@ uniform labelmapUniforms {
   vec4 bounds;
   vec4 uvRect;
   float interpolate;
+  float windowMin;
+  float windowMax;
+  float paletteSize;
 } labelmap;
 `
 
@@ -49,6 +52,9 @@ const labelmapUniforms = {
     bounds: 'vec4<f32>',
     uvRect: 'vec4<f32>',
     interpolate: 'f32',
+    windowMin: 'f32',
+    windowMax: 'f32',
+    paletteSize: 'f32',
   },
 }
 
@@ -128,6 +134,59 @@ void main(void) {
   }
   vec4 color =
     vec4(texelFetch(lutTexture, ivec2(int(label & 255u), int(label >> 8u)), 0)) / 255.0;
+  if (color.a == 0.0) {
+    discard;
+  }
+  fragColor = color;
+  geometry.uv = vUv;
+  DECKGL_FILTER_COLOR(fragColor, geometry);
+}
+`
+
+/**
+ * Float values (parametric maps) are read with texelFetch, blended
+ * bilinearly with `interpolate`, and mapped through the window to a palette
+ * entry as the OpenLayers parametric map style does: the index is rounded
+ * and clamped to the palette. Both samplers are float ones, so they can
+ * share a texture unit at program validation.
+ */
+const floatFs = `\
+#version 300 es
+#define SHADER_NAME float-map-tiles-fragment-shader
+
+precision highp float;
+precision highp int;
+
+uniform sampler2D valueTexture;
+uniform sampler2D paletteTexture;
+
+in vec2 vUv;
+out vec4 fragColor;
+
+float valueAt(ivec2 texel, ivec2 size) {
+  return texelFetch(valueTexture, clamp(texel, ivec2(0), size - 1), 0).r;
+}
+
+void main(void) {
+  ivec2 size = textureSize(valueTexture, 0);
+  float value;
+  if (labelmap.interpolate > 0.5) {
+    vec2 position = vUv * vec2(size) - 0.5;
+    ivec2 base = ivec2(floor(position));
+    vec2 t = fract(position);
+    float a = valueAt(base, size);
+    float b = valueAt(base + ivec2(1, 0), size);
+    float c = valueAt(base + ivec2(0, 1), size);
+    float d = valueAt(base + ivec2(1, 1), size);
+    value = mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
+  } else {
+    value = valueAt(ivec2(vUv * vec2(size)), size);
+  }
+  float maxIndex = labelmap.paletteSize - 1.0;
+  float position =
+    (value - labelmap.windowMin) / (labelmap.windowMax - labelmap.windowMin);
+  float index = clamp(floor(position * maxIndex + 0.5), 0.0, maxIndex);
+  vec4 color = texelFetch(paletteTexture, ivec2(int(index), 0), 0);
   if (color.a == 0.0) {
     discard;
   }
@@ -262,7 +321,57 @@ function loadDeckModules() {
         interpolate: false,
       }
 
-      return { core, LabelmapTilesLayer }
+      /** Draws the given float tiles of one parametric map */
+      class FloatMapTilesLayer extends LabelmapTilesLayer {
+        getShaders() {
+          return DeckLayer.prototype.getShaders.call(this, {
+            vs,
+            fs: floatFs,
+            modules: [project32, labelmapUniforms],
+          })
+        }
+
+        draw() {
+          const { model } = this.state
+          const {
+            tiles,
+            lutTexture,
+            interpolate,
+            windowMin,
+            windowMax,
+            paletteSize,
+          } = this.props
+          if (model == null || lutTexture == null) {
+            return
+          }
+          for (const tile of tiles) {
+            model.shaderInputs.setProps({
+              labelmap: {
+                bounds: tile.bounds,
+                uvRect: tile.uvRect,
+                interpolate: interpolate ? 1 : 0,
+                windowMin,
+                windowMax,
+                paletteSize,
+              },
+            })
+            model.setBindings({
+              valueTexture: tile.texture,
+              paletteTexture: lutTexture,
+            })
+            model.draw(this.context.renderPass)
+          }
+        }
+      }
+      FloatMapTilesLayer.layerName = 'FloatMapTilesLayer'
+      FloatMapTilesLayer.defaultProps = {
+        ...LabelmapTilesLayer.defaultProps,
+        windowMin: 0,
+        windowMax: 1,
+        paletteSize: 256,
+      }
+
+      return { core, LabelmapTilesLayer, FloatMapTilesLayer }
     })
   }
   return deckModulesPromise
@@ -345,9 +454,10 @@ export class LabelmapDeckLayers {
       bitsAllocated = 8,
       binary = false,
       interpolate = false,
+      float = false,
     },
   ) {
-    const rows = bitsAllocated > 8 ? 256 : 1
+    const rows = bitsAllocated > 8 && !float ? 256 : 1
     const instance = {
       key,
       tileGrid,
@@ -358,6 +468,11 @@ export class LabelmapDeckLayers {
       lutRows: rows,
       binary,
       interpolate,
+      /** Float values through a palette (parametric maps), not labels */
+      float,
+      paletteSize: 256,
+      windowMin: 0,
+      windowMax: 1,
       lutTexture: null,
       lutDirty: true,
       /** label -> {visible, color: [r, g, b], opacity} */
@@ -452,6 +567,47 @@ export class LabelmapDeckLayers {
   }
 
   /**
+   * Style of a float instance (a parametric map): its palette, the value
+   * window mapped onto it, its opacity and whether it is shown.
+   *
+   * @param {Object} instance
+   * @param {Object} state
+   * @param {number[][]} [state.palette] - [r, g, b] or [r, g, b, a] entries
+   * @param {number[]} [state.window] - [min, max] value mapped to the
+   *   first and last entry
+   * @param {number} [state.opacity] - 0-1
+   * @param {boolean} [state.visible]
+   */
+  setFloatStyle(instance, state) {
+    const previous = instance.floatStyle ?? {
+      palette: [[0, 0, 0]],
+      window: [0, 1],
+      opacity: 1,
+      visible: false,
+    }
+    const next = { ...previous, ...state }
+    instance.floatStyle = next
+    if (previous.visible !== next.visible) {
+      instance.visibleCount += next.visible ? 1 : -1
+    }
+    instance.windowMin = next.window[0]
+    instance.windowMax = next.window[1]
+    instance.paletteSize = next.palette.length
+    const scale = Math.max(0, Math.min(1, next.opacity))
+    if (instance.lut.length !== next.palette.length * 4) {
+      instance.lut = new Uint8Array(next.palette.length * 4)
+    }
+    next.palette.forEach((entry, index) => {
+      instance.lut[index * 4] = entry[0]
+      instance.lut[index * 4 + 1] = entry[1]
+      instance.lut[index * 4 + 2] = entry[2]
+      instance.lut[index * 4 + 3] = Math.round((entry[3] ?? 1) * scale * 255)
+    })
+    instance.lutDirty = true
+    this._changed()
+  }
+
+  /**
    * @param {Object} instance
    * @param {boolean} interpolate - Blend values bilinearly before the lookup
    */
@@ -474,9 +630,9 @@ export class LabelmapDeckLayers {
     }
     instance.lutTexture = this.device.createTexture({
       id: `labelmap-lut-${instance.key}`,
-      format: 'rgba8uint',
-      width: 256,
-      height: instance.lutRows,
+      format: instance.float ? 'rgba8unorm' : 'rgba8uint',
+      width: instance.float ? instance.lut.length / 4 : 256,
+      height: instance.float ? 1 : instance.lutRows,
       data: instance.lut,
       mipmaps: false,
       sampler: {
@@ -560,7 +716,7 @@ export class LabelmapDeckLayers {
       tile.state = 'empty'
       return
     }
-    tile.labels = result.labels
+    tile.labels = result.labels ?? result.values
     tile.width = result.width
     tile.height = result.height
     tile.state = 'loaded'
@@ -573,10 +729,11 @@ export class LabelmapDeckLayers {
       this.textures.set(tile.key, tile)
       return tile.texture
     }
+    const isFloat = tile.labels instanceof Float32Array
     const is16 = tile.labels.BYTES_PER_ELEMENT === 2
     tile.texture = this.device.createTexture({
       id: `labelmap-tile-${tile.key}`,
-      format: is16 ? 'r16uint' : 'r8uint',
+      format: isFloat ? 'r32float' : is16 ? 'r16uint' : 'r8uint',
       width: tile.width,
       height: tile.height,
       data: padRowsForUpload(tile.labels, tile.width, tile.height),
@@ -703,7 +860,7 @@ export class LabelmapDeckLayers {
     this.frameId = (this.frameId ?? 0) + 1
     /** Newest requests first: the view the user is looking at now */
     this.queue = []
-    const { LabelmapTilesLayer } = this.modules
+    const { LabelmapTilesLayer, FloatMapTilesLayer } = this.modules
     const modelMatrix = rotationModelMatrix(frameState.viewState.rotation)
     const layers = []
     let tileCount = 0
@@ -719,12 +876,18 @@ export class LabelmapDeckLayers {
         continue
       }
       tileCount += tiles.length
+      const TilesLayer = instance.float
+        ? FloatMapTilesLayer
+        : LabelmapTilesLayer
       layers.push(
-        new LabelmapTilesLayer({
+        new TilesLayer({
           id: `labelmap-${instance.key}`,
           tiles,
           lutTexture: instance.lutTexture,
           interpolate: instance.interpolate,
+          windowMin: instance.windowMin,
+          windowMax: instance.windowMax,
+          paletteSize: instance.paletteSize,
           modelMatrix,
           /** Redraw whenever OpenLayers renders: tiles are not diffed */
           updateTriggers: { tiles: this.frameId },
@@ -821,5 +984,37 @@ export function createValueTableProxyLayer(overlay, instance, options) {
     un: () => {},
     changed: () => overlay.map.render(),
     dispose: () => overlay.setValueTable(instance, { visible: false }),
+  }
+}
+
+/**
+ * Stand-in for the OpenLayers layer of a parametric map drawn with deck.gl.
+ *
+ * @param {LabelmapDeckLayers} overlay
+ * @param {Object} instance - A float instance
+ * @param {Object} style - See LabelmapDeckLayers#setFloatStyle
+ * @returns {Object}
+ */
+export function createFloatMapProxyLayer(overlay, instance, style) {
+  overlay.setFloatStyle(instance, { ...style, visible: false })
+  return {
+    isLabelmapDeckProxy: true,
+    getVisible: () => instance.floatStyle?.visible === true,
+    setVisible: (visible) =>
+      overlay.setFloatStyle(instance, { visible: visible === true }),
+    getOpacity: () => instance.floatStyle?.opacity ?? 1,
+    setOpacity: (opacity) => overlay.setFloatStyle(instance, { opacity }),
+    setFloatStyle: (state) => overlay.setFloatStyle(instance, state),
+    setInterpolate: (interpolate) =>
+      overlay.setInterpolate(instance, interpolate),
+    setStyle: () => {},
+    updateStyleVariables: () => {},
+    getSource: () => null,
+    setSource: () => {},
+    getExtent: () => instance.extent,
+    on: () => {},
+    un: () => {},
+    changed: () => overlay.map.render(),
+    dispose: () => overlay.setFloatStyle(instance, { visible: false }),
   }
 }

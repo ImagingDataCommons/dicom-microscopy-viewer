@@ -397,6 +397,11 @@ export namespace viewer {
     segmentationRenderer?: 'deckgl' | 'openlayers'
     /** Same as segmentationRenderer, for LABELMAP segmentations only */
     labelmapRenderer?: 'deckgl' | 'openlayers'
+    /**
+     * How parametric maps are drawn: with deck.gl (the default), or with
+     * an OpenLayers layer per mapping
+     */
+    parametricMapRenderer?: 'deckgl' | 'openlayers'
     [option: string]: any
   }
 
