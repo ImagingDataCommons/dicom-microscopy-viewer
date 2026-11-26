@@ -38,6 +38,7 @@ import Fill from 'ol/style/Fill'
 import Icon from 'ol/style/Icon'
 import Stroke from 'ol/style/Stroke'
 import Style from 'ol/style/Style'
+import TileState from 'ol/TileState'
 import TileGrid from 'ol/tilegrid/TileGrid'
 import View from 'ol/View'
 import {
@@ -86,6 +87,7 @@ import {
   _fitImagePyramid,
   _getIccProfiles,
   _groupVolumeImages,
+  _isEmptyLabelmapTile,
   _isSparseTileMissing,
   _overviewStampExtent,
   _perFrameRasterMaxResolution,
@@ -7139,6 +7141,14 @@ class VolumeImageViewer {
         })
       } else {
         segment.onTileLoadError = (event) => {
+          /**
+           * A LABELMAP tile without this segment's pixels: an empty tile,
+           * which OpenLayers neither draws nor stands in for
+           */
+          if (_isEmptyLabelmapTile(event.tile?.getError?.())) {
+            event.tile.setState(TileState.EMPTY)
+            return
+          }
           console.error(
             `error loading tile of segment "${segmentUID}"`,
             event.tile?.error_?.message || event,

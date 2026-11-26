@@ -4,7 +4,10 @@ jest.mock('./decode.js', () => ({
 
 const { _decodeAndTransformFrame } = require('./decode.js')
 const EVENT = require('./events.js').default
-const { _createTileLoadFunction } = require('./pyramid.js')
+const {
+  _createTileLoadFunction,
+  _isEmptyLabelmapTile,
+} = require('./pyramid.js')
 
 const image = {
   StudyInstanceUID: '1.2.3',
@@ -185,6 +188,41 @@ describe('_createTileLoadFunction', () => {
     expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(2)
   })
 
+  it('gives an empty tile to a segment without pixels in it', async () => {
+    _decodeAndTransformFrame.mockResolvedValue(new Uint8Array([0, 2, 1, 2]))
+    const client = createClient()
+    const pyramid = {
+      ...createPyramid({ BitsAllocated: 8 }),
+      frameMappings: [
+        {
+          '1-2-2': `${image.SOPInstanceUID}/frames/3`,
+          '1-2-5': `${image.SOPInstanceUID}/frames/3`,
+        },
+      ],
+    }
+    const labelmapTileCache = new Map()
+    const loaderFor = (segmentNumber) =>
+      _createTileLoadFunction({
+        pyramid,
+        client,
+        channel: String(segmentNumber),
+        targetElement,
+        labelmapSegmentNumber: segmentNumber,
+        labelmapTileCache,
+      })
+
+    /** Segment 5 is the first to ask, so it reports the retrieval */
+    const error = await loaderFor(5)(0, 1, 0).catch((e) => e)
+    expect(_isEmptyLabelmapTile(error)).toBe(true)
+    expect(Array.from(await loaderFor(2)(0, 1, 0))).toEqual([0, 255, 0, 255])
+    expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(1)
+    /** Its end is reported, and no error */
+    expect(events.map((event) => event.type)).toEqual([
+      EVENT.FRAME_LOADING_STARTED,
+      EVENT.FRAME_LOADING_ENDED,
+    ])
+  })
+
   it('never retrieves a LABELMAP tile twice while it is in flight', async () => {
     _decodeAndTransformFrame.mockResolvedValue(new Uint8Array([0, 2, 1, 2]))
     /** More tile positions in flight than the cache keeps retrieved tiles */
@@ -230,8 +268,9 @@ describe('_createTileLoadFunction', () => {
 
   /** Loads `count` tiles of `bytes` each, one after the other */
   const loadLabelmapTiles = async (count, bytes) => {
+    /** Every pixel of segment 1, so each tile is masked and kept */
     _decodeAndTransformFrame.mockImplementation(() =>
-      Promise.resolve(new Uint8Array(bytes)),
+      Promise.resolve(new Uint8Array(bytes).fill(1)),
     )
     const frameMapping = {}
     for (let c = 1; c <= count; c++) {

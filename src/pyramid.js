@@ -760,6 +760,50 @@ function _createFrameLoadError({
 }
 
 /**
+ * Thrown by a LABELMAP segment's tile loader when the segment has no pixels
+ * in that tile, so nothing is masked, uploaded to the GPU or drawn. The
+ * viewer turns such a tile into an empty one instead of reporting an error.
+ * Most tiles of a LABELMAP with many segments hold only a few of them.
+ */
+class EmptyLabelmapTileError extends Error {
+  constructor() {
+    super('The segment has no pixels in this LABELMAP tile.')
+    this.name = 'EmptyLabelmapTileError'
+  }
+}
+
+/**
+ * Whether `error` marks a LABELMAP tile without the segment's pixels.
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ * @private
+ */
+function _isEmptyLabelmapTile(error) {
+  return error instanceof EmptyLabelmapTileError
+}
+
+/**
+ * Which labels a decoded LABELMAP tile holds, as flags indexed by label.
+ * Computed once per shared tile, so each segment only checks its own flag.
+ *
+ * @param {Object} tile - Decoded tile, shared by the instance's segments
+ * @returns {Uint8Array}
+ * @private
+ */
+function _labelsInTile(tile) {
+  if (tile.labels === undefined) {
+    const { pixelArray } = tile
+    const labels = new Uint8Array(tile.bitsAllocated > 8 ? 65536 : 256)
+    for (let i = 0; i < pixelArray.length; i++) {
+      labels[pixelArray[i]] = 1
+    }
+    tile.labels = labels
+  }
+  return tile.labels
+}
+
+/**
  * Decoded LABELMAP tiles kept per SEG instance once retrieved, so a tile
  * shown for several segments is fetched and decoded once even when OpenLayers
  * asks for it layer by layer. Bounded by count and by decoded bytes; tiles
@@ -794,8 +838,7 @@ function _trimSharedLabelmapTiles(sharedTiles) {
   for (const [key, entry] of sharedTiles) {
     if (
       settled <= LABELMAP_TILE_CACHE_SIZE &&
-      (bytes <= LABELMAP_TILE_CACHE_BYTES ||
-        settled <= LABELMAP_TILE_CACHE_MIN)
+      (bytes <= LABELMAP_TILE_CACHE_BYTES || settled <= LABELMAP_TILE_CACHE_MIN)
     ) {
       return
     }
@@ -926,6 +969,12 @@ function _createTileLoadFunction({
        * its own masked texture, so with many segments shown this dominated.
        */
       if (labelmapSegmentNumber != null) {
+        if (_labelsInTile(tile)[labelmapSegmentNumber] !== 1) {
+          if (reportsProgress) {
+            publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
+          }
+          throw new EmptyLabelmapTileError()
+        }
         const mask = new Uint8Array(pixelArray.length)
         for (let i = 0; i < pixelArray.length; i++) {
           mask[i] = pixelArray[i] === labelmapSegmentNumber ? 255 : 0
@@ -956,6 +1005,8 @@ function _createTileLoadFunction({
         pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT,
       )
     } catch (error) {
+      /** Not a failure: the end was already reported */
+      if (_isEmptyLabelmapTile(error)) throw error
       if (frameInfo !== undefined) {
         publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
         publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo)
@@ -2135,6 +2186,7 @@ function _computeSegmentBoundingBoxes(
 }
 
 export {
+  EmptyLabelmapTileError,
   _areImagePyramidsEqual,
   _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
@@ -2148,7 +2200,9 @@ export {
   _fitImagePyramid,
   _getIccProfiles,
   _groupVolumeImages,
+  _isEmptyLabelmapTile,
   _isSparseTileMissing,
+  _labelsInTile,
   _overviewStampExtent,
   _paletteBandToDataUrl,
   _paletteBandToRgba,

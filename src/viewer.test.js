@@ -1125,6 +1125,35 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
     })
   })
 
+  it('should make a LABELMAP tile without the segment empty, not an error', () => {
+    const { EmptyLabelmapTileError } = require('./pyramid.js')
+    inputs.segmentations.forEach(metadata => {
+      viewer.addSegments(metadata)
+    })
+    const segmentUIDs = Object.keys(expectations.segments)
+    const table = Object.getOwnPropertySymbols(viewer)
+      .map(symbol => viewer[symbol])
+      .find(value =>
+        value != null &&
+        typeof value === 'object' &&
+        segmentUIDs.length > 0 &&
+        segmentUIDs.every(uid => value[uid]?.layer != null)
+      )
+    const segment = segmentUIDs
+      .map(uid => table[uid])
+      .find(record => typeof record.onTileLoadError === 'function')
+    if (segment === undefined) return
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const tile = {
+      getError: () => new EmptyLabelmapTileError(),
+      setState: jest.fn()
+    }
+    segment.onTileLoadError({ tile })
+    expect(tile.setState).toHaveBeenCalledWith(4)
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
+  })
+
   it('should load more tiles at once than the OpenLayers default', () => {
     /**
      * Every shown segment is its own layer, and OpenLayers counts each
