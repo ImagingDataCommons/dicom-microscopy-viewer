@@ -182,7 +182,10 @@ export class SharedDeckOverlay {
       }
     }
     try {
+      /** createBulkAnnotationDeck gives the Deck a parent of its own */
+      const deckParent = this.deck?.props?.parent
       this.deck?.finalize()
+      deckParent?.remove?.()
     } catch (error) {
       console.warn('[deckOverlay] Deck finalize failed', error)
     }
