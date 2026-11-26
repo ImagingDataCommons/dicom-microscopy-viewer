@@ -117,6 +117,31 @@ void main(void) {
 }
 `
 
+/**
+ * Label rows padded to a multiple of 4 bytes. WebGL reads uploaded rows
+ * at its default 4-byte alignment, so a tile whose rows are not (an
+ * 82-pixel-wide 8-bit tile, say) failed to upload and drew nothing.
+ *
+ * @param {Uint8Array|Uint16Array} labels - width x height values
+ * @param {number} width
+ * @param {number} height
+ * @returns {Uint8Array|Uint16Array} `labels` itself when no padding is needed
+ */
+export function padRowsForUpload(labels, width, height) {
+  const bytesPerValue = labels.BYTES_PER_ELEMENT
+  const rowBytes = width * bytesPerValue
+  const strideBytes = Math.ceil(rowBytes / 4) * 4
+  if (strideBytes === rowBytes) {
+    return labels
+  }
+  const stride = strideBytes / bytesPerValue
+  const padded = new labels.constructor(stride * height)
+  for (let row = 0; row < height; row++) {
+    padded.set(labels.subarray(row * width, (row + 1) * width), row * stride)
+  }
+  return padded
+}
+
 let deckModulesPromise = null
 
 /**
@@ -257,7 +282,14 @@ export class LabelmapDeckLayers {
    */
   addInstance(
     key,
-    { tileGrid, extent, loader, minResolution, bitsAllocated = 8 },
+    {
+      tileGrid,
+      extent,
+      loader,
+      minResolution,
+      bitsAllocated = 8,
+      binary = false,
+    },
   ) {
     const rows = bitsAllocated > 8 ? 256 : 1
     const instance = {
@@ -268,6 +300,7 @@ export class LabelmapDeckLayers {
       minResolution,
       lut: new Uint8Array(256 * rows * 4),
       lutRows: rows,
+      binary,
       lutTexture: null,
       lutDirty: true,
       /** label -> {visible, color: [r, g, b], opacity} */
@@ -303,14 +336,25 @@ export class LabelmapDeckLayers {
     if (previous.visible !== next.visible) {
       instance.visibleCount += next.visible ? 1 : -1
     }
-    const offset = label * 4
-    if (offset + 3 < instance.lut.length) {
+    const alpha = next.visible
+      ? Math.round(Math.max(0, Math.min(1, next.opacity)) * 255)
+      : 0
+    /**
+     * A BINARY segment's frames hold 1 (or 255, depending on how they are
+     * decoded) where the segment is: every value but 0 is the segment
+     */
+    const [first, last] = instance.binary
+      ? [1, instance.lut.length / 4 - 1]
+      : [label, label]
+    for (let entry = first; entry <= last; entry++) {
+      const offset = entry * 4
+      if (offset + 3 >= instance.lut.length) {
+        break
+      }
       instance.lut[offset] = next.color[0]
       instance.lut[offset + 1] = next.color[1]
       instance.lut[offset + 2] = next.color[2]
-      instance.lut[offset + 3] = next.visible
-        ? Math.round(Math.max(0, Math.min(1, next.opacity)) * 255)
-        : 0
+      instance.lut[offset + 3] = alpha
     }
     instance.lutDirty = true
     this._changed()
@@ -435,7 +479,7 @@ export class LabelmapDeckLayers {
       format: is16 ? 'r16uint' : 'r8uint',
       width: tile.width,
       height: tile.height,
-      data: tile.labels,
+      data: padRowsForUpload(tile.labels, tile.width, tile.height),
       mipmaps: false,
       sampler: { minFilter: 'nearest', magFilter: 'nearest' },
     })

@@ -5634,6 +5634,7 @@ class VolumeImageViewer {
    * @param {import('ol/tilegrid/TileGrid').default} options.tileGrid
    * @param {Object} options.refSegmentation - Metadata of the SEG instance
    * @param {number} options.channel - Segment number whose frames to load
+   * @param {boolean} [options.binary] - Every value but 0 is the segment
    * @param {number} [options.minResolution]
    * @returns {Object} instance
    * @private
@@ -5644,6 +5645,7 @@ class VolumeImageViewer {
     tileGrid,
     refSegmentation,
     channel,
+    binary = false,
     minResolution,
   }) {
     if (this._labelmapDeckLayers == null) {
@@ -5657,6 +5659,7 @@ class VolumeImageViewer {
       tileGrid,
       extent: fittedPyramid.extent,
       bitsAllocated: refSegmentation.BitsAllocated,
+      binary,
       minResolution,
       loader: (z, column, row) => {
         if (rawLoader == null) {
@@ -6560,6 +6563,7 @@ class VolumeImageViewer {
             ...deckInstanceOptions,
             key: `${refSegmentation.SeriesInstanceUID}:${segmentNumber}`,
             channel: segmentNumber,
+            binary: true,
           })
         segment.layer = createLabelProxyLayer(
           this._labelmapDeckLayers,

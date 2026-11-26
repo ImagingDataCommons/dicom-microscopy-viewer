@@ -3,7 +3,11 @@ jest.mock('@luma.gl/engine', () => ({ Model: class {} }))
 
 import TileGrid from 'ol/tilegrid/TileGrid'
 
-import { createLabelProxyLayer, LabelmapDeckLayers } from './labelmapDeck.js'
+import {
+  createLabelProxyLayer,
+  LabelmapDeckLayers,
+  padRowsForUpload,
+} from './labelmapDeck.js'
 
 function createLayers() {
   const overlay = {
@@ -71,6 +75,32 @@ describe('LabelmapDeckLayers', () => {
     expect(lut(instance, 300)).toEqual([1, 2, 3, 255])
   })
 
+  it('draws every value but 0 of a BINARY instance as its segment', () => {
+    const { layers } = createLayers()
+    const instance = layers.addInstance('series-1:3', {
+      tileGrid: new TileGrid({
+        extent: [0, -1024, 1024, 0],
+        origin: [0, 0],
+        resolutions: [1],
+        tileSize: 256,
+      }),
+      extent: [0, -1024, 1024, 0],
+      loader: jest.fn(() => new Promise(() => {})),
+      bitsAllocated: 1,
+      binary: true,
+    })
+    layers.setLabel(instance, 1, {
+      visible: true,
+      color: [0, 128, 255],
+      opacity: 1,
+    })
+    expect(lut(instance, 0)).toEqual([0, 0, 0, 0])
+    expect(lut(instance, 1)).toEqual([0, 128, 255, 255])
+    expect(lut(instance, 255)).toEqual([0, 128, 255, 255])
+    layers.setLabel(instance, 1, { visible: false })
+    expect(lut(instance, 255)[3]).toBe(0)
+  })
+
   it('draws nothing before the deck device exists', () => {
     const { layers } = createLayers()
     const instance = createInstance(layers)
@@ -106,5 +136,25 @@ describe('createLabelProxyLayer', () => {
     proxy.dispose()
     expect(proxy.getVisible()).toBe(false)
     expect(lut(instance, 2)[3]).toBe(0)
+  })
+})
+
+describe('padRowsForUpload', () => {
+  it('pads 8-bit rows to 4 bytes', () => {
+    const labels = Uint8Array.from([1, 2, 3, 4, 5, 6])
+    const padded = padRowsForUpload(labels, 3, 2)
+    expect(Array.from(padded)).toEqual([1, 2, 3, 0, 4, 5, 6, 0])
+  })
+
+  it('pads 16-bit rows to 4 bytes', () => {
+    const labels = Uint16Array.from([1, 2, 3, 4, 5, 6])
+    const padded = padRowsForUpload(labels, 3, 2)
+    expect(padded).toBeInstanceOf(Uint16Array)
+    expect(Array.from(padded)).toEqual([1, 2, 3, 0, 4, 5, 6, 0])
+  })
+
+  it('keeps rows that are already aligned', () => {
+    const labels = new Uint8Array(256 * 2)
+    expect(padRowsForUpload(labels, 256, 2)).toBe(labels)
   })
 })
