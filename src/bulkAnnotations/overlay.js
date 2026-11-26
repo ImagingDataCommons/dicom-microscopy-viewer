@@ -9,6 +9,7 @@
 
 import Layer from 'ol/layer/Layer'
 
+import { importLazyChunk } from './lazyImport.js'
 import { olViewStateToDeck } from './viewState.js'
 
 export { olViewStateToDeck }
@@ -17,7 +18,13 @@ let deckModulePromise = null
 
 function loadDeckModule() {
   if (deckModulePromise == null) {
-    deckModulePromise = import('@deck.gl/core')
+    deckModulePromise = importLazyChunk(() => import('@deck.gl/core')).catch(
+      (error) => {
+        /** Let a later overlay try again */
+        deckModulePromise = null
+        throw error
+      },
+    )
   }
   return deckModulePromise
 }

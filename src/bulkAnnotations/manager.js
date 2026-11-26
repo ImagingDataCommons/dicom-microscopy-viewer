@@ -50,6 +50,7 @@ import {
   bucketAnnotations,
   buildTileSubviews,
 } from './geometry/spatialTiles.js'
+import { importLazyChunk } from './lazyImport.js'
 import {
   createBulkAnnotationDeck,
   createDeckOlLayer,
@@ -195,7 +196,13 @@ function colorsEqual(a, b) {
 let layerFactoriesPromise = null
 function loadLayerFactories() {
   if (layerFactoriesPromise == null) {
-    layerFactoriesPromise = import('./layers/index.js')
+    layerFactoriesPromise = importLazyChunk(
+      () => import('./layers/index.js'),
+    ).catch((error) => {
+      /** Let a later load try again */
+      layerFactoriesPromise = null
+      throw error
+    })
   }
   return layerFactoriesPromise
 }
