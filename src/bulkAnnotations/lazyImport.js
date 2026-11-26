@@ -17,23 +17,28 @@ function isChunkLoadError(error) {
 }
 
 /**
- * Point webpack's async chunk loading at the folder DMV's web worker and
- * codecs are served from. Returns whether the public path changed.
+ * Webpack's runtime public path, or `undefined` outside a webpack build.
  *
- * @returns {boolean}
+ * @returns {string|undefined}
  * @private
  */
-function usePublicLibPath() {
+function currentPublicPath() {
   /** Only defined when this code runs from a webpack build of DMV */
   if (typeof __webpack_public_path__ === 'undefined') {
-    return false
+    return undefined
   }
-  const href = getMicroscopyHref()
-  if (__webpack_public_path__ === href) {
-    return false
-  }
+  return __webpack_public_path__
+}
+
+/**
+ * Point webpack's async chunk loading at the folder DMV's web worker and
+ * codecs are served from.
+ *
+ * @param {string} href
+ * @private
+ */
+function setPublicPath(href) {
   __webpack_public_path__ = href
-  return true
 }
 
 /**
@@ -52,16 +57,26 @@ function usePublicLibPath() {
  * @returns {Promise<*>} The module
  */
 export async function importLazyChunk(load) {
+  /** The path this load used: another load may change it meanwhile */
+  const publicPath = currentPublicPath()
   try {
     return await load()
   } catch (error) {
-    if (!isChunkLoadError(error) || !usePublicLibPath()) {
+    if (!isChunkLoadError(error) || publicPath === undefined) {
       throw error
     }
-    console.warn(
-      '[bulkAnnotations] could not load a deck.gl chunk next to the DMV ' +
-        `script; loading it from "${getMicroscopyHref()}"`,
-    )
+    const href = getMicroscopyHref()
+    if (publicPath === href) {
+      /** Already loaded from the library path: nowhere else to look */
+      throw error
+    }
+    if (currentPublicPath() !== href) {
+      console.warn(
+        '[bulkAnnotations] could not load a deck.gl chunk next to the DMV ' +
+          `script; loading it from "${href}"`,
+      )
+      setPublicPath(href)
+    }
     return load()
   }
 }
