@@ -137,6 +137,8 @@ describe('createLabelProxyLayer', () => {
     expect(lut(instance, 2)[3]).toBe(51)
     proxy.setColor([0, 0, 255])
     expect(lut(instance, 2)).toEqual([0, 0, 255, 51])
+    proxy.setInterpolate(true)
+    expect(instance.interpolate).toBe(true)
     proxy.dispose()
     expect(proxy.getVisible()).toBe(false)
     expect(lut(instance, 2)[3]).toBe(0)

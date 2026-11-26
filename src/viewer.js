@@ -3650,8 +3650,7 @@ class VolumeImageViewer {
         return
       }
       if (segment.layer?.isLabelmapDeckProxy) {
-        /** Labels are always drawn unfiltered; fractional values follow */
-        segment.layer.setInterpolate?.(interpolate)
+        segment.layer.setInterpolate(interpolate)
         return
       }
       const wasVisible = segment.layer.getVisible() === true
@@ -6398,6 +6397,8 @@ class VolumeImageViewer {
       fittedPyramid,
       tileGrid,
       refSegmentation,
+      /** Labels drawn as interpolated OpenLayers masks; fractions blended */
+      interpolate: this[_segmentationInterpolate],
       minResolution:
         this[_mapViewResolutions] === undefined || !hasMatchingLevels
           ? undefined
@@ -6413,6 +6414,7 @@ class VolumeImageViewer {
     const perFrameOptions = {
       fittedPyramid,
       refSegmentation,
+      interpolate: this[_segmentationInterpolate],
       fitResolution: fittedPyramid.fitResolution ?? coordinateScaleFactor,
     }
     const firstSegmentNumber = Number(
@@ -6632,7 +6634,6 @@ class VolumeImageViewer {
             key: `${refSegmentation.SeriesInstanceUID}:${segmentNumber}`,
             channel: segmentNumber,
             binary: isBinary,
-            interpolate: isFractional && this[_segmentationInterpolate],
           })
         segment.layer = isFractional
           ? createValueTableProxyLayer(this._labelmapDeckLayers, instance, {

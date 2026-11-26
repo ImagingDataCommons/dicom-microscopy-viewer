@@ -39,6 +39,7 @@ uniform labelmapUniforms {
   vec4 bounds;
   vec4 uvRect;
   float interpolate;
+  float labelMode;
   float windowMin;
   float windowMax;
   float paletteSize;
@@ -53,6 +54,7 @@ const labelmapUniforms = {
     bounds: 'vec4<f32>',
     uvRect: 'vec4<f32>',
     interpolate: 'f32',
+    labelMode: 'f32',
     windowMin: 'f32',
     windowMax: 'f32',
     paletteSize: 'f32',
@@ -118,10 +120,39 @@ uint valueAt(ivec2 texel, ivec2 size) {
   return texelFetch(labelTexture, clamp(texel, ivec2(0), size - 1), 0).r;
 }
 
+vec4 colorOf(uint label) {
+  return vec4(
+    texelFetch(lutTexture, ivec2(int(label & 255u), int(label >> 8u)), 0)
+  ) / 255.0;
+}
+
+/** The higher of two labels that is drawn (not 0, not transparent) */
+uint upperDrawn(uint best, uint label, float weight) {
+  if (weight > 0.0 && label > best && colorOf(label).a > 0.0) {
+    return label;
+  }
+  return best;
+}
+
 void main(void) {
   ivec2 size = textureSize(labelTexture, 0);
   uint label;
-  if (labelmap.interpolate > 0.5) {
+  if (labelmap.interpolate > 0.5 && labelmap.labelMode > 0.5) {
+    /**
+     * As OpenLayers draws an interpolated segment: its 0/1 mask filtered
+     * linearly is drawn wherever it is above 0, so a label shows wherever
+     * one of the four nearest texels holds it; where several do, the
+     * highest label (the segment layer added last) is on top
+     */
+    vec2 position = vUv * vec2(size) - 0.5;
+    ivec2 base = ivec2(floor(position));
+    vec2 t = fract(position);
+    label = 0u;
+    label = upperDrawn(label, valueAt(base, size), (1.0 - t.x) * (1.0 - t.y));
+    label = upperDrawn(label, valueAt(base + ivec2(1, 0), size), t.x * (1.0 - t.y));
+    label = upperDrawn(label, valueAt(base + ivec2(0, 1), size), (1.0 - t.x) * t.y);
+    label = upperDrawn(label, valueAt(base + ivec2(1, 1), size), t.x * t.y);
+  } else if (labelmap.interpolate > 0.5) {
     vec2 position = vUv * vec2(size) - 0.5;
     ivec2 base = ivec2(floor(position));
     vec2 t = fract(position);
@@ -133,8 +164,7 @@ void main(void) {
   } else {
     label = valueAt(ivec2(vUv * vec2(size)), size);
   }
-  vec4 color =
-    vec4(texelFetch(lutTexture, ivec2(int(label & 255u), int(label >> 8u)), 0)) / 255.0;
+  vec4 color = colorOf(label);
   if (color.a == 0.0) {
     discard;
   }
@@ -318,7 +348,7 @@ function loadDeckModules() {
 
         draw() {
           const { model } = this.state
-          const { tiles, lutTexture, interpolate } = this.props
+          const { tiles, lutTexture, interpolate, labelMode } = this.props
           if (model == null || lutTexture == null) {
             return
           }
@@ -328,6 +358,7 @@ function loadDeckModules() {
                 bounds: tile.bounds,
                 uvRect: tile.uvRect,
                 interpolate: interpolate ? 1 : 0,
+                labelMode: labelMode ? 1 : 0,
               },
             })
             model.setBindings({ labelTexture: tile.texture, lutTexture })
@@ -340,6 +371,7 @@ function loadDeckModules() {
         tiles: { type: 'object', value: [], compare: false },
         lutTexture: { type: 'object', value: null, compare: false },
         interpolate: false,
+        labelMode: true,
       }
 
       /** Draws the given float tiles of one parametric map */
@@ -1018,6 +1050,8 @@ export class LabelmapDeckLayers {
           tiles,
           lutTexture: instance.lutTexture,
           interpolate: instance.interpolate,
+          /** Labels (LABELMAP, BINARY), not values through a table */
+          labelMode: instance.valueTable == null,
           windowMin: instance.windowMin,
           windowMax: instance.windowMax,
           paletteSize: instance.paletteSize,
@@ -1075,6 +1109,8 @@ export function createLabelProxyLayer(overlay, instance, label, options) {
     getOpacity: () => overlay.getLabel(instance, label)?.opacity ?? 1,
     setOpacity: (opacity) => overlay.setLabel(instance, label, { opacity }),
     setColor: (color) => overlay.setLabel(instance, label, { color }),
+    setInterpolate: (interpolate) =>
+      overlay.setInterpolate(instance, interpolate),
     setStyle: () => {},
     getSource: () => null,
     setSource: () => {},
