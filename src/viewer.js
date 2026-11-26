@@ -5666,6 +5666,96 @@ class VolumeImageViewer {
    * @private
    */
   /**
+   * The deck.gl layers of segmentations and parametric maps, created on
+   * first use.
+   *
+   * @returns {LabelmapDeckLayers}
+   * @private
+   */
+  _getLabelmapDeckLayers() {
+    if (this._labelmapDeckLayers == null) {
+      this._labelmapDeckLayers = new LabelmapDeckLayers({
+        map: this[_map],
+        overlay: this._getDeckOverlay(),
+      })
+    }
+    return this._labelmapDeckLayers
+  }
+
+  /**
+   * Register a segmentation whose frames are placed one by one (see
+   * `_buildSparseFramePlacements`) with the deck.gl segmentation layers.
+   *
+   * @param {Object} options
+   * @param {string} options.key - Unique per instance
+   * @param {Object} options.fittedPyramid
+   * @param {Object} options.refSegmentation - Metadata of the SEG instance
+   * @param {number} options.fitResolution - Base pixels per SEG pixel
+   * @param {number} options.channel - Segment number whose frames to place
+   * @param {boolean} [options.labelsPerFrame] - Stamp frames with their
+   *   labels (LABELMAP)
+   * @param {boolean} [options.binary] - Every value but 0 is the segment
+   * @param {boolean} [options.interpolate] - Blend values before the lookup
+   * @returns {Object} instance
+   * @private
+   */
+  _addPerFrameDeckInstance({
+    key,
+    fittedPyramid,
+    refSegmentation,
+    fitResolution,
+    channel,
+    labelsPerFrame = false,
+    binary = false,
+    interpolate = false,
+  }) {
+    const segMetadata =
+      fittedPyramid.metadata[fittedPyramid.metadata.length - 1]
+    const client = _getClient(this[_clients], refSegmentation.SOPClassUID)
+    const placements = _buildSparseFramePlacements(
+      segMetadata,
+      fitResolution,
+      fittedPyramid.pixelOriginOffset || [0, 0],
+      channel,
+    )
+    const frames = placements.map((placement) => {
+      const { pyramid: framePyramid, nativeSize } = _buildPerFrameImagePyramid({
+        placement,
+        fitResolution,
+        segmentation: segMetadata,
+        channelId: channel,
+      })
+      let loader
+      return {
+        extent: [...placement.extent],
+        nativeSize,
+        loader: () => {
+          if (loader == null) {
+            loader = _createTileLoadFunction({
+              targetElement: this[_map].getTargetElement() || this[_container],
+              iccProfiles: [],
+              pyramid: framePyramid,
+              client,
+              channel,
+              rawLabels: true,
+            })
+          }
+          return loader(0, 0, 0)
+        },
+      }
+    })
+    return this._getLabelmapDeckLayers().addInstance(key, {
+      extent: fittedPyramid.extent,
+      frames,
+      frameMaxResolution: _perFrameRasterMaxResolution(fitResolution),
+      bitsAllocated: refSegmentation.BitsAllocated,
+      labelsPerFrame,
+      binary,
+      interpolate,
+    })
+  }
+
+  /**
    * Register a tiled segmentation instance with the deck.gl segmentation
    * layers, whose tiles hold raw label values.
    *
@@ -5699,14 +5789,8 @@ class VolumeImageViewer {
     float = false,
     minResolution,
   }) {
-    if (this._labelmapDeckLayers == null) {
-      this._labelmapDeckLayers = new LabelmapDeckLayers({
-        map: this[_map],
-        overlay: this._getDeckOverlay(),
-      })
-    }
     let rawLoader
-    return this._labelmapDeckLayers.addInstance(key, {
+    return this._getLabelmapDeckLayers().addInstance(key, {
       tileGrid,
       extent: fittedPyramid.extent,
       bitsAllocated,
@@ -6308,7 +6392,6 @@ class VolumeImageViewer {
     const isBinary = refSegmentation.SegmentationType === 'BINARY'
     const useDeckRenderer =
       (isLabelmap || isBinary || isFractional) &&
-      !fittedPyramid.usePerFramePlacement &&
       this[_options].segmentationRenderer !== 'openlayers' &&
       !(isLabelmap && this[_options].labelmapRenderer === 'openlayers')
     const deckInstanceOptions = {
@@ -6322,14 +6405,34 @@ class VolumeImageViewer {
             ? this[_pyramid].resolutions[minZoomLevel]
             : undefined,
     }
-    const labelmapDeckInstance =
-      useDeckRenderer && isLabelmap
-        ? this._addSegmentationDeckInstance({
+    /**
+     * Frames placed one by one (TILED_SPARSE frames whose offsets a shared
+     * tile grid cannot hold) are drawn by deck.gl too, each at its own
+     * placement, with a stamp over each frame while it is small on screen
+     */
+    const perFrameOptions = {
+      fittedPyramid,
+      refSegmentation,
+      fitResolution: fittedPyramid.fitResolution ?? coordinateScaleFactor,
+    }
+    const firstSegmentNumber = Number(
+      refSegmentation.SegmentSequence[0].SegmentNumber,
+    )
+    let labelmapDeckInstance
+    if (useDeckRenderer && isLabelmap) {
+      labelmapDeckInstance = fittedPyramid.usePerFramePlacement
+        ? this._addPerFrameDeckInstance({
+            ...perFrameOptions,
+            key: refSegmentation.SeriesInstanceUID,
+            channel: firstSegmentNumber,
+            labelsPerFrame: true,
+          })
+        : this._addSegmentationDeckInstance({
             ...deckInstanceOptions,
             key: refSegmentation.SeriesInstanceUID,
-            channel: Number(refSegmentation.SegmentSequence[0].SegmentNumber),
+            channel: firstSegmentNumber,
           })
-        : undefined
+    }
 
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
@@ -6521,7 +6624,32 @@ class VolumeImageViewer {
        * at the PlanePosition extent keeps alignment. Overview stamps cover
        * resolutions where that raster is skipped or samples to empty.
        */
-      if (fittedPyramid.usePerFramePlacement) {
+      if (fittedPyramid.usePerFramePlacement && useDeckRenderer) {
+        const instance =
+          labelmapDeckInstance ??
+          this._addPerFrameDeckInstance({
+            ...perFrameOptions,
+            key: `${refSegmentation.SeriesInstanceUID}:${segmentNumber}`,
+            channel: segmentNumber,
+            binary: isBinary,
+            interpolate: isFractional && this[_segmentationInterpolate],
+          })
+        segment.layer = isFractional
+          ? createValueTableProxyLayer(this._labelmapDeckLayers, instance, {
+              opacity: segment.style.opacity,
+              table: _getSegmentValueTable(segment),
+            })
+          : createLabelProxyLayer(
+              this._labelmapDeckLayers,
+              instance,
+              isLabelmap ? segmentNumber : 1,
+              {
+                opacity: segment.style.opacity,
+                color: _getLabelmapSegmentColor(segment),
+              },
+            )
+        segment.hasLoader = true
+      } else if (fittedPyramid.usePerFramePlacement) {
         const segMetadata =
           fittedPyramid.metadata[fittedPyramid.metadata.length - 1]
         const fitResolution =

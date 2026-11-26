@@ -10,6 +10,7 @@ import {
   LabelmapDeckLayers,
   padRowsForUpload,
   paletteValueTable,
+  presentLabels,
 } from './labelmapDeck.js'
 
 function createLayers() {
@@ -267,5 +268,79 @@ describe('createFloatMapProxyLayer', () => {
     proxy.dispose()
     expect(proxy.getVisible()).toBe(false)
     expect(instance.visibleCount).toBe(0)
+  })
+})
+
+describe('presentLabels', () => {
+  it('lists the labels other than 0 of a frame', () => {
+    expect(presentLabels(Uint8Array.from([0, 3, 3, 1, 0]))).toEqual([1, 3])
+    expect(presentLabels(Uint16Array.from([0, 300, 2]))).toEqual([2, 300])
+    expect(presentLabels(new Uint8Array(4))).toEqual([])
+  })
+})
+
+describe('per-frame instances', () => {
+  function createFrameInstance(options = {}) {
+    const { layers } = createLayers()
+    layers.device = {
+      createTexture: jest.fn((props) => ({ id: props.id, destroy: jest.fn() })),
+    }
+    layers.frameId = 1
+    const loader = jest.fn(() => new Promise(() => {}))
+    const instance = layers.addInstance('series-1', {
+      extent: [0, 0, 100, 100],
+      frames: [{ extent: [0, 0, 100, 100], nativeSize: [100, 100], loader }],
+      frameMaxResolution: 2,
+      ...options,
+    })
+    return { layers, instance, loader }
+  }
+  const frameState = (resolution) => ({
+    viewState: { resolution, rotation: 0 },
+    extent: [-1000, -1000, 1000, 1000],
+  })
+
+  it('stamps a frame small on screen without loading it', () => {
+    const { layers, instance } = createFrameInstance()
+    /** 100 map units at 10 per pixel: 10 px, grown to the 12 px minimum */
+    const drawn = layers._collectFrames(instance, frameState(10))
+    expect(drawn).toHaveLength(1)
+    expect(drawn[0].bounds).toEqual([-10, -10, 110, 110])
+    expect(drawn[0].texture.id).toBe('labelmap-value-8:1')
+    expect(instance.tiles.size).toBe(0)
+  })
+
+  it('draws a loaded frame below the raster resolution, without a stamp', () => {
+    const { layers, instance } = createFrameInstance()
+    /** 100 map units at 0.5 per pixel: 200 px, past the stamp handoff */
+    expect(layers._collectFrames(instance, frameState(0.5))).toEqual([])
+    const tile = instance.tiles.get('0/0/0')
+    expect(tile.state).toBe('queued')
+    layers._onTileLoaded(tile, {
+      labels: new Uint8Array(100 * 100).fill(1),
+      width: 100,
+      height: 100,
+    })
+    const drawn = layers._collectFrames(instance, frameState(0.5))
+    expect(drawn).toHaveLength(1)
+    expect(drawn[0].bounds).toEqual([0, 0, 100, 100])
+  })
+
+  it('stamps a LABELMAP frame with the labels it holds once loaded', () => {
+    const { layers, instance } = createFrameInstance({ labelsPerFrame: true })
+    /** 1.5 per pixel: below the raster resolution, still a stamp */
+    expect(layers._collectFrames(instance, frameState(1.5))).toEqual([])
+    const tile = instance.tiles.get('0/0/0')
+    const labels = new Uint8Array(100 * 100)
+    labels[5] = 2
+    labels[9] = 4
+    layers._onTileLoaded(tile, { labels, width: 100, height: 100 })
+    const drawn = layers._collectFrames(instance, frameState(1.5))
+    /** The raster, then a stamp per label */
+    expect(drawn.map((item) => item.texture.id)).toEqual([
+      'labelmap-tile-series-1|0/0/0',
+      'labelmap-value-8:2',
+      'labelmap-value-8:4',
+    ])
   })
 })

@@ -27,6 +27,7 @@ import {
 import { importLazyChunk } from '../bulkAnnotations/lazyImport.js'
 import { rotationModelMatrix } from '../bulkAnnotations/viewState.js'
 import { DECK_SOURCE_ORDER } from '../deckOverlay.js'
+import { _overviewStampExtent } from '../pyramid.js'
 
 /** Tiles loading at once, over all instances */
 const MAX_LOADING = 24
@@ -251,6 +252,26 @@ export function paletteValueTable({ colormap, windowCenter, windowWidth }) {
   return table
 }
 
+/**
+ * The labels other than 0 that occur in a frame, ascending.
+ *
+ * @param {Uint8Array|Uint16Array} labels
+ * @returns {number[]}
+ */
+export function presentLabels(labels) {
+  const seen = new Uint8Array(labels.BYTES_PER_ELEMENT > 1 ? 65536 : 256)
+  for (let i = 0; i < labels.length; i++) {
+    seen[labels[i]] = 1
+  }
+  const present = []
+  for (let label = 1; label < seen.length; label++) {
+    if (seen[label] === 1) {
+      present.push(label)
+    }
+  }
+  return present
+}
+
 let deckModulesPromise = null
 
 /**
@@ -442,6 +463,16 @@ export class LabelmapDeckLayers {
    *   Resolves `{labels, width, height, isEmpty}` for (z, column, row)
    * @param {number} [options.minResolution] - Hidden below this resolution
    * @param {number} [options.bitsAllocated] - 8 or 16
+   * @param {Array<{extent: number[], nativeSize: number[], loader: function(): Promise<Object>}>} [options.frames]
+   *   Frames placed one by one instead of a tile grid (per-frame
+   *   segmentations); `loader` resolves like the tile loader
+   * @param {number} [options.frameMaxResolution] - Frames are drawn below
+   *   this resolution; above it, and while a frame is small on screen, a
+   *   stamp of its color marks it
+   * @param {boolean} [options.labelsPerFrame] - Stamp a frame with each label
+   *   it holds (LABELMAP); otherwise with `stampValue`
+   * @param {number} [options.stampValue] - Value a frame's stamp is drawn
+   *   with when its labels are not tracked
    * @returns {Object} instance
    */
   addInstance(
@@ -455,6 +486,10 @@ export class LabelmapDeckLayers {
       binary = false,
       interpolate = false,
       float = false,
+      frames,
+      frameMaxResolution = Infinity,
+      labelsPerFrame = false,
+      stampValue = 1,
     },
   ) {
     const rows = bitsAllocated > 8 && !float ? 256 : 1
@@ -470,6 +505,10 @@ export class LabelmapDeckLayers {
       interpolate,
       /** Float values through a palette (parametric maps), not labels */
       float,
+      frames,
+      frameMaxResolution,
+      labelsPerFrame,
+      stampValue,
       paletteSize: 256,
       windowMin: 0,
       windowMax: 1,
@@ -479,6 +518,10 @@ export class LabelmapDeckLayers {
       labels: new Map(),
       visibleCount: 0,
       tiles: new Map(),
+    }
+    if (frames != null) {
+      /** A frame is a tile of its own: (0, index, 0) */
+      instance.loader = (_z, index) => frames[index].loader()
     }
     this.instances.set(key, instance)
     if (this.device != null) {
@@ -719,6 +762,9 @@ export class LabelmapDeckLayers {
     tile.labels = result.labels ?? result.values
     tile.width = result.width
     tile.height = result.height
+    if (tile.instance.labelsPerFrame) {
+      tile.present = presentLabels(tile.labels)
+    }
     tile.state = 'loaded'
   }
 
@@ -754,6 +800,90 @@ export class LabelmapDeckLayers {
   }
 
   /**
+   * Frames of a per-frame instance to draw this frame: the loaded frames
+   * in view below the raster resolution, then a stamp over each frame that
+   * is small on screen (as the OpenLayers overview stamps), drawn with the
+   * frame's labels or the instance's stamp value through its table.
+   *
+   * @private
+   */
+  _collectFrames(instance, frameState) {
+    const { viewState, extent: viewExtent } = frameState
+    const resolution = viewState.resolution
+    const drawsRasters = resolution < instance.frameMaxResolution
+    const rasters = []
+    const stamps = []
+    instance.frames.forEach((frame, index) => {
+      const stampExtent = _overviewStampExtent(
+        frame.extent,
+        resolution,
+        frame.nativeSize,
+      )
+      if (!extentsIntersect(viewExtent, stampExtent ?? frame.extent)) {
+        return
+      }
+      const tile = this._getTile(instance, 0, index, 0, drawsRasters)
+      if (tile != null && drawsRasters) {
+        tile.wanted = this.frameId
+      }
+      if (drawsRasters && tile?.state === 'loaded') {
+        rasters.push({ tile, bounds: frame.extent, uvRect: [0, 0, 1, 1] })
+      }
+      if (stampExtent == null) {
+        return
+      }
+      const values = instance.labelsPerFrame
+        ? (tile?.present ?? [])
+        : [instance.stampValue]
+      for (const value of values) {
+        stamps.push({
+          bounds: stampExtent,
+          uvRect: [0, 0, 1, 1],
+          texture: this._valueTexture(value, instance),
+        })
+      }
+    })
+    const result = []
+    for (const item of rasters) {
+      item.tile.usedFrame = this.frameId
+      result.push({
+        bounds: item.bounds,
+        uvRect: item.uvRect,
+        texture: this._ensureTexture(item.tile),
+      })
+    }
+    return [...result, ...stamps]
+  }
+
+  /**
+   * A 1 x 1 texture holding `value`, to draw a stamp through a table.
+   *
+   * @private
+   */
+  _valueTexture(value, instance) {
+    const is16 = instance.lutRows > 1
+    const key = `${is16 ? 16 : 8}:${value}`
+    if (this.valueTextures == null) {
+      this.valueTextures = new Map()
+    }
+    let texture = this.valueTextures.get(key)
+    if (texture == null) {
+      const data = is16 ? Uint16Array.of(value) : Uint8Array.of(value)
+      texture = this.device.createTexture({
+        id: `labelmap-value-${key}`,
+        format: is16 ? 'r16uint' : 'r8uint',
+        width: 1,
+        height: 1,
+        data: padRowsForUpload(data, 1, 1),
+        mipmaps: false,
+        sampler: { minFilter: 'nearest', magFilter: 'nearest' },
+      })
+      this.valueTextures.set(key, texture)
+    }
+    return texture
+  }
+
+  /**
    * Tiles of one instance to draw this frame: the tiles of the view's level
    * that are loaded, and for those still loading, their nearest loaded
    * ancestor cropped to their footprint.
@@ -761,6 +891,9 @@ export class LabelmapDeckLayers {
    * @private
    */
   _collectTiles(instance, frameState) {
+    if (instance.frames != null) {
+      return this._collectFrames(instance, frameState)
+    }
     const { viewState, extent: viewExtent } = frameState
     const resolution = viewState.resolution
     if (instance.minResolution != null && resolution < instance.minResolution) {
@@ -905,6 +1038,10 @@ export class LabelmapDeckLayers {
       tile.texture?.destroy()
     }
     this.textures.clear()
+    for (const texture of this.valueTextures?.values() ?? []) {
+      texture.destroy()
+    }
+    this.valueTextures?.clear()
     for (const instance of this.instances.values()) {
       instance.lutTexture?.destroy()
     }
