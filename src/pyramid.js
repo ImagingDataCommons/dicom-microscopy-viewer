@@ -2186,7 +2186,6 @@ function _computeSegmentBoundingBoxes(
 }
 
 export {
-  EmptyLabelmapTileError,
   _areImagePyramidsEqual,
   _buildPerFrameImagePyramid,
   _buildSparseFramePlacements,
@@ -2211,6 +2210,7 @@ export {
   _retrieveTile,
   _retrieveWithSignal,
   _showCanvasInImage,
+  EmptyLabelmapTileError,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
   PER_FRAME_OVERVIEW_HANDOFF_RATIO,
   PER_FRAME_OVERVIEW_MIN_PX,
