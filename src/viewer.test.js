@@ -960,6 +960,19 @@ describe.each(testCases)('test viewer API for annotation groups of "$name"', ({
     }
   })
 
+  it('should fill annotation groups for the documented fill option', () => {
+    if (inputs.annotations.length === 0) return
+    inputs.annotations.forEach(metadata => {
+      viewer.addAnnotationGroups(metadata)
+    })
+    const uid = Object.keys(expectations.annotationGroups)[0]
+    viewer.setAnnotationGroupStyle(uid, { fill: true, fillOpacity: 0.5 })
+    expect(viewer.getAnnotationGroupStyle(uid).filled).toBe(true)
+    expect(viewer.getAnnotationGroupStyle(uid).fillOpacity).toBe(0.5)
+    viewer.setAnnotationGroupStyle(uid, { fill: false })
+    expect(viewer.getAnnotationGroupStyle(uid).filled).toBe(false)
+  })
+
   it('should stop coloring by a measurement for measurement: null', () => {
     if (inputs.annotations.length === 0) return
     inputs.annotations.forEach(metadata => {

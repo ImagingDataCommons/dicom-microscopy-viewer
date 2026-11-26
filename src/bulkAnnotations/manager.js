@@ -509,9 +509,17 @@ export class BulkAnnotationManager {
       : null
   }
 
-  setAnnotationGroupStyle(uid, styleOptions = {}) {
+  setAnnotationGroupStyle(uid, options = {}) {
     getProfiler().start('setAnnotationGroupStyle', uid)
     const g = this._requireGroup(uid)
+    /**
+     * `fill` is the documented name of the viewer API (and what Slim sends);
+     * `filled` is this manager's own. `filled` wins when both are given.
+     */
+    const styleOptions =
+      options.filled == null && options.fill != null
+        ? { ...options, filled: options.fill }
+        : options
 
     // Track which properties changed for optimization decisions
     const colorChanged =
