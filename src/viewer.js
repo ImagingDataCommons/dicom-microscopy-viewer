@@ -5769,10 +5769,15 @@ class VolumeImageViewer {
                     `${errors[index]}: ${result.reason}`,
                   )
                   errorInterceptor(customError)
-                  failure()
                 }
               })
               if (hasFailure) {
+                /**
+                 * Once per load, however many retrievals failed: each call is
+                 * a features load error event, and listeners pair them with
+                 * the load's start
+                 */
+                failure()
                 return
               }
               console.info('retrieve and cache bulk annotations')
