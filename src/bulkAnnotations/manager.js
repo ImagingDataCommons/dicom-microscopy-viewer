@@ -462,6 +462,8 @@ export class BulkAnnotationManager {
       color: g.style.color,
       filled: g.style.filled,
       fillOpacity: g.style.fillOpacity,
+      /** Coded concept used for pseudo-coloring, `undefined` when none */
+      measurement: g.style.measurement,
     }
   }
 

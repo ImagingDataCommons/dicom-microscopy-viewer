@@ -959,6 +959,48 @@ describe.each(testCases)('test viewer API for annotation groups of "$name"', ({
       expect(style).toEqual(expectedStyle)
     }
   })
+
+  it('should stop coloring by a measurement for measurement: null', () => {
+    if (inputs.annotations.length === 0) return
+    inputs.annotations.forEach(metadata => {
+      viewer.addAnnotationGroups(metadata)
+    })
+    const annotationGroupUIDs = Object.keys(expectations.annotationGroups)
+    /** Cases with annotations must have a group to test */
+    expect(annotationGroupUIDs.length).toBeGreaterThan(0)
+    const uid = annotationGroupUIDs[0]
+    const measurement = {
+      CodeValue: '42798000',
+      CodingSchemeDesignator: 'SCT',
+      CodeMeaning: 'Area'
+    }
+    viewer.setAnnotationGroupStyle(uid, { measurement })
+    expect(viewer.getAnnotationGroupStyle(uid).measurement).toBe(measurement)
+    viewer.setAnnotationGroupStyle(uid, { color: [0, 0, 255] })
+    expect(viewer.getAnnotationGroupStyle(uid).measurement).toBe(measurement)
+    viewer.setAnnotationGroupStyle(uid, { measurement: null })
+    expect(viewer.getAnnotationGroupStyle(uid).measurement).toBeUndefined()
+  })
+
+  it('should reject a measurement the annotation group does not have', () => {
+    if (inputs.annotations.length === 0) return
+    inputs.annotations.forEach(metadata => {
+      viewer.addAnnotationGroups(metadata)
+    })
+    const uid = Object.keys(expectations.annotationGroups)[0]
+    const unknown = {
+      CodeValue: '0000',
+      CodingSchemeDesignator: '99TEST',
+      CodeMeaning: 'Unknown'
+    }
+    expect(() => {
+      viewer.setAnnotationGroupStyle(uid, { measurement: unknown, opacity: 0.3 })
+    }).toThrow('Could not find measurement "Unknown"')
+    /** Nothing was changed */
+    const style = viewer.getAnnotationGroupStyle(uid)
+    expect(style.measurement).toBeUndefined()
+    expect(style.opacity).not.toBe(0.3)
+  })
 })
 
 describe.each(testCases)('test viewer API for segments of "$name"', ({
@@ -1019,6 +1061,27 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
         expectedStyle.paletteColorLookupTable.data
       )
     })
+  })
+
+  it('should draw a new segment at the opacity of its style', () => {
+    /**
+     * A segment shown without style options must look like getSegmentStyle
+     * says. Layers created at opacity 1 drew LABELMAP and FRACTIONAL
+     * segments opaque until an application set the opacity explicitly.
+     */
+    const map = viewer.getMap()
+    const before = new Set(map.getLayers().getArray())
+    inputs.segmentations.forEach(metadata => {
+      viewer.addSegments(metadata)
+    })
+    const added = map.getLayers().getArray().filter(layer => !before.has(layer))
+    const segmentUIDs = Object.keys(expectations.segments)
+    expect(added.length).toEqual(segmentUIDs.length)
+    segmentUIDs.forEach(uid => {
+      viewer.showSegment(uid)
+    })
+    const styleOpacities = segmentUIDs.map(uid => viewer.getSegmentStyle(uid).opacity)
+    expect(added.map(layer => layer.getOpacity())).toEqual(styleOpacities)
   })
 
   it('should set segment style', () => {

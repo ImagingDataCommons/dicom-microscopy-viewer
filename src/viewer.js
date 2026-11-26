@@ -93,10 +93,12 @@ import {
   _generateUID,
   _getUnitSuffix,
   applyTransform,
+  areCodedConceptsEqual,
   computeRotation,
   createWindow,
   detectDisplayColorSpace,
   doContentItemsMatch,
+  getContentItemNameCodedConcept,
 } from './utils.js'
 import webWorkerManager from './webWorker/webWorkerManager.js'
 
@@ -1383,8 +1385,8 @@ class VolumeImageViewer {
    * origin servers, depending on the type of DICOM object. Using a mapping can
    * be usedful, for example, if images, image annotations, or image analysis
    * results are stored in different archives.
-   * @param {number} [options.preload=0] - Number of resolution levels that
-   * should be preloaded
+   * @param {boolean} [options.preload=false] - Whether the next coarser
+   * resolution level should be preloaded; a positive number also turns it on
    * @param {string[]} [options.controls=[]] - Names of viewer control elements
    * that should be included in the viewport
    * @param {boolean} [options.debug=false] - Whether debug features should be
@@ -1523,11 +1525,13 @@ class VolumeImageViewer {
 
     applyViewerOptions(this[_options])
 
-    if (this[_options].preload == null) {
-      this[_options].preload = false
-    } else {
-      this[_options].preload = true
-    }
+    /**
+     * Only `true`, or a positive number of levels, turns preloading on, so
+     * that `preload: false` keeps it off
+     */
+    const { preload } = this[_options]
+    this[_options].preload =
+      preload === true || (Number.isFinite(preload) && preload > 0)
 
     if (this[_options].tilesCacheSize == null) {
       this[_options].tilesCacheSize = 1000
@@ -3260,16 +3264,33 @@ class VolumeImageViewer {
   }
 
   /**
+   * Whether ICC profiles are applied to the tiles. It changes only once a
+   * toggle has swapped the tile loaders, so it keeps its value when a toggle
+   * fails.
+   *
+   * @returns {boolean} True when ICC profiles are enabled
+   */
+  isICCProfilesEnabled() {
+    return this[_isICCProfilesEnabled]
+  }
+
+  /**
    * Toggle ICC profiles.
    *
-   * @returns {void}
+   * @returns {Promise<void>} Settles once the tile loaders were swapped (the
+   * new tiles are drawn on the following renders); never rejects, failures
+   * go to the error interceptor. Read the outcome with isICCProfilesEnabled()
    */
   toggleICCProfiles() {
     console.debug('toggle ICC profiles:', this[_isICCProfilesEnabled])
-    this.configureDataLoaders(!this[_isICCProfilesEnabled])
+    const enabled = !this[_isICCProfilesEnabled]
+    return this.configureDataLoaders(enabled)
       .then(() => {
-        // Update the toggle if reloading was successful
-        this[_isICCProfilesEnabled] = !this[_isICCProfilesEnabled]
+        /**
+         * Set the target rather than flipping, so two toggles that overlap
+         * cannot leave the flag opposite to the loaders
+         */
+        this[_isICCProfilesEnabled] = enabled
       })
       .catch((error) => {
         console.error('Failed to toggle ICC profiles:', error)
@@ -4323,17 +4344,29 @@ class VolumeImageViewer {
   }
 
   /**
-   * Navigate the view to a spatial position or resolution level.
+   * Navigate the view to a spatial position and resolution.
+   *
+   * The view is animated to the resolution of the pyramid level, or to
+   * `resolution` when given, whether or not the view is constrained to the
+   * resolutions of the tile grid (`useTileGridResolutions`).
    *
    * @param {Object} options - Options.
-   * @param {number} options.level - Zoom level.
-   * @param {number[]} options.position - X, Y coordinates in slide coordinate system.
+   * @param {number} [options.level] - Index of a pyramid level (0 is the
+   * coarsest level, as for {@link viewer.VolumeImageViewer#getPixelSpacing})
+   * @param {number} [options.resolution] - Size of a screen pixel in
+   * millimeter, as in {@link viewer.VolumeImageViewer#getViewState}; takes
+   * precedence over `level`
+   * @param {number[]} [options.position] - X, Y coordinates in slide
+   * coordinate system.
    */
-  navigate({ level, position }) {
-    if (level > this.numLevels) {
+  navigate({ level, position, resolution } = {}) {
+    if (
+      level != null &&
+      !(Number.isInteger(level) && level >= 0 && level < this.numLevels)
+    ) {
       const error = new CustomError(
         errorTypes.VISUALIZATION,
-        'Argument "level" exceeds number of resolution levels.',
+        `Argument "level" must be an integer from 0 to ${this.numLevels - 1}.`,
       )
       throw this[_options].errorInterceptor(error)
     }
@@ -4343,11 +4376,36 @@ class VolumeImageViewer {
       coordinates = _scoord3dCoordinates2geometryCoordinates(
         position,
         this[_affineInverse],
+      ).slice(0, 2)
+    }
+
+    if (
+      resolution != null &&
+      !(Number.isFinite(resolution) && resolution > 0)
+    ) {
+      const error = new CustomError(
+        errorTypes.VISUALIZATION,
+        'Argument "resolution" must be a number greater than 0.',
       )
+      throw this[_options].errorInterceptor(error)
+    }
+
+    /**
+     * Animate by resolution, not by zoom: OpenLayers zoom levels match the
+     * pyramid levels only when the view uses the tile grid resolutions
+     */
+    let mapResolution
+    if (resolution != null) {
+      mapResolution = resolution / this._getBasePixelSpacing()
+    } else if (level != null) {
+      mapResolution = this[_pyramid].resolutions[level]
     }
 
     const view = this[_map].getView()
-    view.animate({ zoom: level, center: coordinates })
+    view.animate({
+      center: coordinates,
+      ...(mapResolution !== undefined ? { resolution: mapResolution } : {}),
+    })
   }
 
   /**
@@ -5750,8 +5808,9 @@ class VolumeImageViewer {
    * (POLYGON, RECTANGLE, ELLIPSE) are rendered filled
    * @param {number} [styleOptions.fillOpacity] - Fill opacity, applied when
    * `filled` is true
-   * @param {Object} [styleOptions.measurement] - Selected measurement for
-   * pseudo-coloring of annotations using measurement values
+   * @param {Object|null} [styleOptions.measurement] - Selected measurement for
+   * pseudo-coloring of annotations using measurement values; `null` stops
+   * coloring by a measurement
    * @param {boolean} [styleOptions.fill] - Whether to fill polygon annotations
    * @param {number} [styleOptions.fillOpacity] - Opacity of fill (0-1)
    * @returns {void}
@@ -5769,6 +5828,34 @@ class VolumeImageViewer {
       `set style for annotation group "${annotationGroupUID}"`,
       styleOptions,
     )
+    const annotationGroup = this[_annotationGroups][annotationGroupUID]
+
+    /**
+     * Reject a measurement the group does not have before changing anything,
+     * so the style never refers to a measurement that cannot be drawn
+     */
+    if (styleOptions.measurement != null) {
+      const measurements =
+        annotationGroup.metadata?.AnnotationGroupSequence?.find((item) => {
+          return item.AnnotationGroupUID === annotationGroupUID
+        })?.MeasurementsSequence ?? []
+      const isKnownMeasurement = measurements.some((item) => {
+        return areCodedConceptsEqual(
+          styleOptions.measurement,
+          getContentItemNameCodedConcept(item),
+        )
+      })
+      if (!isKnownMeasurement) {
+        const error = new CustomError(
+          errorTypes.VISUALIZATION,
+          'Cannot set style of annotation group. ' +
+            `Could not find measurement "${styleOptions.measurement.CodeMeaning}" ` +
+            `of annotation group "${annotationGroupUID}".`,
+        )
+        throw this[_options].errorInterceptor(error) || error
+      }
+    }
+
     this._getBulkAnnotationManager().setAnnotationGroupStyle(
       annotationGroupUID,
       styleOptions,
@@ -5815,7 +5902,10 @@ class VolumeImageViewer {
    * @param {string} annotationGroupUID - Unique identifier of an annotation
    * group
    *
-   * @returns {Object} - Style settings
+   * @returns {Object} - Style settings: `opacity`, `color` (RGB triplet) and
+   * `measurement`, the coded concept of the measurement used for
+   * pseudo-coloring, or `undefined` when the group is not colored by a
+   * measurement
    */
   getAnnotationGroupStyle(annotationGroupUID) {
     if (!(annotationGroupUID in this[_annotationGroups])) {
@@ -5833,6 +5923,7 @@ class VolumeImageViewer {
       color: annotationGroup.style.color,
       filled: annotationGroup.style.filled,
       fillOpacity: annotationGroup.style.fillOpacity,
+      measurement: annotationGroup.style.measurement,
     }
   }
 
@@ -6310,7 +6401,11 @@ class VolumeImageViewer {
         segment.layer = new LayerGroup({
           layers: [...frameLayers, overviewLayer],
           visible: false,
-          opacity: 1,
+          /**
+           * Start at the style's opacity, as getSegmentStyle reports it, so
+           * a segment shown without style options is not drawn opaque.
+           */
+          opacity: segment.style.opacity,
         })
       } else {
         segment.onTileLoadError = (event) => {
@@ -6338,7 +6433,8 @@ class VolumeImageViewer {
           source,
           extent: this[_pyramid].extent,
           visible: false,
-          opacity: 1,
+          /** Start at the style's opacity, as getSegmentStyle reports it */
+          opacity: segment.style.opacity,
           preload: this[_options].preload ? 1 : 0,
           transition: 0,
           style: paletteStyle,

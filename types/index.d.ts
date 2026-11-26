@@ -414,6 +414,13 @@ export namespace viewer {
       matrix: readonly number[] | null | undefined,
       options?: { colorSpace?: 'srgb' | 'linear-srgb' },
     ): void
+    /**
+     * Swaps the tile loaders; settles once they are swapped and never
+     * rejects (failures go to the error interceptor)
+     */
+    toggleICCProfiles(): Promise<void>
+    /** Whether ICC profiles are applied; unchanged by a toggle that failed */
+    isICCProfilesEnabled(): boolean
     /** @deprecated Use the view API and events instead of the OpenLayers map */
     getMap(): any
     /** Methods that are not typed exactly yet */
