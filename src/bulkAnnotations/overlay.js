@@ -64,8 +64,20 @@ export async function createBulkAnnotationDeck({
       controller: false,
     })
 
+    /**
+     * deck.gl writes its cursor on its parent's style on every update. The
+     * application's viewport element (the map target) styles its own
+     * cursor, e.g. Slim's busy cursor, so the Deck gets a parent of its own
+     */
+    const deckParent = document.createElement('div')
+    deckParent.className = 'dmv-deck-parent'
+    deckParent.style.position = 'absolute'
+    deckParent.style.inset = '0'
+    deckParent.style.pointerEvents = 'none'
+    parent.appendChild(deckParent)
+
     return new Deck({
-      parent,
+      parent: deckParent,
       views: [view],
       controller: false,
       style: {
@@ -164,7 +176,9 @@ export function disposeBulkAnnotationOverlay({ deck, olLayer, map }) {
   }
   if (deck != null) {
     try {
+      const deckParent = deck.props?.parent
       deck.finalize()
+      deckParent?.remove?.()
     } catch (error) {
       console.warn('[bulkAnnotations] Deck finalize failed', error)
     }
