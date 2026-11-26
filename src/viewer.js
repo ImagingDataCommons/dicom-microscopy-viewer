@@ -92,6 +92,7 @@ import {
   createFloatMapProxyLayer,
   createLabelProxyLayer,
   createValueTableProxyLayer,
+  frameTileIndex,
   LabelmapDeckLayers,
   paletteValueTable,
 } from './segmentation/labelmapDeck.js'
@@ -5743,8 +5744,20 @@ class VolumeImageViewer {
         },
       }
     })
+    const framesExtent = frames.reduce(
+      (extent, frame) =>
+        extent == null
+          ? [...frame.extent]
+          : [
+              Math.min(extent[0], frame.extent[0]),
+              Math.min(extent[1], frame.extent[1]),
+              Math.max(extent[2], frame.extent[2]),
+              Math.max(extent[3], frame.extent[3]),
+            ],
+      null,
+    )
     return this._getLabelmapDeckLayers().addInstance(key, {
-      extent: fittedPyramid.extent,
+      extent: framesExtent ?? fittedPyramid.extent,
       frames,
       frameMaxResolution: _perFrameRasterMaxResolution(fitResolution),
       bitsAllocated: refSegmentation.BitsAllocated,
@@ -5789,9 +5802,25 @@ class VolumeImageViewer {
     minResolution,
   }) {
     let rawLoader
+    /**
+     * Only where the instance has frames: a sparse instance of one region
+     * must not walk, nor load, the slide's whole tile grid on every frame
+     */
+    const tiles = float
+      ? /**
+         * Parametric maps keep every tile: OpenLayers draws a missing
+         * tile's fill value through the palette
+         */
+        { extent: null, has: undefined }
+      : frameTileIndex({
+          frameMappings: fittedPyramid.frameMappings,
+          channel,
+          tileGrid,
+        })
     return this._getLabelmapDeckLayers().addInstance(key, {
       tileGrid,
-      extent: fittedPyramid.extent,
+      extent: tiles.extent ?? fittedPyramid.extent,
+      hasTile: tiles.extent != null ? tiles.has : undefined,
       bitsAllocated,
       binary,
       interpolate,

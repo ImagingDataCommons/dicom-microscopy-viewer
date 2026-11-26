@@ -7,6 +7,7 @@ import {
   createFloatMapProxyLayer,
   createLabelProxyLayer,
   createValueTableProxyLayer,
+  frameTileIndex,
   LabelmapDeckLayers,
   padRowsForUpload,
   paletteValueTable,
@@ -344,5 +345,66 @@ describe('per-frame instances', () => {
       'labelmap-value-8:2',
       'labelmap-value-8:4',
     ])
+  })
+})
+
+describe('sparse instances', () => {
+  /** One level of 100 x 100 tiles of 256 units: a slide of 25,600 units */
+  const tileGrid = new TileGrid({
+    extent: [0, -25600, 25600, 0],
+    origin: [0, 0],
+    resolutions: [1],
+    tileSize: 256,
+  })
+  /** Three frames of segment 2, near the slide's center */
+  const frameMappings = [
+    {
+      '50-50-2': 'frames/1',
+      '50-51-2': 'frames/2',
+      '52-50-2': 'frames/3',
+      '50-50-21': 'frames/4',
+    },
+  ]
+
+  it('indexes the tiles of a channel and the extent they cover', () => {
+    const tiles = frameTileIndex({ frameMappings, channel: 2, tileGrid })
+    /** Key row-column; x is the column, y the row, 0-based */
+    expect(tiles.has(0, 49, 49)).toBe(true)
+    expect(tiles.has(0, 50, 49)).toBe(true)
+    expect(tiles.has(0, 49, 51)).toBe(true)
+    expect(tiles.has(0, 50, 50)).toBe(false)
+    expect(tiles.extent).toEqual([
+      49 * 256,
+      -52 * 256,
+      51 * 256,
+      -49 * 256,
+    ])
+  })
+
+  it('collects only the tiles of its frames at whole slide', () => {
+    const { layers } = createLayers()
+    layers.device = {
+      createTexture: jest.fn((props) => ({ id: props.id, destroy: jest.fn() })),
+    }
+    layers.frameId = 1
+    const tiles = frameTileIndex({ frameMappings, channel: 2, tileGrid })
+    const loader = jest.fn(() => new Promise(() => {}))
+    const instance = layers.addInstance('series-1', {
+      tileGrid,
+      extent: tiles.extent,
+      hasTile: tiles.has,
+      loader,
+    })
+    layers.setLabel(instance, 2, { visible: true })
+    layers._collectTiles(instance, {
+      viewState: { resolution: 1, rotation: 0 },
+      extent: [0, -25600, 25600, 0],
+    })
+    expect([...instance.tiles.keys()].sort()).toEqual([
+      '0/49/49',
+      '0/49/51',
+      '0/50/49',
+    ])
+    expect(layers.queue).toHaveLength(3)
   })
 })

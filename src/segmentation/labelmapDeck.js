@@ -283,6 +283,53 @@ export function paletteValueTable({ colormap, windowCenter, windowWidth }) {
 }
 
 /**
+ * The tiles of a tile grid that have a frame of `channel`, from a pyramid's
+ * frame mappings (keys `row-column-channel`, 1-based; one mapping per
+ * level), and the extent they cover. A sparse instance then neither walks
+ * the slide's whole grid nor loads tiles it has no frame for.
+ *
+ * @param {Object} options
+ * @param {Array<Object>} options.frameMappings - One per tile grid level
+ * @param {string|number} options.channel
+ * @param {import('ol/tilegrid/TileGrid').default} options.tileGrid
+ * @returns {{has: function(number, number, number): boolean, extent: (number[]|null)}}
+ */
+export function frameTileIndex({ frameMappings, channel, tileGrid }) {
+  const suffix = `-${channel}`
+  const levels = (frameMappings ?? []).map((mapping) => {
+    const tiles = new Set()
+    for (const key in mapping ?? {}) {
+      if (!key.endsWith(suffix)) {
+        continue
+      }
+      const [row, column] = key.split('-')
+      tiles.add(`${Number(column) - 1}/${Number(row) - 1}`)
+    }
+    return tiles
+  })
+  let extent = null
+  levels.forEach((tiles, z) => {
+    for (const tile of tiles) {
+      const [x, y] = tile.split('/').map(Number)
+      const bounds = tileGrid.getTileCoordExtent([z, x, y])
+      extent =
+        extent == null
+          ? [...bounds]
+          : [
+              Math.min(extent[0], bounds[0]),
+              Math.min(extent[1], bounds[1]),
+              Math.max(extent[2], bounds[2]),
+              Math.max(extent[3], bounds[3]),
+            ]
+    }
+  })
+  return {
+    has: (z, x, y) => levels[z]?.has(`${x}/${y}`) === true,
+    extent,
+  }
+}
+
+/**
  * The labels other than 0 that occur in a frame, ascending.
  *
  * @param {Uint8Array|Uint16Array} labels
@@ -505,6 +552,9 @@ export class LabelmapDeckLayers {
    *   it holds (LABELMAP); otherwise with `stampValue`
    * @param {number} [options.stampValue] - Value a frame's stamp is drawn
    *   with when its labels are not tracked
+   * @param {function(number, number, number): boolean} [options.hasTile]
+   *   Whether the tile grid has a frame at (z, x, y): others are neither
+   *   loaded nor stood in for
    * @returns {Object} instance
    */
   addInstance(
@@ -522,6 +572,7 @@ export class LabelmapDeckLayers {
       frameMaxResolution = Infinity,
       labelsPerFrame = false,
       stampValue = 1,
+      hasTile,
     },
   ) {
     const rows = bitsAllocated > 8 && !float ? 256 : 1
@@ -541,6 +592,8 @@ export class LabelmapDeckLayers {
       frameMaxResolution,
       labelsPerFrame,
       stampValue,
+      /** Whether the grid has a frame at (z, x, y); all tiles when absent */
+      hasTile,
       paletteSize: 256,
       windowMin: 0,
       windowMax: 1,
@@ -945,6 +998,9 @@ export class LabelmapDeckLayers {
     const stand = []
     for (let x = range.minX; x <= range.maxX; x++) {
       for (let y = range.minY; y <= range.maxY; y++) {
+        if (instance.hasTile != null && !instance.hasTile(z, x, y)) {
+          continue
+        }
         const tile = this._getTile(instance, z, x, y, true)
         tile.wanted = this.frameId
         const bounds = tileGrid.getTileCoordExtent([z, x, y])
@@ -966,6 +1022,12 @@ export class LabelmapDeckLayers {
             ],
             pz,
           )
+          if (
+            instance.hasTile != null &&
+            !instance.hasTile(pz, parentRange.minX, parentRange.minY)
+          ) {
+            continue
+          }
           const parent = this._getTile(
             instance,
             pz,
