@@ -51,6 +51,7 @@ import {
   PaletteColorLookupTable,
 } from './color.js'
 import { CustomError, errorCodes, errorTypes } from './customError'
+import { SharedDeckOverlay } from './deckOverlay.js'
 import Enums from './enums'
 import publish from './eventPublisher'
 import EVENT from './events'
@@ -87,6 +88,14 @@ import {
   getPixelSpacing,
 } from './scoord3dUtils'
 import { Segment } from './segment.js'
+import {
+  createFloatMapProxyLayer,
+  createLabelProxyLayer,
+  createValueTableProxyLayer,
+  frameTileIndex,
+  LabelmapDeckLayers,
+  paletteValueTable,
+} from './segmentation/labelmapDeck.js'
 import {
   _convertAreaFromMm,
   _convertLengthFromMm,
@@ -256,6 +265,10 @@ export function _replaceSourceKeepingTiles(map, item, source, isCleanedUp) {
 export function disposeLayer(layer, disposeSource = false) {
   console.info('dispose layer:', layer)
   if (layer == null) {
+    return
+  }
+  if (layer.isLabelmapDeckProxy) {
+    layer.dispose()
     return
   }
 
@@ -449,6 +462,32 @@ function _getSegmentColormap(segment) {
 }
 
 /**
+ * The color a LABELMAP segment is drawn in: the palette entry its label maps
+ * to (the window maps the label to the last entry).
+ *
+ * @param {Object} segment
+ * @returns {number[]} RGB, 0-255
+ */
+function _getLabelmapSegmentColor(segment) {
+  const data = segment.style.paletteColorLookupTable.data
+  return data[data.length - 1].slice(0, 3)
+}
+
+/**
+ * The RGBA table a fractional segment's stored values are drawn through.
+ *
+ * @param {Object} segment
+ * @returns {Uint8Array} 256 x 4 RGBA
+ */
+function _getSegmentValueTable(segment) {
+  return paletteValueTable({
+    colormap: _getSegmentColormap(segment),
+    windowCenter: segment.style.windowCenter ?? 128,
+    windowWidth: segment.style.windowWidth ?? 256,
+  })
+}
+
+/**
  * Apply palette style to a segment's render layers. Per-frame ImageStatic
  * overlays bake the palette into the image; WebGL tile layers use setStyle.
  *
@@ -456,6 +495,14 @@ function _getSegmentColormap(segment) {
  * @param {Object} [paletteStyle] - WebGL palette style (ignored for ImageStatic)
  */
 function _applySegmentPaletteToLayers(segment, paletteStyle) {
+  if (segment.layer?.isLabelmapDeckProxy) {
+    if (segment.layer.setValueTable != null) {
+      segment.layer.setValueTable(_getSegmentValueTable(segment))
+    } else {
+      segment.layer.setColor(_getLabelmapSegmentColor(segment))
+    }
+    return
+  }
   if (segment.usePerFrameImages) {
     _refreshPerFrameSegmentImages(segment)
     _refreshPerFrameOverview(segment)
@@ -1116,6 +1163,31 @@ function _getColorPaletteStyleForTileLayer({
 }
 
 /**
+ * Draw a parametric map with the palette and limit values of its style.
+ *
+ * @param {Object} mapping
+ * @private
+ */
+function _applyParameterMappingPalette(mapping) {
+  const [lowerLimit, upperLimit] = mapping.style.limitValues
+  if (mapping.layer.setFloatStyle != null) {
+    mapping.layer.setFloatStyle({
+      palette: mapping.style.paletteColorLookupTable.data,
+      window: [lowerLimit, upperLimit],
+    })
+    return
+  }
+  const [windowCenter, windowWidth] = createWindow(lowerLimit, upperLimit)
+  mapping.layer.setStyle(
+    _getColorPaletteStyleForParametricMappingTileLayer({
+      windowCenter,
+      windowWidth,
+      colormap: mapping.style.paletteColorLookupTable.data,
+    }),
+  )
+}
+
+/**
  * Build OpenLayers style expression for coloring a WebGL TileLayer.
  *
  * @param {Object} styleOptions - Style options
@@ -1259,6 +1331,8 @@ const _iccOutputType = Symbol('iccOutputType')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
 const _bulkAnnotationManager = Symbol('bulkAnnotationManager')
+/** The viewer's deck.gl overlay, shared by annotations and derived data */
+const _deckOverlay = Symbol('deckOverlay')
 const _segmentationInterpolate = Symbol('segmentationInterpolate')
 const _parametricMapInterpolate = Symbol('parametricMapInterpolate')
 const _mapViewResolutions = Symbol('mapViewResolutions')
@@ -1436,6 +1510,7 @@ class VolumeImageViewer {
     this[_clients] = {}
     this[_iccProfiles] = []
     this[_bulkAnnotationManager] = null
+    this[_deckOverlay] = null
     this[_segmentationInterpolate] = false
     this[_parametricMapInterpolate] = true
     this[_paletteDisplayGammaCorrectionEnabled] =
@@ -3516,17 +3591,7 @@ class VolumeImageViewer {
       if (!mapping.style.paletteColorLookupTable || !mapping.layer) {
         continue
       }
-      const [palWindowCenter, palWindowWidth] = createWindow(
-        mapping.style.limitValues[0],
-        mapping.style.limitValues[1],
-      )
-      mapping.layer.setStyle(
-        _getColorPaletteStyleForParametricMappingTileLayer({
-          windowCenter: palWindowCenter,
-          windowWidth: palWindowWidth,
-          colormap: mapping.style.paletteColorLookupTable.data,
-        }),
-      )
+      _applyParameterMappingPalette(mapping)
     }
 
     this._syncStackedDerivedLegendOverlays()
@@ -3583,6 +3648,10 @@ class VolumeImageViewer {
     segments.forEach((segment) => {
       const uid = segment.segment?.uid
       if (uid == null || segment.isAbsent) {
+        return
+      }
+      if (segment.layer?.isLabelmapDeckProxy) {
+        segment.layer.setInterpolate(interpolate)
         return
       }
       const wasVisible = segment.layer.getVisible() === true
@@ -3672,6 +3741,10 @@ class VolumeImageViewer {
     const mappings = Object.values(this[_mappings])
 
     mappings.forEach((mapping) => {
+      if (mapping.layer?.isLabelmapDeckProxy) {
+        mapping.layer.setInterpolate(this[_parametricMapInterpolate])
+        return
+      }
       const tileGrid = new TileGrid({
         extent: mapping.loaderParams.pyramid.extent,
         origins: mapping.loaderParams.pyramid.origins,
@@ -3854,6 +3927,14 @@ class VolumeImageViewer {
     if (this[_bulkAnnotationManager] != null) {
       this[_bulkAnnotationManager].cleanup()
       this[_bulkAnnotationManager] = null
+    }
+    if (this._labelmapDeckLayers != null) {
+      this._labelmapDeckLayers.dispose()
+      this._labelmapDeckLayers = null
+    }
+    if (this[_deckOverlay] != null) {
+      this[_deckOverlay].dispose()
+      this[_deckOverlay] = null
     }
     this[_annotationGroups] = {}
 
@@ -5584,11 +5665,210 @@ class VolumeImageViewer {
    * Lazily construct the deck.gl bulk-annotation manager.
    * @private
    */
+  /**
+   * The deck.gl layers of segmentations and parametric maps, created on
+   * first use.
+   *
+   * @returns {LabelmapDeckLayers}
+   * @private
+   */
+  _getLabelmapDeckLayers() {
+    if (this._labelmapDeckLayers == null) {
+      this._labelmapDeckLayers = new LabelmapDeckLayers({
+        map: this[_map],
+        overlay: this._getDeckOverlay(),
+      })
+    }
+    return this._labelmapDeckLayers
+  }
+
+  /**
+   * Register a segmentation whose frames are placed one by one (see
+   * `_buildSparseFramePlacements`) with the deck.gl segmentation layers.
+   *
+   * @param {Object} options
+   * @param {string} options.key - Unique per instance
+   * @param {Object} options.fittedPyramid
+   * @param {Object} options.refSegmentation - Metadata of the SEG instance
+   * @param {number} options.fitResolution - Base pixels per SEG pixel
+   * @param {number} options.channel - Segment number whose frames to place
+   * @param {boolean} [options.labelsPerFrame] - Stamp frames with their
+   *   labels (LABELMAP)
+   * @param {boolean} [options.binary] - Every value but 0 is the segment
+   * @param {boolean} [options.interpolate] - Blend values before the lookup
+   * @returns {Object} instance
+   * @private
+   */
+  _addPerFrameDeckInstance({
+    key,
+    fittedPyramid,
+    refSegmentation,
+    fitResolution,
+    channel,
+    labelsPerFrame = false,
+    binary = false,
+    interpolate = false,
+  }) {
+    const segMetadata =
+      fittedPyramid.metadata[fittedPyramid.metadata.length - 1]
+    const client = _getClient(this[_clients], refSegmentation.SOPClassUID)
+    const placements = _buildSparseFramePlacements(
+      segMetadata,
+      fitResolution,
+      fittedPyramid.pixelOriginOffset || [0, 0],
+      channel,
+    )
+    const frames = placements.map((placement) => {
+      const { pyramid: framePyramid, nativeSize } = _buildPerFrameImagePyramid({
+        placement,
+        fitResolution,
+        segmentation: segMetadata,
+        channelId: channel,
+      })
+      let loader
+      return {
+        extent: [...placement.extent],
+        nativeSize,
+        loader: () => {
+          if (loader == null) {
+            loader = _createTileLoadFunction({
+              targetElement: this[_map].getTargetElement() || this[_container],
+              iccProfiles: [],
+              pyramid: framePyramid,
+              client,
+              channel,
+              rawLabels: true,
+            })
+          }
+          return loader(0, 0, 0)
+        },
+      }
+    })
+    const framesExtent = frames.reduce(
+      (extent, frame) =>
+        extent == null
+          ? [...frame.extent]
+          : [
+              Math.min(extent[0], frame.extent[0]),
+              Math.min(extent[1], frame.extent[1]),
+              Math.max(extent[2], frame.extent[2]),
+              Math.max(extent[3], frame.extent[3]),
+            ],
+      null,
+    )
+    return this._getLabelmapDeckLayers().addInstance(key, {
+      extent: framesExtent ?? fittedPyramid.extent,
+      frames,
+      frameMaxResolution: _perFrameRasterMaxResolution(fitResolution),
+      bitsAllocated: refSegmentation.BitsAllocated,
+      labelsPerFrame,
+      binary,
+      interpolate,
+    })
+  }
+
+  /**
+   * Register a tiled segmentation instance with the deck.gl segmentation
+   * layers, whose tiles hold raw label values.
+   *
+   * @param {Object} options
+   * @param {string} options.key - Unique per instance
+   * @param {Object} options.fittedPyramid
+   * @param {import('ol/tilegrid/TileGrid').default} options.tileGrid
+   * @param {Object} [options.refSegmentation] - Metadata of the SEG instance
+   * @param {string} [options.sopClassUID] - Of the instance, when not a SEG
+   * @param {number} [options.bitsAllocated] - When not a SEG
+   * @param {number} options.channel - Segment or mapping number whose frames
+   *   to load
+   * @param {boolean} [options.float] - Values mapped through a window onto
+   *   a palette (parametric maps), not labels
+   * @param {boolean} [options.binary] - Every value but 0 is the segment
+   * @param {boolean} [options.interpolate] - Blend values before the lookup
+   * @param {number} [options.minResolution]
+   * @returns {Object} instance
+   * @private
+   */
+  _addSegmentationDeckInstance({
+    key,
+    fittedPyramid,
+    tileGrid,
+    refSegmentation,
+    sopClassUID = refSegmentation?.SOPClassUID,
+    bitsAllocated = refSegmentation?.BitsAllocated,
+    channel,
+    binary = false,
+    interpolate = false,
+    float = false,
+    minResolution,
+  }) {
+    let rawLoader
+    /**
+     * Only where the instance has frames: a sparse instance of one region
+     * must not walk, nor load, the slide's whole tile grid on every frame
+     */
+    const tiles = float
+      ? /**
+         * Parametric maps keep every tile: OpenLayers draws a missing
+         * tile's fill value through the palette
+         */
+        { extent: null, has: undefined }
+      : frameTileIndex({
+          frameMappings: fittedPyramid.frameMappings,
+          channel,
+          tileGrid,
+        })
+    return this._getLabelmapDeckLayers().addInstance(key, {
+      tileGrid,
+      extent: tiles.extent ?? fittedPyramid.extent,
+      hasTile: tiles.extent != null ? tiles.has : undefined,
+      bitsAllocated,
+      binary,
+      interpolate,
+      float,
+      minResolution,
+      loader: (z, column, row) => {
+        if (rawLoader == null) {
+          rawLoader = _createTileLoadFunction({
+            targetElement: this[_map].getTargetElement() || this[_container],
+            iccProfiles: [],
+            pyramid: fittedPyramid,
+            client: _getClient(this[_clients], sopClassUID),
+            channel,
+            rawLabels: !float,
+            rawValues: float,
+          })
+        }
+        return rawLoader(z, column, row)
+      },
+    })
+  }
+
+  /**
+   * The viewer's deck.gl overlay, created on first use.
+   *
+   * @returns {SharedDeckOverlay}
+   * @private
+   */
+  _getDeckOverlay() {
+    if (this[_deckOverlay] == null) {
+      this[_deckOverlay] = new SharedDeckOverlay({
+        getMap: () => this[_map],
+        getContainer: () =>
+          this[_container] || this[_map]?.getTargetElement?.() || null,
+        onError: (error) => {
+          console.error('[deckOverlay] deck error', error)
+        },
+      })
+    }
+    return this[_deckOverlay]
+  }
+
   _getBulkAnnotationManager() {
     if (this[_bulkAnnotationManager] != null) {
       return this[_bulkAnnotationManager]
     }
     this[_bulkAnnotationManager] = new BulkAnnotationManager({
+      getDeckOverlay: () => this._getDeckOverlay(),
       getMap: () => this[_map],
       getPyramid: () => this[_pyramid],
       getAffineInverse: () => this[_affineInverse],
@@ -6128,6 +6408,63 @@ class VolumeImageViewer {
     )
     const perFrameDataCache = new Map()
 
+    /**
+     * Tiled LABELMAP, BINARY and FRACTIONAL segmentations are drawn with
+     * deck.gl, by the viewer's shared overlay (`segmentationRenderer: 'openlayers'`, or
+     * `labelmapRenderer: 'openlayers'` for LABELMAP, keeps one OpenLayers
+     * layer per segment). A LABELMAP instance is one layer whose label
+     * values are colored through a lookup table; each BINARY segment has
+     * its own frames, so it is an instance of its own with labels 0 and 1;
+     * a FRACTIONAL segment too, its values colored through its palette.
+     */
+    const isBinary = refSegmentation.SegmentationType === 'BINARY'
+    const useDeckRenderer =
+      (isLabelmap || isBinary || isFractional) &&
+      this[_options].segmentationRenderer !== 'openlayers' &&
+      !(isLabelmap && this[_options].labelmapRenderer === 'openlayers')
+    const deckInstanceOptions = {
+      fittedPyramid,
+      tileGrid,
+      refSegmentation,
+      /** Labels drawn as interpolated OpenLayers masks; fractions blended */
+      interpolate: this[_segmentationInterpolate],
+      minResolution:
+        this[_mapViewResolutions] === undefined || !hasMatchingLevels
+          ? undefined
+          : minZoomLevel > 0
+            ? this[_pyramid].resolutions[minZoomLevel]
+            : undefined,
+    }
+    /**
+     * Frames placed one by one (TILED_SPARSE frames whose offsets a shared
+     * tile grid cannot hold) are drawn by deck.gl too, each at its own
+     * placement, with a stamp over each frame while it is small on screen
+     */
+    const perFrameOptions = {
+      fittedPyramid,
+      refSegmentation,
+      interpolate: this[_segmentationInterpolate],
+      fitResolution: fittedPyramid.fitResolution ?? coordinateScaleFactor,
+    }
+    const firstSegmentNumber = Number(
+      refSegmentation.SegmentSequence[0].SegmentNumber,
+    )
+    let labelmapDeckInstance
+    if (useDeckRenderer && isLabelmap) {
+      labelmapDeckInstance = fittedPyramid.usePerFramePlacement
+        ? this._addPerFrameDeckInstance({
+            ...perFrameOptions,
+            key: refSegmentation.SeriesInstanceUID,
+            channel: firstSegmentNumber,
+            labelsPerFrame: true,
+          })
+        : this._addSegmentationDeckInstance({
+            ...deckInstanceOptions,
+            key: refSegmentation.SeriesInstanceUID,
+            channel: firstSegmentNumber,
+          })
+    }
+
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment #${segmentNumber}`)
@@ -6318,7 +6655,31 @@ class VolumeImageViewer {
        * at the PlanePosition extent keeps alignment. Overview stamps cover
        * resolutions where that raster is skipped or samples to empty.
        */
-      if (fittedPyramid.usePerFramePlacement) {
+      if (fittedPyramid.usePerFramePlacement && useDeckRenderer) {
+        const instance =
+          labelmapDeckInstance ??
+          this._addPerFrameDeckInstance({
+            ...perFrameOptions,
+            key: `${refSegmentation.SeriesInstanceUID}:${segmentNumber}`,
+            channel: segmentNumber,
+            binary: isBinary,
+          })
+        segment.layer = isFractional
+          ? createValueTableProxyLayer(this._labelmapDeckLayers, instance, {
+              opacity: segment.style.opacity,
+              table: _getSegmentValueTable(segment),
+            })
+          : createLabelProxyLayer(
+              this._labelmapDeckLayers,
+              instance,
+              isLabelmap ? segmentNumber : 1,
+              {
+                opacity: segment.style.opacity,
+                color: _getLabelmapSegmentColor(segment),
+              },
+            )
+        segment.hasLoader = true
+      } else if (fittedPyramid.usePerFramePlacement) {
         const segMetadata =
           fittedPyramid.metadata[fittedPyramid.metadata.length - 1]
         const fitResolution =
@@ -6407,6 +6768,43 @@ class VolumeImageViewer {
            */
           opacity: segment.style.opacity,
         })
+      } else if (useDeckRenderer && isFractional) {
+        /** Fractional values are colored through the segment's palette */
+        const instance = this._addSegmentationDeckInstance({
+          ...deckInstanceOptions,
+          key: `${refSegmentation.SeriesInstanceUID}:${segmentNumber}`,
+          channel: segmentNumber,
+          interpolate: this[_segmentationInterpolate],
+        })
+        segment.layer = createValueTableProxyLayer(
+          this._labelmapDeckLayers,
+          instance,
+          {
+            opacity: segment.style.opacity,
+            table: _getSegmentValueTable(segment),
+          },
+        )
+        segment.hasLoader = true
+      } else if (useDeckRenderer) {
+        /** A BINARY segment's frames hold 1 where the segment is */
+        const instance =
+          labelmapDeckInstance ??
+          this._addSegmentationDeckInstance({
+            ...deckInstanceOptions,
+            key: `${refSegmentation.SeriesInstanceUID}:${segmentNumber}`,
+            channel: segmentNumber,
+            binary: true,
+          })
+        segment.layer = createLabelProxyLayer(
+          this._labelmapDeckLayers,
+          instance,
+          isLabelmap ? segmentNumber : 1,
+          {
+            opacity: segment.style.opacity,
+            color: _getLabelmapSegmentColor(segment),
+          },
+        )
+        segment.hasLoader = true
       } else {
         segment.onTileLoadError = (event) => {
           console.error(
@@ -6458,7 +6856,9 @@ class VolumeImageViewer {
         })
       }
 
-      this[_map].addLayer(segment.layer)
+      if (!segment.layer.isLabelmapDeckProxy) {
+        this[_map].addLayer(segment.layer)
+      }
       this[_segments][segmentUID] = segment
     })
   }
@@ -7549,6 +7949,39 @@ class VolumeImageViewer {
         hasLoader: false,
       }
 
+      if (this[_options].parametricMapRenderer !== 'openlayers') {
+        /**
+         * Drawn with deck.gl by the shared overlay: float values mapped
+         * through the window onto the palette in the shader
+         */
+        const instance = this._addSegmentationDeckInstance({
+          key: `mapping:${refInstance.SeriesInstanceUID}:${mappingNumber}`,
+          fittedPyramid,
+          tileGrid,
+          sopClassUID: Enums.SOPClassUIDs.PARAMETRIC_MAP,
+          bitsAllocated: refInstance.BitsAllocated,
+          channel: mappingNumber,
+          float: true,
+          interpolate: this[_parametricMapInterpolate],
+        })
+        mapping.layer = createFloatMapProxyLayer(
+          this._labelmapDeckLayers,
+          instance,
+          {
+            palette: mapping.style.paletteColorLookupTable.data,
+            window: [
+              windowCenter - windowWidth / 2,
+              windowCenter + windowWidth / 2,
+            ],
+            opacity: mapping.style.opacity,
+          },
+        )
+        mapping.hasLoader = true
+        this[_mappings][mappingUID] = mapping
+        index += 1
+        continue
+      }
+
       const source = new DataTileSource({
         tileGrid,
         projection: this[_projection],
@@ -7776,7 +8209,12 @@ class VolumeImageViewer {
       )
       styleVariables.windowCenter = windowCenter
       styleVariables.windowWidth = windowWidth
-      mapping.layer.updateStyleVariables(styleVariables)
+      if (mapping.layer.setFloatStyle != null) {
+        /** Drawn with deck.gl: the limit values are the palette's window */
+        mapping.layer.setFloatStyle({ window: mapping.style.limitValues })
+      } else {
+        mapping.layer.updateStyleVariables(styleVariables)
+      }
     }
 
     if (
@@ -7785,17 +8223,7 @@ class VolumeImageViewer {
     ) {
       mapping.style.paletteColorLookupTable =
         styleOptions.paletteColorLookupTable
-      const [palWindowCenter, palWindowWidth] = createWindow(
-        mapping.style.limitValues[0],
-        mapping.style.limitValues[1],
-      )
-      mapping.layer.setStyle(
-        _getColorPaletteStyleForParametricMappingTileLayer({
-          windowCenter: palWindowCenter,
-          windowWidth: palWindowWidth,
-          colormap: mapping.style.paletteColorLookupTable.data,
-        }),
-      )
+      _applyParameterMappingPalette(mapping)
     }
 
     this._syncStackedDerivedLegendOverlays()

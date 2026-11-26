@@ -390,6 +390,18 @@ export namespace viewer {
     client?: DicomWebClient
     clientMapping?: Record<string, DicomWebClient>
     metadata: Array<metadata.VLWholeSlideMicroscopyImage | object>
+    /**
+     * How tiled LABELMAP, BINARY and FRACTIONAL segmentations are drawn:
+     * with deck.gl (the default), or with one OpenLayers layer per segment
+     */
+    segmentationRenderer?: 'deckgl' | 'openlayers'
+    /** Same as segmentationRenderer, for LABELMAP segmentations only */
+    labelmapRenderer?: 'deckgl' | 'openlayers'
+    /**
+     * How parametric maps are drawn: with deck.gl (the default), or with
+     * an OpenLayers layer per mapping
+     */
+    parametricMapRenderer?: 'deckgl' | 'openlayers'
     [option: string]: any
   }
 
