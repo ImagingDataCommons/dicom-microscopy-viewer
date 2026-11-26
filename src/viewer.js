@@ -89,6 +89,10 @@ import {
 } from './scoord3dUtils'
 import { Segment } from './segment.js'
 import {
+  createLabelProxyLayer,
+  LabelmapDeckLayers,
+} from './segmentation/labelmapDeck.js'
+import {
   _convertAreaFromMm,
   _convertLengthFromMm,
   _generateUID,
@@ -257,6 +261,10 @@ export function _replaceSourceKeepingTiles(map, item, source, isCleanedUp) {
 export function disposeLayer(layer, disposeSource = false) {
   console.info('dispose layer:', layer)
   if (layer == null) {
+    return
+  }
+  if (layer.isLabelmapDeckProxy) {
+    layer.dispose()
     return
   }
 
@@ -450,6 +458,18 @@ function _getSegmentColormap(segment) {
 }
 
 /**
+ * The color a LABELMAP segment is drawn in: the palette entry its label maps
+ * to (the window maps the label to the last entry).
+ *
+ * @param {Object} segment
+ * @returns {number[]} RGB, 0-255
+ */
+function _getLabelmapSegmentColor(segment) {
+  const data = segment.style.paletteColorLookupTable.data
+  return data[data.length - 1].slice(0, 3)
+}
+
+/**
  * Apply palette style to a segment's render layers. Per-frame ImageStatic
  * overlays bake the palette into the image; WebGL tile layers use setStyle.
  *
@@ -457,6 +477,10 @@ function _getSegmentColormap(segment) {
  * @param {Object} [paletteStyle] - WebGL palette style (ignored for ImageStatic)
  */
 function _applySegmentPaletteToLayers(segment, paletteStyle) {
+  if (segment.layer?.isLabelmapDeckProxy) {
+    segment.layer.setColor(_getLabelmapSegmentColor(segment))
+    return
+  }
   if (segment.usePerFrameImages) {
     _refreshPerFrameSegmentImages(segment)
     _refreshPerFrameOverview(segment)
@@ -3589,6 +3613,10 @@ class VolumeImageViewer {
       if (uid == null || segment.isAbsent) {
         return
       }
+      if (segment.layer?.isLabelmapDeckProxy) {
+        /** Labels are always drawn unfiltered */
+        return
+      }
       const wasVisible = segment.layer.getVisible() === true
       try {
         if (segment.usePerFrameImages) {
@@ -3858,6 +3886,10 @@ class VolumeImageViewer {
     if (this[_bulkAnnotationManager] != null) {
       this[_bulkAnnotationManager].cleanup()
       this[_bulkAnnotationManager] = null
+    }
+    if (this._labelmapDeckLayers != null) {
+      this._labelmapDeckLayers.dispose()
+      this._labelmapDeckLayers = null
     }
     if (this[_deckOverlay] != null) {
       this[_deckOverlay].dispose()
@@ -6157,6 +6189,57 @@ class VolumeImageViewer {
     )
     const perFrameDataCache = new Map()
 
+    /**
+     * A tiled LABELMAP instance is drawn with deck.gl: all of its segments in
+     * one layer of the shared overlay, colored through a lookup table. The
+     * `labelmapRenderer: 'openlayers'` option keeps a layer per segment.
+     */
+    let labelmapDeckInstance
+    if (
+      isLabelmap &&
+      !fittedPyramid.usePerFramePlacement &&
+      this[_options].labelmapRenderer !== 'openlayers'
+    ) {
+      if (this._labelmapDeckLayers == null) {
+        this._labelmapDeckLayers = new LabelmapDeckLayers({
+          map: this[_map],
+          overlay: this._getDeckOverlay(),
+        })
+      }
+      let rawLoader
+      const loaderParams = {
+        pyramid: fittedPyramid,
+        client: _getClient(this[_clients], refSegmentation.SOPClassUID),
+        channel: Number(refSegmentation.SegmentSequence[0].SegmentNumber),
+        rawLabels: true,
+      }
+      labelmapDeckInstance = this._labelmapDeckLayers.addInstance(
+        refSegmentation.SeriesInstanceUID,
+        {
+          tileGrid,
+          extent: fittedPyramid.extent,
+          bitsAllocated: refSegmentation.BitsAllocated,
+          minResolution:
+            this[_mapViewResolutions] === undefined || !hasMatchingLevels
+              ? undefined
+              : minZoomLevel > 0
+                ? this[_pyramid].resolutions[minZoomLevel]
+                : undefined,
+          loader: (z, column, row) => {
+            if (rawLoader == null) {
+              rawLoader = _createTileLoadFunction({
+                targetElement:
+                  this[_map].getTargetElement() || this[_container],
+                iccProfiles: [],
+                ...loaderParams,
+              })
+            }
+            return rawLoader(z, column, row)
+          },
+        },
+      )
+    }
+
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
       console.info(`add segment #${segmentNumber}`)
@@ -6436,6 +6519,17 @@ class VolumeImageViewer {
            */
           opacity: segment.style.opacity,
         })
+      } else if (labelmapDeckInstance != null) {
+        segment.layer = createLabelProxyLayer(
+          this._labelmapDeckLayers,
+          labelmapDeckInstance,
+          segmentNumber,
+          {
+            opacity: segment.style.opacity,
+            color: _getLabelmapSegmentColor(segment),
+          },
+        )
+        segment.hasLoader = true
       } else {
         segment.onTileLoadError = (event) => {
           console.error(
@@ -6487,7 +6581,9 @@ class VolumeImageViewer {
         })
       }
 
-      this[_map].addLayer(segment.layer)
+      if (!segment.layer.isLabelmapDeckProxy) {
+        this[_map].addLayer(segment.layer)
+      }
       this[_segments][segmentUID] = segment
     })
   }

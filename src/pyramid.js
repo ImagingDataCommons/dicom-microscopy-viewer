@@ -760,6 +760,43 @@ function _createFrameLoadError({
 }
 
 /**
+ * The raw labels of a LABELMAP tile, for a renderer that colors all segments
+ * of the instance at once through a lookup table.
+ *
+ * @param {Object} tile - Retrieved tile
+ * @param {HTMLElement} targetElement - Receives the loading events
+ * @param {Object} [frameInfo] - Set when a frame was requested
+ * @returns {{labels: (Uint8Array|Uint16Array), width: number, height: number}|{isEmpty: true}}
+ * @private
+ */
+function _rawLabelTile(tile, targetElement, frameInfo) {
+  if (tile.isEmpty) {
+    return { isEmpty: true }
+  }
+  const { pixelArray } = tile
+  if (frameInfo !== undefined) {
+    publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
+  }
+  let hasLabel = false
+  for (let i = 0; i < pixelArray.length; i++) {
+    if (pixelArray[i] !== 0) {
+      hasLabel = true
+      break
+    }
+  }
+  if (!hasLabel) {
+    return { isEmpty: true }
+  }
+  const labels =
+    pixelArray instanceof Uint8Array || pixelArray instanceof Uint16Array
+      ? pixelArray
+      : tile.bitsAllocated > 8
+        ? Uint16Array.from(pixelArray)
+        : Uint8Array.from(pixelArray)
+  return { labels, width: tile.columns, height: tile.rows }
+}
+
+/**
  * Create the tile load function of an OpenLayers DataTile source.
  *
  * @private
@@ -772,6 +809,7 @@ function _createTileLoadFunction({
   iccOutputType,
   targetElement,
   labelmapSegmentNumber,
+  rawLabels = false,
 }) {
   /** OpenLayers calls the loader as (z, column, row). */
   return async (z, column, row) => {
@@ -791,6 +829,9 @@ function _createTileLoadFunction({
           publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
         },
       })
+      if (rawLabels) {
+        return _rawLabelTile(tile, targetElement, frameInfo)
+      }
       if (tile.isEmpty) {
         return tile.pixelArray
       }
@@ -1866,6 +1907,7 @@ export {
   _paletteBandToDataUrl,
   _paletteIndex,
   _perFrameRasterMaxResolution,
+  _rawLabelTile,
   _retrieveTile,
   _retrieveWithSignal,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
