@@ -14,6 +14,7 @@ import {
   getCommonZCoordinate,
   getCoordinateDimensionality,
 } from '../annotation.js'
+import { DECK_SOURCE_ORDER } from '../deckOverlay.js'
 import publish from '../eventPublisher.js'
 import EVENTS from '../events.js'
 import {
@@ -273,6 +274,12 @@ export class BulkAnnotationManager {
     this._getAffineInverse = options.getAffineInverse
     this._getClient = options.getClient
     this._getContainer = options.getContainer
+    /**
+     * The viewer's shared deck.gl overlay (see deckOverlay.js); without it
+     * the manager creates a Deck of its own
+     */
+    this._getDeckOverlay = options.getDeckOverlay ?? (() => null)
+    this._sharedOverlay = null
     this._errorInterceptor = options.errorInterceptor || ((e) => e)
     this._primaryColor = options.primaryColor || BULK_DEFAULT_COLOR
     this._annotationOptions = {
@@ -320,22 +327,41 @@ export class BulkAnnotationManager {
     if (map == null) {
       return
     }
+    const onDeviceInitialized = (device) => {
+      /** A software renderer draws within a budget: rebuild for it */
+      this._isSoftware = isSoftwareRenderer(device?.info)
+      if (this._isSoftware) {
+        for (const g of this._groups.values()) {
+          g.buildSignature = null
+        }
+        this._refreshLayersForViewChange()
+      }
+    }
+    const sharedOverlay = this._getDeckOverlay()
+    if (sharedOverlay != null) {
+      if (!(await sharedOverlay.ensureReady())) {
+        this._overlayReady = true
+        return
+      }
+      this._sharedOverlay = sharedOverlay
+      this._deck = sharedOverlay.deck
+      this._olLayer = sharedOverlay.olLayer
+      sharedOverlay.addLayerSource('bulk-annotations', {
+        order: DECK_SOURCE_ORDER.annotations,
+        getLayers: () => this._collectDeckLayers(),
+      })
+      sharedOverlay.onDeviceInitialized(onDeviceInitialized)
+      this._listenForViewChanges(map)
+      this._overlayReady = true
+      return
+    }
     const parent = map.getTargetElement?.() || this._getContainer()
     if (parent == null) {
       return
     }
     this._deck = await createBulkAnnotationDeck({
       parent,
-      onDeviceInitialized: (device) => {
-        /** A software renderer draws within a budget: rebuild for it */
-        this._isSoftware = isSoftwareRenderer(device?.info)
-        if (this._isSoftware) {
-          for (const g of this._groups.values()) {
-            g.buildSignature = null
-          }
-          this._refreshLayersForViewChange()
-        }
-      },
+      onDeviceInitialized,
       onError: (err) => {
         const container = this._getContainer()
         if (container) {
@@ -354,15 +380,21 @@ export class BulkAnnotationManager {
       getLayers: () => this._collectDeckLayers(),
     })
     map.addLayer(this._olLayer)
-    /**
-     * LOD tier and the visible spatial-tile set depend on the view; refresh
-     * layer builds when a pan/zoom/rotate interaction settles.
-     */
+    this._listenForViewChanges(map)
+    this._overlayReady = true
+  }
+
+  /**
+   * LOD tier and the visible spatial-tile set depend on the view; refresh
+   * layer builds when a pan/zoom/rotate interaction settles.
+   *
+   * @param {import('ol/Map').default} map
+   */
+  _listenForViewChanges(map) {
     this._onMoveEnd = () => {
       this._refreshLayersForViewChange()
     }
     map.on('moveend', this._onMoveEnd)
-    this._overlayReady = true
   }
 
   /**
@@ -805,11 +837,17 @@ export class BulkAnnotationManager {
       map.un('moveend', this._onMoveEnd)
       this._onMoveEnd = null
     }
-    disposeBulkAnnotationOverlay({
-      deck: this._deck,
-      olLayer: this._olLayer,
-      map,
-    })
+    if (this._sharedOverlay != null) {
+      /** The viewer owns the shared overlay; only leave it */
+      this._sharedOverlay.removeLayerSource('bulk-annotations')
+      this._sharedOverlay = null
+    } else {
+      disposeBulkAnnotationOverlay({
+        deck: this._deck,
+        olLayer: this._olLayer,
+        map,
+      })
+    }
     this._deck = null
     this._olLayer = null
     this._overlayReady = false

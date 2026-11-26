@@ -51,6 +51,7 @@ import {
   PaletteColorLookupTable,
 } from './color.js'
 import { CustomError, errorCodes, errorTypes } from './customError'
+import { SharedDeckOverlay } from './deckOverlay.js'
 import Enums from './enums'
 import publish from './eventPublisher'
 import EVENT from './events'
@@ -1259,6 +1260,8 @@ const _iccOutputType = Symbol('iccOutputType')
 const _iccProfiles = Symbol('iccProfiles')
 const _container = Symbol('container')
 const _bulkAnnotationManager = Symbol('bulkAnnotationManager')
+/** The viewer's deck.gl overlay, shared by annotations and derived data */
+const _deckOverlay = Symbol('deckOverlay')
 const _segmentationInterpolate = Symbol('segmentationInterpolate')
 const _parametricMapInterpolate = Symbol('parametricMapInterpolate')
 const _mapViewResolutions = Symbol('mapViewResolutions')
@@ -1436,6 +1439,7 @@ class VolumeImageViewer {
     this[_clients] = {}
     this[_iccProfiles] = []
     this[_bulkAnnotationManager] = null
+    this[_deckOverlay] = null
     this[_segmentationInterpolate] = false
     this[_parametricMapInterpolate] = true
     this[_paletteDisplayGammaCorrectionEnabled] =
@@ -3855,6 +3859,10 @@ class VolumeImageViewer {
       this[_bulkAnnotationManager].cleanup()
       this[_bulkAnnotationManager] = null
     }
+    if (this[_deckOverlay] != null) {
+      this[_deckOverlay].dispose()
+      this[_deckOverlay] = null
+    }
     this[_annotationGroups] = {}
 
     this[_iccOutputType]?.cleanup?.()
@@ -5584,11 +5592,32 @@ class VolumeImageViewer {
    * Lazily construct the deck.gl bulk-annotation manager.
    * @private
    */
+  /**
+   * The viewer's deck.gl overlay, created on first use.
+   *
+   * @returns {SharedDeckOverlay}
+   * @private
+   */
+  _getDeckOverlay() {
+    if (this[_deckOverlay] == null) {
+      this[_deckOverlay] = new SharedDeckOverlay({
+        getMap: () => this[_map],
+        getContainer: () =>
+          this[_container] || this[_map]?.getTargetElement?.() || null,
+        onError: (error) => {
+          console.error('[deckOverlay] deck error', error)
+        },
+      })
+    }
+    return this[_deckOverlay]
+  }
+
   _getBulkAnnotationManager() {
     if (this[_bulkAnnotationManager] != null) {
       return this[_bulkAnnotationManager]
     }
     this[_bulkAnnotationManager] = new BulkAnnotationManager({
+      getDeckOverlay: () => this._getDeckOverlay(),
       getMap: () => this[_map],
       getPyramid: () => this[_pyramid],
       getAffineInverse: () => this[_affineInverse],

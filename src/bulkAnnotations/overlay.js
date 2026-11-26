@@ -14,6 +14,9 @@ import { olViewStateToDeck } from './viewState.js'
 
 export { olViewStateToDeck }
 
+/** Id of the OrthographicView every DMV deck.gl layer is drawn in */
+export const DECK_VIEW_ID = 'bulk-ann-ortho'
+
 let deckModulePromise = null
 
 function loadDeckModule() {
@@ -55,7 +58,7 @@ export async function createBulkAnnotationDeck({
   try {
     const { Deck, OrthographicView } = await loadDeckModule()
     const view = new OrthographicView({
-      id: 'bulk-ann-ortho',
+      id: DECK_VIEW_ID,
       /** Match OpenLayers Y-down slide space (see geometry/coords.js). */
       flipY: false,
       controller: false,
@@ -133,7 +136,7 @@ export function createDeckOlLayer({ deck, getLayers }) {
         width,
         height,
         viewState: {
-          'bulk-ann-ortho': deckViewState,
+          [DECK_VIEW_ID]: deckViewState,
         },
         layers,
       })
