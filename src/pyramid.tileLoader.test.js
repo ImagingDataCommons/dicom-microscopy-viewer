@@ -228,33 +228,53 @@ describe('_createTileLoadFunction', () => {
     expect(labelmapTileCache.size).toBe(32)
   })
 
-  it('bounds the retrieved LABELMAP tiles by their decoded size', async () => {
-    /** 6 MiB per tile: only two fit in the 16 MiB budget */
+  /** Loads `count` tiles of `bytes` each, one after the other */
+  const loadLabelmapTiles = async (count, bytes) => {
     _decodeAndTransformFrame.mockImplementation(() =>
-      Promise.resolve(new Uint8Array(6 * 1024 * 1024)),
+      Promise.resolve(new Uint8Array(bytes)),
     )
     const frameMapping = {}
-    for (let c = 1; c <= 3; c++) {
+    for (let c = 1; c <= count; c++) {
       frameMapping[`1-${c}-1`] = `${image.SOPInstanceUID}/frames/${c}`
     }
-    const client = createClient()
     const labelmapTileCache = new Map()
     const loader = _createTileLoadFunction({
       pyramid: {
         ...createPyramid({ BitsAllocated: 8 }),
         frameMappings: [frameMapping],
       },
-      client,
+      client: createClient(),
       channel: '1',
       targetElement,
       labelmapSegmentNumber: 1,
       labelmapTileCache,
     })
-    for (let c = 0; c < 3; c++) {
+    for (let c = 0; c < count; c++) {
       await loader(0, c, 0)
     }
     await flushPromises()
-    expect([...labelmapTileCache.keys()]).toEqual(['0/1/0', '0/2/0'])
+    return [...labelmapTileCache.keys()]
+  }
+
+  it('bounds the retrieved LABELMAP tiles by their decoded size', async () => {
+    /** 3 MiB per tile: five fit in the 16 MiB budget */
+    expect(await loadLabelmapTiles(7, 3 * 1024 * 1024)).toEqual([
+      '0/2/0',
+      '0/3/0',
+      '0/4/0',
+      '0/5/0',
+      '0/6/0',
+    ])
+  })
+
+  it('keeps the most recent LABELMAP tiles even when they exceed the budget', async () => {
+    /** 20 MiB per tile, over the budget on its own */
+    expect(await loadLabelmapTiles(5, 20 * 1024 * 1024)).toEqual([
+      '0/1/0',
+      '0/2/0',
+      '0/3/0',
+      '0/4/0',
+    ])
   })
 
   it('returns an empty tile for a missing sparse frame without events', async () => {

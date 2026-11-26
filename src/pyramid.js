@@ -768,10 +768,16 @@ function _createFrameLoadError({
  */
 const LABELMAP_TILE_CACHE_SIZE = 32
 const LABELMAP_TILE_CACHE_BYTES = 16 * 1024 * 1024
+/**
+ * Retrieved tiles kept whatever their size, so frames larger than the byte
+ * budget are still shared by the layers that ask for them next
+ */
+const LABELMAP_TILE_CACHE_MIN = 4
 
 /**
  * Drop the least recently used retrieved tiles until the cache is within its
- * bounds. Pending retrievals are kept, whatever their age.
+ * bounds, keeping at least the most recent few. Pending retrievals are kept,
+ * whatever their age.
  *
  * @param {Map<string, Object>} sharedTiles
  * @private
@@ -788,7 +794,8 @@ function _trimSharedLabelmapTiles(sharedTiles) {
   for (const [key, entry] of sharedTiles) {
     if (
       settled <= LABELMAP_TILE_CACHE_SIZE &&
-      bytes <= LABELMAP_TILE_CACHE_BYTES
+      (bytes <= LABELMAP_TILE_CACHE_BYTES ||
+        settled <= LABELMAP_TILE_CACHE_MIN)
     ) {
       return
     }
