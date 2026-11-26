@@ -3,18 +3,22 @@
  * Browser CDP benchmark: master (OL Feature path) vs feat/bulk-ann-deckgl.
  *
  * Prerequisites:
- *   - Slim running with REACT_APP_CONFIG=example against the same study/series
- *   - Chrome/Chromium with remote debugging, OR puppeteer installed
+ *   - Slim serving the DMV build to measure, opened on an ANN series link
+ *     (the link shows its annotation groups, so nothing needs a click)
+ *   - puppeteer importable from this script's location
  *
  * Usage:
- *   node scripts/benchmark-bulk-ann.mjs --url "http://localhost:3000/studies/.../series/..."
+ *   node scripts/benchmark-bulk-ann.mjs --url "http://localhost:3000/studies/.../series/..." \
+ *     [--label master] [--seconds 60] [--toggle "Show Nuclei"] [--out results.md] [--append]
+ *
+ * Run it once per build (e.g. master, then this branch) with --append to
+ * collect the rows in one table.
  *
  * Emits a markdown table of heap / timing metrics. When the master path OOMs,
  * that is recorded as a failure with the last heap sample.
  */
 
-import { spawn } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, writeFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
 const urlIdx = args.indexOf('--url')
@@ -22,6 +26,17 @@ const url = urlIdx >= 0 ? args[urlIdx + 1] : null
 const outIdx = args.indexOf('--out')
 const outPath =
   outIdx >= 0 ? args[outIdx + 1] : 'benchmark-bulk-ann-results.md'
+const option = (name, fallback) => {
+  const index = args.indexOf(name)
+  return index >= 0 ? args[index + 1] : fallback
+}
+const label = option('--label', 'current-build')
+const seconds = Number(option('--seconds', '60'))
+const toggleLabel = option('--toggle', null)
+const append = args.includes('--append')
+
+/** `page.waitForTimeout` was removed from puppeteer */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 if (!url) {
   console.error(
@@ -48,7 +63,7 @@ function formatMb(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-async function runOnce(browser, pageUrl, label) {
+async function runOnce(browser, pageUrl) {
   const page = await browser.newPage()
   const client = await page.target().createCDPSession()
   await client.send('Performance.enable')
@@ -59,6 +74,13 @@ async function runOnce(browser, pageUrl, label) {
   let oom = false
   let errorMessage = null
 
+  /** dicomweb-client / DMV debug output marks when the bulk data is in */
+  let bulkDoneMs = null
+  page.on('console', (message) => {
+    if (bulkDoneMs == null && message.text().includes('bulkStream:done')) {
+      bulkDoneMs = Date.now() - t0
+    }
+  })
   page.on('pageerror', (err) => {
     errorMessage = err.message
     if (/out of memory|allocation failed|OOM/i.test(err.message)) {
@@ -67,26 +89,19 @@ async function runOnce(browser, pageUrl, label) {
   })
 
   try {
-    await page.goto(pageUrl, { waitUntil: 'networkidle2', timeout: 120_000 })
-    /** Wait for annotation group panel / viewer. */
-    await page.waitForTimeout(3000)
+    await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 120_000 })
 
-    /** Try to click the first annotation-group visibility toggle if present. */
-    await page.evaluate(() => {
-      const switches = Array.from(
-        document.querySelectorAll('.ant-switch, button, [role="switch"]'),
+    if (toggleLabel != null) {
+      /** Slim's group toggles are buttons named after the group */
+      const button = await page.waitForSelector(
+        `button[aria-label="${toggleLabel}"]`,
+        { timeout: 120_000 },
       )
-      for (const el of switches) {
-        const text = (el.closest('li') || el.parentElement)?.textContent || ''
-        if (/annotation|group|cell/i.test(text)) {
-          el.click()
-          return
-        }
-      }
-    })
+      await button.click()
+    }
 
-    for (let i = 0; i < 12; i++) {
-      await page.waitForTimeout(2000)
+    for (let i = 0; i < seconds / 2; i++) {
+      await sleep(2000)
       const metrics = await client.send('Performance.getMetrics')
       const jsHeap = metrics.metrics.find((m) => m.name === 'JSHeapUsedSize')
       samples.push({
@@ -109,6 +124,7 @@ async function runOnce(browser, pageUrl, label) {
   await page.close().catch(() => {})
   return {
     label,
+    bulkDoneMs,
     durationMs: Date.now() - t0,
     peakJsHeap: peak,
     samples,
@@ -146,25 +162,34 @@ Manual protocol (Chrome DevTools → Performance / Memory):
   }
 
   const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--disable-dev-shm-usage', '--js-flags=--max-old-space-size=8192'],
+    headless: true,
+    args: [
+      '--disable-dev-shm-usage',
+      '--js-flags=--max-old-space-size=8192',
+      /** WebGL for OpenLayers and deck.gl without a GPU */
+      '--enable-unsafe-swiftshader',
+    ],
   })
 
-  const result = await runOnce(browser, url, 'current-build')
+  const result = await runOnce(browser, url)
   await browser.close()
 
-  const md = `# Bulk annotation benchmark
+  const final = result.samples.at(-1)?.jsHeapUsed
+  const row = `| ${result.label} | ${formatMb(result.peakJsHeap)} | ${formatMb(final)} | ${result.bulkDoneMs == null ? 'n/a' : `${(result.bulkDoneMs / 1000).toFixed(1)}s`} | ${(result.durationMs / 1000).toFixed(1)}s | ${result.oom ? 'YES' : 'no'} | ${result.errorMessage || ''} |`
+  const header = `# Bulk annotation benchmark
 
 URL: \`${url}\`
 
-| Build | Peak JS heap | Duration | OOM? | Notes |
-|-------|--------------|----------|------|-------|
-| ${result.label} | ${formatMb(result.peakJsHeap)} | ${(result.durationMs / 1000).toFixed(1)}s | ${result.oom ? 'YES' : 'no'} | ${result.errorMessage || ''} |
-
-Samples: ${JSON.stringify(result.samples, null, 2)}
+| Build | Peak JS heap | Final JS heap | Bulk data in | Run | OOM? | Notes |
+|-------|--------------|---------------|--------------|-----|------|-------|
 `
-  writeFileSync(outPath, md)
-  console.log(md)
+  if (append && existsSync(outPath)) {
+    appendFileSync(outPath, `${row}\n`)
+  } else {
+    writeFileSync(outPath, `${header}${row}\n`)
+  }
+  console.log(row)
+  console.log(JSON.stringify(result.samples))
 }
 
 main().catch((err) => {

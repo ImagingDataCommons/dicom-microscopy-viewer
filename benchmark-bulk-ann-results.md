@@ -1,18 +1,32 @@
 # Bulk annotation benchmark
 
-URL (IDC example study / ANN series):
-`http://localhost:3000/studies/2.25.68803095896966276583382138924964839274/series/1.3.6.1.4.1.5962.99.1.1139028448.995765201.1637521600992.2.0`
+## Measured run (2026-11-26)
 
-## Automated CDP run
-
-Puppeteer was not installed in the CI/agent environment when this branch was cut.
-Script: [`scripts/benchmark-bulk-ann.mjs`](scripts/benchmark-bulk-ann.mjs).
+Slim (Vite dev server, `REACT_APP_CONFIG=e2e`, public IDC proxy) opened on the
+TCGA nuclei ANN series used by Slim's e2e test A1: one POLYGON group, 507,871
+annotations, 177 MB of point coordinates (44.3M floats). The ANN link shows
+the group, so the script clicks nothing. Headless Chromium with SwiftShader,
+puppeteer 25, 90 s per run, one run per build, `JSHeapUsedSize` sampled every
+2 s.
 
 ```bash
-pnpm add -D puppeteer
-# terminal A: REACT_APP_CONFIG=example pnpm start  (slim linked to this dmv build)
-node scripts/benchmark-bulk-ann.mjs --url "<url above>"
+node scripts/benchmark-bulk-ann.mjs --label "<build>" --seconds 90 --append \
+  --url "http://localhost:3100/studies/2.25.312916405820155829215771528638931942827/series/1.2.826.0.1.3680043.10.511.3.65930042075829390210508226259517515"
 ```
+
+| Build | Peak JS heap | Final JS heap | Bulk data in | Run | OOM? |
+|-------|--------------|---------------|--------------|-----|------|
+| master 0.51.3 (OpenLayers features) | 944.7 MB | 871.5 MB | n/a | 91.7 s | no |
+| feat/bulk-ann-deckgl fba496f (deck.gl) | 104.3 MB | 93.8 MB | 41.4 s | 90.5 s | no |
+
+- `JSHeapUsedSize` does not include ArrayBuffer backing stores, so the deck.gl
+  row leaves out the coordinate buffers themselves (about 177 MB) and the GPU
+  buffers; master's OpenLayers features and geometries are ordinary JS
+  objects and are counted.
+- "Bulk data in" is the time of the `bulkStream:done` debug message, which
+  master does not log.
+- The IDC proxy ignores HTTP Range and sends the whole body, so the deck.gl
+  build drew once from the buffered payload instead of progressively.
 
 ## Expected / previously observed characteristics
 
