@@ -37,6 +37,7 @@ const uniformBlock = `\
 uniform labelmapUniforms {
   vec4 bounds;
   vec4 uvRect;
+  float interpolate;
 } labelmap;
 `
 
@@ -47,6 +48,7 @@ const labelmapUniforms = {
   uniformTypes: {
     bounds: 'vec4<f32>',
     uvRect: 'vec4<f32>',
+    interpolate: 'f32',
   },
 }
 
@@ -83,8 +85,11 @@ void main(void) {
 `
 
 /**
- * Raw labels are read with texelFetch (nearest, never interpolated) and
- * looked up in a 256-wide RGBA table: row = label >> 8, column = label & 255.
+ * Raw values are read with texelFetch and looked up in a 256-wide RGBA
+ * table: row = value >> 8, column = value & 255. Labels are never
+ * interpolated; with `interpolate` (fractional segments), the four nearest
+ * values are blended bilinearly before the lookup, as OpenLayers filters a
+ * tile's values before applying its palette.
  * Both are integer textures: samplers of different types left on the same
  * texture unit fail gl.validateProgram, which luma.gl treats as a link error.
  */
@@ -102,10 +107,25 @@ uniform usampler2D lutTexture;
 in vec2 vUv;
 out vec4 fragColor;
 
+uint valueAt(ivec2 texel, ivec2 size) {
+  return texelFetch(labelTexture, clamp(texel, ivec2(0), size - 1), 0).r;
+}
+
 void main(void) {
   ivec2 size = textureSize(labelTexture, 0);
-  ivec2 texel = clamp(ivec2(vUv * vec2(size)), ivec2(0), size - 1);
-  uint label = texelFetch(labelTexture, texel, 0).r;
+  uint label;
+  if (labelmap.interpolate > 0.5) {
+    vec2 position = vUv * vec2(size) - 0.5;
+    ivec2 base = ivec2(floor(position));
+    vec2 t = fract(position);
+    float a = float(valueAt(base, size));
+    float b = float(valueAt(base + ivec2(1, 0), size));
+    float c = float(valueAt(base + ivec2(0, 1), size));
+    float d = float(valueAt(base + ivec2(1, 1), size));
+    label = uint(floor(mix(mix(a, b, t.x), mix(c, d, t.x), t.y) + 0.5));
+  } else {
+    label = valueAt(ivec2(vUv * vec2(size)), size);
+  }
   vec4 color =
     vec4(texelFetch(lutTexture, ivec2(int(label & 255u), int(label >> 8u)), 0)) / 255.0;
   if (color.a == 0.0) {
@@ -140,6 +160,36 @@ export function padRowsForUpload(labels, width, height) {
     padded.set(labels.subarray(row * width, (row + 1) * width), row * stride)
   }
   return padded
+}
+
+/**
+ * The RGBA each stored value 0-255 is drawn in through a palette: the entry
+ * the value maps to through the window, as the OpenLayers palette style
+ * computes it (`palette` rounds the index), with the entry's alpha (0-1,
+ * 1 when absent).
+ *
+ * @param {Object} options
+ * @param {number[][]} options.colormap - [r, g, b] or [r, g, b, a] entries
+ * @param {number} options.windowCenter
+ * @param {number} options.windowWidth
+ * @returns {Uint8Array} 256 x 4 RGBA
+ */
+export function paletteValueTable({ colormap, windowCenter, windowWidth }) {
+  const maxIndex = colormap.length - 1
+  const table = new Uint8Array(256 * 4)
+  for (let value = 0; value < 256; value++) {
+    const position = (value - (windowCenter - 0.5)) / (windowWidth - 1) + 0.5
+    const index = Math.min(
+      maxIndex,
+      Math.max(0, Math.round(position * maxIndex)),
+    )
+    const entry = colormap[index]
+    table[value * 4] = entry[0]
+    table[value * 4 + 1] = entry[1]
+    table[value * 4 + 2] = entry[2]
+    table[value * 4 + 3] = Math.round((entry[3] ?? 1) * 255)
+  }
+  return table
 }
 
 let deckModulesPromise = null
@@ -188,13 +238,17 @@ function loadDeckModules() {
 
         draw() {
           const { model } = this.state
-          const { tiles, lutTexture } = this.props
+          const { tiles, lutTexture, interpolate } = this.props
           if (model == null || lutTexture == null) {
             return
           }
           for (const tile of tiles) {
             model.shaderInputs.setProps({
-              labelmap: { bounds: tile.bounds, uvRect: tile.uvRect },
+              labelmap: {
+                bounds: tile.bounds,
+                uvRect: tile.uvRect,
+                interpolate: interpolate ? 1 : 0,
+              },
             })
             model.setBindings({ labelTexture: tile.texture, lutTexture })
             model.draw(this.context.renderPass)
@@ -205,6 +259,7 @@ function loadDeckModules() {
       LabelmapTilesLayer.defaultProps = {
         tiles: { type: 'object', value: [], compare: false },
         lutTexture: { type: 'object', value: null, compare: false },
+        interpolate: false,
       }
 
       return { core, LabelmapTilesLayer }
@@ -289,6 +344,7 @@ export class LabelmapDeckLayers {
       minResolution,
       bitsAllocated = 8,
       binary = false,
+      interpolate = false,
     },
   ) {
     const rows = bitsAllocated > 8 ? 256 : 1
@@ -301,6 +357,7 @@ export class LabelmapDeckLayers {
       lut: new Uint8Array(256 * rows * 4),
       lutRows: rows,
       binary,
+      interpolate,
       lutTexture: null,
       lutDirty: true,
       /** label -> {visible, color: [r, g, b], opacity} */
@@ -357,6 +414,49 @@ export class LabelmapDeckLayers {
       instance.lut[offset + 3] = alpha
     }
     instance.lutDirty = true
+    this._changed()
+  }
+
+  /**
+   * Replace the whole lookup table of an instance whose values are not
+   * labels (fractional segments): `table` maps each value to RGBA, and
+   * its alpha is scaled by `opacity`, or 0 when not `visible`.
+   *
+   * @param {Object} instance
+   * @param {Object} state
+   * @param {Uint8Array} [state.table] - 256 x 4 RGBA
+   * @param {boolean} [state.visible]
+   * @param {number} [state.opacity] - 0-1
+   */
+  setValueTable(instance, state) {
+    const previous = instance.valueTable ?? {
+      table: new Uint8Array(instance.lut.length),
+      visible: false,
+      opacity: 1,
+    }
+    const next = { ...previous, ...state }
+    instance.valueTable = next
+    if (previous.visible !== next.visible) {
+      instance.visibleCount += next.visible ? 1 : -1
+    }
+    const scale = next.visible ? Math.max(0, Math.min(1, next.opacity)) : 0
+    const length = Math.min(next.table.length, instance.lut.length)
+    for (let i = 0; i < length; i += 4) {
+      instance.lut[i] = next.table[i]
+      instance.lut[i + 1] = next.table[i + 1]
+      instance.lut[i + 2] = next.table[i + 2]
+      instance.lut[i + 3] = Math.round(next.table[i + 3] * scale)
+    }
+    instance.lutDirty = true
+    this._changed()
+  }
+
+  /**
+   * @param {Object} instance
+   * @param {boolean} interpolate - Blend values bilinearly before the lookup
+   */
+  setInterpolate(instance, interpolate) {
+    instance.interpolate = interpolate === true
     this._changed()
   }
 
@@ -624,6 +724,7 @@ export class LabelmapDeckLayers {
           id: `labelmap-${instance.key}`,
           tiles,
           lutTexture: instance.lutTexture,
+          interpolate: instance.interpolate,
           modelMatrix,
           /** Redraw whenever OpenLayers renders: tiles are not diffed */
           updateTriggers: { tiles: this.frameId },
@@ -682,5 +783,43 @@ export function createLabelProxyLayer(overlay, instance, label, options) {
     un: () => {},
     changed: () => overlay.map.render(),
     dispose: () => overlay.setLabel(instance, label, { visible: false }),
+  }
+}
+
+/**
+ * Stand-in for the OpenLayers layer of a segment whose values are colored
+ * through a table of their own (a fractional segment).
+ *
+ * @param {LabelmapDeckLayers} overlay
+ * @param {Object} instance
+ * @param {Object} options
+ * @param {number} options.opacity
+ * @param {Uint8Array} options.table - 256 x 4 RGBA
+ * @returns {Object}
+ */
+export function createValueTableProxyLayer(overlay, instance, options) {
+  overlay.setValueTable(instance, {
+    visible: false,
+    opacity: options.opacity,
+    table: options.table,
+  })
+  return {
+    isLabelmapDeckProxy: true,
+    getVisible: () => instance.valueTable?.visible === true,
+    setVisible: (visible) =>
+      overlay.setValueTable(instance, { visible: visible === true }),
+    getOpacity: () => instance.valueTable?.opacity ?? 1,
+    setOpacity: (opacity) => overlay.setValueTable(instance, { opacity }),
+    setValueTable: (table) => overlay.setValueTable(instance, { table }),
+    setInterpolate: (interpolate) =>
+      overlay.setInterpolate(instance, interpolate),
+    setStyle: () => {},
+    getSource: () => null,
+    setSource: () => {},
+    getExtent: () => instance.extent,
+    on: () => {},
+    un: () => {},
+    changed: () => overlay.map.render(),
+    dispose: () => overlay.setValueTable(instance, { visible: false }),
   }
 }

@@ -5,8 +5,10 @@ import TileGrid from 'ol/tilegrid/TileGrid'
 
 import {
   createLabelProxyLayer,
+  createValueTableProxyLayer,
   LabelmapDeckLayers,
   padRowsForUpload,
+  paletteValueTable,
 } from './labelmapDeck.js'
 
 function createLayers() {
@@ -156,5 +158,66 @@ describe('padRowsForUpload', () => {
   it('keeps rows that are already aligned', () => {
     const labels = new Uint8Array(256 * 2)
     expect(padRowsForUpload(labels, 256, 2)).toBe(labels)
+  })
+})
+
+describe('paletteValueTable', () => {
+  /** A 256-entry gray ramp whose first entry is transparent */
+  const colormap = Array.from({ length: 256 }, (_, i) =>
+    i === 0 ? [0, 0, 0, 0] : [i, i, i],
+  )
+
+  it('maps stored values 0-255 through a full window to the same entry', () => {
+    const table = paletteValueTable({
+      colormap,
+      /** createWindow(0, 255) */
+      windowCenter: 127.5,
+      windowWidth: 255,
+    })
+    expect(Array.from(table.slice(0, 4))).toEqual([0, 0, 0, 0])
+    expect(Array.from(table.slice(100 * 4, 100 * 4 + 4))).toEqual([
+      100, 100, 100, 255,
+    ])
+    expect(Array.from(table.slice(255 * 4))).toEqual([255, 255, 255, 255])
+  })
+
+  it('clamps values outside a narrow window to its ends', () => {
+    const table = paletteValueTable({
+      colormap: [
+        [0, 0, 0, 0],
+        [255, 0, 0, 0.5],
+      ],
+      windowCenter: 100.5,
+      windowWidth: 2,
+    })
+    expect(Array.from(table.slice(50 * 4, 50 * 4 + 4))).toEqual([0, 0, 0, 0])
+    expect(Array.from(table.slice(200 * 4, 200 * 4 + 4))).toEqual([
+      255, 0, 0, 128,
+    ])
+  })
+})
+
+describe('createValueTableProxyLayer', () => {
+  it('scales the table alpha by opacity and clears it when hidden', () => {
+    const { layers } = createLayers()
+    const instance = createInstance(layers)
+    const table = new Uint8Array(256 * 4)
+    table.set([10, 20, 30, 200], 7 * 4)
+    const proxy = createValueTableProxyLayer(layers, instance, {
+      opacity: 0.5,
+      table,
+    })
+    expect(proxy.getVisible()).toBe(false)
+    expect(lut(instance, 7)[3]).toBe(0)
+    proxy.setVisible(true)
+    expect(lut(instance, 7)).toEqual([10, 20, 30, 100])
+    expect(instance.visibleCount).toBe(1)
+    proxy.setOpacity(1)
+    expect(lut(instance, 7)[3]).toBe(200)
+    proxy.setInterpolate(true)
+    expect(instance.interpolate).toBe(true)
+    proxy.dispose()
+    expect(lut(instance, 7)[3]).toBe(0)
+    expect(instance.visibleCount).toBe(0)
   })
 })

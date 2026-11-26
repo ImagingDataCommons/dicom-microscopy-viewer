@@ -90,7 +90,9 @@ import {
 import { Segment } from './segment.js'
 import {
   createLabelProxyLayer,
+  createValueTableProxyLayer,
   LabelmapDeckLayers,
+  paletteValueTable,
 } from './segmentation/labelmapDeck.js'
 import {
   _convertAreaFromMm,
@@ -470,6 +472,20 @@ function _getLabelmapSegmentColor(segment) {
 }
 
 /**
+ * The RGBA table a fractional segment's stored values are drawn through.
+ *
+ * @param {Object} segment
+ * @returns {Uint8Array} 256 x 4 RGBA
+ */
+function _getSegmentValueTable(segment) {
+  return paletteValueTable({
+    colormap: _getSegmentColormap(segment),
+    windowCenter: segment.style.windowCenter ?? 128,
+    windowWidth: segment.style.windowWidth ?? 256,
+  })
+}
+
+/**
  * Apply palette style to a segment's render layers. Per-frame ImageStatic
  * overlays bake the palette into the image; WebGL tile layers use setStyle.
  *
@@ -478,7 +494,11 @@ function _getLabelmapSegmentColor(segment) {
  */
 function _applySegmentPaletteToLayers(segment, paletteStyle) {
   if (segment.layer?.isLabelmapDeckProxy) {
-    segment.layer.setColor(_getLabelmapSegmentColor(segment))
+    if (segment.layer.setValueTable != null) {
+      segment.layer.setValueTable(_getSegmentValueTable(segment))
+    } else {
+      segment.layer.setColor(_getLabelmapSegmentColor(segment))
+    }
     return
   }
   if (segment.usePerFrameImages) {
@@ -3614,7 +3634,8 @@ class VolumeImageViewer {
         return
       }
       if (segment.layer?.isLabelmapDeckProxy) {
-        /** Labels are always drawn unfiltered */
+        /** Labels are always drawn unfiltered; fractional values follow */
+        segment.layer.setInterpolate?.(interpolate)
         return
       }
       const wasVisible = segment.layer.getVisible() === true
@@ -5635,6 +5656,7 @@ class VolumeImageViewer {
    * @param {Object} options.refSegmentation - Metadata of the SEG instance
    * @param {number} options.channel - Segment number whose frames to load
    * @param {boolean} [options.binary] - Every value but 0 is the segment
+   * @param {boolean} [options.interpolate] - Blend values before the lookup
    * @param {number} [options.minResolution]
    * @returns {Object} instance
    * @private
@@ -5646,6 +5668,7 @@ class VolumeImageViewer {
     refSegmentation,
     channel,
     binary = false,
+    interpolate = false,
     minResolution,
   }) {
     if (this._labelmapDeckLayers == null) {
@@ -5660,6 +5683,7 @@ class VolumeImageViewer {
       extent: fittedPyramid.extent,
       bitsAllocated: refSegmentation.BitsAllocated,
       binary,
+      interpolate,
       minResolution,
       loader: (z, column, row) => {
         if (rawLoader == null) {
@@ -6243,16 +6267,17 @@ class VolumeImageViewer {
     const perFrameDataCache = new Map()
 
     /**
-     * Tiled LABELMAP and BINARY segmentations are drawn with deck.gl, by the
-     * viewer's shared overlay (`segmentationRenderer: 'openlayers'`, or
+     * Tiled LABELMAP, BINARY and FRACTIONAL segmentations are drawn with
+     * deck.gl, by the viewer's shared overlay (`segmentationRenderer: 'openlayers'`, or
      * `labelmapRenderer: 'openlayers'` for LABELMAP, keeps one OpenLayers
      * layer per segment). A LABELMAP instance is one layer whose label
      * values are colored through a lookup table; each BINARY segment has
-     * its own frames, so it is an instance of its own with labels 0 and 1.
+     * its own frames, so it is an instance of its own with labels 0 and 1;
+     * a FRACTIONAL segment too, its values colored through its palette.
      */
     const isBinary = refSegmentation.SegmentationType === 'BINARY'
     const useDeckRenderer =
-      (isLabelmap || isBinary) &&
+      (isLabelmap || isBinary || isFractional) &&
       !fittedPyramid.usePerFramePlacement &&
       this[_options].segmentationRenderer !== 'openlayers' &&
       !(isLabelmap && this[_options].labelmapRenderer === 'openlayers')
@@ -6555,6 +6580,23 @@ class VolumeImageViewer {
            */
           opacity: segment.style.opacity,
         })
+      } else if (useDeckRenderer && isFractional) {
+        /** Fractional values are colored through the segment's palette */
+        const instance = this._addSegmentationDeckInstance({
+          ...deckInstanceOptions,
+          key: `${refSegmentation.SeriesInstanceUID}:${segmentNumber}`,
+          channel: segmentNumber,
+          interpolate: this[_segmentationInterpolate],
+        })
+        segment.layer = createValueTableProxyLayer(
+          this._labelmapDeckLayers,
+          instance,
+          {
+            opacity: segment.style.opacity,
+            table: _getSegmentValueTable(segment),
+          },
+        )
+        segment.hasLoader = true
       } else if (useDeckRenderer) {
         /** A BINARY segment's frames hold 1 where the segment is */
         const instance =

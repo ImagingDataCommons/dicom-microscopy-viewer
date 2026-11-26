@@ -391,8 +391,8 @@ export namespace viewer {
     clientMapping?: Record<string, DicomWebClient>
     metadata: Array<metadata.VLWholeSlideMicroscopyImage | object>
     /**
-     * How tiled segmentations are drawn: with deck.gl (the default), or
-     * with one OpenLayers layer per segment
+     * How tiled LABELMAP, BINARY and FRACTIONAL segmentations are drawn:
+     * with deck.gl (the default), or with one OpenLayers layer per segment
      */
     segmentationRenderer?: 'deckgl' | 'openlayers'
     /** Same as segmentationRenderer, for LABELMAP segmentations only */
