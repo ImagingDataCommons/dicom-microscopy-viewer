@@ -385,6 +385,14 @@ function _perFrameOverviewColor(segment) {
 const SEGMENT_OVERVIEW_LAYER = 'segmentOverview'
 
 /**
+ * Tiles the slide viewer's map may load at once. OpenLayers counts each
+ * layer's tile, so with OpenLayers' default of 16 many shown segments fill the
+ * slots with tiles that wait on the same shared LABELMAP frame, and only a few
+ * frames are retrieved at a time.
+ */
+const MAX_TILES_LOADING = 64
+
+/**
  * Whether a layer holds annotation features for click / hover handling.
  *
  * @param {import('ol/layer/Base').default} layer
@@ -2206,6 +2214,7 @@ class VolumeImageViewer {
       layers,
       view,
       controls: [],
+      maxTilesLoading: MAX_TILES_LOADING,
       keyboardEventTarget: document,
       interactions: defaultInteractions({
         altShiftDragRotate: true,

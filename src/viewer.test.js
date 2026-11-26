@@ -1110,6 +1110,14 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
     })
   })
 
+  it('should load more tiles at once than the OpenLayers default', () => {
+    /**
+     * Every shown segment is its own layer, and OpenLayers counts each
+     * layer's tile against this limit (default 16)
+     */
+    expect(viewer.getMap().maxTilesLoading_).toBe(64)
+  })
+
   it('should set segment style', () => {
     inputs.segmentations.forEach(metadata => {
       viewer.addSegments(metadata)
