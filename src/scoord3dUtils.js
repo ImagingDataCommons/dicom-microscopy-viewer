@@ -272,7 +272,7 @@ function _getFeatureLength(feature, pyramid, affine) {
         let yLen = p2[1] - p1[1]
         xLen *= xLen
         yLen *= yLen
-        length += Math.sqrt(xLen + yLen) * 1000
+        length += Math.sqrt(xLen + yLen)
       }
       return length
     } else {
@@ -305,7 +305,7 @@ function _getFeatureArea(feature, pyramid, affine) {
       const scoord3dCoordinates = geometry.getCoordinates()[0].map((c) => {
         return _geometryCoordinates2scoord3dCoordinates(c, pyramid, affine)
       })
-      return _computeAreaOfPolygon(scoord3dCoordinates) * 1000
+      return _computeAreaOfPolygon(scoord3dCoordinates)
     }
   }
 }
