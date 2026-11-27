@@ -1,0 +1,44 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 3a6a10f2acddefb5a3c2725dea7b586343b9d598..240ae0f3b8394eff28db533d92a968f5a161015b 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -1446,6 +1446,8 @@ var _Model = class {
+     }
+     this._uniformStore.destroy();
+     (_a = this._gpuGeometry) == null ? void 0 : _a.destroy();
++    /* The model creates its vertex array, so it deletes it too */
++    if (this.vertexArray) this.vertexArray.destroy();
+     this._destroyed = true;
+   }
+   // Draw call
+@@ -1558,6 +1560,8 @@ var _Model = class {
+     this.bufferLayout = this._gpuGeometry ? bufferLayoutHelper.mergeBufferLayouts(bufferLayout, this._gpuGeometry.bufferLayout) : bufferLayout;
+     this._setPipelineNeedsUpdate("bufferLayout");
+     this.pipeline = this._updatePipeline();
++    /* Delete the vertex array being replaced */
++    if (this.vertexArray) this.vertexArray.destroy();
+     this.vertexArray = this.device.createVertexArray({
+       renderPipeline: this.pipeline
+     });
+diff --git a/dist/model/model.js b/dist/model/model.js
+index 18e3c094c37c7b274a6afddde7b868a81510538b..8a64f5d787f4619b2e8a2f9255bdd9b95caf4dc4 100644
+--- a/dist/model/model.js
++++ b/dist/model/model.js
+@@ -232,6 +232,8 @@ export class Model {
+         this._uniformStore.destroy();
+         // TODO - mark resource as managed and destroyIfManaged() ?
+         this._gpuGeometry?.destroy();
++        /* The model creates its vertex array, so it deletes it too */
++        this.vertexArray?.destroy();
+         this._destroyed = true;
+     }
+     // Draw call
+@@ -363,6 +365,8 @@ export class Model {
+         this.pipeline = this._updatePipeline();
+         // vertex array needs to be updated if we update buffer layout,
+         // but not if we update parameters
++        /* Delete the vertex array being replaced */
++        this.vertexArray?.destroy();
+         this.vertexArray = this.device.createVertexArray({
+             renderPipeline: this.pipeline
+         });
