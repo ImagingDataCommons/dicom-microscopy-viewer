@@ -38,6 +38,7 @@ import Fill from 'ol/style/Fill'
 import Icon from 'ol/style/Icon'
 import Stroke from 'ol/style/Stroke'
 import Style from 'ol/style/Style'
+import TileState from 'ol/TileState'
 import TileGrid from 'ol/tilegrid/TileGrid'
 import View from 'ol/View'
 import {
@@ -86,6 +87,7 @@ import {
   _fitImagePyramid,
   _getIccProfiles,
   _groupVolumeImages,
+  _isEmptyLabelmapTile,
   _isSparseTileMissing,
   _overviewStampExtent,
   _perFrameRasterMaxResolution,
@@ -383,6 +385,14 @@ function _perFrameOverviewColor(segment) {
  * annotations, so feature hit detection must skip them.
  */
 const SEGMENT_OVERVIEW_LAYER = 'segmentOverview'
+
+/**
+ * Tiles the slide viewer's map may load at once. OpenLayers counts each
+ * layer's tile, so with OpenLayers' default of 16 many shown segments fill the
+ * slots with tiles that wait on the same shared LABELMAP frame, and only a few
+ * frames are retrieved at a time.
+ */
+const MAX_TILES_LOADING = 64
 
 /**
  * Whether a layer holds annotation features for click / hover handling.
@@ -2206,6 +2216,7 @@ class VolumeImageViewer {
       layers,
       view,
       controls: [],
+      maxTilesLoading: MAX_TILES_LOADING,
       keyboardEventTarget: document,
       interactions: defaultInteractions({
         altShiftDragRotate: true,
@@ -5758,10 +5769,15 @@ class VolumeImageViewer {
                     `${errors[index]}: ${result.reason}`,
                   )
                   errorInterceptor(customError)
-                  failure()
                 }
               })
               if (hasFailure) {
+                /**
+                 * Once per load, however many retrievals failed: each call is
+                 * a features load error event, and listeners pair them with
+                 * the load's start
+                 */
+                failure()
                 return
               }
               console.info('retrieve and cache bulk annotations')
@@ -6836,7 +6852,16 @@ class VolumeImageViewer {
       coordinateScaleFactor,
       fittedOriginOffset,
     )
+    /** Where each segment has frames on any level, to limit its layer */
+    const segmentLayerExtents = _computeSegmentBoundingBoxes(
+      pyramid,
+      coordinateScaleFactor,
+      fittedOriginOffset,
+      { allLevels: true },
+    )
     const perFrameDataCache = new Map()
+    /** Tiles of this LABELMAP instance, retrieved once for all its segments */
+    const labelmapTileCache = isLabelmap ? new Map() : undefined
 
     refSegmentation.SegmentSequence.forEach((item, _index) => {
       const segmentNumber = Number(item.SegmentNumber)
@@ -6988,10 +7013,12 @@ class VolumeImageViewer {
            * number are preserved.
            */
           labelmapSegmentNumber: isLabelmap ? segmentNumber : undefined,
+          labelmapTileCache,
         },
         hasLoader: false,
         segmentationType: refSegmentation.SegmentationType,
         boundingBox,
+        layerExtent: segmentLayerExtents.get(String(segmentNumber)) ?? null,
         isAbsent,
       }
 
@@ -7119,6 +7146,14 @@ class VolumeImageViewer {
         })
       } else {
         segment.onTileLoadError = (event) => {
+          /**
+           * A LABELMAP tile without this segment's pixels: an empty tile,
+           * which OpenLayers neither draws nor stands in for
+           */
+          if (_isEmptyLabelmapTile(event.tile?.getError?.())) {
+            event.tile.setState(TileState.EMPTY)
+            return
+          }
           console.error(
             `error loading tile of segment "${segmentUID}"`,
             event.tile?.error_?.message || event,
@@ -7141,7 +7176,13 @@ class VolumeImageViewer {
 
         segment.layer = new TileLayer({
           source,
-          extent: this[_pyramid].extent,
+          /**
+           * Only where the segment has frames on any level: a segment of one
+           * region need not walk the slide's whole tile grid on every
+           * render, and is skipped entirely when its region is out of view.
+           * With many segments shown that walk dominated each frame.
+           */
+          extent: segment.layerExtent ?? this[_pyramid].extent,
           visible: false,
           /** Start at the style's opacity, as getSegmentStyle reports it */
           opacity: segment.style.opacity,

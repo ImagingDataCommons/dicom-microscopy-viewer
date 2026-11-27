@@ -4,7 +4,10 @@ jest.mock('./decode.js', () => ({
 
 const { _decodeAndTransformFrame } = require('./decode.js')
 const EVENT = require('./events.js').default
-const { _createTileLoadFunction } = require('./pyramid.js')
+const {
+  _createTileLoadFunction,
+  _isEmptyLabelmapTile,
+} = require('./pyramid.js')
 
 const image = {
   StudyInstanceUID: '1.2.3',
@@ -30,6 +33,8 @@ const createClient = () => ({
   wadoURL: 'https://dicomweb.example',
   retrieveInstanceFrames: jest.fn(() => Promise.resolve([new ArrayBuffer(8)])),
 })
+
+const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 const recordEvents = (element) => {
   const events = []
@@ -117,8 +122,198 @@ describe('_createTileLoadFunction', () => {
       labelmapSegmentNumber: 2,
     })
     const pixels = await loader(0, 1, 0)
-    expect(Array.from(pixels)).toEqual([0, 1, 0, 1])
-    expect(Array.from(events[1].payload.pixelArray)).toEqual([0, 1, 0, 1])
+    /** Bytes, which WebGL reads normalized: 255 is 1 and 0 is 0 */
+    expect(pixels).toBeInstanceOf(Uint8Array)
+    expect(Array.from(pixels)).toEqual([0, 255, 0, 255])
+    expect(Array.from(events[1].payload.pixelArray)).toEqual([0, 255, 0, 255])
+  })
+
+  it('retrieves a LABELMAP tile once for all segments that share the cache', async () => {
+    _decodeAndTransformFrame.mockResolvedValue(new Uint8Array([0, 2, 1, 2]))
+    const client = createClient()
+    /** LABELMAP frames are mapped under every segment number */
+    const pyramid = {
+      ...createPyramid({ BitsAllocated: 8 }),
+      frameMappings: [
+        {
+          '1-2-1': `${image.SOPInstanceUID}/frames/3`,
+          '1-2-2': `${image.SOPInstanceUID}/frames/3`,
+        },
+      ],
+    }
+    const labelmapTileCache = new Map()
+    const loaderFor = (segmentNumber) =>
+      _createTileLoadFunction({
+        pyramid,
+        client,
+        channel: String(segmentNumber),
+        targetElement,
+        labelmapSegmentNumber: segmentNumber,
+        labelmapTileCache,
+      })
+
+    /** Requested together, as "Show all" does */
+    const [first, second] = await Promise.all([
+      loaderFor(1)(0, 1, 0),
+      loaderFor(2)(0, 1, 0),
+    ])
+
+    expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(1)
+    expect(Array.from(first)).toEqual([0, 0, 255, 0])
+    expect(Array.from(second)).toEqual([0, 255, 0, 255])
+    /** Progress is reported once, for the one retrieval */
+    expect(events.map((event) => event.type)).toEqual([
+      EVENT.FRAME_LOADING_STARTED,
+      EVENT.FRAME_LOADING_ENDED,
+    ])
+  })
+
+  it('retrieves a LABELMAP tile again after a shared retrieval failed', async () => {
+    _decodeAndTransformFrame
+      .mockRejectedValueOnce(new Error('decode failed'))
+      .mockResolvedValue(new Uint8Array([0, 2, 1, 2]))
+    const client = createClient()
+    const labelmapTileCache = new Map()
+    const loader = _createTileLoadFunction({
+      pyramid: createPyramid({ BitsAllocated: 8 }),
+      client,
+      channel: '1',
+      targetElement,
+      labelmapSegmentNumber: 2,
+      labelmapTileCache,
+    })
+
+    await expect(loader(0, 1, 0)).rejects.toThrow()
+    expect(Array.from(await loader(0, 1, 0))).toEqual([0, 255, 0, 255])
+    expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(2)
+  })
+
+  it('gives an empty tile to a segment without pixels in it', async () => {
+    _decodeAndTransformFrame.mockResolvedValue(new Uint8Array([0, 2, 1, 2]))
+    const client = createClient()
+    const pyramid = {
+      ...createPyramid({ BitsAllocated: 8 }),
+      frameMappings: [
+        {
+          '1-2-2': `${image.SOPInstanceUID}/frames/3`,
+          '1-2-5': `${image.SOPInstanceUID}/frames/3`,
+        },
+      ],
+    }
+    const labelmapTileCache = new Map()
+    const loaderFor = (segmentNumber) =>
+      _createTileLoadFunction({
+        pyramid,
+        client,
+        channel: String(segmentNumber),
+        targetElement,
+        labelmapSegmentNumber: segmentNumber,
+        labelmapTileCache,
+      })
+
+    /** Segment 5 is the first to ask, so it reports the retrieval */
+    const error = await loaderFor(5)(0, 1, 0).catch((e) => e)
+    expect(_isEmptyLabelmapTile(error)).toBe(true)
+    expect(Array.from(await loaderFor(2)(0, 1, 0))).toEqual([0, 255, 0, 255])
+    expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(1)
+    /** Its end is reported, and no error */
+    expect(events.map((event) => event.type)).toEqual([
+      EVENT.FRAME_LOADING_STARTED,
+      EVENT.FRAME_LOADING_ENDED,
+    ])
+  })
+
+  it('never retrieves a LABELMAP tile twice while it is in flight', async () => {
+    _decodeAndTransformFrame.mockResolvedValue(new Uint8Array([0, 2, 1, 2]))
+    /** More tile positions in flight than the cache keeps retrieved tiles */
+    const positions = 40
+    const frameMapping = {}
+    for (let c = 1; c <= positions; c++) {
+      frameMapping[`1-${c}-1`] = `${image.SOPInstanceUID}/frames/${c}`
+      frameMapping[`1-${c}-2`] = `${image.SOPInstanceUID}/frames/${c}`
+    }
+    const pyramid = {
+      ...createPyramid({ BitsAllocated: 8 }),
+      frameMappings: [frameMapping],
+    }
+    const pending = []
+    const client = createClient()
+    client.retrieveInstanceFrames.mockImplementation(
+      () => new Promise((resolve) => pending.push(resolve)),
+    )
+    const labelmapTileCache = new Map()
+    const loaderFor = (segmentNumber) =>
+      _createTileLoadFunction({
+        pyramid,
+        client,
+        channel: String(segmentNumber),
+        targetElement,
+        labelmapSegmentNumber: segmentNumber,
+        labelmapTileCache,
+      })
+
+    const first = Array.from({ length: positions }, (_, c) =>
+      loaderFor(1)(0, c, 0),
+    )
+    /** The oldest position, asked for by another segment while in flight */
+    const again = loaderFor(2)(0, 0, 0)
+    await flushPromises()
+    expect(client.retrieveInstanceFrames).toHaveBeenCalledTimes(positions)
+
+    pending.forEach((resolve) => resolve([new ArrayBuffer(4)]))
+    await Promise.all([...first, again])
+    /** Retrieved tiles beyond the bound are dropped, oldest first */
+    expect(labelmapTileCache.size).toBe(32)
+  })
+
+  /** Loads `count` tiles of `bytes` each, one after the other */
+  const loadLabelmapTiles = async (count, bytes) => {
+    /** Every pixel of segment 1, so each tile is masked and kept */
+    _decodeAndTransformFrame.mockImplementation(() =>
+      Promise.resolve(new Uint8Array(bytes).fill(1)),
+    )
+    const frameMapping = {}
+    for (let c = 1; c <= count; c++) {
+      frameMapping[`1-${c}-1`] = `${image.SOPInstanceUID}/frames/${c}`
+    }
+    const labelmapTileCache = new Map()
+    const loader = _createTileLoadFunction({
+      pyramid: {
+        ...createPyramid({ BitsAllocated: 8 }),
+        frameMappings: [frameMapping],
+      },
+      client: createClient(),
+      channel: '1',
+      targetElement,
+      labelmapSegmentNumber: 1,
+      labelmapTileCache,
+    })
+    for (let c = 0; c < count; c++) {
+      await loader(0, c, 0)
+    }
+    await flushPromises()
+    return [...labelmapTileCache.keys()]
+  }
+
+  it('bounds the retrieved LABELMAP tiles by their decoded size', async () => {
+    /** 3 MiB per tile: five fit in the 16 MiB budget */
+    expect(await loadLabelmapTiles(7, 3 * 1024 * 1024)).toEqual([
+      '0/2/0',
+      '0/3/0',
+      '0/4/0',
+      '0/5/0',
+      '0/6/0',
+    ])
+  })
+
+  it('keeps the most recent LABELMAP tiles even when they exceed the budget', async () => {
+    /** 20 MiB per tile, over the budget on its own */
+    expect(await loadLabelmapTiles(5, 20 * 1024 * 1024)).toEqual([
+      '0/1/0',
+      '0/2/0',
+      '0/3/0',
+      '0/4/0',
+    ])
   })
 
   it('returns an empty tile for a missing sparse frame without events', async () => {

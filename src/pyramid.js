@@ -760,8 +760,142 @@ function _createFrameLoadError({
 }
 
 /**
+ * Thrown by a LABELMAP segment's tile loader when the segment has no pixels
+ * in that tile, so nothing is masked, uploaded to the GPU or drawn. The
+ * viewer turns such a tile into an empty one instead of reporting an error.
+ * Most tiles of a LABELMAP with many segments hold only a few of them.
+ */
+class EmptyLabelmapTileError extends Error {
+  constructor() {
+    super('The segment has no pixels in this LABELMAP tile.')
+    this.name = 'EmptyLabelmapTileError'
+  }
+}
+
+/**
+ * Whether `error` marks a LABELMAP tile without the segment's pixels.
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ * @private
+ */
+function _isEmptyLabelmapTile(error) {
+  return error instanceof EmptyLabelmapTileError
+}
+
+/**
+ * Which labels a decoded LABELMAP tile holds, as flags indexed by label.
+ * Computed once per shared tile, so each segment only checks its own flag.
+ *
+ * @param {Object} tile - Decoded tile, shared by the instance's segments
+ * @returns {Uint8Array}
+ * @private
+ */
+function _labelsInTile(tile) {
+  if (tile.labels === undefined) {
+    const { pixelArray } = tile
+    const labels = new Uint8Array(tile.bitsAllocated > 8 ? 65536 : 256)
+    for (let i = 0; i < pixelArray.length; i++) {
+      labels[pixelArray[i]] = 1
+    }
+    tile.labels = labels
+  }
+  return tile.labels
+}
+
+/**
+ * Decoded LABELMAP tiles kept per SEG instance once retrieved, so a tile
+ * shown for several segments is fetched and decoded once even when OpenLayers
+ * asks for it layer by layer. Bounded by count and by decoded bytes; tiles
+ * still being retrieved are never dropped, so a retrieval is never repeated
+ * while it is in flight. OpenLayers keeps its own cache of the drawn tiles.
+ */
+const LABELMAP_TILE_CACHE_SIZE = 32
+const LABELMAP_TILE_CACHE_BYTES = 16 * 1024 * 1024
+/**
+ * Retrieved tiles kept whatever their size, so frames larger than the byte
+ * budget are still shared by the layers that ask for them next
+ */
+const LABELMAP_TILE_CACHE_MIN = 4
+
+/**
+ * Drop the least recently used retrieved tiles until the cache is within its
+ * bounds, keeping at least the most recent few. Pending retrievals are kept,
+ * whatever their age.
+ *
+ * @param {Map<string, Object>} sharedTiles
+ * @private
+ */
+function _trimSharedLabelmapTiles(sharedTiles) {
+  let bytes = 0
+  let settled = 0
+  for (const entry of sharedTiles.values()) {
+    if (entry.isSettled) {
+      bytes += entry.byteLength
+      settled += 1
+    }
+  }
+  for (const [key, entry] of sharedTiles) {
+    if (
+      settled <= LABELMAP_TILE_CACHE_SIZE &&
+      (bytes <= LABELMAP_TILE_CACHE_BYTES || settled <= LABELMAP_TILE_CACHE_MIN)
+    ) {
+      return
+    }
+    if (!entry.isSettled) continue
+    sharedTiles.delete(key)
+    bytes -= entry.byteLength
+    settled -= 1
+  }
+}
+
+/**
+ * The decoded tile for (level, column, row), from `sharedTiles` when another
+ * segment of the same LABELMAP instance already asked for it. `retrieve` runs
+ * only for the first request, which alone reports loading progress.
+ *
+ * @param {Map<string, Object>} sharedTiles - Owned by this function
+ * @param {string} key
+ * @param {function(): Promise<Object>} retrieve
+ * @returns {{tile: Promise<Object>, isOwner: boolean}}
+ * @private
+ */
+function _sharedLabelmapTile(sharedTiles, key, retrieve) {
+  const cached = sharedTiles.get(key)
+  if (cached !== undefined) {
+    /** Most recently used last, so the oldest is dropped first */
+    sharedTiles.delete(key)
+    sharedTiles.set(key, cached)
+    return { tile: cached.tile, isOwner: false }
+  }
+  const entry = {
+    tile: retrieve(),
+    isSettled: false,
+    byteLength: 0,
+  }
+  sharedTiles.set(key, entry)
+  entry.tile.then(
+    (tile) => {
+      entry.isSettled = true
+      entry.byteLength = tile?.pixelArray?.byteLength ?? 0
+      if (sharedTiles.get(key) === entry) _trimSharedLabelmapTiles(sharedTiles)
+    },
+    () => {
+      /** A failed retrieval is not kept, so the next request tries again */
+      if (sharedTiles.get(key) === entry) sharedTiles.delete(key)
+    },
+  )
+  _trimSharedLabelmapTiles(sharedTiles)
+  return { tile: entry.tile, isOwner: true }
+}
+
+/**
  * Create the tile load function of an OpenLayers DataTile source.
  *
+ * @param {Object} options
+ * @param {number} [options.labelmapSegmentNumber] - LABELMAP segment to mask
+ * @param {Map<string, Object>} [options.labelmapTileCache] - Tiles of
+ *   the LABELMAP instance, shared by all of its segments
  * @private
  */
 function _createTileLoadFunction({
@@ -772,34 +906,52 @@ function _createTileLoadFunction({
   iccOutputType,
   targetElement,
   labelmapSegmentNumber,
+  labelmapTileCache,
 }) {
   /** OpenLayers calls the loader as (z, column, row). */
   return async (z, column, row) => {
     let frameInfo
     try {
-      const tile = await _retrieveTile({
-        pyramid,
-        client,
-        channel,
-        level: z,
-        column,
-        row,
-        iccProfiles,
-        iccOutputType,
-        onFrameLoadingStarted: (info) => {
-          frameInfo = info
-          publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
-        },
-      })
+      const retrieve = () =>
+        _retrieveTile({
+          pyramid,
+          client,
+          channel,
+          level: z,
+          column,
+          row,
+          iccProfiles,
+          iccOutputType,
+          onFrameLoadingStarted: (info) => {
+            frameInfo = info
+            publish(targetElement, EVENT.FRAME_LOADING_STARTED, frameInfo)
+          },
+        })
+      /**
+       * Every segment of a LABELMAP instance reads the same frame: share
+       * one retrieval, then mask it per segment below. A segment that
+       * reuses another's retrieval reports no loading progress of its own.
+       */
+      const shared =
+        labelmapSegmentNumber != null && labelmapTileCache != null
+          ? _sharedLabelmapTile(
+              labelmapTileCache,
+              `${z}/${column}/${row}`,
+              retrieve,
+            )
+          : { tile: retrieve(), isOwner: true }
+      const tile = await shared.tile
+      const reportsProgress = shared.isOwner
       if (tile.isEmpty) {
         return tile.pixelArray
       }
 
       const { pixelArray, samplesPerPixel, bitsAllocated } = tile
       if (pixelArray.constructor === Float64Array) {
+        /** The tile's own frame: a shared tile was started by another layer */
         throw _createFrameLoadError({
-          frameNumbers: [frameInfo.frameNumber],
-          sopInstanceUID: frameInfo.sopInstanceUID,
+          frameNumbers: [tile.frameInfo.frameNumber],
+          sopInstanceUID: tile.frameInfo.sopInstanceUID,
           channel,
           level: z,
           column,
@@ -810,33 +962,51 @@ function _createTileLoadFunction({
 
       /**
        * For LABELMAP segmentation, pixel values represent segment numbers.
-       * Apply masking to create a binary layer for this specific segment:
-       * pixels matching the segment number → 1, others → 0.
+       * Mask to this segment as bytes, 255 inside and 0 outside: WebGL reads
+       * byte textures normalized to 0–1, so the palette sees 1 and 0 as for
+       * a binary segment, while the texture is a quarter of a Float32 one and
+       * uploads in the GPU's native format. Every segment of a LABELMAP keeps
+       * its own masked texture, so with many segments shown this dominated.
        */
-      let processedArray = pixelArray
       if (labelmapSegmentNumber != null) {
-        const maskedArray = new pixelArray.constructor(pixelArray.length)
-        for (let i = 0; i < pixelArray.length; i++) {
-          maskedArray[i] = pixelArray[i] === labelmapSegmentNumber ? 1 : 0
+        if (_labelsInTile(tile)[labelmapSegmentNumber] !== 1) {
+          if (reportsProgress) {
+            publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
+          }
+          throw new EmptyLabelmapTileError()
         }
-        processedArray = maskedArray
+        const mask = new Uint8Array(pixelArray.length)
+        for (let i = 0; i < pixelArray.length; i++) {
+          mask[i] = pixelArray[i] === labelmapSegmentNumber ? 255 : 0
+        }
+        if (reportsProgress) {
+          publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
+            pixelArray: mask,
+            ...frameInfo,
+          })
+        }
+        return mask
       }
 
-      publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
-        pixelArray: processedArray,
-        ...frameInfo,
-      })
+      if (reportsProgress) {
+        publish(targetElement, EVENT.FRAME_LOADING_ENDED, {
+          pixelArray,
+          ...frameInfo,
+        })
+      }
       if (samplesPerPixel === 3 && bitsAllocated === 8) {
         /** Rendering of color images requires unsigned 8-bit integers */
-        return processedArray
+        return pixelArray
       }
       /** Rendering of grayscale images requires floating point values */
       return new Float32Array(
-        processedArray,
-        processedArray.byteOffset,
-        processedArray.byteLength / processedArray.BYTES_PER_ELEMENT,
+        pixelArray,
+        pixelArray.byteOffset,
+        pixelArray.byteLength / pixelArray.BYTES_PER_ELEMENT,
       )
     } catch (error) {
+      /** Not a failure: the end was already reported */
+      if (_isEmptyLabelmapTile(error)) throw error
       if (frameInfo !== undefined) {
         publish(targetElement, EVENT.FRAME_LOADING_ENDED, frameInfo)
         publish(targetElement, EVENT.FRAME_LOADING_ERROR, frameInfo)
@@ -1617,8 +1787,123 @@ function _paletteIndex(stored, windowCenter, windowWidth, maxIndex) {
 }
 
 /**
+ * Map single-band label samples through a palette to RGBA bytes. Colors are
+ * RGB 0–255; an optional 4th component is alpha 0–1 (OpenLayers palette).
+ * With `labelmapSegmentNumber`, samples of that segment count as 1 and all
+ * others as 0, so a LABELMAP frame is masked in the same pass.
+ *
+ * Each distinct sample is looked up once and written as one 32-bit pixel:
+ * a frame has a megapixel or more but only a handful of distinct labels.
+ *
+ * @param {TypedArray|ArrayLike<number>} data
+ * @param {number} width
+ * @param {number} height
+ * @param {number[][]} colormap
+ * @param {number} windowCenter
+ * @param {number} windowWidth
+ * @param {number} [labelmapSegmentNumber]
+ * @returns {Uint8ClampedArray} RGBA, 4 bytes per sample
+ * @private
+ */
+function _paletteBandToRgba(
+  data,
+  width,
+  height,
+  colormap,
+  windowCenter,
+  windowWidth,
+  labelmapSegmentNumber,
+) {
+  const count = width * height
+  const rgba = new Uint8ClampedArray(count * 4)
+  const maxIndex = colormap.length - 1
+  /** Rounded and clamped like a Uint8ClampedArray, before packing */
+  const toByte = (value) => Math.max(0, Math.min(255, Math.round(value))) || 0
+  const colorOf = (stored) => {
+    const index = _paletteIndex(stored, windowCenter, windowWidth, maxIndex)
+    const color = colormap[index] || [0, 0, 0, 0]
+    const alpha =
+      color.length > 3
+        ? Math.round(Math.max(0, Math.min(1, color[3])) * 255)
+        : 255
+    return [toByte(color[0]), toByte(color[1]), toByte(color[2]), alpha]
+  }
+  const isLabelmap = labelmapSegmentNumber != null
+  /** Pixels as 32-bit words, in the platform's byte order */
+  const words = new Uint32Array(rgba.buffer)
+  const littleEndian = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1
+  const pack = ([r, g, b, a]) =>
+    littleEndian
+      ? ((a << 24) | (b << 16) | (g << 8) | r) >>> 0
+      : ((r << 24) | (g << 16) | (b << 8) | a) >>> 0
+  const packed = new Map()
+  const wordOf = (stored) => {
+    let word = packed.get(stored)
+    if (word === undefined) {
+      word = pack(colorOf(stored))
+      packed.set(stored, word)
+    }
+    return word
+  }
+  if (isLabelmap) {
+    const inside = wordOf(1)
+    const outside = wordOf(0)
+    for (let i = 0; i < count; i++) {
+      words[i] = data[i] === labelmapSegmentNumber ? inside : outside
+    }
+  } else {
+    for (let i = 0; i < count; i++) {
+      words[i] = wordOf(data[i])
+    }
+  }
+  return rgba
+}
+
+/**
+ * Paint single-band label samples through a palette onto a new canvas.
+ *
+ * @param {TypedArray|ArrayLike<number>} data
+ * @param {number} width
+ * @param {number} height
+ * @param {number[][]} colormap
+ * @param {number} windowCenter
+ * @param {number} windowWidth
+ * @param {number} [labelmapSegmentNumber] - LABELMAP segment to mask
+ * @returns {HTMLCanvasElement}
+ * @private
+ */
+function _paletteBandToCanvas(
+  data,
+  width,
+  height,
+  colormap,
+  windowCenter,
+  windowWidth,
+  labelmapSegmentNumber,
+) {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  const imageData = ctx.createImageData(width, height)
+  imageData.data.set(
+    _paletteBandToRgba(
+      data,
+      width,
+      height,
+      colormap,
+      windowCenter,
+      windowWidth,
+      labelmapSegmentNumber,
+    ),
+  )
+  ctx.putImageData(imageData, 0, 0)
+  return canvas
+}
+
+/**
  * Map single-band label samples through a palette into an RGBA PNG data URL.
- * Colors are RGB 0–255; optional 4th component is alpha 0–1 (OpenLayers palette).
+ * Encodes on the calling thread; image loaders use an object URL instead.
  *
  * @param {TypedArray|ArrayLike<number>} data
  * @param {number} width
@@ -1637,29 +1922,65 @@ function _paletteBandToDataUrl(
   windowCenter,
   windowWidth,
 ) {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-  const imageData = ctx.createImageData(width, height)
-  const rgba = imageData.data
-  const maxIndex = colormap.length - 1
+  return _paletteBandToCanvas(
+    data,
+    width,
+    height,
+    colormap,
+    windowCenter,
+    windowWidth,
+  ).toDataURL('image/png')
+}
 
-  for (let i = 0; i < width * height; i++) {
-    const index = _paletteIndex(data[i], windowCenter, windowWidth, maxIndex)
-    const color = colormap[index] || [0, 0, 0, 0]
-    const o = i * 4
-    rgba[o] = color[0]
-    rgba[o + 1] = color[1]
-    rgba[o + 2] = color[2]
-    rgba[o + 3] =
-      color.length > 3
-        ? Math.round(Math.max(0, Math.min(1, color[3])) * 255)
-        : 255
+/**
+ * Show a canvas in an image element through an object URL. `toBlob` encodes
+ * the PNG off the main thread, where `toDataURL` blocks it (about 150 ms for
+ * a 1024 x 1024 frame); the URL is released once the image has loaded.
+ *
+ * @param {HTMLCanvasElement} canvas
+ * @param {HTMLImageElement} img
+ * @private
+ */
+function _showCanvasInImage(canvas, img) {
+  if (
+    typeof canvas.toBlob !== 'function' ||
+    typeof URL.createObjectURL !== 'function' ||
+    typeof img.addEventListener !== 'function'
+  ) {
+    /** No object URLs (e.g. jsdom): encode inline */
+    img.src = canvas.toDataURL('image/png')
+    return
   }
-
-  ctx.putImageData(imageData, 0, 0)
-  return canvas.toDataURL('image/png')
+  /** An empty source makes the image fail, so the frame reports an error */
+  const fail = (error) => {
+    if (error !== undefined) {
+      console.error('failed to encode a frame image:', error)
+    }
+    img.src = ''
+  }
+  try {
+    canvas.toBlob((blob) => {
+      if (blob == null) {
+        fail()
+        return
+      }
+      try {
+        const url = URL.createObjectURL(blob)
+        const release = () => {
+          URL.revokeObjectURL(url)
+          img.removeEventListener('load', release)
+          img.removeEventListener('error', release)
+        }
+        img.addEventListener('load', release)
+        img.addEventListener('error', release)
+        img.src = url
+      } catch (error) {
+        fail(error)
+      }
+    }, 'image/png')
+  } catch (error) {
+    fail(error)
+  }
 }
 
 /**
@@ -1725,18 +2046,18 @@ function _createPerFrameImageLoadFunction(options) {
     loadFrameData()
       .then((data) => {
         onFrameData?.(data)
-        const values =
-          labelmapSegmentNumber == null
-            ? data
-            : data.map((value) => (value === labelmapSegmentNumber ? 1 : 0))
         const { colormap, windowCenter, windowWidth } = getPalette()
-        image.getImage().src = _paletteBandToDataUrl(
-          values,
-          nativeW,
-          nativeH,
-          colormap,
-          windowCenter,
-          windowWidth,
+        _showCanvasInImage(
+          _paletteBandToCanvas(
+            data,
+            nativeW,
+            nativeH,
+            colormap,
+            windowCenter,
+            windowWidth,
+            labelmapSegmentNumber,
+          ),
+          image.getImage(),
         )
       })
       .catch((error) => {
@@ -1779,6 +2100,10 @@ function _findClosestResolutionIndex(resolutions, targetResolution) {
  * @param {Object} pyramid - Image pyramid with frame mappings (coarsest level first)
  * @param {number} [scaleFactor=1] - Scale factor from the finest segment level to base image pixels
  * @param {number[]} [pixelOffset=[0, 0]] - Origin offset `[offsetX, offsetY]` in base image pixels (from the fitted pyramid)
+ * @param {Object} [options]
+ * @param {boolean} [options.allLevels=false] - Cover the segment's frames on
+ *   every level, not only on the finest level that has frames for it. A
+ *   sparse pyramid's coarser levels may cover more than its finest level.
  * @returns {Map<string, number[]>} Extent [minX, minY, maxX, maxY] in map
  * coordinates keyed by segment number; segments without frames are absent
  * @private
@@ -1787,6 +2112,7 @@ function _computeSegmentBoundingBoxes(
   pyramid,
   scaleFactor = 1,
   pixelOffset = [0, 0],
+  { allLevels = false } = {},
 ) {
   const boxes = new Map()
   const offsetX = pixelOffset[0] || 0
@@ -1809,7 +2135,7 @@ function _computeSegmentBoundingBoxes(
       const parts = key.split('-')
       if (parts.length < 3) continue
       const channelId = parts[parts.length - 1]
-      if (boxes.has(channelId)) continue
+      if (!allLevels && boxes.has(channelId)) continue
 
       const rowIndex = parseInt(parts[0], 10)
       const colIndex = parseInt(parts[1], 10)
@@ -1835,12 +2161,24 @@ function _computeSegmentBoundingBoxes(
        * Tile indices are 1-based. Apply the fitted-pyramid origin offset,
        * then convert to map coordinates: map Y = -(pixel Y + 1).
        */
-      boxes.set(channelId, [
+      const box = [
         offsetX + (minCol - 1) * tileWidth,
         -(offsetY + maxRow * tileHeight + 1),
         offsetX + maxCol * tileWidth,
         -(offsetY + (minRow - 1) * tileHeight + 1),
-      ])
+      ]
+      const other = boxes.get(channelId)
+      boxes.set(
+        channelId,
+        other === undefined
+          ? box
+          : [
+              Math.min(other[0], box[0]),
+              Math.min(other[1], box[1]),
+              Math.max(other[2], box[2]),
+              Math.max(other[3], box[3]),
+            ],
+      )
     }
   }
 
@@ -1861,13 +2199,18 @@ export {
   _fitImagePyramid,
   _getIccProfiles,
   _groupVolumeImages,
+  _isEmptyLabelmapTile,
   _isSparseTileMissing,
+  _labelsInTile,
   _overviewStampExtent,
   _paletteBandToDataUrl,
+  _paletteBandToRgba,
   _paletteIndex,
   _perFrameRasterMaxResolution,
   _retrieveTile,
   _retrieveWithSignal,
+  _showCanvasInImage,
+  EmptyLabelmapTileError,
   PER_FRAME_OVERVIEW_HANDOFF_PX,
   PER_FRAME_OVERVIEW_HANDOFF_RATIO,
   PER_FRAME_OVERVIEW_MIN_PX,

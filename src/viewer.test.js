@@ -10,6 +10,21 @@ jest.mock(
   { virtual: true }
 )
 
+/** The options each OpenLayers map was created with */
+const mockMapOptions = new WeakMap()
+jest.mock('ol/Map', () => {
+  const OlMap = jest.requireActual('ol/Map').default
+  return {
+    __esModule: true,
+    default: class extends OlMap {
+      constructor (options) {
+        super(options)
+        mockMapOptions.set(this, options)
+      }
+    }
+  }
+})
+
 window.ResizeObserver = window.ResizeObserver || jest.fn().mockImplementation(() => ({
   disconnect: jest.fn(),
   observe: jest.fn(),
@@ -1080,6 +1095,71 @@ describe.each(testCases)('test viewer API for segments of "$name"', ({
     })
     const styleOpacities = segmentUIDs.map(uid => viewer.getSegmentStyle(uid).opacity)
     expect(added.map(layer => layer.getOpacity())).toEqual(styleOpacities)
+  })
+
+  it('should limit a tiled segment layer to where the segment has frames', () => {
+    const map = viewer.getMap()
+    const before = new Set(map.getLayers().getArray())
+    inputs.segmentations.forEach(metadata => {
+      viewer.addSegments(metadata)
+    })
+    const added = map.getLayers().getArray().filter(layer => !before.has(layer))
+    const segmentUIDs = Object.keys(expectations.segments)
+    /** The viewer's own segment table, to read each segment's bounding box */
+    const table = Object.getOwnPropertySymbols(viewer)
+      .map(symbol => viewer[symbol])
+      .find(value =>
+        value != null &&
+        typeof value === 'object' &&
+        segmentUIDs.length > 0 &&
+        segmentUIDs.every(uid => value[uid]?.layer != null)
+      )
+    segmentUIDs.forEach((uid, index) => {
+      const layer = added[index]
+      expect(layer).toBe(table[uid].layer)
+      if (typeof layer.getLayers === 'function') return
+      const box = table[uid].boundingBox
+      if (box != null) {
+        expect(layer.getExtent()).toEqual(box)
+      }
+    })
+  })
+
+  it('should make a LABELMAP tile without the segment empty, not an error', () => {
+    const { EmptyLabelmapTileError } = require('./pyramid.js')
+    inputs.segmentations.forEach(metadata => {
+      viewer.addSegments(metadata)
+    })
+    const segmentUIDs = Object.keys(expectations.segments)
+    const table = Object.getOwnPropertySymbols(viewer)
+      .map(symbol => viewer[symbol])
+      .find(value =>
+        value != null &&
+        typeof value === 'object' &&
+        segmentUIDs.length > 0 &&
+        segmentUIDs.every(uid => value[uid]?.layer != null)
+      )
+    const segment = segmentUIDs
+      .map(uid => table[uid])
+      .find(record => typeof record.onTileLoadError === 'function')
+    if (segment === undefined) return
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {})
+    const tile = {
+      getError: () => new EmptyLabelmapTileError(),
+      setState: jest.fn()
+    }
+    segment.onTileLoadError({ tile })
+    expect(tile.setState).toHaveBeenCalledWith(4)
+    expect(consoleError).not.toHaveBeenCalled()
+    consoleError.mockRestore()
+  })
+
+  it('should load more tiles at once than the OpenLayers default', () => {
+    /**
+     * Every shown segment is its own layer, and OpenLayers counts each
+     * layer's tile against this limit (default 16)
+     */
+    expect(mockMapOptions.get(viewer.getMap()).maxTilesLoading).toBe(64)
   })
 
   it('should set segment style', () => {
